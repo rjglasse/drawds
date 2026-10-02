@@ -1,5 +1,6 @@
 import {
 	SVGContainer,
+	Vec,
 	getIndices,
 	type TLHandle,
 	type TLHandleDragInfo,
@@ -180,7 +181,8 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		const drag = state.get()
 		state.set(null)
 		if (!drag || drag.shapeId !== shape.id || !drag.target) return
-		const result = this.connect(shape, drag.from, drag.target, drag.at)
+		// The drop point is in shape space; the model wants layout coordinates.
+		const result = this.connect(shape, drag.from, drag.target, Vec.Sub(drag.at, this.layoutOffset(shape)))
 		if (!result) return
 		if (result.edit) this.editAfterDrag(shape, result.edit)
 		return result.update
@@ -190,7 +192,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		connectState(this.editor).set(null)
 	}
 
-	/** The graph with an edge from `from` to the target node, or to a new node at `at`. */
+	/** The graph with an edge from `from` to the target node, or to a new node at `at` (layout coordinates). */
 	connect(shape: GraphShape, from: string, target: ConnectTarget, at: VecLike) {
 		const { props } = shape
 		let model: GraphModel = props

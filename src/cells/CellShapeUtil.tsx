@@ -1,8 +1,8 @@
 import { useLayoutEffect, useRef, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
-import { Rectangle2d, ShapeUtil, type TLShape, type TLShapePartial, type TLThemeColors, type VecLike } from 'tldraw'
+import { Rectangle2d, ShapeUtil, Vec, type TLShape, type TLShapePartial, type TLThemeColors, type VecLike } from 'tldraw'
 import { showsStructureControls } from '../controls/visibility'
 import { playbackFor } from '../nodelink/playback'
-import { placePointers, type PlacedPointer, type PointerAnchor } from '../pointers/layout'
+import { POINTER_FONT_SCALE, placePointers, type PlacedPointer, type PointerAnchor } from '../pointers/layout'
 import { PointerOverlays } from '../pointers/PointerOverlays'
 import type { Pointer } from '../pointers/pointers'
 import { PointersSvg } from '../pointers/PointersSvg'
@@ -73,7 +73,28 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 	}
 
 	getPointerFontSize(shape: S) {
-		return this.getCellFont(shape).fontSize * 0.72
+		return this.getCellFont(shape).fontSize * POINTER_FONT_SCALE
+	}
+
+	/**
+	 * Where the layout's own coordinates sit in shape space. tldraw sizes a shape's box from its
+	 * bounds but puts it at the shape's origin, so the drawing must start there: a shape whose layout
+	 * reaches left of or above its own origin (a pointer above the top row, a graph whose leftmost
+	 * node went) moves it by this much. Anything drawn outside the box is repainted unreliably.
+	 */
+	layoutOffset(_shape: S): VecLike {
+		return { x: 0, y: 0 }
+	}
+
+	/** When the offset changes, move the shape the other way, so the drawing stays put on the page. */
+	override onBeforeUpdate(prev: S, next: S): S | void {
+		// The sketch tools place the shape themselves (see createDragTool).
+		if (this.editor.isIn(`${next.type}.sketching`)) return
+		const a = this.layoutOffset(prev)
+		const b = this.layoutOffset(next)
+		if (Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6) return
+		const d = Vec.Rot(Vec.Sub(b, a), next.rotation)
+		return { ...next, x: next.x - d.x, y: next.y - d.y }
 	}
 
 	private placed = new WeakMap<object, PlacedPointer[]>()

@@ -18,8 +18,19 @@ export interface PlacedPointer {
 	tip: Point
 }
 
+/** Pointer labels are a bit smaller than the values of the structure they point into. */
+export const POINTER_FONT_SCALE = 0.72
+
+const LABEL_H = 1.45
+const ARROW = 1.15
+
 export function pointerLabelSize(name: string, fontSize: number) {
-	return { w: Math.max(fontSize * 1.4, name.length * fontSize * 0.62 + fontSize * 0.7), h: fontSize * 1.45 }
+	return { w: Math.max(fontSize * 1.4, name.length * fontSize * 0.62 + fontSize * 0.7), h: fontSize * LABEL_H }
+}
+
+/** How far a pointer reaches out from its element: its arrow plus its label. */
+export function pointerReach(fontSize: number) {
+	return fontSize * (ARROW + LABEL_H)
 }
 
 /**
@@ -34,7 +45,7 @@ export function placePointers(
 	const groups = new Map<string, Pointer[]>()
 	for (const p of pointers) groups.set(p.at, [...(groups.get(p.at) ?? []), p])
 	const gap = fontSize * 0.3
-	const arrow = fontSize * 1.15
+	const arrow = fontSize * ARROW
 	const placed: PlacedPointer[] = []
 	for (const [key, group] of groups) {
 		const anchor = anchorOf(key)

@@ -4,7 +4,7 @@ import { fillValues } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
 import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { NodeLinkShapeUtil } from '../../nodelink/NodeLinkShapeUtil'
-import type { SceneNode } from '../../nodelink/scene'
+import type { Scene, SceneNode } from '../../nodelink/scene'
 import type { PointerAnchor } from '../../pointers/layout'
 import { prunePointers } from '../../pointers/pointers'
 import { getTreeMetrics } from '../tree/layout'
@@ -111,8 +111,8 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 		return node.key.startsWith('a') ? ('below' as const) : ('above' as const)
 	}
 
-	override pointerAnchor(shape: HeapShape, key: string): PointerAnchor | undefined {
-		const anchor = super.pointerAnchor(shape, key)
+	protected override pointerAnchorIn(shape: HeapShape, scene: Scene, key: string): PointerAnchor | undefined {
+		const anchor = super.pointerAnchorIn(shape, scene, key)
 		if (!anchor || !key.startsWith('a')) return anchor
 		const { labelFontSize } = getTreeMetrics(shape.props.size)
 		return { ...anchor, box: { ...anchor.box, h: anchor.box.h + labelFontSize * 1.8 } }

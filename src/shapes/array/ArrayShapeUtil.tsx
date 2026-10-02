@@ -171,6 +171,11 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		return ['i', 'j', 'k', 'lo', 'mid', 'hi']
 	}
 
+	/** Room made above and before the array for pointers (see `getArrayMetrics`). */
+	override layoutOffset(shape: ArrayShape) {
+		return getArrayMetrics(shape.props).origin
+	}
+
 	private growPoint(shape: ArrayShape) {
 		return getArrayGrowPoint(shape.props.values.length, shape.props.direction, getArrayMetrics(shape.props))
 	}
@@ -185,12 +190,9 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	}
 
 	getGeometry(shape: ArrayShape) {
-		const { width, height } = getArrayLayout(
-			shape.props.values.length,
-			shape.props.direction,
-			getArrayMetrics(shape.props)
-		)
-		const body = new Rectangle2d({ width, height, isFilled: true })
+		const metrics = getArrayMetrics(shape.props)
+		const { width, height } = getArrayLayout(shape.props.values.length, shape.props.direction, metrics)
+		const body = new Rectangle2d({ ...metrics.origin, width, height, isFilled: true })
 		const pointers = this.pointerGeometry(shape)
 		if (!pointers.length) return body
 		// Cells a pointer reaches past either end are drawn too, so they count in the bounds.

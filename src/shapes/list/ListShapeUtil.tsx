@@ -6,7 +6,7 @@ import { GROW_HANDLE_ID, GROW_START_HANDLE_ID, grownCount } from '../../controls
 import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { valueBox } from '../../nodelink/geometry'
 import { NodeLinkShapeUtil } from '../../nodelink/NodeLinkShapeUtil'
-import type { SceneEdge } from '../../nodelink/scene'
+import type { Scene, SceneEdge } from '../../nodelink/scene'
 import type { PointerAnchor } from '../../pointers/layout'
 import { prunePointers } from '../../pointers/pointers'
 import {
@@ -111,9 +111,9 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 	// Pointers (curr, prev...) sit below the list (right of a vertical one), clear of the head label,
 	// pointing at the value compartment. The arrow along the list steps to the next node, then null.
 
-	override pointerAnchor(shape: ListShape, key: string): PointerAnchor | undefined {
-		const anchor = super.pointerAnchor(shape, key)
-		const node = anchor && this.getScene(shape).nodes.find((n) => n.key === key)
+	protected override pointerAnchorIn(shape: ListShape, scene: Scene, key: string): PointerAnchor | undefined {
+		const anchor = super.pointerAnchorIn(shape, scene, key)
+		const node = anchor && scene.nodes.find((n) => n.key === key)
 		if (!anchor || !node) return undefined
 		const side = listAxis(shape.props.direction).y === 0 ? 'below' : 'right'
 		return { box: node.pointer ? valueBox(node) : anchor.box, side }

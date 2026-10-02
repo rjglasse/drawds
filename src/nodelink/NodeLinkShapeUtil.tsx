@@ -27,7 +27,7 @@ import { KeyPrompt } from '../controls/KeyPrompt'
 import { PlayBar } from '../controls/PlayBar'
 import { closePrompt, isPromptOpen, openPrompt } from '../controls/prompt'
 import { showsStructureControls } from '../controls/visibility'
-import type { PointerAnchor, PointerSide } from '../pointers/layout'
+import { POINTER_FONT_SCALE, placePointers, type PointerAnchor, type PointerSide } from '../pointers/layout'
 import { boxContains, labelBox, nodeBox, nodeContains, routeScene, spatialNeighbor, type EdgeRoute } from './geometry'
 import { hoveredEdge, hoveredNode } from './hover'
 import { playbackFor, type Strip } from './playback'
@@ -58,18 +58,18 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	/** Positioned nodes and edges for the shape's current props, in shape space. Must be pure. */
 	abstract buildScene(shape: S): Scene
 	abstract setNodeValue(shape: S, key: string, value: string): TLShapePartial<S>
-	/** Move a node so its centre is at `to` (shape space), keeping the rest of the layout. */
+	/** Move a node so its centre is at `to` (layout coordinates), keeping the rest of the layout. */
 	abstract moveNode(shape: S, key: string, to: VecLike): TLShapePartial<S>
 	/** Put every node back where the automatic layout wants it. */
 	abstract resetLayout(shape: S): TLShapePartial<S>
 	abstract hasManualLayout(shape: S): boolean
 
 	/**
-	 * Grips that grow the structure when dragged (ids from controls/grow), in shape space. Shown,
-	 * with their handles, while the shape is the only one selected.
+	 * Grips that grow the structure when dragged (ids from controls/grow), in layout coordinates.
+	 * Shown, with their handles, while the shape is the only one selected.
 	 */
 	getGrowGrips?(shape: S): { id: string; at: VecLike }[]
-	/** The shape after dragging grip `gripId` to `to`, measured from where it sat on `initial`. */
+	/** The shape after dragging grip `gripId` to `to` (layout coordinates of `initial`). */
 	growTo?(shape: S, initial: S, gripId: string, to: VecLike): TLShapePartial<S>
 	/** Remove a node: offered as an x button on each node while the shape is selected. */
 	removeNode?(shape: S, key: string): TLShapePartial<S>
@@ -110,15 +110,55 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	readonly markableEdges: boolean = false
 
 	readonly cells: EditableCells<S> = sceneCells<S>(this)
-	private scenes = new WeakMap<object, Scene>()
+	private layouts = new WeakMap<object, { scene: Scene; offset: VecLike }>()
 
+	/**
+	 * The scene in shape space: the layout moved so that everything drawn (nodes, edges, weights,
+	 * pointers) starts at the shape's origin, as tldraw's shape box assumes. Cached per props.
+	 */
 	getScene(shape: S): Scene {
-		let scene = this.scenes.get(shape.props)
-		if (!scene) {
-			scene = this.buildScene(shape)
-			this.scenes.set(shape.props, scene)
+		return this.layoutOf(shape).scene
+	}
+
+	/** How far the layout was moved to start at the origin (see `CellShapeUtil.layoutOffset`). */
+	override layoutOffset(shape: S): VecLike {
+		return this.layoutOf(shape).offset
+	}
+
+	private layoutOf(shape: S) {
+		let layout = this.layouts.get(shape.props)
+		if (!layout) {
+			layout = this.normalise(shape, this.buildScene(shape))
+			this.layouts.set(shape.props, layout)
 		}
-		return scene
+		return layout
+	}
+
+	/** A scene moved so that its drawing, pointers included, starts at (0, 0). */
+	private normalise(shape: S, raw: Scene) {
+		const xs: number[] = []
+		const ys: number[] = []
+		const add = (x: number, y: number) => {
+			xs.push(x)
+			ys.push(y)
+		}
+		for (const n of raw.nodes) add(n.x - n.w / 2, n.y - n.h / 2)
+		for (const [key, route] of routeScene(raw)) {
+			for (const p of route.points) add(p.x, p.y)
+			const label = raw.edges.find((e) => e.key === key)?.label
+			if (label !== undefined) {
+				const box = labelBox(route.labelAt, label, raw.metrics.labelFontSize)
+				add(box.x, box.y)
+			}
+		}
+		const fontSize = raw.metrics.fontSize * POINTER_FONT_SCALE
+		for (const { label } of placePointers(this.getPointers(shape), (key) => this.pointerAnchorIn(shape, raw, key), fontSize)) {
+			add(label.x, label.y)
+		}
+		const dx = xs.length ? -Math.min(...xs) : 0
+		const dy = ys.length ? -Math.min(...ys) : 0
+		const scene = dx || dy ? { ...raw, nodes: raw.nodes.map((n) => ({ ...n, x: n.x + dx, y: n.y + dy })) } : raw
+		return { scene, offset: { x: dx, y: dy } }
 	}
 
 	/** The node or edge cell at the point, else (if edges take marks) the edge passing near it. */
@@ -140,7 +180,12 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	}
 
 	pointerAnchor(shape: S, key: string): PointerAnchor | undefined {
-		const node = this.getScene(shape).nodes.find((n) => n.key === key)
+		return this.pointerAnchorIn(shape, this.getScene(shape), key)
+	}
+
+	/** Where pointers at `key` go in a given scene (the shape's, or its layout before moving it). */
+	protected pointerAnchorIn(shape: S, scene: Scene, key: string): PointerAnchor | undefined {
+		const node = scene.nodes.find((n) => n.key === key)
 		if (!node || node.kind === 'label') return undefined
 		return { box: nodeBox(node), side: this.pointerSide(shape, node) }
 	}
@@ -177,10 +222,16 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 				? new Circle2d({ x: n.x - n.w / 2, y: n.y - n.h / 2, radius: n.w / 2, isFilled: true })
 				: new Rectangle2d({ x: n.x - n.w / 2, y: n.y - n.h / 2, width: n.w, height: n.h, isFilled: true })
 		)
-		const edges = [...routeScene(scene).values()].map(
-			(route) => new Polyline2d({ points: route.points.map((p) => new Vec(p.x, p.y)) })
-		)
-		const children = [...nodes, ...edges, ...this.pointerGeometry(shape)]
+		const routes = routeScene(scene)
+		const edges = [...routes.values()].map((route) => new Polyline2d({ points: route.points.map((p) => new Vec(p.x, p.y)) }))
+		// Weights: part of the drawing (and easier to point at than the thin edge under them).
+		const labels = scene.edges.flatMap((e) => {
+			const route = routes.get(e.key)
+			if (e.label === undefined || !route) return []
+			const box = labelBox(route.labelAt, e.label, scene.metrics.labelFontSize)
+			return [new Rectangle2d({ x: box.x, y: box.y, width: box.w, height: box.h, isFilled: true })]
+		})
+		const children = [...nodes, ...edges, ...labels, ...this.pointerGeometry(shape)]
 		return children.length ? new Group2d({ children }) : new Rectangle2d({ width: 1, height: 1, isFilled: false })
 	}
 
@@ -230,7 +281,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 					)}
 					{controls &&
 						!open &&
-						this.getGrowGrips?.(shape).map((grip) => (
+						this.growGrips(shape).map((grip) => (
 							<GrowGrip key={grip.id} at={grip.at} zoom={zoom} colors={colors} />
 						))}
 					{this.renderPointers(shape, colors)}
@@ -496,7 +547,9 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	 */
 	displayScene(shape: S): Scene {
 		const frame = playbackFor(this.editor, shape.id)?.frame
-		return frame?.props ? this.buildScene({ ...shape, props: { ...shape.props, ...frame.props } }) : this.getScene(shape)
+		if (!frame?.props) return this.getScene(shape)
+		const shown = { ...shape, props: { ...shape.props, ...frame.props } }
+		return this.normalise(shown, this.buildScene(shown)).scene
 	}
 
 	getIndicatorPath(shape: S) {
@@ -517,7 +570,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	// handle for each grow grip.
 	override getHandles(shape: S): TLHandle[] {
 		const nodes = this.getScene(shape).nodes.filter((n) => n.draggable)
-		const grips = this.getGrowGrips?.(shape) ?? []
+		const grips = this.growGrips(shape)
 		const indices = getIndices(nodes.length + grips.length)
 		const handles: TLHandle[] = nodes.map((n, i) => ({
 			id: n.key,
@@ -531,11 +584,22 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		return handles
 	}
 
+	/** Grow grips in shape space (`getGrowGrips` gives them in layout coordinates). */
+	private growGrips(shape: S) {
+		const offset = this.layoutOffset(shape)
+		return (this.getGrowGrips?.(shape) ?? []).map((g) => ({ ...g, at: Vec.Add(g.at, offset) }))
+	}
+
+	/**
+	 * Handles move in the shape space of the shape as it was when the drag started; models want
+	 * layout coordinates, so take off that shape's layout offset (it may change while dragging).
+	 */
 	override onHandleDrag(shape: S, { handle, initial = shape }: TLHandleDragInfo<S>) {
-		if (isGrowHandle(handle.id)) return this.growTo?.(shape, initial, handle.id, handle)
+		const at = Vec.Sub(handle, this.layoutOffset(initial))
+		if (isGrowHandle(handle.id)) return this.growTo?.(shape, initial, handle.id, at)
 		const node = this.getScene(shape).nodes.find((n) => n.key === handle.id)
 		if (!node) return
-		return this.moveNode(shape, handle.id, { x: handle.x, y: handle.y - node.h / 2 })
+		return this.moveNode(shape, handle.id, { x: at.x, y: at.y - node.h / 2 })
 	}
 
 	override getFontFaces(shape: S): TLFontFace[] {

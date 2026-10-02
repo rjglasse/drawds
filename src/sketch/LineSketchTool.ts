@@ -9,6 +9,7 @@ import {
 	type TLStateNodeConstructor,
 	type VecLike,
 } from 'tldraw'
+import { CellShapeUtil } from '../cells/CellShapeUtil'
 import { newSeed } from '../data/random'
 import { INITIAL_SKETCH, nextSketchState, sameSketch, type SketchState } from './line-sketch'
 
@@ -97,10 +98,20 @@ export function createDragTool<S extends TLShape, G>(config: DragToolConfig<S, G
 			// Kept even when unchanged, for gestures that follow the pointer's path (graphs).
 			this.gesture = next
 			if (!changed) return
+			const placed = config.layout(shape, this.origin, next)
+			// `layout` places the layout's coordinates; the shape's own drawing may be moved off them
+			// (CellShapeUtil.layoutOffset), so move the shape back by as much.
+			const util = this.editor.getShapeUtil(config.type)
+			const offset =
+				util instanceof CellShapeUtil
+					? util.layoutOffset({ ...shape, props: { ...shape.props, ...placed.props } } as TLShape)
+					: { x: 0, y: 0 }
 			this.editor.updateShape({
 				id: this.shapeId,
 				type: config.type,
-				...config.layout(shape, this.origin, next),
+				...placed,
+				...(placed.x !== undefined ? { x: placed.x - offset.x } : {}),
+				...(placed.y !== undefined ? { y: placed.y - offset.y } : {}),
 			} as unknown as TLShapePartial<S>)
 		}
 

@@ -134,6 +134,11 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
 ## Conventions & Patterns
 
 - Render shapes as SVG via one component shared by `component()` and `toSvg()` so export matches the canvas.
+- Everything a shape draws must start at its origin and lie inside its geometry bounds: tldraw places the shape's
+  box at the origin, sized to the bounds, and content outside it leaves ghosts when the camera moves (dds-55z.29).
+  Node-link scenes are moved there automatically (`getScene` is the moved layout; models and `getGrowGrips` use
+  layout coordinates; handles convert with `layoutOffset(initial)`); arrays make room in `getArrayMetrics().origin`.
+  When the offset changes, `CellShapeUtil.onBeforeUpdate` moves the shape so nothing shifts on the page.
 - Use tldraw style props (`DefaultColorStyle`, `DefaultSizeStyle`, `DefaultFontStyle`) so the built-in style panel
   drives our shapes; set `shapeType` on the tool so the panel shows them while the tool is active.
 - Keep gesture/layout maths in pure functions and test them with vitest.

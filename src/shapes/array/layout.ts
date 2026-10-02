@@ -1,4 +1,7 @@
 import type { TLDefaultSizeStyle } from 'tldraw'
+import type { Point } from '../../nodelink/geometry'
+import { POINTER_FONT_SCALE, pointerReach } from '../../pointers/layout'
+import type { Pointer } from '../../pointers/pointers'
 import type { SketchState } from '../../sketch/line-sketch'
 import { CELL_SIZES } from '../sizes'
 import type { ArrayDirection } from './array-shape-types'
@@ -10,26 +13,41 @@ export interface ArrayMetrics {
 	fontSize: number
 	indexFontSize: number
 	strokeWidth: number
+	/**
+	 * Where the array starts in shape space: room above for pointers (beside a vertical array they
+	 * go on the right), and one cell before for a pointer at index -1, so nothing is drawn left of
+	 * or above the shape's origin.
+	 */
+	origin: Point
 }
 
 export function getArrayMetrics({
 	size,
 	showIndices,
+	direction = 'horizontal',
+	pointers = [],
 }: {
 	size: TLDefaultSizeStyle
 	showIndices: boolean
+	direction?: ArrayDirection
+	pointers?: readonly Pointer[]
 }): ArrayMetrics {
 	const cell = CELL_SIZES[size]
+	const fontSize = cell * 0.42
+	const before = pointers.some((p) => p.at === '-1') ? cell : 0
+	const above = direction === 'horizontal' && pointers.length ? pointerReach(fontSize * POINTER_FONT_SCALE) : 0
 	return {
 		cell,
 		gutter: showIndices ? Math.round(cell * 0.5) : 0,
-		fontSize: cell * 0.42,
+		fontSize,
 		indexFontSize: Math.max(10, cell * 0.26),
 		strokeWidth: Math.max(1.5, cell / 24),
+		origin: direction === 'horizontal' ? { x: before, y: above } : { x: 0, y: before },
 	}
 }
 
 export interface ArrayLayout {
+	/** Size of the array itself (cells and indices), which starts at the metrics' origin. */
 	width: number
 	height: number
 	/** The rectangle holding the cells, in shape space. */
@@ -43,24 +61,25 @@ export interface ArrayLayout {
 export function getArrayLayout(
 	count: number,
 	direction: ArrayDirection,
-	{ cell, gutter }: ArrayMetrics
+	{ cell, gutter, origin }: ArrayMetrics
 ): ArrayLayout {
 	const n = Math.max(1, count)
+	const { x: ox, y: oy } = origin
 	if (direction === 'horizontal') {
 		return {
 			width: n * cell,
 			height: cell + gutter,
-			cells: { x: 0, y: 0, w: n * cell, h: cell },
-			cellAt: (i) => ({ x: i * cell, y: 0 }),
-			indexAt: (i) => ({ x: i * cell + cell / 2, y: cell + gutter / 2 }),
+			cells: { x: ox, y: oy, w: n * cell, h: cell },
+			cellAt: (i) => ({ x: ox + i * cell, y: oy }),
+			indexAt: (i) => ({ x: ox + i * cell + cell / 2, y: oy + cell + gutter / 2 }),
 		}
 	}
 	return {
 		width: gutter + cell,
 		height: n * cell,
-		cells: { x: gutter, y: 0, w: cell, h: n * cell },
-		cellAt: (i) => ({ x: gutter, y: i * cell }),
-		indexAt: (i) => ({ x: gutter / 2, y: i * cell + cell / 2 }),
+		cells: { x: ox + gutter, y: oy, w: cell, h: n * cell },
+		cellAt: (i) => ({ x: ox + gutter, y: oy + i * cell }),
+		indexAt: (i) => ({ x: ox + gutter / 2, y: oy + i * cell + cell / 2 }),
 	}
 }
 
