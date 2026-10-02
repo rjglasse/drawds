@@ -100,8 +100,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   so neither lies outside the shape's box) and keys go to it first (window capture: Space, Left/Right, Enter /
   Shift+Enter, Esc cancels without changing anything). Once the result is committed the bar stays (`done`):
   step back through it or replay it, then Done / Enter / Esc, or select something else / edit the shape;
-  `isBusy` says when the shape's own controls should hide. Step-by-step mode (localStorage) opens operations
-  paused. `stateAt(frames, step)` is the pure accumulation. `displayScene` (frame or committed)
+  `isBusy` says when the shape's own controls should hide. Operations open paused on step 1 so the teacher sets
+  the pace; the bar's autoplay toggle (localStorage) plays them straight away instead. `stateAt(frames, step)` is the pure accumulation. `displayScene` (frame or committed)
   feeds rendering and the selection outline. SceneSvg draws node shapes then values in two passes so a value
   in flight is never painted over.
 - `src/pointers/` - named pointers (i, curr, root...): `props.pointers` on every cell shape, `{id, name, at}`

@@ -3,8 +3,8 @@ import { useValue, type Editor, type TLThemeColors, type VecLike } from 'tldraw'
 import {
 	cancelPlayback,
 	finishPlayback,
-	isStepByStep,
-	setStepByStep,
+	isAutoplay,
+	setAutoplay,
 	stepBack,
 	stepForward,
 	togglePlayback,
@@ -19,13 +19,14 @@ const ICONS = {
 	finish: 'M3 8.5L6.5 12L13 4.5',
 	replay: 'M12.9 9.5A5 5 0 1 1 11.2 4.2 M11.6 1.6V4.6H8.6',
 	cancel: 'M4 4L12 12M12 4L4 12',
-	// Stairs: one step at a time.
-	steps: 'M2 13H6V9H10V5H14',
+	// Fast-forward: play by itself.
+	autoplay: 'M2 4L7.5 8L2 12Z M8.5 4L14 8L8.5 12Z',
 }
 
 /**
  * Controls for an operation, under the structure: step back, play / pause, step forward, the
- * step's narration, the step count, the step-by-step toggle, and cancel. Once the result is in
+ * step's narration, the step count, the autoplay toggle, and cancel. Operations open paused on
+ * their first step (unless autoplay is on). Once the result is in
  * the bar stays: step back through it or replay it, then Done (Shift keeps the highlights as
  * marks). Keys do the same (see `playback.ts`).
  */
@@ -43,7 +44,7 @@ export function PlayBar({
 }) {
 	const last = view.step >= view.steps - 1
 	const replay = view.done && view.paused && last
-	const stepByStep = useValue('step by step', isStepByStep, [])
+	const autoplay = useValue('autoplay', isAutoplay, [])
 	const button = (
 		testId: string,
 		label: string,
@@ -85,7 +86,7 @@ export function PlayBar({
 			<svg viewBox="0 0 16 16" width={16} height={16} aria-hidden="true">
 				<path
 					d={ICONS[icon]}
-					fill={icon === 'back' || icon === 'forward' || icon === 'play' ? 'currentColor' : 'none'}
+					fill={icon === 'back' || icon === 'forward' || icon === 'play' || icon === 'autoplay' ? 'currentColor' : 'none'}
 					stroke="currentColor"
 					strokeWidth={1.8}
 					strokeLinecap="round"
@@ -138,8 +139,8 @@ export function PlayBar({
 			<span data-testid="play-counter" style={{ opacity: 0.55, fontVariantNumeric: 'tabular-nums', paddingRight: 4 }}>
 				{view.step + 1}/{view.steps}
 			</span>
-			{button('play-step-mode', 'Pause at every step', 'steps', () => setStepByStep(editor, !stepByStep), {
-				pressed: stepByStep,
+			{button('play-autoplay', 'Play operations as soon as they start', 'autoplay', () => setAutoplay(editor, !autoplay), {
+				pressed: autoplay,
 			})}
 			{view.done
 				? button('play-done', 'Done (Enter; Shift keeps the highlights as marks)', 'finish', (shift) =>

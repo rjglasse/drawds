@@ -66,8 +66,8 @@ export interface PlaybackView extends StepState {
 	done: boolean
 }
 
-/** Time per frame, and how long highlights take to fade after an operation. */
-export const STEP_MS = 420
+/** Time per frame when playing, and how long highlights take to fade after an operation. */
+export const STEP_MS = 650
 export const FADE_MS = 2200
 
 interface Operation {
@@ -104,32 +104,33 @@ function player(editor: Editor): Player {
 	return p
 }
 
-// Step-by-step mode: operations open paused on their first step. A per-browser preference.
+// Operations open paused on their first step, so the teacher sets the pace: step with the arrows,
+// or press play. Autoplay (a per-browser preference) plays them straight away instead.
 
-const STEP_BY_STEP_KEY = 'drawds:step-by-step'
+const AUTOPLAY_KEY = 'drawds:autoplay'
 
-function readStepByStep() {
+function readAutoplay() {
 	try {
-		return typeof window !== 'undefined' && window.localStorage.getItem(STEP_BY_STEP_KEY) === 'on'
+		return typeof window !== 'undefined' && window.localStorage.getItem(AUTOPLAY_KEY) === 'on'
 	} catch {
 		return false
 	}
 }
 
-const stepByStepAtom = atom('step by step', readStepByStep())
+const autoplayAtom = atom('autoplay', readAutoplay())
 
-/** Whether operations open paused. Reactive. */
-export const isStepByStep = () => stepByStepAtom.get()
+/** Whether operations play as soon as they start. Reactive. */
+export const isAutoplay = () => autoplayAtom.get()
 
-export function setStepByStep(editor: Editor, on: boolean) {
-	stepByStepAtom.set(on)
+export function setAutoplay(editor: Editor, on: boolean) {
+	autoplayAtom.set(on)
 	try {
-		window.localStorage.setItem(STEP_BY_STEP_KEY, on ? 'on' : 'off')
+		window.localStorage.setItem(AUTOPLAY_KEY, on ? 'on' : 'off')
 	} catch {
 		// Storage can be unavailable (private windows); the setting then lasts for this page.
 	}
 	const op = player(editor).op
-	if (op && !op.done && op.paused !== on) togglePlayback(editor)
+	if (op && !op.done && op.paused === on) togglePlayback(editor)
 }
 
 /** Whether an operation's bar is up (playing, paused, or done and waiting to be dismissed). */
@@ -187,7 +188,7 @@ export function playOperation(
 	const p = player(editor)
 	if (p.op) finishPlayback(editor)
 	clearTimeout(p.timer)
-	p.op = { shapeId, label, frames, final, finalFlash, keep, withMarks, step: 0, paused: stepByStepAtom.get(), done: false }
+	p.op = { shapeId, label, frames, final, finalFlash, keep, withMarks, step: 0, paused: !autoplayAtom.get(), done: false }
 	if (!frames.length) {
 		commit(editor, false)
 		return dismiss(editor, false)

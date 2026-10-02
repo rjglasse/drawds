@@ -15,9 +15,8 @@ async function traverseFrom(page: Page, key: string, item: string) {
 	await page.getByTestId(`context-menu.${item}`).click()
 }
 
-/** Pause, then step to the end, where the result is in and the bar waits. */
+/** Step to the end (operations open paused), where the result is in and the bar waits. */
 async function stepToEnd(page: Page) {
-	await page.keyboard.press('Space')
 	while (!(await page.getByTestId('play-done').count())) await page.keyboard.press('ArrowRight')
 }
 

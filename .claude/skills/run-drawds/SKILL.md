@@ -201,8 +201,8 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   (nothing changes). When an operation reaches its end the result is committed and the bar
   stays (`[data-testid="play-done"]` appears; `play-forward` is disabled): step back, `Space`
   replays, `Enter` / `Escape` / `play-done` close it, as does selecting another shape. Read `[data-testid="play-caption"]` and `[data-testid="play-counter"]` ("3/7").
-  The step-by-step toggle (`play-step-mode`) is remembered in localStorage: operations then
-  open paused on step 1.
+  Operations open **paused on step 1** (`key Enter` to finish at once, `key Space` to play):
+  the autoplay toggle (`play-autoplay`, remembered in localStorage) plays them straight away.
 - **Graph traversals**: `rclick` a node, then `[data-testid="context-menu.graph-bfs"]` or
   `graph-dfs`. **Tree / heap traversals**: `rclick` a node, `clicksel
   [data-testid="context-menu-sub.drawds-node-operations-0-button"]` (Traverse from ...), then
