@@ -28,6 +28,8 @@ const CELL = 48
 const LIST_STEP = CELL * 2.4
 // Binary tree level height at size "m" (src/shapes/tree/layout.ts).
 const TREE_LEVEL = CELL * 1.6
+// Distance between nodes dropped along a graph sketch at size "m" (src/shapes/graph/generate.ts).
+const GRAPH_STEP = CELL * 2.3
 
 mkdirSync(OUT, { recursive: true })
 
@@ -171,6 +173,65 @@ const commands = {
 		await commands.drag(x, y, +x + (+n - 1) * CELL + 10, +y)
 		return commands.shapes()
 	},
+	// Sketch a graph of n nodes along a serpentine path: rows of `cols` nodes (default 3), the first
+	// node centred on (x, y), rows GRAPH_STEP apart. `cols` = n gives a straight line.
+	async graph(x, y, n, cols = 3) {
+		const path = [[+x, +y]]
+		let [px, py, dir] = [+x, +y, 1]
+		let left = (+n - 1) * GRAPH_STEP + 8
+		while (left > 0) {
+			const run = Math.min(left, (+cols - 1) * GRAPH_STEP || left)
+			px += dir * run
+			path.push([px, py])
+			left -= run
+			if (left <= 0) break
+			const down = Math.min(left, GRAPH_STEP)
+			py += down
+			path.push([px, py])
+			left -= down
+			dir = -dir
+		}
+		await page.keyboard.press('Shift+G')
+		await page.mouse.move(path[0][0], path[0][1])
+		await page.mouse.down()
+		// One small move per frame, as a hand would: tldraw coalesces faster moves, cutting corners.
+		for (let i = 1; i < path.length; i++) {
+			const [ax, ay] = path[i - 1]
+			const [bx, by] = path[i]
+			const steps = Math.ceil(Math.hypot(bx - ax, by - ay) / 8)
+			for (let j = 1; j <= steps; j++) {
+				await page.mouse.move(ax + ((bx - ax) * j) / steps, ay + ((by - ay) * j) / steps)
+				await page.waitForTimeout(16)
+			}
+		}
+		await page.mouse.up()
+		return commands.shapes()
+	},
+	// Drag a node's connect grip (graphs) onto another node (`connect v0 v3`) or to a page point
+	// (`connect v0 700 500`), which makes a new node there.
+	async connect(from, ...to) {
+		const at = await page.evaluate(
+			({ from, to }) => {
+				const e = window.editor
+				const shape = e.getOnlySelectedShape()
+				const handle = shape && e.getShapeHandles(shape)?.find((h) => h.id === 'connect:' + from)
+				if (!handle) return null
+				const toPage = (p) => e.pageToScreen(e.getShapePageTransform(shape).applyToPoint(p))
+				const start = toPage(handle)
+				let end
+				if (to.length === 1) {
+					const node = e.getShapeUtil(shape).getScene(shape).nodes.find((n) => n.key === to[0])
+					if (!node) return null
+					end = toPage(node)
+				} else end = e.pageToScreen({ x: +to[0], y: +to[1] })
+				return [start.x, start.y, end.x, end.y]
+			},
+			{ from, to }
+		)
+		if (!at) throw new Error(`no connect grip on ${from} or no target ${to.join(' ')} (select one graph first)`)
+		await commands.drag(...at)
+		return commands.shapes()
+	},
 	// Sketch a linked list of n nodes with the list tool; the head node is centred on (x, y).
 	async list(x, y, n, dir = 'right') {
 		await sketch('Shift+N', LIST_STEP, x, y, n, dir)
@@ -185,6 +246,20 @@ const commands = {
 				y: Math.round(s.y),
 				...(s.type === 'array' ? { direction: s.props.direction, fill: s.props.fill, values: s.props.values } : {}),
 				...(s.type === 'heap' ? { heapType: s.props.heapType, values: s.props.values, marks: s.props.marks } : {}),
+				...(s.type === 'graph'
+					? (() => {
+							const label = Object.fromEntries(s.props.nodes.map((n) => [n.id, n.value]))
+							const arrow = s.props.direction === 'directed' ? '->' : '-'
+							return {
+								direction: s.props.direction,
+								weights: s.props.weights,
+								labels: s.props.labels,
+								nodes: s.props.nodes.map((n) => `${n.id}=${n.value}`),
+								edges: s.props.edges.map((e) => `${label[e.from]}${arrow}${label[e.to]}:${e.weight}`),
+								marks: s.props.marks,
+							}
+						})()
+					: {}),
 				...(s.type === 'binary-tree' ? { nulls: s.props.nulls, fill: s.props.fill, nodes: s.props.nodes.map((n) => n.id + '=' + n.value + (n.dx || n.dy ? '*' : '')) } : {}),
 				...(s.type === 'linked-list'
 					? { direction: s.props.direction, fill: s.props.fill, nodes: s.props.nodes.map((n) => n.value + (n.dx || n.dy ? '*' : '')) }
@@ -208,9 +283,10 @@ const commands = {
 		const fn = new Function('editor', `return (async () => (${js.join(' ')}))()`)
 		return page.evaluate(`(${fn.toString()})(window.editor)`)
 	},
-	async screenshot(name = 'screenshot') {
+	// Full page, or just the clip x y w h (with SCALE=3 in the environment, at 3x for small controls).
+	async screenshot(name = 'screenshot', x, y, w, h) {
 		const file = join(OUT, `${name}.png`)
-		await page.screenshot({ path: file })
+		await page.screenshot({ path: file, ...(h === undefined ? {} : { clip: { x: +x, y: +y, width: +w, height: +h } }) })
 		return file
 	},
 	async export(name = 'export') {
@@ -243,7 +319,7 @@ async function main() {
 	})
 	await ensureServer()
 	browser = await launchBrowser()
-	page = await (await browser.newContext({ viewport: { width: 1400, height: 900 } })).newPage()
+	page = await (await browser.newContext({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: Number(process.env.SCALE ?? 1) })).newPage()
 	page.on('console', (m) => m.type() === 'error' && problems.push(m.text()))
 	page.on('pageerror', (e) => problems.push(String(e)))
 	page.on('response', (r) => r.status() >= 400 && problems.push(`HTTP ${r.status()} ${r.url()}`))

@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, type KeyboardEvent, type PointerEvent } from 'react'
-import { ShapeUtil, type TLShape, type TLShapePartial } from 'tldraw'
+import { ShapeUtil, type TLShape, type TLShapePartial, type VecLike } from 'tldraw'
 import {
 	beginCellEdit,
 	endCellEdit,
@@ -36,6 +36,11 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 
 	withMarks(shape: S, marks: Marks): TLShapePartial<S> {
 		return { id: shape.id, type: shape.type, props: { marks } } as unknown as TLShapePartial<S>
+	}
+
+	/** The element a mark at `point` (shape space) applies to: by default, the cell there. */
+	markKeyAt(shape: S, point: VecLike): string | undefined {
+		return this.cells.cellAt(shape, point)
 	}
 
 	override canEdit() {

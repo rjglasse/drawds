@@ -1,0 +1,328 @@
+import {
+	SVGContainer,
+	getIndices,
+	type TLHandle,
+	type TLHandleDragInfo,
+	type TLShapePartial,
+	type TLThemeColors,
+	type VecLike,
+} from 'tldraw'
+import { pruneMarks } from '../../cells/marks'
+import { GROW_HANDLE_ID } from '../../controls/grow'
+import { GrowGrip } from '../../controls/GrowGrip'
+import { showsStructureControls } from '../../controls/visibility'
+import { arrowHead, routeEdge } from '../../nodelink/geometry'
+import { NodeLinkShapeUtil } from '../../nodelink/NodeLinkShapeUtil'
+import { edgeCellKey, type Scene, type SceneNode } from '../../nodelink/scene'
+import {
+	connectHandleId,
+	connectState,
+	connectTarget,
+	nodeOfConnectHandle,
+	type ConnectDrag,
+	type ConnectTarget,
+} from './connect'
+import {
+	GRAPH_SHAPE_TYPE,
+	graphShapeMigrations,
+	graphShapeProps,
+	type GraphDirection,
+	type GraphLabelsMode,
+	type GraphShape,
+} from './graph-shape-types'
+import { getGraphMetrics, graphCorner, graphScene, toUnits } from './layout'
+import {
+	addEdge,
+	addNode,
+	markKeys,
+	mergeTwins,
+	nextLabel,
+	nextNodeId,
+	relabel,
+	removeEdge,
+	removeNode,
+	type GraphModel,
+} from './model'
+
+/**
+ * A graph: nodes where the teacher put them, edges between them. Live moves on the selected graph:
+ * drag a node's connect grip to another node (new edge) or to empty space (new connected node),
+ * drag the + grip to place a lone node, x on a node or an edge to delete it, double-click a label
+ * or weight to change it, and 1-4 on nodes and edges to mark them.
+ */
+export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
+	static override type = GRAPH_SHAPE_TYPE
+	static override props = graphShapeProps
+	static override migrations = graphShapeMigrations
+
+	override readonly markableEdges = true
+
+	getDefaultProps(): GraphShape['props'] {
+		return {
+			nodes: [{ id: 'v0', value: 'A', x: 0.5, y: 0.5 }],
+			edges: [],
+			direction: 'undirected',
+			weights: 'unweighted',
+			labels: 'letters',
+			seed: 0,
+			marks: {},
+			color: 'black',
+			size: 'm',
+			font: 'mono',
+		}
+	}
+
+	buildScene(shape: GraphShape) {
+		return graphScene(shape.props)
+	}
+
+	setNodeValue(shape: GraphShape, key: string, value: string) {
+		return this.update(shape, { nodes: shape.props.nodes.map((n) => (n.id === key ? { ...n, value } : n)) })
+	}
+
+	setEdgeLabel(shape: GraphShape, key: string, weight: string) {
+		return this.update(shape, { edges: shape.props.edges.map((e) => (e.id === key ? { ...e, weight } : e)) })
+	}
+
+	moveNode(shape: GraphShape, key: string, to: VecLike): TLShapePartial<GraphShape> {
+		const { x, y } = toUnits(to, shape.props.size)
+		return this.update(shape, { nodes: shape.props.nodes.map((n) => (n.id === key ? { ...n, x, y } : n)) })
+	}
+
+	/** Nodes sit where the teacher put them: there is no automatic layout to go back to. */
+	resetLayout(shape: GraphShape): TLShapePartial<GraphShape> {
+		return { id: shape.id, type: GRAPH_SHAPE_TYPE }
+	}
+
+	hasManualLayout() {
+		return false
+	}
+
+	// Deleting: x on a node (its edges go with it) or on an edge. A graph keeps at least one node.
+
+	canRemoveNode(shape: GraphShape) {
+		return shape.props.nodes.length > 1
+	}
+
+	removeNode(shape: GraphShape, key: string) {
+		return this.withModel(shape, removeNode(shape.props, key))
+	}
+
+	removeEdge(shape: GraphShape, key: string) {
+		return this.withModel(shape, removeEdge(shape.props, key))
+	}
+
+	// A lone node: drag the + grip off the graph's lower right; the new node follows the pointer.
+
+	getGrowGrips(shape: GraphShape) {
+		// Out of the way while a connect drag might drop a new node there.
+		if (connectState(this.editor).get()?.shapeId === shape.id) return []
+		const corner = graphCorner(shape.props)
+		const { cell } = getGraphMetrics(shape.props.size)
+		return [{ id: GROW_HANDLE_ID, at: { x: corner.x + cell * 0.4, y: corner.y + cell * 0.4 } }]
+	}
+
+	growTo(shape: GraphShape, initial: GraphShape, _gripId: string, to: VecLike): TLShapePartial<GraphShape> {
+		const { props } = initial
+		const { nodes } = addNode(props, toUnits(to, props.size), props.labels)
+		return this.update(shape, { nodes, edges: props.edges })
+	}
+
+	// Connecting: each node has a connect grip on its right rim (a 'create' handle, so tldraw only
+	// draws it on hover; the shape draws a + there on the hovered node).
+
+	override getHandles(shape: GraphShape): TLHandle[] {
+		const handles: Omit<TLHandle, 'index'>[] = [
+			...super
+				.getHandles(shape)
+				.map((h) => (h.id === GROW_HANDLE_ID ? { ...h, label: 'Drag to place a new node' } : h)),
+			...this.getScene(shape).nodes.map((n) => ({
+				...connectGripAt(n),
+				id: connectHandleId(n.key),
+				type: 'create' as const,
+				label: `Drag to connect ${n.value} to another node`,
+			})),
+		]
+		const indices = getIndices(handles.length)
+		return handles.map((h, i) => ({ ...h, index: indices[i] }))
+	}
+
+	override onHandleDragStart(shape: GraphShape, { handle }: TLHandleDragInfo<GraphShape>) {
+		const from = nodeOfConnectHandle(handle.id)
+		if (from !== undefined) connectState(this.editor).set({ shapeId: shape.id, from, at: handle, target: undefined })
+	}
+
+	override onHandleDrag(shape: GraphShape, info: TLHandleDragInfo<GraphShape>) {
+		const from = nodeOfConnectHandle(info.handle.id)
+		if (from === undefined) return super.onHandleDrag(shape, info)
+		const at = { x: info.handle.x, y: info.handle.y }
+		connectState(this.editor).set({ shapeId: shape.id, from, at, target: connectTarget(this.getScene(shape), from, at) })
+		return undefined
+	}
+
+	/**
+	 * A connect drag ends in a new edge (and maybe a new node); the new node, or a new edge's weight
+	 * on a weighted graph, opens for typing. A lone node placed with the + grip opens too.
+	 */
+	override onHandleDragEnd(shape: GraphShape, { handle, initial = shape }: TLHandleDragInfo<GraphShape>) {
+		if (handle.id === GROW_HANDLE_ID) {
+			const id = nextNodeId(initial.props.nodes)
+			if (shape.props.nodes.some((n) => n.id === id)) this.editAfterDrag(shape, id)
+			return
+		}
+		const state = connectState(this.editor)
+		const drag = state.get()
+		state.set(null)
+		if (!drag || drag.shapeId !== shape.id || !drag.target) return
+		const result = this.connect(shape, drag.from, drag.target, drag.at)
+		if (!result) return
+		if (result.edit) this.editAfterDrag(shape, result.edit)
+		return result.update
+	}
+
+	override onHandleDragCancel() {
+		connectState(this.editor).set(null)
+	}
+
+	/** The graph with an edge from `from` to the target node, or to a new node at `at`. */
+	connect(shape: GraphShape, from: string, target: ConnectTarget, at: VecLike) {
+		const { props } = shape
+		let model: GraphModel = props
+		let to: string
+		if (target.kind === 'new') {
+			const added = addNode(props, toUnits(at, props.size), props.labels)
+			model = { nodes: added.nodes, edges: props.edges }
+			to = added.id
+		} else {
+			to = target.id
+		}
+		const edge = addEdge(model, from, to, props.direction === 'directed', props.seed)
+		if (!edge) return undefined
+		const edit = target.kind === 'new' ? to : props.weights === 'weighted' ? edgeCellKey(edge.id) : undefined
+		return { update: this.update(shape, { nodes: model.nodes, edges: edge.edges }), edit }
+	}
+
+	/** Start editing once the handle drag has finished (it returns the select tool to idle). */
+	private editAfterDrag(shape: GraphShape, key: string) {
+		this.editor.timers.setTimeout(() => {
+			const current = this.editor.getShape(shape.id) as GraphShape | undefined
+			if (current) this.editCell(current, key)
+		}, 0)
+	}
+
+	// Options from the style panel, applied to the selected graph.
+
+	/** Undirected: one edge per pair of nodes, so u->v and v->u twins merge. */
+	withDirection(shape: GraphShape, direction: GraphDirection): TLShapePartial<GraphShape> {
+		if (direction === 'directed') return { id: shape.id, type: GRAPH_SHAPE_TYPE }
+		return this.withModel(shape, { nodes: shape.props.nodes, edges: mergeTwins(shape.props.edges) })
+	}
+
+	withLabels(shape: GraphShape, labels: GraphLabelsMode): TLShapePartial<GraphShape> {
+		return this.update(shape, { nodes: relabel(shape.props.nodes, labels) })
+	}
+
+	override component(shape: GraphShape) {
+		const colors = this.editor.getCurrentTheme().colors[this.editor.getColorMode()]
+		const drag = connectState(this.editor).get()
+		const dragging = drag?.shapeId === shape.id ? drag : undefined
+		const scene = this.getScene(shape)
+		// Connect grips on the node under the pointer (all nodes on touch screens), as for its x.
+		let grips: SceneNode[] = []
+		if (!dragging && showsStructureControls(this.editor, shape) && this.editor.isIn('select.idle')) {
+			const { showNode } = this.controlTargets(shape)
+			grips = scene.nodes.filter((n) => showNode(n.key))
+		}
+		const zoom = this.editor.getZoomLevel()
+		return (
+			<>
+				{super.component(shape)}
+				<SVGContainer>
+					{grips.map((n) => (
+						<GrowGrip key={n.key} at={connectGripAt(n)} zoom={zoom} colors={colors} />
+					))}
+					{dragging && (
+						<ConnectPreview
+							scene={scene}
+							drag={dragging}
+							directed={shape.props.direction === 'directed'}
+							nextLabel={nextLabel(shape.props.nodes, shape.props.labels)}
+							fontFamily={this.getFontFamily(shape)}
+							zoom={zoom}
+							colors={colors}
+						/>
+					)}
+				</SVGContainer>
+			</>
+		)
+	}
+
+	/** New nodes and edges; marks on anything removed go with it. */
+	private withModel(shape: GraphShape, model: GraphModel): TLShapePartial<GraphShape> {
+		return this.update(shape, { ...model, marks: pruneMarks(shape.props.marks, markKeys(model)) })
+	}
+
+	private update(shape: GraphShape, props: Partial<GraphShape['props']>): TLShapePartial<GraphShape> {
+		return { id: shape.id, type: GRAPH_SHAPE_TYPE, props }
+	}
+}
+
+/** A node's connect grip: on its right rim. */
+const connectGripAt = (n: SceneNode) => ({ x: n.x + n.w / 2, y: n.y })
+
+/**
+ * A connect drag in progress: a dashed edge from the source to the pointer, ending on the ringed
+ * target node, or on a ghost of the node a drop would create.
+ */
+function ConnectPreview({
+	scene,
+	drag,
+	directed,
+	nextLabel,
+	fontFamily,
+	zoom,
+	colors,
+}: {
+	scene: Scene
+	drag: ConnectDrag
+	directed: boolean
+	nextLabel: string
+	fontFamily: string
+	zoom: number
+	colors: TLThemeColors
+}) {
+	const from = scene.nodes.find((n) => n.key === drag.from)
+	if (!from) return null
+	const to = drag.target
+	const target = to?.kind === 'node' ? scene.nodes.find((n) => n.key === to.id) : undefined
+	const ghost = to?.kind === 'new'
+	const end: SceneNode = target ?? { ...from, key: '#pointer', ...drag.at, w: ghost ? from.w : 0, h: ghost ? from.h : 0 }
+	const route = routeEdge(from, end)
+	const width = scene.metrics.strokeWidth
+	const stroke = colors.selectionStroke
+	const dash = `${6 / zoom} ${4 / zoom}`
+	return (
+		<g pointerEvents="none">
+			<path d={route.d} fill="none" stroke={stroke} strokeWidth={width} strokeDasharray={dash} strokeLinecap="round" />
+			{directed && <polygon points={arrowHead(route.tip, route.angle, width * 3 + 6)} fill={stroke} />}
+			{target && <circle cx={target.x} cy={target.y} r={target.w / 2 + 4 / zoom} fill="none" stroke={stroke} strokeWidth={2 / zoom} />}
+			{ghost && (
+				<>
+					<circle cx={end.x} cy={end.y} r={end.w / 2} fill="none" stroke={stroke} strokeWidth={width} strokeDasharray={dash} />
+					<text
+						x={end.x}
+						y={end.y}
+						fontFamily={fontFamily}
+						fontSize={scene.metrics.fontSize}
+						fill={stroke}
+						textAnchor="middle"
+						dominantBaseline="central"
+						opacity={0.7}
+					>
+						{nextLabel}
+					</text>
+				</>
+			)}
+		</g>
+	)
+}

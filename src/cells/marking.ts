@@ -5,18 +5,19 @@ import { toggleMark, type MarkColor } from './marks'
 export interface MarkTarget {
 	shape: TLShape
 	util: CellShapeUtil<TLShape>
-	/** The cell or node under the pointer; undefined when the pointer is on the shape but not on one. */
+	/** The cell, node or edge under the pointer; undefined when the pointer is on the shape but not on one. */
 	key?: string
 }
 
 /** The shape with cells under the pointer, and the cell or node the pointer is on, if any. */
 export function markTargetUnderPointer(editor: Editor): MarkTarget | undefined {
 	const point = editor.inputs.getCurrentPagePoint()
-	const shape = editor.getShapeAtPoint(point, { hitInside: true })
+	// The margin lets thin elements such as edges be pointed at, not just filled nodes and cells.
+	const shape = editor.getShapeAtPoint(point, { hitInside: true, margin: editor.getHitTestMargin() })
 	if (!shape) return undefined
 	const util = editor.getShapeUtil(shape)
 	if (!(util instanceof CellShapeUtil)) return undefined
-	const key = util.cells.cellAt(shape, editor.getPointInShapeSpace(shape, point))
+	const key = util.markKeyAt(shape, editor.getPointInShapeSpace(shape, point))
 	return { shape, util: util as CellShapeUtil<TLShape>, key }
 }
 

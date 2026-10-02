@@ -7,6 +7,8 @@ export const CELL = 48
 export const LIST_STEP = CELL * 2.4
 /** Binary tree level height at size "m". */
 export const TREE_LEVEL = CELL * 1.6
+/** Distance between nodes dropped along a graph sketch at size "m". */
+export const GRAPH_STEP = CELL * 2.3
 
 type Direction = 'right' | 'left' | 'down' | 'up'
 
@@ -63,6 +65,51 @@ export async function sketchHeap(page: Page, [x, y]: [number, number], n: number
 	await page.mouse.move(x, y)
 	await page.mouse.down()
 	await page.mouse.move(x + (n - 1) * CELL + 10, y, { steps: 20 })
+	await page.mouse.up()
+}
+
+/**
+ * Sketch a graph of n nodes along a serpentine path (rows of `cols`, GRAPH_STEP apart), the first
+ * node centred on `at`. The pointer moves a few px per frame, as a hand would: tldraw coalesces
+ * faster moves, which cuts corners.
+ */
+export async function sketchGraph(page: Page, [x, y]: [number, number], n: number, cols = 3) {
+	const path: [number, number][] = [[x, y]]
+	let [px, py, dir] = [x, y, 1]
+	let left = (n - 1) * GRAPH_STEP + 8
+	while (left > 0) {
+		const run = Math.min(left, (cols - 1) * GRAPH_STEP || left)
+		px += dir * run
+		path.push([px, py])
+		left -= run
+		if (left <= 0) break
+		const down = Math.min(left, GRAPH_STEP)
+		py += down
+		path.push([px, py])
+		left -= down
+		dir = -dir
+	}
+	await page.keyboard.press('Shift+G')
+	await page.mouse.move(x, y)
+	await page.mouse.down()
+	for (let i = 1; i < path.length; i++) {
+		const [[ax, ay], [bx, by]] = [path[i - 1], path[i]]
+		const steps = Math.ceil(Math.hypot(bx - ax, by - ay) / 8)
+		for (let j = 1; j <= steps; j++) {
+			await page.mouse.move(ax + ((bx - ax) * j) / steps, ay + ((by - ay) * j) / steps)
+			await page.waitForTimeout(16)
+		}
+	}
+	await page.mouse.up()
+}
+
+/** Drag a graph node's connect grip onto another node, or to a screen point. */
+export async function connectNodes(page: Page, from: string, to: string | [number, number]) {
+	const start = await handlePosition(page, `connect:${from}`)
+	const end = typeof to === 'string' ? await nodeScreenPosition(page, to) : to
+	await page.mouse.move(...start)
+	await page.mouse.down()
+	await page.mouse.move(...end, { steps: 15 })
 	await page.mouse.up()
 }
 

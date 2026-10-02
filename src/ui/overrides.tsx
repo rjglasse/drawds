@@ -24,8 +24,10 @@ import { clearMarks, markElement, markTargetUnderPointer } from '../cells/markin
 import { MARK_COLORS, MARK_MEANINGS, type MarkColor } from '../cells/marks'
 import { NodeLinkShapeUtil } from '../nodelink/NodeLinkShapeUtil'
 import { FillPicker, fillPickerTranslations } from './FillPicker'
+import { GraphPickers, graphPickerTranslations } from './GraphPickers'
 import { maskIcon } from './icons'
 import arrayIconUrl from './icons/array.svg'
+import graphIconUrl from './icons/graph.svg'
 import listIconUrl from './icons/list.svg'
 import treeIconUrl from './icons/tree.svg'
 import { HeapPickers, heapPickerTranslations } from './HeapPickers'
@@ -33,7 +35,7 @@ import heapIconUrl from './icons/heap.svg'
 import { TreePickers, treePickerTranslations } from './TreePickers'
 
 /** Our structure tools, in toolbar order. */
-const STRUCTURE_TOOLS = ['array', 'linked-list', 'binary-tree', 'heap'] as const
+const STRUCTURE_TOOLS = ['array', 'linked-list', 'binary-tree', 'heap', 'graph'] as const
 
 const RELAYOUT = 'drawds.relayout'
 
@@ -80,6 +82,14 @@ export const uiOverrides: TLUiOverrides = {
 			kbd: 'shift+p',
 			onSelect: () => editor.setCurrentTool('heap'),
 		}
+		tools.graph = {
+			id: 'graph',
+			icon: maskIcon(graphIconUrl),
+			label: 'Graph',
+			// Plain "g" is tldraw's geo tool.
+			kbd: 'shift+g',
+			onSelect: () => editor.setCurrentTool('graph'),
+		}
 		return tools
 	},
 	actions(editor, actions) {
@@ -111,7 +121,9 @@ export const uiOverrides: TLUiOverrides = {
 		}
 		return actions
 	},
-	translations: { en: { ...fillPickerTranslations, ...treePickerTranslations, ...heapPickerTranslations } },
+	translations: {
+		en: { ...fillPickerTranslations, ...treePickerTranslations, ...heapPickerTranslations, ...graphPickerTranslations },
+	},
 }
 
 function StructureToolbarItem({ id }: { id: string }) {
@@ -198,6 +210,7 @@ export const components: TLComponents = {
 			<FillPicker />
 			<TreePickers />
 			<HeapPickers />
+			<GraphPickers />
 		</DefaultStylePanel>
 	),
 	ContextMenu: (props) => (

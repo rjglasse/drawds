@@ -82,13 +82,14 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `src/shapes/sizes.ts` has the shared S/M/L/XL cell sizes.
 - `src/cells/` - shared in-place cell editing: `EditableCells<S>` (hit-test, box, get/set, neighbours) and
   `CellShapeUtil`, a ShapeUtil base that wires tldraw's edit lifecycle and renders the inline input.
-- `src/nodelink/` - node-link structures (lists now; trees, heaps, graphs next). Decision (dds-55z.15.1): ONE
+- `src/nodelink/` - node-link structures (lists, trees, heaps, graphs). Decision (dds-55z.15.1): ONE
   shape per structure, props hold the model. A subclass of `NodeLinkShapeUtil` turns props into a `Scene`
   (positioned nodes + edges, shape space) and applies model edits; the base does geometry, `SceneSvg`
   rendering/export, value editing via `sceneCells`, and node dragging via tldraw handles (bottom edge of each
   node). `geometry.ts` is the pure edge routing (clipping, curved twins, self-loops, arrowheads).
-- `src/sketch/` - press-and-drag tools: `createDragTool` (generic gesture state; trees) and
-  `createLineSketchTool` on top of it (`nextSketchState`, pure; arrays, lists).
+- `src/sketch/` - press-and-drag tools: `createDragTool` (generic gesture state; trees, heaps, graphs) and
+  `createLineSketchTool` on top of it (`nextSketchState`, pure; arrays, lists). The latest gesture state is always
+  kept; `same` only decides whether the shape is redrawn, so gestures can follow the pointer's path (graphs).
 - `src/shapes/array/swap.ts` - drag a cell's handle onto another cell to swap (drag state in a per-editor atom,
   ghost + target highlight while dragging, CSS `drawds-swap` arc animation keyed per swap).
 - `src/nodelink/playback.ts` - animated operations: frames (props override, value swaps between node keys,
@@ -104,6 +105,13 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `generate.ts` (random shapes by depth + fullness, growth-stable: existence depends only on seed + path, ids
   are `n` + path), `layout.ts` (contour-based tidy layout; a lone child offset `lone`, well under half the
   sibling spacing, so parentage stays unambiguous), `model.ts` (add child, remove subtree).
+- `src/shapes/graph/` - graphs: nodes at free positions in cell units (so the size style scales the drawing), edges
+  `{from, to, weight}` (weights always stored; shown when the `drawds:graph-weights` style says so; direction and
+  A/0 labels are styles too, see `src/ui/GraphPickers.tsx`). `generate.ts` is the sketch: a node drops every
+  GRAPH_SPACING along the drag, node k joins its nearest earlier node (connected) plus maybe two more nearby,
+  skipping crossings, near misses and narrow angles (planar-ish); growth-stable like trees. `model.ts` pure edits;
+  `connect.ts` the connect grip (a 'create' handle `connect:<id>` on each node's right rim; drag state in a
+  per-editor atom; drop on a node = edge, in empty space = new node + edge).
 - `src/controls/` - on-canvas controls shown while a structure is the only selected shape
   (`showsStructureControls`): grow grips (tldraw `create` handles `grow` / `grow-start`, drawn only on hover,
   plus our own '+' `GrowGrip`; `grownCount` is pure) and `ControlButton` (HTML insert '+' / remove 'x',
@@ -145,6 +153,14 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   lower-right corner per empty slot and opens the new child for editing.
 - Animated operations: implement `removeNodeAnimated` and/or `getInsertPrompt` + `insertKey`, build frames and
   call `playOperation`; compare keys with `compareKeys` (numeric when both are numbers).
+- Removable edges: implement `removeEdge` (+ optional `canRemoveEdge`); the base draws an x mid-edge (beside the
+  label when there is one). A hovered node wins over edges, so node buttons never compete with edge buttons.
+- Edge marks: set `markableEdges = true`; `markKeyAt` then returns `edge:<key>` for an edge near the pointer
+  (the same key as the edge's label cell) and SceneSvg draws it heavier in the mark colour. Prune edge marks
+  when edges go (graphs: `markKeys`). Lists and trees don't opt in yet (dds-55z.26.3 notes).
+- Editing after a handle drag: tldraw's DraggingHandle returns to idle after `onHandleDragEnd` (which gets the
+  initial handle, not the drop point: keep that in your own drag state), so start the edit with
+  `editor.timers.setTimeout(..., 0)`. It opens ~30 ms after pointer up; tests should poll for it.
 - Insertable edges: implement `insertOnEdge` (+ optional `canInsertOnEdge`) returning the update and the new
   node's key; the base draws a + mid-edge, applies the update as one undo step, then opens the new node with
   `CellShapeUtil.editCell(shape, key)` (start editing any cell programmatically).

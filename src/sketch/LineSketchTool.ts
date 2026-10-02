@@ -19,6 +19,7 @@ export interface DragToolConfig<S extends TLShape, G> {
 	initial: G
 	/** Next gesture state from the pointer's offset from where the drag started. */
 	next(shape: S, offset: VecLike, previous: G): G
+	/** Whether two states draw the same shape (the shape is only updated when they don't). */
 	same(a: G, b: G): boolean
 	/** The shape for a gesture state: page position of its top-left, plus any props to change. */
 	layout(shape: S, origin: VecLike, gesture: G): Pick<TLShapePartial<S>, 'x' | 'y' | 'props'>
@@ -92,8 +93,10 @@ export function createDragTool<S extends TLShape, G>(config: DragToolConfig<S, G
 			if (!shape) return
 			const point = this.editor.inputs.getCurrentPagePoint()
 			const next = config.next(shape, Vec.Sub(point, this.origin), this.gesture)
-			if (!force && config.same(next, this.gesture)) return
+			const changed = force || !config.same(next, this.gesture)
+			// Kept even when unchanged, for gestures that follow the pointer's path (graphs).
 			this.gesture = next
+			if (!changed) return
 			this.editor.updateShape({
 				id: this.shapeId,
 				type: config.type,

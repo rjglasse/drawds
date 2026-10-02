@@ -44,7 +44,7 @@ export function SceneSvg({
 	fontFamily: string
 	/** Cell whose value is drawn by the inline editor instead. */
 	hiddenKey?: string
-	/** Highlight colours on nodes, keyed by node key. */
+	/** Highlight colours on nodes, keyed by node key, and on edges, keyed `edge:<key>`. */
 	marks?: Marks
 	/** Canvas only: an operation's highlights. */
 	flash?: FlashView
@@ -94,12 +94,14 @@ export function SceneSvg({
 				const labelKey = edgeCellKey(edge.key)
 				const label = edge.label !== undefined && labelKey !== hiddenKey ? edge.label : undefined
 				const box = label !== undefined ? labelBox(route.labelAt, label, labelFontSize) : undefined
+				// A marked edge is drawn heavier, in its mark colour (e.g. a path or a spanning tree).
+				const mark = marks[labelKey]
+				const stroke = mark ? getColorValue(colors, mark, 'solid') : paint.stroke
+				const width = mark ? strokeWidth * 2.2 : strokeWidth
 				return (
 					<g key={edge.key}>
-						<path d={route.d} fill="none" stroke={paint.stroke} strokeWidth={strokeWidth} strokeLinecap="round" />
-						{edge.directed && (
-							<polygon points={arrowHead(route.tip, route.angle, strokeWidth * 3 + 6)} fill={paint.stroke} />
-						)}
+						<path d={route.d} fill="none" stroke={stroke} strokeWidth={width} strokeLinecap="round" />
+						{edge.directed && <polygon points={arrowHead(route.tip, route.angle, width * 3 + 6)} fill={stroke} />}
 						{box && (
 							<>
 								<rect x={box.x} y={box.y} width={box.w} height={box.h} rx={box.h / 2} fill={paint.background} />

@@ -26,10 +26,10 @@ import { ControlButton } from '../controls/ControlButton'
 import { KeyPrompt } from '../controls/KeyPrompt'
 import { closePrompt, isPromptOpen, openPrompt } from '../controls/prompt'
 import { showsStructureControls } from '../controls/visibility'
-import { routeScene } from './geometry'
+import { labelBox, routeScene, type EdgeRoute } from './geometry'
 import { hoveredEdge, hoveredNode } from './hover'
 import { playbackFor } from './playback'
-import type { Scene, SceneEdge } from './scene'
+import { edgeCellKey, type Scene, type SceneEdge } from './scene'
 import { sceneCells } from './scene-cells'
 import { SceneSvg } from './SceneSvg'
 
@@ -71,6 +71,9 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	 */
 	insertOnEdge?(shape: S, edgeKey: string): { update: TLShapePartial<S>; key: string } | undefined
 	canInsertOnEdge?(shape: S, edge: SceneEdge): boolean
+	/** Remove an edge: offered as an x on the edge near the pointer. */
+	removeEdge?(shape: S, edgeKey: string): TLShapePartial<S>
+	canRemoveEdge?(shape: S, edge: SceneEdge): boolean
 	/**
 	 * Empty child slots of a node (0 = left, 1 = right): offered as + buttons on the node's lower
 	 * left / right corners. `addChildAt` returns the update and the new node's key, which is then
@@ -89,6 +92,12 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	/** Steady highlights while the pointer is over a node (e.g. a heap's parent and children). */
 	hoverHighlights?(shape: S, key: string): Marks
 
+	/**
+	 * Whether edges take marks too (keyed `edge:<key>`, like edge cells). Shapes that opt in prune
+	 * edge marks when edges go.
+	 */
+	readonly markableEdges: boolean = false
+
 	readonly cells: EditableCells<S> = sceneCells<S>(this)
 	private scenes = new WeakMap<object, Scene>()
 
@@ -99,6 +108,16 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 			this.scenes.set(shape.props, scene)
 		}
 		return scene
+	}
+
+	/** The node or edge cell at the point, else (if edges take marks) the edge passing near it. */
+	override markKeyAt(shape: S, point: VecLike) {
+		const key = this.cells.cellAt(shape, point)
+		if (key !== undefined || !this.markableEdges) return key
+		const scene = this.getScene(shape)
+		const reach = 10 / this.editor.getZoomLevel()
+		const edge = hoveredEdge(routeScene(scene), scene.edges.map((e) => e.key), point, reach)
+		return edge === undefined ? undefined : edgeCellKey(edge)
 	}
 
 	getCellFont(shape: S): CellFont {
@@ -161,7 +180,10 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 							<GrowGrip key={grip.id} at={grip.at} zoom={zoom} colors={colors} />
 						))}
 				</SVGContainer>
-				{controls && !playing?.frame && this.renderNodeAndEdgeButtons(shape, colors)}
+				{controls &&
+					!playing?.frame &&
+					!this.editor.isIn('select.dragging_handle') &&
+					this.renderNodeAndEdgeButtons(shape, colors)}
 				{controls && prompt && !promptOpen && (
 					<ControlButton
 						editor={this.editor}
@@ -204,9 +226,9 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	}
 
 	/**
-	 * An x on each removable node and a + mid-way along each edge a node can be inserted on. With a
-	 * mouse, only the node and edge near the pointer show theirs, so big structures stay readable;
-	 * touch screens have no hover, so they show all of them.
+	 * An x on each removable node, a + mid-way along each edge a node can be inserted on, and an x
+	 * on each removable edge. With a mouse, only the node or else the edge near the pointer shows
+	 * its buttons, so big structures stay readable; touch screens have no hover, so they show all.
 	 */
 	private renderNodeAndEdgeButtons(shape: S, colors: Parameters<typeof ControlButton>[0]['colors']) {
 		const scene = this.getScene(shape)
@@ -219,26 +241,12 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 				)
 			: []
 		const insertable = this.insertOnEdge ? scene.edges.filter((e) => this.canInsertOnEdge?.(shape, e) ?? true) : []
+		const removableEdges = this.removeEdge ? scene.edges.filter((e) => this.canRemoveEdge?.(shape, e) ?? true) : []
 
-		let showNode = (_key: string) => true
-		let showEdge = (_key: string) => true
-		if (!this.editor.getInstanceState().isCoarsePointer) {
-			const p = this.editor.getPointInShapeSpace(shape, this.editor.inputs.getCurrentPagePoint())
-			const reach = 16 / zoom
-			const node = hoveredNode(
-				scene.nodes.filter((n) => n.kind !== 'null' && n.kind !== 'label'),
-				p,
-				reach
-			)
-			const edge = hoveredEdge(
-				routes,
-				insertable.map((e) => e.key),
-				p,
-				reach
-			)
-			showNode = (key) => key === node
-			showEdge = (key) => key === edge
-		}
+		const { showNode, showEdge } = this.controlTargets(
+			shape,
+			[...insertable, ...removableEdges].map((e) => e.key)
+		)
 
 		const nudge = 5 / zoom
 		const slotNodes = this.getEmptySlots
@@ -301,8 +309,64 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 							onPress={() => this.pressInsert(shape, edge.key)}
 						/>
 					))}
+				{removableEdges
+					.filter((e) => showEdge(e.key) && routes.has(e.key))
+					.map((edge) => (
+						<ControlButton
+							key={`remove-edge-${edge.key}`}
+							editor={this.editor}
+							kind="remove"
+							at={this.removeEdgeButtonAt(shape, scene, edge, routes.get(edge.key)!)}
+							label="Remove this edge"
+							testId={`remove-edge-${edge.key}`}
+							colors={colors}
+							onPress={() => this.pressRemoveEdge(shape, edge.key)}
+						/>
+					))}
 			</>
 		)
+	}
+
+	/**
+	 * Mid-edge, or when the middle is taken (by a label or a + button) just beside it, off the edge
+	 * on its upper side.
+	 */
+	private removeEdgeButtonAt(shape: S, scene: Scene, edge: SceneEdge, route: EdgeRoute): VecLike {
+		const zoom = this.editor.getZoomLevel()
+		const busy = edge.label !== undefined || (!!this.insertOnEdge && (this.canInsertOnEdge?.(shape, edge) ?? true))
+		if (!busy) return route.labelAt
+		// The edge's direction at its middle (routes have at least two points).
+		const mid = Math.floor(route.points.length / 2)
+		const [a, b] = [route.points[mid - 1], route.points[mid]]
+		const len = Math.hypot(b.x - a.x, b.y - a.y) || 1
+		let normal = { x: -(b.y - a.y) / len, y: (b.x - a.x) / len }
+		if (normal.y > 0 || (normal.y === 0 && normal.x > 0)) normal = { x: -normal.x, y: -normal.y }
+		// Clear of the label (an axis-aligned box: its half-extent across the edge) or the + button.
+		const box = edge.label !== undefined ? labelBox(route.labelAt, edge.label, scene.metrics.labelFontSize) : undefined
+		const halfAcross = box ? (Math.abs(normal.x) * box.w + Math.abs(normal.y) * box.h) / 2 : 9 / zoom
+		const offset = halfAcross + 10 / zoom
+		return { x: route.labelAt.x + normal.x * offset, y: route.labelAt.y + normal.y * offset }
+	}
+
+	/**
+	 * Which nodes and edges show their controls. With a mouse, the node near the pointer, or else the
+	 * edge near it (out of `edgeKeys`): edges meet at nodes, so a hovered node wins. Touch screens
+	 * have no hover, so everything shows.
+	 */
+	protected controlTargets(shape: S, edgeKeys: readonly string[] = []) {
+		if (this.editor.getInstanceState().isCoarsePointer) {
+			return { showNode: (_key: string) => true, showEdge: (_key: string) => true }
+		}
+		const scene = this.getScene(shape)
+		const p = this.editor.getPointInShapeSpace(shape, this.editor.inputs.getCurrentPagePoint())
+		const reach = 16 / this.editor.getZoomLevel()
+		const node = hoveredNode(
+			scene.nodes.filter((n) => n.kind !== 'null' && n.kind !== 'label'),
+			p,
+			reach
+		)
+		const edge = node === undefined ? hoveredEdge(routeScene(scene), edgeKeys, p, reach) : undefined
+		return { showNode: (key: string) => key === node, showEdge: (key: string) => key === edge }
 	}
 
 	private pressAddChild(shape: S, key: string, slot: number) {
@@ -322,6 +386,13 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		if (!this.removeNode) return
 		this.editor.markHistoryStoppingPoint('remove node')
 		this.editor.updateShape(this.removeNode(current, key))
+	}
+
+	private pressRemoveEdge(shape: S, edgeKey: string) {
+		const current = this.editor.getShape(shape.id) as S | undefined
+		if (!current || !this.removeEdge) return
+		this.editor.markHistoryStoppingPoint('remove edge')
+		this.editor.updateShape(this.removeEdge(current, edgeKey))
 	}
 
 	/** Insert, then open the new node for editing so the teacher can type its value straight away. */
@@ -404,7 +475,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		return shape.props as unknown as NodeLinkStyle
 	}
 
-	private getFontFamily(shape: S) {
+	protected getFontFamily(shape: S) {
 		return this.editor.getCurrentTheme().fonts[this.style(shape).font].fontFamily
 	}
 }

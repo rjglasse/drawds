@@ -1,6 +1,6 @@
 ---
 name: run-drawds
-description: Build, run, and drive drawds (the tldraw data-structure sketching app). Use when asked to start or run drawds, open its dev server, sketch arrays (or later lists/trees/graphs) on the canvas, edit cells, take a screenshot of the UI, export the canvas to SVG/PNG, run its tests, or check a UI change works in the real app.
+description: Build, run, and drive drawds (the tldraw data-structure sketching app). Use when asked to start or run drawds, open its dev server, sketch arrays, lists, trees, heaps or graphs on the canvas, edit cells, take a screenshot of the UI, export the canvas to SVG/PNG, run its tests, or check a UI change works in the real app.
 ---
 
 drawds is a Vite + React + tldraw web app. Agents drive it with
@@ -100,6 +100,8 @@ numbers sorted, and `fill` is `"ascending"`.
 | `hover <key> [key2]` | move the pointer to a node of the only selected node-link shape, or half-way between two (on the arrow joining them); needed before clicking an x or + |
 | `tree x y depth [lean]` | Shift+T, then drag down so a tree of `depth` levels appears with its root centred on (x, y); `lean` -1 (bare stick) .. 0 (random) .. 1 (perfect). Trees are random per sketch: for scripted edits start from `tree x y 1` (a lone root) and add children |
 | `heap x y n` | Shift+P, then drag right so a heap of `n` values (inserted one per 48 px) appears with its root centred on (x, y). Tree node keys are `"0"`, `"1"`...; array cells `"a0"`, `"a1"`... |
+| `graph x y n [cols]` | Shift+G, then drag a serpentine path (rows of `cols` nodes, default 3; `cols` = n is a line) so `n` nodes drop 110.4 px apart (size M), the first centred on (x, y). Moves at hand speed (one 8 px step per frame), so it takes a second or two. Node ids `v0`, `v1`...; edges vary per sketch (random seed) |
+| `connect <id> <id2>` / `connect <id> x y` | drag a graph node's connect grip onto another node (new edge) or to page point (x, y) (new node + edge) |
 | `dragnode <key> dx dy` | drag a handle of the **only selected** shape: a list or tree node (`n0`, `nL`, ...), an array cell (`cell:0`, ... - dropping on another cell swaps them), the end grip `grow` (arrays, lists) or a list's head grip `grow-start` |
 | `drag x1 y1 x2 y2 [steps]` | press, move in `steps` (default 20), release |
 | `move x y` / `down` / `up` | low-level mouse, for checks in the middle of a gesture |
@@ -109,7 +111,7 @@ numbers sorted, and `fill` is `"ascending"`.
 | `shapes` | id, type, x, y, and for arrays/lists direction, fill and values (`*` = node dragged off its layout) |
 | `state` | tool path (`select.idle`, `array.sketching`, `select.editing_shape`...), editing shape, selection, focused element |
 | `eval <js>` | evaluate an expression with `editor` (the tldraw Editor) in scope; prints the JSON result |
-| `screenshot [name]` | full-page PNG |
+| `screenshot [name] [x y w h]` | full-page PNG, or just that clip; run the driver with `SCALE=3` in the environment for a 3x crop of small controls |
 | `export [name]` | export all shapes the way tldraw does (`editor.getSvgString`), write `.svg`, render it to `.png` |
 | `reset` | delete every shape, back to the select tool |
 | `wait <ms>` | sleep |
@@ -124,8 +126,8 @@ npm run dev -- --port 5179 --strictPort   # open http://localhost:5179; Ctrl-C t
 ## Test
 
 ```bash
-npm test            # vitest: pure layout/cell/geometry/fill logic (50 tests)
-npm run test:e2e    # Playwright suite in e2e/ (10 tests); starts or reuses the dev server on 5179
+npm test            # vitest: pure layout/cell/geometry/fill/graph logic
+npm run test:e2e    # Playwright suite in e2e/; starts or reuses the dev server on 5179
 npm run typecheck
 npm run build       # warns that the bundle is > 500 kB; that's tldraw and expected
 ```
@@ -182,6 +184,20 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   (only for empty slots) or `[data-testid="remove-node-<id>"]` (never on the
   root `n`). Node ids are paths: `n`, `nL`, `nR`, `nLR`... Null children:
   `[data-testid="style.nulls.show"]` with a tree selected.
+- **Graphs**: `shapes` lists graph edges as `A-B:7` (`A->B:7` when directed; `:7` is the
+  weight, stored even when unweighted). Options with the graph tool or a graph selected:
+  `[data-testid="style.graph-direction.directed"]`, `style.graph-weights.weighted`,
+  `style.graph-labels.numbers`. Edge x: `hover <from> <to>` then
+  `[data-testid="remove-edge-<edge id>"]` (no edge buttons while a node is hovered).
+  Marking an edge: `hover <from> <to>`, `key 3`; marks are keyed `edge:<edge id>`. The + grip
+  (`dragnode grow dx dy`) places a lone node. After `connect` to empty space (or to a node on a
+  weighted graph) the new label / weight opens for typing about 30 ms later: `wait 100` before
+  `type`. Don't press Esc to leave it if nothing opened: Esc in idle deselects the graph. Clicks
+  inside a selected graph's box but off its nodes/edges drag the whole graph (tldraw), and a
+  double-click there makes a text shape.
+- **tldraw coalesces pointer moves**: Playwright's `mouse.move(..., { steps })` sends them faster
+  than a frame, so path-following tools (graphs) see corners cut. `graph` and the e2e
+  `sketchGraph` helper move one step per frame.
 - **x / + buttons only exist near the pointer** (mouse) and only while the
   list is the only selected shape: `hover n1` before `clicksel
   [data-testid="remove-node-n1"]`, `hover n1 n2` before
