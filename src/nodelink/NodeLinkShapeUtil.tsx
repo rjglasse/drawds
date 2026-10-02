@@ -32,12 +32,14 @@ import { hoveredEdge, hoveredNode } from './hover'
 import { isBusy, playbackFor, type Strip } from './playback'
 import { edgeCellKey, type Scene, type SceneEdge, type SceneNode } from './scene'
 import { sceneCells } from './scene-cells'
-import { SceneSvg, stripSize } from './SceneSvg'
+import { SceneSvg, stripsHeight } from './SceneSvg'
 
 /** An operation offered from a node's context menu. */
 export interface NodeOperation {
 	id: string
 	label: string
+	/** Operations with the same submenu label are grouped under it (e.g. "Traverse from 42"). */
+	submenu?: string
 	run(): void
 }
 
@@ -315,23 +317,23 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	 * Where an operation's strip (queue / stack) and play bar go, in shape space: under the scene, in
 	 * that order. Also what the strip is drawn with.
 	 */
-	playbackLayout(shape: S, strip: Strip | undefined) {
+	playbackLayout(shape: S, strips: readonly Strip[] | undefined) {
 		const scene = this.displayScene(shape)
 		return {
-			...this.belowScene(scene, strip),
+			...this.belowScene(scene, strips),
 			metrics: scene.metrics,
 			color: this.style(shape).color,
 			fontFamily: this.getFontFamily(shape),
 		}
 	}
 
-	private belowScene(scene: Scene, strip: Strip | undefined) {
+	private belowScene(scene: Scene, strips: readonly Strip[] | undefined) {
 		const left = Math.min(...scene.nodes.map((n) => n.x - n.w / 2))
 		const right = Math.max(...scene.nodes.map((n) => n.x + n.w / 2))
 		let bottom = Math.max(...scene.nodes.map((n) => n.y + n.h / 2))
 		const gap = scene.metrics.fontSize
 		const stripAt = { x: left, y: bottom + gap }
-		if (strip) bottom = stripAt.y + stripSize(strip, scene.metrics).h
+		if (strips?.length) bottom = stripAt.y + stripsHeight(strips, scene.metrics)
 		return { strip: stripAt, bar: { x: (left + right) / 2, y: bottom + gap } }
 	}
 

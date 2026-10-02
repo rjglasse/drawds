@@ -51,14 +51,14 @@ describe('bfs', () => {
 			...Object.fromEntries(result.treeEdges.map((e) => [`edge:${e}`, 'green'])),
 		})
 		expect(end.badges).toEqual({ a: '1', b: '2', c: '3', d: '4', e: '5' })
-		expect(end.strip?.items).toEqual([])
+		expect(end.strips?.[0].items).toEqual([])
 		expect(result.frames.at(-1)!.caption).toContain("5 of 6 nodes reached")
 	})
 
 	it('shows the queue and narrates each step', () => {
 		expect(result.frames[0].caption).toBe('Start at A: discover it (1) and queue it')
 		const discoverB = result.frames.findIndex((f) => f.caption === 'A–B: B is new: discover it (2) and queue it')
-		expect(stateAt(result.frames, discoverB).strip?.items).toEqual(['B'])
+		expect(stateAt(result.frames, discoverB).strips?.[0].items).toEqual(['B'])
 		expect(result.frames.some((f) => f.caption === 'C–D: D was already discovered')).toBe(true)
 	})
 
@@ -83,12 +83,12 @@ describe('dfs', () => {
 
 	it('shows the call stack and ends with everything reached blue', () => {
 		const visitC = result.frames.findIndex((f) => f.caption?.startsWith('D–C: C is new'))
-		expect(stateAt(result.frames, visitC).strip?.items).toEqual(['A', 'B', 'D', 'C'])
+		expect(stateAt(result.frames, visitC).strips?.[0].items).toEqual(['A', 'B', 'D', 'C'])
 		const end = stateAt(result.frames, result.frames.length - 1)
 		expect(Object.entries(end.flash).filter(([k]) => !k.startsWith('edge:'))).toEqual(
 			['a', 'b', 'd', 'c', 'e'].map((k) => [k, 'blue'])
 		)
-		expect(end.strip?.items).toEqual([])
+		expect(end.strips?.[0].items).toEqual([])
 		expect(result.frames.at(-1)!.caption).toBe('A is done: finished, 5 of 6 nodes reached; the rest can\'t be reached from the start')
 	})
 })

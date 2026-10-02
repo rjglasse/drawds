@@ -2,7 +2,7 @@ import { atom, react, type Atom, type Editor, type TLShapeId, type TLShapePartia
 import type { MarkColor, Marks } from '../cells/marks'
 import { isTyping, swallowKeyUp } from '../controls/keys'
 
-/** A queue or stack shown under the structure while an operation runs (BFS's queue, DFS's stack). */
+/** A row of values shown under the structure while an operation runs (a queue, a stack, an output). */
 export interface Strip {
 	title: string
 	items: string[]
@@ -21,8 +21,8 @@ export interface Frame {
 	flash?: Record<string, MarkColor | null>
 	/** Small labels beside nodes, such as discovery order. They accumulate. */
 	badges?: Record<string, string>
-	/** The queue or stack from this step on. */
-	strip?: Strip
+	/** Queues, stacks or output sequences shown from this step on (replacing earlier ones). */
+	strips?: Strip[]
 	/** One line saying what this step does, shown in the play bar. */
 	caption?: string
 }
@@ -31,22 +31,22 @@ export interface Frame {
 export interface StepState {
 	flash: Marks
 	badges: Record<string, string>
-	strip?: Strip
+	strips?: Strip[]
 }
 
 export function stateAt(frames: readonly Frame[], step: number): StepState {
 	const flash: Marks = {}
 	const badges: Record<string, string> = {}
-	let strip: Strip | undefined
+	let strips: Strip[] | undefined
 	for (const frame of frames.slice(0, step + 1)) {
 		for (const [key, color] of Object.entries(frame.flash ?? {})) {
 			if (color === null) delete flash[key]
 			else flash[key] = color
 		}
 		Object.assign(badges, frame.badges)
-		if (frame.strip) strip = frame.strip
+		if (frame.strips) strips = frame.strips
 	}
-	return { flash, badges, strip }
+	return { flash, badges, strips }
 }
 
 /** What the shape should draw right now. */

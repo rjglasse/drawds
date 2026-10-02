@@ -4,11 +4,12 @@ import { compareKeys } from '../../data/compare'
 import { fillValues, insertValue } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
 import type { PointerDirection } from '../../cells/CellShapeUtil'
-import { NodeLinkShapeUtil } from '../../nodelink/NodeLinkShapeUtil'
+import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import { prunePointers } from '../../pointers/pointers'
 import { playOperation, type Frame } from '../../nodelink/playback'
 import { assignInOrder, bstDelete, bstInsert } from './bst'
 import { nullKey, treeBasePosition, treeRootCentre, treeScene } from './layout'
+import { ORDER_NAMES, traverseTree, type TreeOrder } from './traverse'
 import { addChild, levelOrder, parentOf, removeSubtree } from './model'
 import {
 	TREE_SHAPE_TYPE,
@@ -138,6 +139,46 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 
 	pointerNames() {
 		return ['root', 'curr', 'parent', 'p', 'q']
+	}
+
+	// Traversals from any node, in its context menu: they play step by step on the play bar.
+	// Shift at the end keeps the visited nodes as marks.
+
+	nodeOperations(shape: TreeShape, key: string): NodeOperation[] {
+		const node = shape.props.nodes.find((n) => n.id === key)
+		if (!node) return []
+		return (['pre', 'in', 'post', 'level'] as const).map((order) => ({
+			id: `tree-${order}-order`,
+			label: ORDER_NAMES[order],
+			submenu: `Traverse from ${node.value}`,
+			run: () => this.traverse(shape.id, key, order),
+		}))
+	}
+
+	private traverse(id: TreeShape['id'], start: string, order: TreeOrder) {
+		const shape = this.editor.getShape(id) as TreeShape | undefined
+		if (!shape) return
+		const { nodes, nulls, kind } = shape.props
+		const { frames, visited } = traverseTree(nodes, start, order, { nulls: nulls === 'show' })
+		// The point of in-order on a BST (unless the keys were edited out of order).
+		const keys = visited.map((v) => nodes.find((n) => n.id === v)!.value)
+		if (order === 'in' && kind === 'bst' && keys.every((k, i) => i === 0 || compareKeys(keys[i - 1], k) <= 0)) {
+			const last = frames[frames.length - 1]
+			frames[frames.length - 1] = { ...last, caption: `${last.caption}: sorted, as in-order on a BST always is` }
+		}
+		playOperation(this.editor, {
+			shapeId: id,
+			label: `${ORDER_NAMES[order].toLowerCase()} traversal`,
+			frames,
+			withMarks: (_update, highlights) => {
+				const current = (this.editor.getShape(id) as TreeShape | undefined) ?? shape
+				const marks = pruneMarks(
+					{ ...current.props.marks, ...highlights },
+					current.props.nodes.map((n) => n.id)
+				)
+				return this.withMarks(current, marks)
+			},
+		})
 	}
 
 	/** One step of an animation that highlights a node, saying why. */

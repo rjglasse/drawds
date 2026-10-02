@@ -81,13 +81,16 @@ export function bfs(model: GraphModel, start: string, directed: boolean): Traver
 	const order = [start]
 	const treeEdges: string[] = []
 	const queue = [start]
-	const strip = () => ({ title: 'queue (front on the left)', items: queue.map(name) })
+	const strips = () => [
+		{ title: 'queue (front on the left)', items: queue.map(name) },
+		{ title: 'visit order', items: order.map(name) },
+	]
 	const link = directed ? '→' : '–'
 
 	rec.add({
 		flash: { [start]: WAITING },
 		badges: { [start]: '1' },
-		strip: strip(),
+		strips: strips(),
 		caption: `Start at ${name(start)}: discover it (1) and queue it`,
 	})
 	let previous: string | undefined
@@ -95,7 +98,7 @@ export function bfs(model: GraphModel, start: string, directed: boolean): Traver
 		const u = queue.shift()!
 		rec.add({
 			flash: { [u]: CURRENT, ...(previous ? { [previous]: DONE } : {}) },
-			strip: strip(),
+			strips: strips(),
 			caption: `Dequeue ${name(u)} and look at its ${directed ? 'out-' : ''}edges`,
 		})
 		for (const { node: v, edge } of adjacent.get(u) ?? []) {
@@ -109,7 +112,7 @@ export function bfs(model: GraphModel, start: string, directed: boolean): Traver
 			rec.add({
 				flash: { [v]: WAITING, [edgeCellKey(edge)]: TREE },
 				badges: { [v]: String(order.length) },
-				strip: strip(),
+				strips: strips(),
 				caption: `${name(u)}${link}${name(v)}: ${name(v)} is new: discover it (${order.length}) and queue it`,
 			})
 		}
@@ -117,7 +120,7 @@ export function bfs(model: GraphModel, start: string, directed: boolean): Traver
 	}
 	rec.add({
 		flash: previous ? { [previous]: DONE } : {},
-		strip: strip(),
+		strips: strips(),
 		caption: `Queue empty: done, ${ending(order.length, model.nodes.length)}`,
 	})
 	return { frames: rec.frames, order, treeEdges }
@@ -136,7 +139,10 @@ export function dfs(model: GraphModel, start: string, directed: boolean): Traver
 	const order: string[] = []
 	const treeEdges: string[] = []
 	const stack: string[] = []
-	const strip = () => ({ title: 'call stack (top on the right)', items: stack.map(name) })
+	const strips = () => [
+		{ title: 'call stack (top on the right)', items: stack.map(name) },
+		{ title: 'visit order', items: order.map(name) },
+	]
 	const link = directed ? '→' : '–'
 
 	const visit = (u: string, via?: { from: string; edge: string }) => {
@@ -146,7 +152,7 @@ export function dfs(model: GraphModel, start: string, directed: boolean): Traver
 		rec.add({
 			flash: { [u]: CURRENT, ...(via ? { [via.from]: WAITING, [edgeCellKey(via.edge)]: TREE } : {}) },
 			badges: { [u]: String(order.length) },
-			strip: strip(),
+			strips: strips(),
 			caption: via
 				? `${name(via.from)}${link}${name(u)}: ${name(u)} is new: go deeper and visit it (${order.length})`
 				: `Visit ${name(start)} (1)`,
@@ -162,7 +168,7 @@ export function dfs(model: GraphModel, start: string, directed: boolean): Traver
 		const back = stack[stack.length - 1]
 		rec.add({
 			flash: { [u]: DONE, ...(back ? { [back]: CURRENT } : {}) },
-			strip: strip(),
+			strips: strips(),
 			caption: back
 				? `${name(u)} has no unvisited neighbours left: back to ${name(back)}`
 				: `${name(u)} is done: finished, ${ending(order.length, model.nodes.length)}`,

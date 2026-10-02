@@ -204,7 +204,11 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   The step-by-step toggle (`play-step-mode`) is remembered in localStorage: operations then
   open paused on step 1.
 - **Graph traversals**: `rclick` a node, then `[data-testid="context-menu.graph-bfs"]` or
-  `graph-dfs`. The queue / call stack is `[data-testid="playback-strip"]`.
+  `graph-dfs`. **Tree / heap traversals**: `rclick` a node, `clicksel
+  [data-testid="context-menu-sub.drawds-node-operations-0-button"]` (Traverse from ...), then
+  `context-menu.tree-in-order` (`tree-pre-order`, `tree-post-order`, `tree-level-order`; `heap-...`
+  on heaps). Strips (call stack or queue, then the output) are each a
+  `[data-testid="playback-strip"]`; pick one by its title text.
 - **Pointers**: `rclick` an element, `clicksel [data-testid="context-menu-sub.drawds-pointer-button"]`,
   then `[data-testid="context-menu.pointer-i"]` (names depend on the structure; `pointer-custom`
   opens a name prompt, `key-prompt`). **Wait ~400 ms between context menus**: a menu that is

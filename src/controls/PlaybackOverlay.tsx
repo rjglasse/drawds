@@ -1,7 +1,7 @@
 import { useEditor, useValue } from 'tldraw'
 import { NodeLinkShapeUtil } from '../nodelink/NodeLinkShapeUtil'
 import { currentPlayback } from '../nodelink/playback'
-import { StripSvg } from '../nodelink/SceneSvg'
+import { StripSvg, stripGap, stripsHeight } from '../nodelink/SceneSvg'
 import { PlayBar } from './PlayBar'
 
 /**
@@ -19,7 +19,7 @@ export function PlaybackOverlay() {
 			const shape = editor.getShape(view.shapeId)
 			const util = shape && editor.getShapeUtil(shape)
 			if (!shape || !(util instanceof NodeLinkShapeUtil)) return null
-			const layout = util.playbackLayout(shape, view.strip)
+			const layout = util.playbackLayout(shape, view.strips)
 			const transform = editor.getShapePageTransform(shape)
 			const toViewport = (p: { x: number; y: number }) => editor.pageToViewport(transform.applyToPoint(p))
 			return {
@@ -37,24 +37,27 @@ export function PlaybackOverlay() {
 	const { view, layout, strip, bar, zoom, colors } = placed
 	return (
 		<>
-			{view.strip && (
+			{view.strips?.length ? (
 				<svg
 					style={{ position: 'absolute', left: strip.x, top: strip.y, overflow: 'visible', pointerEvents: 'none' }}
 					width={1}
 					height={1}
 				>
 					<g transform={`scale(${zoom})`}>
-						<StripSvg
-							strip={view.strip}
-							at={{ x: 0, y: 0 }}
-							metrics={layout.metrics}
-							colors={colors}
-							color={layout.color}
-							fontFamily={layout.fontFamily}
-						/>
+						{view.strips.map((s, i) => (
+							<StripSvg
+								key={s.title}
+								strip={s}
+								at={{ x: 0, y: stripsHeight(view.strips!.slice(0, i), layout.metrics) + (i ? stripGap(layout.metrics) : 0) }}
+								metrics={layout.metrics}
+								colors={colors}
+								color={layout.color}
+								fontFamily={layout.fontFamily}
+							/>
+						))}
 					</g>
 				</svg>
-			)}
+			) : null}
 			<PlayBar editor={editor} view={view} at={bar} colors={colors} />
 		</>
 	)

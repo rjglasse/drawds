@@ -3,15 +3,16 @@ import { pruneMarks, swapMarks, type MarkColor, type Marks } from '../../cells/m
 import { fillValues } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
 import type { PointerDirection } from '../../cells/CellShapeUtil'
-import { NodeLinkShapeUtil } from '../../nodelink/NodeLinkShapeUtil'
+import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import type { Scene, SceneNode } from '../../nodelink/scene'
 import type { PointerAnchor } from '../../pointers/layout'
 import { prunePointers } from '../../pointers/pointers'
 import { getTreeMetrics } from '../tree/layout'
+import { ORDER_NAMES, traverseTree, type TreeOrder } from '../tree/traverse'
 import { playOperation, type Frame } from '../../nodelink/playback'
 import { buildByInsertion, childIndices, heapInsert, heapRemoveAt, heapify, parentIndex, type HeapType, type Sift } from './heap'
 import { HEAP_SHAPE_TYPE, heapShapeMigrations, heapShapeProps, type HeapShape } from './heap-shape-types'
-import { arrayKey, heapScene, indexOfKey } from './layout'
+import { arrayKey, heapScene, heapTreeNodes, indexOfKey } from './layout'
 
 /** Highlight index i in both views (tree node and array cell). */
 const both = (i: number, color: MarkColor): Marks => ({ [String(i)]: color, [arrayKey(i)]: color })
@@ -132,6 +133,44 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 
 	pointerNames() {
 		return ['i', 'parent', 'child', 'last']
+	}
+
+	// Traversals of the heap's tree from any tree node, in its context menu, lit in both views: level
+	// order from the root walks the array left to right.
+
+	nodeOperations(shape: HeapShape, key: string): NodeOperation[] {
+		const i = indexOfKey(key)
+		if (i === undefined || key.startsWith('a')) return []
+		return (['pre', 'in', 'post', 'level'] as const).map((order) => ({
+			id: `heap-${order}-order`,
+			label: ORDER_NAMES[order],
+			submenu: `Traverse from ${shape.props.values[i]}`,
+			run: () => this.traverse(shape.id, key, order),
+		}))
+	}
+
+	private traverse(id: HeapShape['id'], start: string, order: TreeOrder) {
+		const shape = this.editor.getShape(id) as HeapShape | undefined
+		if (!shape) return
+		const note = order === 'level' && start === '0' ? "That is the heap's array, index by index" : undefined
+		const { frames } = traverseTree(heapTreeNodes(shape.props.values), start, order, { note })
+		// Tree node i stands for array cell i too: light and number both.
+		const toArray = <T,>(entries: Record<string, T> | undefined) =>
+			entries &&
+			Object.fromEntries(
+				Object.entries(entries).flatMap(([k, v]) => (/^\d+$/.test(k) ? [[k, v], [arrayKey(Number(k)), v]] : [[k, v]]))
+			)
+		playOperation(this.editor, {
+			shapeId: id,
+			label: `${ORDER_NAMES[order].toLowerCase()} traversal`,
+			frames: frames.map((f) => ({ ...f, flash: toArray(f.flash), badges: toArray(f.badges) })),
+			// Marks are kept per index.
+			withMarks: (_update, highlights) => {
+				const current = (this.editor.getShape(id) as HeapShape | undefined) ?? shape
+				const kept = Object.fromEntries(Object.entries(highlights).filter(([k]) => /^\d+$/.test(k)))
+				return this.withMarks(current, { ...current.props.marks, ...kept })
+			},
+		})
 	}
 
 	// Live operations. x on a tree node removes it (on the root: extract-min / extract-max); the

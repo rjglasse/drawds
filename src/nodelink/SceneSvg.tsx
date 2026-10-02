@@ -295,11 +295,19 @@ function NodeValueSvg({
 	)
 }
 
-/** Size of a queue / stack strip: a title line over a row of boxes, one per item. */
+/** Size of a strip: a title line over a row of boxes, one per item. */
 export function stripSize(strip: Strip, { fontSize, labelFontSize }: SceneMetrics) {
 	const box = fontSize * 1.9
 	const title = labelFontSize * 1.5
 	return { box, title, w: Math.max(1, strip.items.length) * box, h: title + box }
+}
+
+/** Gap between strips stacked one under the other. */
+export const stripGap = ({ fontSize }: SceneMetrics) => fontSize * 0.6
+
+/** Height of several strips stacked one under the other. */
+export function stripsHeight(strips: readonly Strip[], metrics: SceneMetrics) {
+	return strips.reduce((h, s, i) => h + stripSize(s, metrics).h + (i ? stripGap(metrics) : 0), 0)
 }
 
 /**

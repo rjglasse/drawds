@@ -23,7 +23,7 @@ import { useState } from 'react'
 import { clearMarks, markElement, markTargetUnderPointer } from '../cells/marking'
 import { MARK_COLORS, MARK_MEANINGS, type MarkColor } from '../cells/marks'
 import { PlaybackOverlay } from '../controls/PlaybackOverlay'
-import { NodeLinkShapeUtil } from '../nodelink/NodeLinkShapeUtil'
+import { NodeLinkShapeUtil, type NodeOperation } from '../nodelink/NodeLinkShapeUtil'
 import { placePointer, removePointer, type Pointer } from '../pointers/pointers'
 import { pointerState } from '../pointers/state'
 import { FillPicker, fillPickerTranslations } from './FillPicker'
@@ -187,10 +187,17 @@ function NodeOperationsMenu() {
 		return util.nodeOperations(target.shape, target.key)
 	})
 	if (!operations.length) return null
+	const item = (op: NodeOperation) => <TldrawUiMenuItem key={op.id} id={op.id} label={op.label} onSelect={op.run} />
+	const submenus = [...new Set(operations.flatMap((op) => (op.submenu ? [op.submenu] : [])))]
 	return (
 		<TldrawUiMenuGroup id="drawds-node-operations">
-			{operations.map((op) => (
-				<TldrawUiMenuItem key={op.id} id={op.id} label={op.label} onSelect={op.run} />
+			{operations.filter((op) => !op.submenu).map(item)}
+			{submenus.map((label, i) => (
+				<TldrawUiMenuSubmenu key={label} id={`drawds-node-operations-${i}`} label={label}>
+					<TldrawUiMenuGroup id={`drawds-node-operations-${i}-items`}>
+						{operations.filter((op) => op.submenu === label).map(item)}
+					</TldrawUiMenuGroup>
+				</TldrawUiMenuSubmenu>
 			))}
 		</TldrawUiMenuGroup>
 	)
