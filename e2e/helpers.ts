@@ -5,6 +5,8 @@ import type { Editor, TLShape } from 'tldraw'
 export const CELL = 48
 /** Linked-list node spacing at size "m": node (1.5 cells) + arrow gap (0.9). */
 export const LIST_STEP = CELL * 2.4
+/** Binary tree level height at size "m". */
+export const TREE_LEVEL = CELL * 1.6
 
 type Direction = 'right' | 'left' | 'down' | 'up'
 
@@ -41,6 +43,18 @@ export function sketchArray(page: Page, at: [number, number], n: number, dir: Di
 /** Sketch a linked list of n nodes with the head node centred on `at`. */
 export function sketchList(page: Page, at: [number, number], n: number, dir: Direction = 'right') {
 	return sketch(page, 'Shift+N', LIST_STEP, at, n, dir)
+}
+
+/**
+ * Sketch a binary tree with `depth` levels, root centred on `at`. `lean` from -1 (a bare stick)
+ * through 0 (random) to 1 (a perfect tree) sets how full it is.
+ */
+export async function sketchTree(page: Page, [x, y]: [number, number], depth: number, lean = 0) {
+	await page.keyboard.press('Shift+T')
+	await page.mouse.move(x, y)
+	await page.mouse.down()
+	await page.mouse.move(x + lean * 2 * CELL, y + (depth - 1) * TREE_LEVEL + 10, { steps: 20 })
+	await page.mouse.up()
 }
 
 /** Screen position of a node's drag handle on the only selected shape. */

@@ -67,6 +67,13 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	 */
 	insertOnEdge?(shape: S, edgeKey: string): { update: TLShapePartial<S>; key: string } | undefined
 	canInsertOnEdge?(shape: S, edge: SceneEdge): boolean
+	/**
+	 * Empty child slots of a node (0 = left, 1 = right): offered as + buttons on the node's lower
+	 * left / right corners. `addChildAt` returns the update and the new node's key, which is then
+	 * opened for editing.
+	 */
+	getEmptySlots?(shape: S, key: string): number[]
+	addChildAt?(shape: S, key: string, slot: number): { update: TLShapePartial<S>; key: string } | undefined
 
 	readonly cells: EditableCells<S> = sceneCells<S>(this)
 	private scenes = new WeakMap<object, Scene>()
@@ -152,7 +159,11 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		if (!this.editor.getInstanceState().isCoarsePointer) {
 			const p = this.editor.getPointInShapeSpace(shape, this.editor.inputs.getCurrentPagePoint())
 			const reach = 16 / zoom
-			const node = hoveredNode(removable, p, reach)
+			const node = hoveredNode(
+				scene.nodes.filter((n) => n.kind !== 'null' && n.kind !== 'label'),
+				p,
+				reach
+			)
 			const edge = hoveredEdge(
 				routes,
 				insertable.map((e) => e.key),
@@ -164,8 +175,33 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		}
 
 		const nudge = 5 / zoom
+		const slotNodes = this.getEmptySlots
+			? scene.nodes.filter((n) => n.kind !== 'null' && n.kind !== 'label' && showNode(n.key))
+			: []
 		return (
 			<>
+				{slotNodes.flatMap((n) =>
+					(this.getEmptySlots?.(shape, n.key) ?? []).map((slot) => {
+						const side = slot === 0 ? -1 : 1
+						// Lower corner on the slot's side, where that child's edge would leave the node.
+						const corner =
+							n.kind === 'circle'
+								? { x: n.x + side * ((n.w / 2) * Math.SQRT1_2 + nudge), y: n.y + (n.h / 2) * Math.SQRT1_2 + nudge }
+								: { x: n.x + side * (n.w / 2 + nudge), y: n.y + n.h / 2 + nudge }
+						return (
+							<ControlButton
+								key={`slot-${n.key}-${slot}`}
+								editor={this.editor}
+								kind="insert"
+								at={corner}
+								label={`Add a ${slot === 0 ? 'left' : 'right'} child to ${n.value}`}
+								testId={`add-child-${n.key}-${slot === 0 ? 'left' : 'right'}`}
+								colors={colors}
+								onPress={() => this.pressAddChild(shape, n.key, slot)}
+							/>
+						)
+					})
+				)}
 				{removable
 					.filter((n) => showNode(n.key))
 					.map((n) => (
@@ -201,6 +237,16 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 					))}
 			</>
 		)
+	}
+
+	private pressAddChild(shape: S, key: string, slot: number) {
+		const current = this.editor.getShape(shape.id) as S | undefined
+		const added = current && this.addChildAt?.(current, key, slot)
+		if (!current || !added) return
+		this.editor.markHistoryStoppingPoint('add child')
+		this.editor.updateShape(added.update)
+		const updated = this.editor.getShape(shape.id) as S | undefined
+		if (updated) this.editCell(updated, added.key)
 	}
 
 	private pressRemove(shape: S, key: string) {

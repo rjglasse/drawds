@@ -16,7 +16,12 @@ npm run dev
   time the pointer moves one node + arrow length, with a `head` label on the first node and `null` after the last.
   The list runs the way you drag (right, left, up or down).
 
-For both: Esc cancels while sketching, and one undo removes the whole shape. Colour, size (cell size) and font
+- **Binary tree** (`Shift+T`, the third toolbar button): press to place the root and drag down; a new level
+  appears every level-height. Lean right as you drag for a fuller tree (a perfect tree at the far right), left
+  for a sparser one (a bare "stick" at the far left), straight down for a random shape. Nodes already drawn
+  keep their place and value as the tree grows.
+
+For all: Esc cancels while sketching, and one undo removes the whole shape. Colour, size (cell size) and font
 come from the style panel.
 
 ### Adding and removing elements
@@ -38,6 +43,11 @@ always shown):
 - an **x** on each node: click it to remove that node. Its predecessor now points to its successor and the
   list closes the gap; removing the head makes the next node the head. A list keeps at least one node (use
   Delete to remove the whole list). One undo per removal.
+
+Trees: point at a node to get a **+** on its lower-left / lower-right corner for each empty child slot (adds a
+left / right child and opens it for editing) and an **x** that removes the node and its whole subtree (the root
+has none; delete the shape instead). The layout tidies itself after each change and the root stays put. The
+style panel's **null children** toggle draws `null` in every empty slot.
 
 ### Fill
 

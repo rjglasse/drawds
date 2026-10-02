@@ -5,11 +5,13 @@ import { ArrayShapeTool } from './shapes/array/ArrayShapeTool'
 import { ArrayShapeUtil } from './shapes/array/ArrayShapeUtil'
 import { ListShapeTool } from './shapes/list/ListShapeTool'
 import { ListShapeUtil } from './shapes/list/ListShapeUtil'
+import { TreeShapeTool } from './shapes/tree/TreeShapeTool'
+import { TreeShapeUtil } from './shapes/tree/TreeShapeUtil'
 import { components, uiOverrides } from './ui/overrides'
 
 // Defined at module level so they aren't recreated on every render.
-const shapeUtils = [ArrayShapeUtil, ListShapeUtil]
-const tools = [ArrayShapeTool, ListShapeTool]
+const shapeUtils = [ArrayShapeUtil, ListShapeUtil, TreeShapeUtil]
+const tools = [ArrayShapeTool, ListShapeTool, TreeShapeTool]
 
 declare global {
 	interface Window {

@@ -87,7 +87,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   (positioned nodes + edges, shape space) and applies model edits; the base does geometry, `SceneSvg`
   rendering/export, value editing via `sceneCells`, and node dragging via tldraw handles (bottom edge of each
   node). `geometry.ts` is the pure edge routing (clipping, curved twins, self-loops, arrowheads).
-- `src/sketch/` - the shared press-and-drag gesture: `nextSketchState` (pure) and `createLineSketchTool`.
+- `src/sketch/` - press-and-drag tools: `createDragTool` (generic gesture state; trees) and
+  `createLineSketchTool` on top of it (`nextSketchState`, pure; arrays, lists).
+- `src/shapes/tree/` - binary trees: nodes with `children: [left, right]` slots (null = empty), root first;
+  `generate.ts` (random shapes by depth + fullness, growth-stable: existence depends only on seed + path, ids
+  are `n` + path), `layout.ts` (contour-based tidy layout; a lone child offset `lone`, well under half the
+  sibling spacing, so parentage stays unambiguous), `model.ts` (add child, remove subtree).
 - `src/controls/` - on-canvas controls shown while a structure is the only selected shape
   (`showsStructureControls`): grow grips (tldraw `create` handles `grow` / `grow-start`, drawn only on hover,
   plus our own '+' `GrowGrip`; `grownCount` is pure) and `ControlButton` (HTML insert '+' / remove 'x',
@@ -121,6 +126,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   its button (`src/nodelink/hover.ts`, reach 16 screen px); coarse pointers show all.
 - Random fills are distinct (`random`, `letters`; sorted modes strictly monotone) until the pool runs out;
   growth and insertion skip values already present. `repeats` keeps duplicates.
+- Child slots: implement `getEmptySlots` + `addChildAt`; the base draws a + on the hovered node's lower-left /
+  lower-right corner per empty slot and opens the new child for editing.
 - Insertable edges: implement `insertOnEdge` (+ optional `canInsertOnEdge`) returning the update and the new
   node's key; the base draws a + mid-edge, applies the update as one undo step, then opens the new node with
   `CellShapeUtil.editCell(shape, key)` (start editing any cell programmatically).

@@ -26,6 +26,8 @@ const OUT = resolve(process.env.OUT ?? join(tmpdir(), 'run-drawds'))
 const CELL = 48
 // Linked-list node centre spacing at size "m": node (1.5 cells) + arrow gap (0.9) (src/shapes/list/layout.ts).
 const LIST_STEP = CELL * 2.4
+// Binary tree level height at size "m" (src/shapes/tree/layout.ts).
+const TREE_LEVEL = CELL * 1.6
 
 mkdirSync(OUT, { recursive: true })
 
@@ -156,6 +158,13 @@ const commands = {
 		await sketch('Shift+A', CELL, x, y, n, dir)
 		return commands.shapes()
 	},
+	// Sketch a binary tree with `depth` levels, root centred on (x, y). `lean` from -1 (a bare stick)
+	// through 0 (random) to 1 (a perfect tree) sets how full it is.
+	async tree(x, y, depth, lean = 0) {
+		await page.keyboard.press('Shift+T')
+		await commands.drag(x, y, +x + +lean * 2 * CELL, +y + (+depth - 1) * TREE_LEVEL + 10)
+		return commands.shapes()
+	},
 	// Sketch a linked list of n nodes with the list tool; the head node is centred on (x, y).
 	async list(x, y, n, dir = 'right') {
 		await sketch('Shift+N', LIST_STEP, x, y, n, dir)
@@ -169,6 +178,7 @@ const commands = {
 				x: Math.round(s.x),
 				y: Math.round(s.y),
 				...(s.type === 'array' ? { direction: s.props.direction, fill: s.props.fill, values: s.props.values } : {}),
+				...(s.type === 'binary-tree' ? { nulls: s.props.nulls, fill: s.props.fill, nodes: s.props.nodes.map((n) => n.id + '=' + n.value + (n.dx || n.dy ? '*' : '')) } : {}),
 				...(s.type === 'linked-list'
 					? { direction: s.props.direction, fill: s.props.fill, nodes: s.props.nodes.map((n) => n.value + (n.dx || n.dy ? '*' : '')) }
 					: {}),

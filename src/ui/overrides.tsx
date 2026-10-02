@@ -23,9 +23,11 @@ import { FillPicker, fillPickerTranslations } from './FillPicker'
 import { maskIcon } from './icons'
 import arrayIconUrl from './icons/array.svg'
 import listIconUrl from './icons/list.svg'
+import treeIconUrl from './icons/tree.svg'
+import { NullsPicker, nullsPickerTranslations } from './NullsPicker'
 
 /** Our structure tools, in toolbar order. */
-const STRUCTURE_TOOLS = ['array', 'linked-list'] as const
+const STRUCTURE_TOOLS = ['array', 'linked-list', 'binary-tree'] as const
 
 const RELAYOUT = 'drawds.relayout'
 
@@ -55,6 +57,13 @@ export const uiOverrides: TLUiOverrides = {
 			kbd: 'shift+n',
 			onSelect: () => editor.setCurrentTool('linked-list'),
 		}
+		tools['binary-tree'] = {
+			id: 'binary-tree',
+			icon: maskIcon(treeIconUrl),
+			label: 'Binary tree',
+			kbd: 'shift+t',
+			onSelect: () => editor.setCurrentTool('binary-tree'),
+		}
 		return tools
 	},
 	actions(editor, actions) {
@@ -70,7 +79,7 @@ export const uiOverrides: TLUiOverrides = {
 		}
 		return actions
 	},
-	translations: { en: fillPickerTranslations },
+	translations: { en: { ...fillPickerTranslations, ...nullsPickerTranslations } },
 }
 
 function StructureToolbarItem({ id }: { id: string }) {
@@ -116,6 +125,7 @@ export const components: TLComponents = {
 		<DefaultStylePanel {...props}>
 			<DefaultStylePanelContent />
 			<FillPicker />
+			<NullsPicker />
 		</DefaultStylePanel>
 	),
 	ContextMenu: (props) => (
