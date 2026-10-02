@@ -57,6 +57,32 @@ export async function handlePosition(page: Page, key: string): Promise<[number, 
 	return at!
 }
 
+/**
+ * Move the pointer to a node of the only selected node-link shape, or half-way between two nodes
+ * (on the arrow joining them). With a mouse, node and edge controls only appear near the pointer.
+ */
+export async function hoverNode(page: Page, ...keys: string[]) {
+	const at = await page.evaluate(
+		(keys) => {
+			const e = window.editor!
+			const shape = e.getOnlySelectedShape()
+			const util = shape && (e.getShapeUtil(shape) as unknown as { getScene?(s: unknown): { nodes: { key: string; x: number; y: number }[] } })
+			const scene = shape && util?.getScene?.(shape)
+			const nodes = scene && keys.map((k) => scene.nodes.find((n) => n.key === k))
+			if (!shape || !nodes || nodes.some((n) => !n)) return null
+			const mid = {
+				x: nodes.reduce((s, n) => s + n!.x, 0) / nodes.length,
+				y: nodes.reduce((s, n) => s + n!.y, 0) / nodes.length,
+			}
+			const p = e.pageToScreen(e.getShapePageTransform(shape).applyToPoint(mid))
+			return [p.x, p.y] as [number, number]
+		},
+		keys
+	)
+	expect(at, `node(s) ${keys.join(', ')} on the selected shape`).not.toBeNull()
+	await page.mouse.move(at![0], at![1])
+}
+
 /** The aria-label of the focused element, e.g. "Cell 0" while editing a cell. */
 export function focusedLabel(page: Page) {
 	return page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? null)

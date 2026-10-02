@@ -97,6 +97,7 @@ numbers sorted, and `fill` is `"ascending"`.
 | `nav [url]` | open the app (default `http://localhost:5179`), wait for the canvas and `window.editor` |
 | `array x y n [right\|left\|up\|down]` | Shift+A, then drag so an `n`-cell array appears with its first cell centred on (x, y). Assumes size style M (48 px cells). Prints `shapes`. |
 | `list x y n [right\|left\|up\|down]` | Shift+N, then drag so an `n`-node linked list appears with its head node centred on (x, y). Size M: nodes are 115.2 px apart. Prints `shapes`. |
+| `hover <key> [key2]` | move the pointer to a node of the only selected node-link shape, or half-way between two (on the arrow joining them); needed before clicking an x or + |
 | `dragnode <key> dx dy` | drag a handle of the **only selected** shape: a list node (`n0`, `n1`, ...), the end grip `grow` (arrays, lists) or a list's head grip `grow-start` |
 | `drag x1 y1 x2 y2 [steps]` | press, move in `steps` (default 20), release |
 | `move x y` / `down` / `up` | low-level mouse, for checks in the middle of a gesture |
@@ -161,6 +162,10 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   is drawn by the shape. Random fills append the next draws of the shape's
   seed, so `fillValues('random', seed, n)` predicts the grown values; with
   values 0-99, repeats are normal (about 1 in 100 per neighbouring pair).
+- **x / + buttons only exist near the pointer** (mouse) and only while the
+  list is the only selected shape: `hover n1` before `clicksel
+  [data-testid="remove-node-n1"]`, `hover n1 n2` before
+  `[data-testid="insert-on-n1->"]`, `hover n2 #null` for the tail's arrow.
 - **List x / + buttons and the head grip** only exist while the list is the
   only selected shape (`remove-node-<id>`, `insert-on-<id>->` test ids; no x
   on the last node). Clicking a + leaves the new node in edit mode

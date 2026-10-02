@@ -136,3 +136,43 @@ describe('insertValue', () => {
 		expect(insertValue('1', '2', 'random', SEED, 3)).toBe(insertValue('1', '2', 'random', SEED, 3))
 	})
 })
+
+const distinct = (values: string[]) => new Set(values).size === values.length
+
+describe('distinct values', () => {
+	it('random and letters do not repeat until the pool runs out', () => {
+		for (let seed = 0; seed < 50; seed++) {
+			expect(distinct(fillValues('random', seed, 30))).toBe(true)
+			expect(distinct(fillValues('letters', seed, 26))).toBe(true)
+		}
+		expect(distinct(fillValues('random', SEED, 100))).toBe(true)
+		expect(fillValues('random', SEED, 120)).toHaveLength(120)
+	})
+
+	it('sorted fills are strictly monotone', () => {
+		const asc = nums(fillValues('ascending', SEED, 40))
+		for (let i = 1; i < asc.length; i++) expect(asc[i]).toBeGreaterThan(asc[i - 1])
+	})
+
+	it("'repeats' allows duplicates", () => {
+		expect(distinct(fillValues('repeats', SEED, 60))).toBe(false)
+	})
+
+	it('growing and inserting avoid values already present, typed or not', () => {
+		const grown = extendValues(['7', '8', '9'], 'random', SEED, 40)
+		expect(distinct(grown)).toBe(true)
+		const front = extendValues(['7', '8'], 'random', SEED, 40, { atStart: true })
+		expect(distinct(front)).toBe(true)
+		const existing = fillValues('random', SEED, 98)
+		const fresh = insertValue(existing[0], existing[1], 'random', SEED, 1, existing)
+		expect(existing).not.toContain(fresh)
+	})
+
+	it('inserting between sorted neighbours picks a value strictly between when there is room', () => {
+		for (let salt = 0; salt < 20; salt++) {
+			const v = Number(insertValue('10', '13', 'ascending', SEED, salt))
+			expect(v).toBeGreaterThan(10)
+			expect(v).toBeLessThan(13)
+		}
+	})
+})

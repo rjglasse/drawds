@@ -37,7 +37,14 @@ export function insertListNode({ nodes, fill, seed }: ListProps, afterId: string
 	const i = nodes.findIndex((n) => n.id === afterId)
 	if (i < 0) return { nodes: [...nodes], id: '' }
 	const index = nextNodeIndex(nodes)
-	const value = insertValue(nodes[i].value, nodes[i + 1]?.value, fill, seed, index)
+	const value = insertValue(
+		nodes[i].value,
+		nodes[i + 1]?.value,
+		fill,
+		seed,
+		index,
+		nodes.map((n) => n.value)
+	)
 	const node: ListNode = { id: `n${index}`, value, dx: 0, dy: 0 }
 	return { nodes: [...nodes.slice(0, i + 1), node, ...nodes.slice(i + 1)], id: node.id }
 }

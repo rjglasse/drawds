@@ -21,6 +21,12 @@ const FILL_ITEMS: StyleValuesForUi<FillMode> = [
 			'<rect x="5" y="5" width="20" height="20" rx="4"/><circle cx="10.5" cy="10.5" r="2" fill="black" stroke="none"/><circle cx="15" cy="15" r="2" fill="black" stroke="none"/><circle cx="19.5" cy="19.5" r="2" fill="black" stroke="none"/>'
 		),
 	},
+	{
+		value: 'repeats',
+		icon: svgIcon(
+			'<rect x="2" y="9" width="12" height="12" rx="3"/><rect x="16" y="9" width="12" height="12" rx="3"/><circle cx="8" cy="15" r="1.8" fill="black" stroke="none"/><circle cx="22" cy="15" r="1.8" fill="black" stroke="none"/>'
+		),
+	},
 	{ value: 'empty', icon: svgIcon('<rect x="3" y="10" width="24" height="10" rx="1"/><path d="M11 10v10M19 10v10"/>') },
 	{ value: 'ascending', icon: svgIcon(bars([5, 10, 15, 20])) },
 	{ value: 'descending', icon: svgIcon(bars([20, 15, 10, 5])) },
@@ -36,7 +42,8 @@ const FILL_ITEMS: StyleValuesForUi<FillMode> = [
 /** UI strings for the picker, merged into tldraw's translations. */
 export const fillPickerTranslations: Record<string, string> = {
 	'style-panel.fill-mode': 'Fill',
-	'fill-mode-style.random': 'Random',
+	'fill-mode-style.random': 'Random (distinct)',
+	'fill-mode-style.repeats': 'Random (repeats allowed)',
 	'fill-mode-style.empty': 'Empty',
 	'fill-mode-style.ascending': 'Ascending',
 	'fill-mode-style.descending': 'Descending',

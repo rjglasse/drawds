@@ -24,6 +24,7 @@ import { GrowGrip } from '../controls/GrowGrip'
 import { ControlButton } from '../controls/ControlButton'
 import { showsStructureControls } from '../controls/visibility'
 import { routeScene } from './geometry'
+import { hoveredEdge, hoveredNode } from './hover'
 import type { Scene, SceneEdge } from './scene'
 import { sceneCells } from './scene-cells'
 import { SceneSvg } from './SceneSvg'
@@ -124,75 +125,100 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 							<GrowGrip key={grip.id} at={grip.at} zoom={zoom} colors={colors} />
 						))}
 				</SVGContainer>
-				{controls && this.renderRemoveButtons(shape, colors)}
-				{controls && this.renderInsertButtons(shape, colors)}
+				{controls && this.renderNodeAndEdgeButtons(shape, colors)}
 				{this.renderCellEditor(shape)}
 			</>
 		)
 	}
 
-	/** A + in the middle of each edge a node can be inserted on. */
-	private renderInsertButtons(shape: S, colors: Parameters<typeof ControlButton>[0]['colors']) {
-		if (!this.insertOnEdge) return null
+	/**
+	 * An x on each removable node and a + mid-way along each edge a node can be inserted on. With a
+	 * mouse, only the node and edge near the pointer show theirs, so big structures stay readable;
+	 * touch screens have no hover, so they show all of them.
+	 */
+	private renderNodeAndEdgeButtons(shape: S, colors: Parameters<typeof ControlButton>[0]['colors']) {
 		const scene = this.getScene(shape)
 		const routes = routeScene(scene)
-		return scene.edges
-			.filter((e) => this.canInsertOnEdge?.(shape, e) ?? true)
-			.map((edge) => {
-				const route = routes.get(edge.key)
-				if (!route) return null
-				return (
-					<ControlButton
-						key={edge.key}
-						editor={this.editor}
-						kind="insert"
-						at={route.labelAt}
-						label="Insert a node here"
-						testId={`insert-on-${edge.key}`}
-						colors={colors}
-						onPress={() => {
-							const current = this.editor.getShape(shape.id) as S | undefined
-							const inserted = current && this.insertOnEdge?.(current, edge.key)
-							if (!current || !inserted) return
-							this.editor.markHistoryStoppingPoint('insert node')
-							this.editor.updateShape(inserted.update)
-							const updated = this.editor.getShape(shape.id) as S | undefined
-							if (updated) this.editCell(updated, inserted.key)
-						}}
-					/>
+		const zoom = this.editor.getZoomLevel()
+		const removable = this.removeNode
+			? scene.nodes.filter(
+					(n) => n.kind !== 'null' && n.kind !== 'label' && (this.canRemoveNode?.(shape, n.key) ?? true)
 				)
-			})
+			: []
+		const insertable = this.insertOnEdge ? scene.edges.filter((e) => this.canInsertOnEdge?.(shape, e) ?? true) : []
+
+		let showNode = (_key: string) => true
+		let showEdge = (_key: string) => true
+		if (!this.editor.getInstanceState().isCoarsePointer) {
+			const p = this.editor.getPointInShapeSpace(shape, this.editor.inputs.getCurrentPagePoint())
+			const reach = 16 / zoom
+			const node = hoveredNode(removable, p, reach)
+			const edge = hoveredEdge(
+				routes,
+				insertable.map((e) => e.key),
+				p,
+				reach
+			)
+			showNode = (key) => key === node
+			showEdge = (key) => key === edge
+		}
+
+		const nudge = 5 / zoom
+		return (
+			<>
+				{removable
+					.filter((n) => showNode(n.key))
+					.map((n) => (
+						<ControlButton
+							key={`remove-${n.key}`}
+							editor={this.editor}
+							kind="remove"
+							// The top-right corner, nudged off it so the selection outline only touches the button.
+							at={
+								n.kind === 'circle'
+									? { x: n.x + (n.w / 2) * Math.SQRT1_2 + nudge, y: n.y - (n.h / 2) * Math.SQRT1_2 - nudge }
+									: { x: n.x + n.w / 2 + nudge, y: n.y - n.h / 2 - nudge }
+							}
+							label={`Remove node ${n.value}`}
+							testId={`remove-node-${n.key}`}
+							colors={colors}
+							onPress={() => this.pressRemove(shape, n.key)}
+						/>
+					))}
+				{insertable
+					.filter((e) => showEdge(e.key) && routes.has(e.key))
+					.map((edge) => (
+						<ControlButton
+							key={`insert-${edge.key}`}
+							editor={this.editor}
+							kind="insert"
+							at={routes.get(edge.key)!.labelAt}
+							label="Insert a node here"
+							testId={`insert-on-${edge.key}`}
+							colors={colors}
+							onPress={() => this.pressInsert(shape, edge.key)}
+						/>
+					))}
+			</>
+		)
 	}
 
-	/** An x on the top-right of each removable node, nudged off the corner so the selection outline only touches its edge. */
-	private renderRemoveButtons(shape: S, colors: Parameters<typeof ControlButton>[0]['colors']) {
-		if (!this.removeNode) return null
-		return this.getScene(shape)
-			.nodes.filter((n) => n.kind !== 'null' && n.kind !== 'label' && (this.canRemoveNode?.(shape, n.key) ?? true))
-			.map((n) => {
-				const nudge = 5 / this.editor.getZoomLevel()
-				const corner =
-					n.kind === 'circle'
-						? { x: n.x + (n.w / 2) * Math.SQRT1_2 + nudge, y: n.y - (n.h / 2) * Math.SQRT1_2 - nudge }
-						: { x: n.x + n.w / 2 + nudge, y: n.y - n.h / 2 - nudge }
-				return (
-					<ControlButton
-						key={n.key}
-						editor={this.editor}
-						kind="remove"
-						at={corner}
-						label={`Remove node ${n.value}`}
-						testId={`remove-node-${n.key}`}
-						colors={colors}
-						onPress={() => {
-							const current = this.editor.getShape(shape.id) as S | undefined
-							if (!current || !this.removeNode) return
-							this.editor.markHistoryStoppingPoint('remove node')
-							this.editor.updateShape(this.removeNode(current, n.key))
-						}}
-					/>
-				)
-			})
+	private pressRemove(shape: S, key: string) {
+		const current = this.editor.getShape(shape.id) as S | undefined
+		if (!current || !this.removeNode) return
+		this.editor.markHistoryStoppingPoint('remove node')
+		this.editor.updateShape(this.removeNode(current, key))
+	}
+
+	/** Insert, then open the new node for editing so the teacher can type its value straight away. */
+	private pressInsert(shape: S, edgeKey: string) {
+		const current = this.editor.getShape(shape.id) as S | undefined
+		const inserted = current && this.insertOnEdge?.(current, edgeKey)
+		if (!current || !inserted) return
+		this.editor.markHistoryStoppingPoint('insert node')
+		this.editor.updateShape(inserted.update)
+		const updated = this.editor.getShape(shape.id) as S | undefined
+		if (updated) this.editCell(updated, inserted.key)
 	}
 
 	override toSvg(shape: S, ctx: SvgExportContext) {

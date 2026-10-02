@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { ListShapeProps } from '../src/shapes/list/list-shape-types'
-import { LIST_STEP, focusedLabel, handlePosition, open, shapesOfType, sketchList, withEditor } from './helpers'
+import { LIST_STEP, focusedLabel, handlePosition, hoverNode, open, shapesOfType, sketchList, withEditor } from './helpers'
 
 const ids = async (page: Page) =>
 	(await shapesOfType<ListShapeProps>(page, 'linked-list'))[0].props.nodes.map((n) => n.id)
@@ -32,6 +32,7 @@ test.beforeEach(({ page }) => open(page))
 
 test('x removes a middle node and the list closes the gap', async ({ page }) => {
 	await sketchList(page, [300, 250], 4)
+	await hoverNode(page, 'n1')
 	await page.getByTestId('remove-node-n1').click()
 	expect(await ids(page)).toEqual(['n0', 'n2', 'n3'])
 	const { edges } = await layout(page)
@@ -45,6 +46,7 @@ test('x removes a middle node and the list closes the gap', async ({ page }) => 
 test('removing the head makes the next node the head, in place', async ({ page }) => {
 	await sketchList(page, [300, 250], 3)
 	const before = (await layout(page)).at.n1
+	await hoverNode(page, 'n0')
 	await page.getByTestId('remove-node-n0').click()
 	const after = await layout(page)
 	expect(await ids(page)).toEqual(['n1', 'n2'])
@@ -54,8 +56,10 @@ test('removing the head makes the next node the head, in place', async ({ page }
 
 test('the last node has no x', async ({ page }) => {
 	await sketchList(page, [300, 250], 2)
+	await hoverNode(page, 'n1')
 	await page.getByTestId('remove-node-n1').click()
 	expect(await ids(page)).toEqual(['n0'])
+	await hoverNode(page, 'n0')
 	await expect(page.getByTestId('remove-node-n0')).toHaveCount(0)
 })
 
@@ -74,10 +78,20 @@ test('the start grip inserts at the head and the old nodes stay put', async ({ p
 	expect(await ids(page)).toEqual(['n1'])
 })
 
-test('controls only show while the list is selected', async ({ page }) => {
+test('node and edge controls appear near the pointer, and only while selected', async ({ page }) => {
 	await sketchList(page, [300, 250], 3)
+	await hoverNode(page, 'n0')
 	await expect(page.getByTestId('remove-node-n0')).toHaveCount(1)
+	await expect(page.getByTestId('remove-node-n1')).toHaveCount(0)
+	await expect(page.getByTestId('insert-on-n1->')).toHaveCount(0)
+
+	await hoverNode(page, 'n1', 'n2')
+	await expect(page.getByTestId('insert-on-n1->')).toHaveCount(1)
+	await expect(page.getByTestId('remove-node-n0')).toHaveCount(0)
+
+	// Deselect, then point at the head again (sketched with its centre at 300, 250).
 	await page.mouse.click(700, 600)
+	await page.mouse.move(300, 250)
 	await expect(page.getByTestId('remove-node-n0')).toHaveCount(0)
 })
 
@@ -87,6 +101,7 @@ const values = async (page: Page) =>
 test('+ on an arrow inserts a node after its source and opens it for editing', async ({ page }) => {
 	await sketchList(page, [300, 250], 3)
 	const before = await values(page)
+	await hoverNode(page, 'n0', 'n1')
 	await page.getByTestId('insert-on-n0->').click()
 	expect(await focusedLabel(page)).toBe('Cell n3')
 	const generated = (await values(page))[1]
@@ -106,6 +121,7 @@ test('+ on an arrow inserts a node after its source and opens it for editing', a
 
 test('+ on the arrow to null inserts after the tail; Esc keeps the generated value', async ({ page }) => {
 	await sketchList(page, [300, 250], 2)
+	await hoverNode(page, 'n1', '#null')
 	await page.getByTestId('insert-on-n1->').click()
 	await page.keyboard.press('Escape')
 	expect(await ids(page)).toEqual(['n0', 'n1', 'n2'])

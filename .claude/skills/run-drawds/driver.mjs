@@ -115,6 +115,22 @@ const commands = {
 	async clicksel(...selector) {
 		await page.locator(selector.join(' ')).first().click()
 	},
+	// Move the pointer to a node of the only selected node-link shape, or half-way between two
+	// (which is on the arrow joining them). Node controls (x, +) only appear near the pointer.
+	async hover(...keys) {
+		const at = await page.evaluate((keys) => {
+			const e = window.editor
+			const shape = e.getOnlySelectedShape()
+			const scene = shape && e.getShapeUtil(shape).getScene?.(shape)
+			const nodes = scene && keys.map((k) => scene.nodes.find((n) => n.key === k))
+			if (!nodes || nodes.some((n) => !n)) return null
+			const mid = { x: nodes.reduce((s, n) => s + n.x, 0) / nodes.length, y: nodes.reduce((s, n) => s + n.y, 0) / nodes.length }
+			const p = e.pageToScreen(e.getShapePageTransform(shape).applyToPoint(mid))
+			return [p.x, p.y]
+		}, keys)
+		if (!at) throw new Error(`no node(s) ${keys.join(', ')} on the selected shape (select one node-link shape first)`)
+		await page.mouse.move(at[0], at[1])
+	},
 	// Drag a node of the selected node-link shape by (dx, dy), using its handle.
 	async dragnode(key, dx, dy) {
 		const at = await page.evaluate((key) => {

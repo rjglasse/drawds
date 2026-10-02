@@ -102,6 +102,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
 - Use tldraw style props (`DefaultColorStyle`, `DefaultSizeStyle`, `DefaultFontStyle`) so the built-in style panel
   drives our shapes; set `shapeType` on the tool so the panel shows them while the tool is active.
 - Keep gesture/layout maths in pure functions and test them with vitest.
+- Pedagogy first: plan each structure around the moves a teacher makes live in front of a class (insert,
+  delete, extend, swap, highlight...), not just the creation gesture. Those moves are beads, not afterthoughts.
 - A creation gesture is one undo step: `markHistoryStoppingPoint` on enter, `bailToMark` on cancel.
 - New structure with editable values: extend `CellShapeUtil`, implement `EditableCells` (pure, unit-test it),
   skip drawing the value of `getEditingKey(shape)`, and render `this.renderCellEditor(shape)` in `component`.
@@ -115,7 +117,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `info.initial` (the shape at drag start), and shift `x`/`y` when the shape's origin moves so existing
   elements stay put on the page (lists: `anchorShift` keeps the first surviving node fixed).
 - Removable nodes: node-link shapes implement `removeNode` (+ optional `canRemoveNode`); the base draws an x
-  on each node and makes each removal one undo step.
+  on each node and makes each removal one undo step. With a mouse only the node / edge near the pointer shows
+  its button (`src/nodelink/hover.ts`, reach 16 screen px); coarse pointers show all.
+- Random fills are distinct (`random`, `letters`; sorted modes strictly monotone) until the pool runs out;
+  growth and insertion skip values already present. `repeats` keeps duplicates.
 - Insertable edges: implement `insertOnEdge` (+ optional `canInsertOnEdge`) returning the update and the new
   node's key; the base draws a + mid-edge, applies the update as one undo step, then opens the new node with
   `CellShapeUtil.editCell(shape, key)` (start editing any cell programmatically).

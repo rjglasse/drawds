@@ -26,7 +26,8 @@ Drag it outwards to add elements, one per cell or node length, or back to remove
 new ones follow the shape's Fill mode (random values continue the same random sequence, ascending/descending
 continue the run). One undo per drag; Esc cancels mid-drag.
 
-Lists have more:
+Lists have more (with a mouse, a node's x and an arrow's + appear when you point at them; on touch screens they're
+always shown):
 
 - a second **+** grip before the head: drag it out to insert at the head (the `head` label moves to the new
   first node), or back to remove from the head. The rest of the list stays where it is.
@@ -40,8 +41,8 @@ Lists have more:
 
 ### Fill
 
-The style panel's **Fill** picker chooses how values are generated: random integers (0-99), empty, ascending,
-descending, nearly sorted, or letters. New shapes use the last mode you picked. Changing the mode on a selected
+The style panel's **Fill** picker chooses how values are generated: random integers (0-99, all different), random
+with repeats allowed, empty, ascending, descending, nearly sorted, or letters (all different). New shapes use the last mode you picked. Changing the mode on a selected
 shape regenerates its values from the same random draw, so switching from random to ascending sorts the same
 numbers (this replaces values you typed; undo brings them back).
 
