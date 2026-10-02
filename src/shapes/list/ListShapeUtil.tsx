@@ -5,7 +5,9 @@ import type { Refillable } from '../../data/fill-style'
 import { GROW_HANDLE_ID, GROW_START_HANDLE_ID, grownCount } from '../../controls/grow'
 import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { valueBox } from '../../nodelink/geometry'
-import { NodeLinkShapeUtil } from '../../nodelink/NodeLinkShapeUtil'
+import { insertValue } from '../../data/fill'
+import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
+import { playOperation } from '../../nodelink/playback'
 import type { Scene, SceneEdge } from '../../nodelink/scene'
 import type { PointerAnchor } from '../../pointers/layout'
 import { prunePointers } from '../../pointers/pointers'
@@ -26,6 +28,7 @@ import {
 	type ListShape,
 } from './list-shape-types'
 import { anchorShift, insertListNode, removeListNode, resizeList } from './ops'
+import { deleteFromList, findInList, insertIntoList, reverseList, type ListOperation } from './operations'
 
 export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refillable {
 	static override type = LIST_SHAPE_TYPE
@@ -132,12 +135,82 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		return ['curr', 'prev', 'next', 'tail']
 	}
 
+	// Operations step by step, from a node's context menu: find, insert, delete, reverse, each
+	// assignment narrated as code with curr / prev / next walking along. (The x and + buttons stay
+	// as the quick edits.) Shift at the end keeps the highlights as marks.
+
+	nodeOperations(shape: ListShape, key: string): NodeOperation[] {
+		const { nodes } = shape.props
+		const node = nodes.find((n) => n.id === key)
+		if (!node) return []
+		const submenu = 'Step by step'
+		const run = (label: string, op: () => ListOperation) => () => this.play(shape.id, label, op)
+		const props = () => (this.editor.getShape(shape.id) as ListShape | undefined)?.props ?? shape.props
+		return [
+			{ id: 'list-find', label: `Find ${node.value}`, submenu, run: run('find', () => findInList(props(), node.value)) },
+			{
+				id: 'list-find-value',
+				label: 'Find a value',
+				prompt: 'Value to find',
+				submenu,
+				run: (value) => value !== undefined && this.play(shape.id, 'find', () => findInList(props(), value)),
+			},
+			{ id: 'list-insert-after', label: `Insert after ${node.value}`, submenu, run: run('insert', () => this.insertOp(props(), key)) },
+			{ id: 'list-insert-head', label: 'Insert at the head', submenu, run: run('insert', () => this.insertOp(props(), undefined)) },
+			...(nodes.length > 1
+				? [{ id: 'list-delete', label: `Delete ${node.value}`, submenu, run: run('delete', () => deleteFromList(props(), key)) }]
+				: []),
+			...(nodes.length > 1 ? [{ id: 'list-reverse', label: 'Reverse the list', submenu, run: run('reverse', () => reverseList(props())) }] : []),
+		]
+	}
+
+	/** Insert a new node with a value that fits the fill mode (as the + on an arrow does). */
+	private insertOp(props: ListShape['props'], afterId: string | undefined): ListOperation {
+		const { nodes, fill, seed } = props
+		const i = afterId === undefined ? -1 : nodes.findIndex((n) => n.id === afterId)
+		const index = 1 + Math.max(-1, ...nodes.map((n) => Number(n.id.slice(1))).filter(Number.isFinite))
+		const value = insertValue(
+			nodes[i]?.value,
+			nodes[i + 1]?.value,
+			fill,
+			seed,
+			index,
+			nodes.map((n) => n.value)
+		)
+		return insertIntoList(props, afterId, `n${index}`, value)
+	}
+
+	private play(id: ListShape['id'], label: string, operation: () => ListOperation) {
+		const shape = this.editor.getShape(id) as ListShape | undefined
+		if (!shape) return
+		const { frames, nodes, direction, finalFlash } = operation()
+		const final = nodes && this.withNodes(shape, shape, nodes, direction)
+		playOperation(this.editor, {
+			shapeId: id,
+			label,
+			frames,
+			final,
+			finalFlash,
+			// Shift: the highlights become marks, on the nodes still in the list.
+			withMarks: (_update, highlights) => {
+				const keep = (nodes ?? shape.props.nodes).map((n) => n.id)
+				const marks = pruneMarks({ ...shape.props.marks, ...highlights }, keep)
+				return final ? { ...final, props: { ...final.props, marks } } : this.withMarks(shape, marks)
+			},
+		})
+	}
+
 	/**
 	 * New nodes, positioned so the first surviving node of `initial` stays put on the page; marks and
 	 * pointers on removed nodes go with them.
 	 */
-	private withNodes(shape: ListShape, initial: ListShape, nodes: ListNode[]): TLShapePartial<ListShape> {
-		const shift = Vec.Rot(anchorShift(initial.props, { ...initial.props, nodes }), initial.rotation)
+	private withNodes(
+		shape: ListShape,
+		initial: ListShape,
+		nodes: ListNode[],
+		direction = initial.props.direction
+	): TLShapePartial<ListShape> {
+		const shift = Vec.Rot(anchorShift(initial.props, { ...initial.props, nodes, direction }), initial.rotation)
 		const marks = pruneMarks(
 			initial.props.marks,
 			nodes.map((n) => n.id)
@@ -148,7 +221,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 			type: LIST_SHAPE_TYPE,
 			x: initial.x + shift.x,
 			y: initial.y + shift.y,
-			props: { nodes, marks, pointers },
+			props: { nodes, marks, pointers, direction },
 		}
 	}
 

@@ -176,7 +176,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
 - Operations from a node (BFS / DFS on graphs, pre/in/post/level-order on trees and heaps): implement
   `nodeOperations(shape, key)`; they appear in that node's context menu, grouped by `submenu` if given.
   Traversals are pure frame generators (`src/shapes/graph/traverse.ts`, `src/shapes/tree/traverse.ts`) with
-  `strips` (several: stack or queue, plus the output). Heaps reuse the tree one and light both views.
+  `strips` (several: stack or queue, plus the output). Heaps reuse the tree one and light both views. An
+  operation can ask for a value first (`prompt`; e.g. a list's "Find a value...").
+- Steps the props can't express (a list node not linked in yet, an arrow re-pointed or curving back) give the
+  frame a whole `scene` (layout coordinates; drawn at the committed offset) and their own `pointers` (curr,
+  prev, next: they slide between steps); `SceneEdge.bend` curves an edge. See `src/shapes/list/operations.ts`
+  (find, insert after / at the head, delete, reverse), narrated as the code a teacher writes.
 - Pointers: when elements go, prune pointers with `prunePointers` wherever marks are pruned. Atoms read inside
   a separate React component (not the shape's `component()`) need `useValue`, or it won't re-render.
 - Removable edges: implement `removeEdge` (+ optional `canRemoveEdge`); the base draws an x mid-edge (beside the

@@ -15,6 +15,7 @@ import {
 	type TLHandleDragInfo,
 	type TLShape,
 	type TLShapePartial,
+	type TLThemeColors,
 	type VecLike,
 } from 'tldraw'
 import { CellShapeUtil, type CellFont, type PointerDirection } from '../cells/CellShapeUtil'
@@ -24,13 +25,13 @@ import { growHandle, isGrowHandle } from '../controls/grow'
 import { GrowGrip } from '../controls/GrowGrip'
 import { ControlButton } from '../controls/ControlButton'
 import { KeyPrompt } from '../controls/KeyPrompt'
-import { closePrompt, isPromptOpen, openPrompt } from '../controls/prompt'
+import { closePrompt, isPromptOpen, openPrompt, operationPrompt } from '../controls/prompt'
 import { showsStructureControls } from '../controls/visibility'
-import { POINTER_FONT_SCALE, placePointers, type PointerAnchor, type PointerSide } from '../pointers/layout'
+import { POINTER_FONT_SCALE, placePointers, type PlacedPointer, type PointerAnchor, type PointerSide } from '../pointers/layout'
 import { boxContains, labelBox, nodeBox, nodeContains, routeScene, spatialNeighbor, type EdgeRoute } from './geometry'
 import { hoveredEdge, hoveredNode } from './hover'
-import { isBusy, playbackFor, type Strip } from './playback'
-import { edgeCellKey, type Scene, type SceneEdge, type SceneNode } from './scene'
+import { isBusy, playbackFor, type Frame, type Strip } from './playback'
+import { edgeCellKey, translateScene, type Scene, type SceneEdge, type SceneNode } from './scene'
 import { sceneCells } from './scene-cells'
 import { SceneSvg, stripsHeight } from './SceneSvg'
 
@@ -40,7 +41,9 @@ export interface NodeOperation {
 	label: string
 	/** Operations with the same submenu label are grouped under it (e.g. "Traverse from 42"). */
 	submenu?: string
-	run(): void
+	/** Ask for a value first (the prompt's placeholder); `run` gets it. */
+	prompt?: string
+	run(value?: string): void
 }
 
 /** Style props every node-link shape has. */
@@ -156,10 +159,8 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		for (const { label } of placePointers(this.getPointers(shape), (key) => this.pointerAnchorIn(shape, raw, key), fontSize)) {
 			add(label.x, label.y)
 		}
-		const dx = xs.length ? -Math.min(...xs) : 0
-		const dy = ys.length ? -Math.min(...ys) : 0
-		const scene = dx || dy ? { ...raw, nodes: raw.nodes.map((n) => ({ ...n, x: n.x + dx, y: n.y + dy })) } : raw
-		return { scene, offset: { x: dx, y: dy } }
+		const offset = { x: xs.length ? -Math.min(...xs) : 0, y: ys.length ? -Math.min(...ys) : 0 }
+		return { scene: translateScene(raw, offset), offset }
 	}
 
 	/** The node or edge cell at the point, else (if edges take marks) the edge passing near it. */
@@ -276,7 +277,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 						this.growGrips(shape).map((grip) => (
 							<GrowGrip key={grip.id} at={grip.at} zoom={zoom} colors={colors} />
 						))}
-					{this.renderPointers(shape, colors)}
+					{this.renderPointers(shape, colors, { placed: this.framePointers(shape, playing?.frame, scene) })}
 				</SVGContainer>
 				{controls &&
 					!busy &&
@@ -293,6 +294,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 						onPress={() => openPrompt(this.editor, shape.id)}
 					/>
 				)}
+				{this.renderOperationPrompt(shape, scene, colors)}
 				{prompt && promptOpen && (
 					<KeyPrompt
 						editor={this.editor}
@@ -313,24 +315,47 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		)
 	}
 
+	/** The value prompt of a node operation (e.g. "Find a value..."), above its node. */
+	private renderOperationPrompt(shape: S, scene: Scene, colors: TLThemeColors) {
+		const asked = operationPrompt(this.editor).get()
+		const node = asked?.shapeId === shape.id ? scene.nodes.find((n) => n.key === asked.at) : undefined
+		if (!asked || !node) return null
+		const close = () => operationPrompt(this.editor).set(null)
+		return (
+			<KeyPrompt
+				editor={this.editor}
+				at={{ x: node.x, y: node.y - node.h / 2 - 24 }}
+				label={asked.label}
+				colors={colors}
+				onCancel={close}
+				onSubmit={(value) => {
+					close()
+					asked.run(value)
+				}}
+			/>
+		)
+	}
+
 	/**
 	 * Where an operation's strip (queue / stack) and play bar go, in shape space: under the scene, in
 	 * that order. Also what the strip is drawn with.
 	 */
 	playbackLayout(shape: S, strips: readonly Strip[] | undefined) {
 		const scene = this.displayScene(shape)
+		// Below any pointers under the structure too (a list's curr and prev).
+		const pointers = this.framePointers(shape, playbackFor(this.editor, shape.id)?.frame, scene) ?? this.placedPointers(shape)
 		return {
-			...this.belowScene(scene, strips),
+			...this.belowScene(scene, strips, Math.max(...pointers.map((p) => p.label.y + p.label.h))),
 			metrics: scene.metrics,
 			color: this.style(shape).color,
 			fontFamily: this.getFontFamily(shape),
 		}
 	}
 
-	private belowScene(scene: Scene, strips: readonly Strip[] | undefined) {
+	private belowScene(scene: Scene, strips: readonly Strip[] | undefined, below = -Infinity) {
 		const left = Math.min(...scene.nodes.map((n) => n.x - n.w / 2))
 		const right = Math.max(...scene.nodes.map((n) => n.x + n.w / 2))
-		let bottom = Math.max(...scene.nodes.map((n) => n.y + n.h / 2))
+		let bottom = Math.max(below, ...scene.nodes.map((n) => n.y + n.h / 2))
 		const gap = scene.metrics.fontSize
 		const stripAt = { x: left, y: bottom + gap }
 		if (strips?.length) bottom = stripAt.y + stripsHeight(strips, scene.metrics)
@@ -551,9 +576,20 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	 */
 	displayScene(shape: S): Scene {
 		const frame = playbackFor(this.editor, shape.id)?.frame
-		if (!frame?.props) return this.getScene(shape)
-		const shown = { ...shape, props: { ...shape.props, ...frame.props } }
-		return this.normalise(shown, this.buildScene(shown)).scene
+		if (!frame?.scene && !frame?.props) return this.getScene(shape)
+		// At the committed layout's offset, so whatever the step doesn't change stays put.
+		const raw = frame.scene ?? this.buildScene({ ...shape, props: { ...shape.props, ...frame.props } })
+		return translateScene(raw, this.layoutOffset(shape))
+	}
+
+	/** Pointers as an operation's step shows them (its own, e.g. curr and prev), on its scene. */
+	private framePointers(shape: S, frame: Frame | undefined, scene: Scene): PlacedPointer[] | undefined {
+		if (!frame?.pointers && !frame?.scene) return undefined
+		return placePointers(
+			frame.pointers ?? this.getPointers(shape),
+			(key) => this.pointerAnchorIn(shape, scene, key),
+			scene.metrics.fontSize * POINTER_FONT_SCALE
+		)
 	}
 
 	getIndicatorPath(shape: S) {
@@ -573,6 +609,8 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	// Each draggable node gets a handle on the middle of its bottom edge, clear of its value, plus a
 	// handle for each grow grip.
 	override getHandles(shape: S): TLHandle[] {
+		// While an operation shows its steps, the shape's own handles would sit on a state that isn't shown.
+		if (isBusy(playbackFor(this.editor, shape.id))) return []
 		const nodes = this.getScene(shape).nodes.filter((n) => n.draggable)
 		const grips = this.growGrips(shape)
 		const indices = getIndices(nodes.length + grips.length)

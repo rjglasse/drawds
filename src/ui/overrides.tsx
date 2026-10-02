@@ -25,6 +25,7 @@ import { MARK_COLORS, MARK_MEANINGS, type MarkColor } from '../cells/marks'
 import { PlaybackOverlay } from '../controls/PlaybackOverlay'
 import { NodeLinkShapeUtil, type NodeOperation } from '../nodelink/NodeLinkShapeUtil'
 import { placePointer, removePointer, type Pointer } from '../pointers/pointers'
+import { operationPrompt } from '../controls/prompt'
 import { pointerState } from '../pointers/state'
 import { FillPicker, fillPickerTranslations } from './FillPicker'
 import { GraphPickers, graphPickerTranslations } from './GraphPickers'
@@ -180,14 +181,27 @@ function MarkMenu() {
  */
 function NodeOperationsMenu() {
 	const editor = useEditor()
+	const [target] = useState(() => markTargetUnderPointer(editor))
 	const [operations] = useState(() => {
-		const target = markTargetUnderPointer(editor)
 		const util = target?.util
 		if (!target || target.key === undefined || !(util instanceof NodeLinkShapeUtil) || !util.nodeOperations) return []
 		return util.nodeOperations(target.shape, target.key)
 	})
 	if (!operations.length) return null
-	const item = (op: NodeOperation) => <TldrawUiMenuItem key={op.id} id={op.id} label={op.label} onSelect={op.run} />
+	const item = (op: NodeOperation) => (
+		<TldrawUiMenuItem
+			key={op.id}
+			id={op.id}
+			label={op.prompt ? `${op.label}...` : op.label}
+			onSelect={() => {
+				if (op.prompt && target?.key !== undefined) {
+					operationPrompt(editor).set({ shapeId: target.shape.id, at: target.key, label: op.prompt, run: op.run })
+				} else {
+					op.run()
+				}
+			}}
+		/>
+	)
 	const submenus = [...new Set(operations.flatMap((op) => (op.submenu ? [op.submenu] : [])))]
 	return (
 		<TldrawUiMenuGroup id="drawds-node-operations">

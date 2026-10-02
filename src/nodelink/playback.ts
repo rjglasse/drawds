@@ -1,5 +1,7 @@
 import { atom, react, type Atom, type Editor, type TLShapeId, type TLShapePartial } from 'tldraw'
 import type { MarkColor, Marks } from '../cells/marks'
+import type { Pointer } from '../pointers/pointers'
+import type { Scene } from './scene'
 import { isTyping, swallowKeyUp } from '../controls/keys'
 
 /** A row of values shown under the structure while an operation runs (a queue, a stack, an output). */
@@ -12,6 +14,13 @@ export interface Strip {
 export interface Frame {
 	/** Props to show instead of the shape's own: the state at this step. */
 	props?: Record<string, unknown>
+	/**
+	 * A whole scene to show instead (layout coordinates, as `buildScene` makes), for states the
+	 * props can't express: a node not linked in yet, an arrow re-pointed or curving back.
+	 */
+	scene?: Scene
+	/** Pointers to show at this step instead of the shape's own (e.g. curr, prev, next walking). */
+	pointers?: Pointer[]
 	/** Node keys whose values just swapped: their values arc between the two nodes. */
 	swaps?: [string, string][]
 	/**

@@ -139,6 +139,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 	// draws it on hover; the shape draws a + there on the hovered node).
 
 	override getHandles(shape: GraphShape): TLHandle[] {
+		if (isBusy(playbackFor(this.editor, shape.id))) return []
 		const handles: Omit<TLHandle, 'index'>[] = [
 			...super
 				.getHandles(shape)

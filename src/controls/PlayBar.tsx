@@ -133,7 +133,7 @@ export function PlayBar({
 				(shift) => stepForward(editor, shift),
 				{ disabled: last && view.done }
 			)}
-			<span data-testid="play-caption" style={{ padding: '0 8px', maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+			<span data-testid="play-caption" style={{ padding: '2px 8px', width: 'max-content', maxWidth: 400, whiteSpace: 'normal', lineHeight: 1.3 }}>
 				{view.frame?.caption ?? ''}
 			</span>
 			<span data-testid="play-counter" style={{ opacity: 0.55, fontVariantNumeric: 'tabular-nums', paddingRight: 4 }}>

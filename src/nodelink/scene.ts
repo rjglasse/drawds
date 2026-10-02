@@ -40,6 +40,8 @@ export interface SceneEdge {
 	fromPointer?: boolean
 	/** Weight or label, editable as cell `edge:<key>` when the shape supports it. */
 	label?: string
+	/** Curve the edge by this fraction of its length (to the left of its direction; negative: right). */
+	bend?: number
 }
 
 export interface SceneMetrics {
@@ -52,6 +54,12 @@ export interface Scene {
 	nodes: SceneNode[]
 	edges: SceneEdge[]
 	metrics: SceneMetrics
+}
+
+/** The scene moved by `d` (edges follow their nodes). */
+export function translateScene(scene: Scene, d: { x: number; y: number }): Scene {
+	if (!d.x && !d.y) return scene
+	return { ...scene, nodes: scene.nodes.map((n) => ({ ...n, x: n.x + d.x, y: n.y + d.y })) }
 }
 
 export const EDGE_CELL_PREFIX = 'edge:'

@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { Rectangle2d, ShapeUtil, Vec, type TLShape, type TLShapePartial, type TLThemeColors, type VecLike } from 'tldraw'
 import { showsStructureControls } from '../controls/visibility'
-import { isBusy, playbackFor } from '../nodelink/playback'
+import { playbackFor } from '../nodelink/playback'
 import { POINTER_FONT_SCALE, placePointers, type PlacedPointer, type PointerAnchor } from '../pointers/layout'
 import { PointerOverlays } from '../pointers/PointerOverlays'
 import type { Pointer } from '../pointers/pointers'
@@ -119,8 +119,11 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 	}
 
 	/** The pointers as drawn on the canvas (sliding when they move), or in an export. */
-	protected renderPointers(shape: S, colors: TLThemeColors, { exporting = false } = {}): ReactNode {
-		const placed = this.placedPointers(shape)
+	protected renderPointers(
+		shape: S,
+		colors: TLThemeColors,
+		{ exporting = false, placed = this.placedPointers(shape) }: { exporting?: boolean; placed?: PlacedPointer[] } = {}
+	): ReactNode {
 		const state = pointerState(this.editor)
 		const drag = exporting ? undefined : state.drag.get()
 		const dragging = drag?.shapeId === shape.id ? drag : undefined
@@ -147,7 +150,7 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 	protected renderPointerOverlays(shape: S, colors: TLThemeColors): ReactNode {
 		if (!this.pointerAnchor) return null
 		const interactive =
-			showsStructureControls(this.editor, shape) && this.editor.isIn('select.idle') && !isBusy(playbackFor(this.editor, shape.id))
+			showsStructureControls(this.editor, shape) && this.editor.isIn('select.idle') && !playbackFor(this.editor, shape.id)
 		return (
 			<PointerOverlays util={this} shape={shape} placed={this.placedPointers(shape)} interactive={interactive} colors={colors} />
 		)

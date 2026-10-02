@@ -179,7 +179,7 @@ export function routeScene(scene: Scene): Map<string, EdgeRoute> {
 		const from = nodes.get(edge.from)
 		const to = nodes.get(edge.to)
 		if (!from || !to) continue
-		routes.set(edge.key, routeEdge(from, to, { bend: bendFor(edge, scene.edges), fromPointer: edge.fromPointer }))
+		routes.set(edge.key, routeEdge(from, to, { bend: edge.bend ?? bendFor(edge, scene.edges), fromPointer: edge.fromPointer }))
 	}
 	return routes
 }

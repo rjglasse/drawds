@@ -209,6 +209,11 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `context-menu.tree-in-order` (`tree-pre-order`, `tree-post-order`, `tree-level-order`; `heap-...`
   on heaps). Strips (call stack or queue, then the output) are each a
   `[data-testid="playback-strip"]`; pick one by its title text.
+- **List operations**: `rclick` a list node, `clicksel
+  [data-testid="context-menu-sub.drawds-node-operations-0-button"]` (Step by step), then
+  `context-menu.list-find`, `list-find-value` (opens `key-prompt`), `list-insert-after`,
+  `list-insert-head`, `list-delete` or `list-reverse`. Step with `key ArrowRight` (they open
+  paused); a reversed list is drawn the other way (`direction` flips) with nodes in place.
 - **Pointers**: `rclick` an element, `clicksel [data-testid="context-menu-sub.drawds-pointer-button"]`,
   then `[data-testid="context-menu.pointer-i"]` (names depend on the structure; `pointer-custom`
   opens a name prompt, `key-prompt`). **Wait ~400 ms between context menus**: a menu that is
