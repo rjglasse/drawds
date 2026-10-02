@@ -24,16 +24,15 @@ import { growHandle, isGrowHandle } from '../controls/grow'
 import { GrowGrip } from '../controls/GrowGrip'
 import { ControlButton } from '../controls/ControlButton'
 import { KeyPrompt } from '../controls/KeyPrompt'
-import { PlayBar } from '../controls/PlayBar'
 import { closePrompt, isPromptOpen, openPrompt } from '../controls/prompt'
 import { showsStructureControls } from '../controls/visibility'
 import { POINTER_FONT_SCALE, placePointers, type PointerAnchor, type PointerSide } from '../pointers/layout'
 import { boxContains, labelBox, nodeBox, nodeContains, routeScene, spatialNeighbor, type EdgeRoute } from './geometry'
 import { hoveredEdge, hoveredNode } from './hover'
-import { playbackFor, type Strip } from './playback'
+import { isBusy, playbackFor, type Strip } from './playback'
 import { edgeCellKey, type Scene, type SceneEdge, type SceneNode } from './scene'
 import { sceneCells } from './scene-cells'
-import { SceneSvg, StripSvg, stripSize } from './SceneSvg'
+import { SceneSvg, stripSize } from './SceneSvg'
 
 /** An operation offered from a node's context menu. */
 export interface NodeOperation {
@@ -249,9 +248,9 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		const prompt = this.getInsertPrompt?.(shape)
 		const promptOpen = isPromptOpen(this.editor, shape.id)
 		const hover = controls && !playing ? this.hoverHighlightsAtPointer(shape) : undefined
-		// An operation is open (playing, paused or stepping) until it commits or is cancelled.
-		const open = !!playing && !playing.fading
-		const below = this.belowScene(scene, playing?.strip)
+		// While an operation plays (or is stepped back through) the controls would act on a state
+		// that isn't the shape's; its bar and strip are drawn in front of the canvas (PlaybackOverlay).
+		const busy = isBusy(playing)
 		return (
 			<>
 				<SVGContainer>
@@ -269,28 +268,19 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 						}
 						swaps={playing?.frame?.swaps && { pairs: playing.frame.swaps, id: playing.id }}
 					/>
-					{open && playing.strip && (
-						<StripSvg
-							strip={playing.strip}
-							at={below.strip}
-							metrics={scene.metrics}
-							colors={colors}
-							color={this.style(shape).color}
-							fontFamily={this.getFontFamily(shape)}
-						/>
-					)}
+
 					{controls &&
-						!open &&
+						!busy &&
 						this.growGrips(shape).map((grip) => (
 							<GrowGrip key={grip.id} at={grip.at} zoom={zoom} colors={colors} />
 						))}
 					{this.renderPointers(shape, colors)}
 				</SVGContainer>
 				{controls &&
-					!playing?.frame &&
+					!busy &&
 					!this.editor.isIn('select.dragging_handle') &&
 					this.renderNodeAndEdgeButtons(shape, colors)}
-				{controls && prompt && !promptOpen && !open && (
+				{controls && prompt && !promptOpen && !busy && (
 					<ControlButton
 						editor={this.editor}
 						kind="insert"
@@ -315,14 +305,26 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 						}}
 					/>
 				)}
-				{open && <PlayBar editor={this.editor} view={playing} at={below.bar} colors={colors} />}
 				{this.renderPointerOverlays(shape, colors)}
 				{this.renderCellEditor(shape)}
 			</>
 		)
 	}
 
-	/** Where an open operation's strip (queue / stack) and play bar go: under the scene, in that order. */
+	/**
+	 * Where an operation's strip (queue / stack) and play bar go, in shape space: under the scene, in
+	 * that order. Also what the strip is drawn with.
+	 */
+	playbackLayout(shape: S, strip: Strip | undefined) {
+		const scene = this.displayScene(shape)
+		return {
+			...this.belowScene(scene, strip),
+			metrics: scene.metrics,
+			color: this.style(shape).color,
+			fontFamily: this.getFontFamily(shape),
+		}
+	}
+
 	private belowScene(scene: Scene, strip: Strip | undefined) {
 		const left = Math.min(...scene.nodes.map((n) => n.x - n.w / 2))
 		const right = Math.max(...scene.nodes.map((n) => n.x + n.w / 2))

@@ -197,8 +197,10 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   double-click there makes a text shape.
 - **Operations open a play bar** under the structure (`[data-testid="play-bar"]`): while it
   is open, `key Space` pauses / plays, `key ArrowRight` / `key ArrowLeft` step, `key Enter`
-  finishes (`Shift+Enter` keeps the highlights as marks), `key Escape` cancels (nothing
-  changes). Read `[data-testid="play-caption"]` and `[data-testid="play-counter"]` ("3/7").
+  finishes and closes (`Shift+Enter` keeps the highlights as marks), `key Escape` cancels
+  (nothing changes). When an operation reaches its end the result is committed and the bar
+  stays (`[data-testid="play-done"]` appears; `play-forward` is disabled): step back, `Space`
+  replays, `Enter` / `Escape` / `play-done` close it, as does selecting another shape. Read `[data-testid="play-caption"]` and `[data-testid="play-counter"]` ("3/7").
   The step-by-step toggle (`play-step-mode`) is remembered in localStorage: operations then
   open paused on step 1.
 - **Graph traversals**: `rclick` a node, then `[data-testid="context-menu.graph-bfs"]` or
@@ -211,6 +213,8 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   removes, `Enter` renames, `Escape` puts it down; or drag it onto another element. Pointers slide
   for 280 ms: `wait 400` before a screenshot. Read them with
   `eval editor.getOnlySelectedShape().props.pointers`.
+- **Exports fetch tldraw's fonts from its CDN** to embed them, so export tests take 5-20 s
+  depending on the network; a timeout there is usually latency, not a hang.
 - **tldraw coalesces pointer moves**: Playwright's `mouse.move(..., { steps })` sends them faster
   than a frame, so path-following tools (graphs) see corners cut. `graph` and the e2e
   `sketchGraph` helper move one step per frame.

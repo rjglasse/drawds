@@ -58,7 +58,7 @@ test('array: a pointer above the cells moves the box, not the cells', async ({ p
 	const before = await cell()
 	await withEditor(page, (e) => {
 		const s = e.getOnlySelectedShape()!
-		e.updateShape({ id: s.id, type: s.type, props: { pointers: [{ id: 'p0', name: 'j', at: '-1' }] } })
+		e.updateShape({ id: s.id, type: s.type, props: { pointers: [{ id: 'p0', name: 'j', at: '-1' }] } } as never)
 	})
 	expect(await cell()).toEqual(before)
 	await expectBoxFitsDrawing(page)
@@ -79,7 +79,7 @@ test('list and tree: a head dragged left, a pointer above the root', async ({ pa
 	const root = await rounded(page, 'n')
 	await withEditor(page, (e) => {
 		const s = e.getOnlySelectedShape()!
-		e.updateShape({ id: s.id, type: s.type, props: { pointers: [{ id: 'p0', name: 'root', at: 'n' }] } })
+		e.updateShape({ id: s.id, type: s.type, props: { pointers: [{ id: 'p0', name: 'root', at: 'n' }] } } as never)
 	})
 	await expectBoxFitsDrawing(page)
 	expect(await rounded(page, 'n')).toEqual(root)

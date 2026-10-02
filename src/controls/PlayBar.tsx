@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useValue, type Editor, type TLThemeColors, type VecLike } from 'tldraw'
 import {
 	cancelPlayback,
+	finishPlayback,
 	isStepByStep,
 	setStepByStep,
 	stepBack,
@@ -16,15 +17,17 @@ const ICONS = {
 	play: 'M5 3L13 8L5 13Z',
 	pause: 'M5 3V13 M11 3V13',
 	finish: 'M3 8.5L6.5 12L13 4.5',
+	replay: 'M12.9 9.5A5 5 0 1 1 11.2 4.2 M11.6 1.6V4.6H8.6',
 	cancel: 'M4 4L12 12M12 4L4 12',
 	// Stairs: one step at a time.
 	steps: 'M2 13H6V9H10V5H14',
 }
 
 /**
- * Controls for an operation in progress, under the structure at screen size: step back, play /
- * pause, step forward (finish on the last step), the step's narration, the step count, the
- * step-by-step toggle and cancel. Keys do the same (see `playback.ts`).
+ * Controls for an operation, under the structure: step back, play / pause, step forward, the
+ * step's narration, the step count, the step-by-step toggle, and cancel. Once the result is in
+ * the bar stays: step back through it or replay it, then Done (Shift keeps the highlights as
+ * marks). Keys do the same (see `playback.ts`).
  */
 export function PlayBar({
 	editor,
@@ -34,12 +37,12 @@ export function PlayBar({
 }: {
 	editor: Editor
 	view: PlaybackView
-	/** Top centre of the bar, in shape space. */
+	/** Top centre of the bar, in the viewport (it is drawn in front of the canvas). */
 	at: VecLike
 	colors: TLThemeColors
 }) {
-	const zoom = editor.getZoomLevel()
 	const last = view.step >= view.steps - 1
+	const replay = view.done && view.paused && last
 	const stepByStep = useValue('step by step', isStepByStep, [])
 	const button = (
 		testId: string,
@@ -100,8 +103,7 @@ export function PlayBar({
 				position: 'absolute',
 				left: at.x,
 				top: at.y,
-				transform: `translateX(-50%) scale(${1 / zoom})`,
-				transformOrigin: 'top center',
+				transform: 'translateX(-50%)',
 				display: 'flex',
 				alignItems: 'center',
 				gap: 2,
@@ -118,12 +120,18 @@ export function PlayBar({
 			}}
 		>
 			{button('play-back', 'Step back (Left)', 'back', () => stepBack(editor), { disabled: view.step === 0 })}
-			{view.paused
-				? button('play-toggle', 'Play (Space)', 'play', () => togglePlayback(editor))
-				: button('play-toggle', 'Pause (Space)', 'pause', () => togglePlayback(editor))}
-			{last
-				? button('play-forward', 'Finish (Enter; Shift keeps the highlights)', 'finish', (shift) => stepForward(editor, shift))
-				: button('play-forward', 'Step forward (Right)', 'forward', (shift) => stepForward(editor, shift))}
+			{replay
+				? button('play-toggle', 'Replay (Space)', 'replay', () => togglePlayback(editor))
+				: view.paused
+					? button('play-toggle', 'Play (Space)', 'play', () => togglePlayback(editor))
+					: button('play-toggle', 'Pause (Space)', 'pause', () => togglePlayback(editor))}
+			{button(
+				'play-forward',
+				last && !view.done ? 'Show the result (Right)' : 'Step forward (Right)',
+				'forward',
+				(shift) => stepForward(editor, shift),
+				{ disabled: last && view.done }
+			)}
 			<span data-testid="play-caption" style={{ padding: '0 8px', maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis' }}>
 				{view.frame?.caption ?? ''}
 			</span>
@@ -133,7 +141,11 @@ export function PlayBar({
 			{button('play-step-mode', 'Pause at every step', 'steps', () => setStepByStep(editor, !stepByStep), {
 				pressed: stepByStep,
 			})}
-			{button('play-cancel', 'Cancel (Esc)', 'cancel', () => cancelPlayback(editor))}
+			{view.done
+				? button('play-done', 'Done (Enter; Shift keeps the highlights as marks)', 'finish', (shift) =>
+						finishPlayback(editor, shift)
+					)
+				: button('play-cancel', 'Cancel (Esc)', 'cancel', () => cancelPlayback(editor))}
 		</div>
 	)
 }

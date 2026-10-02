@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { Rectangle2d, ShapeUtil, Vec, type TLShape, type TLShapePartial, type TLThemeColors, type VecLike } from 'tldraw'
 import { showsStructureControls } from '../controls/visibility'
-import { playbackFor } from '../nodelink/playback'
+import { isBusy, playbackFor } from '../nodelink/playback'
 import { POINTER_FONT_SCALE, placePointers, type PlacedPointer, type PointerAnchor } from '../pointers/layout'
 import { PointerOverlays } from '../pointers/PointerOverlays'
 import type { Pointer } from '../pointers/pointers'
@@ -147,7 +147,7 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 	protected renderPointerOverlays(shape: S, colors: TLThemeColors): ReactNode {
 		if (!this.pointerAnchor) return null
 		const interactive =
-			showsStructureControls(this.editor, shape) && this.editor.isIn('select.idle') && !playbackFor(this.editor, shape.id)
+			showsStructureControls(this.editor, shape) && this.editor.isIn('select.idle') && !isBusy(playbackFor(this.editor, shape.id))
 		return (
 			<PointerOverlays util={this} shape={shape} placed={this.placedPointers(shape)} interactive={interactive} colors={colors} />
 		)

@@ -22,6 +22,7 @@ import {
 import { useState } from 'react'
 import { clearMarks, markElement, markTargetUnderPointer } from '../cells/marking'
 import { MARK_COLORS, MARK_MEANINGS, type MarkColor } from '../cells/marks'
+import { PlaybackOverlay } from '../controls/PlaybackOverlay'
 import { NodeLinkShapeUtil } from '../nodelink/NodeLinkShapeUtil'
 import { placePointer, removePointer, type Pointer } from '../pointers/pointers'
 import { pointerState } from '../pointers/state'
@@ -264,6 +265,7 @@ function RelayoutMenuItem() {
 }
 
 export const components: TLComponents = {
+	InFrontOfTheCanvas: PlaybackOverlay,
 	Toolbar: (props) => (
 		<DefaultToolbar {...props}>
 			{STRUCTURE_TOOLS.map((id) => (

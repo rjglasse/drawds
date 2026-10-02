@@ -50,7 +50,7 @@ test('Enter finishes at once, as one undo step', async ({ page }) => {
 	expect((await tree(page)).nodes).toEqual(before.nodes)
 })
 
-test('the play bar buttons step too; forward on the last step finishes', async ({ page }) => {
+test('the play bar buttons step too; forward on the last step shows the result and the bar stays', async ({ page }) => {
 	const before = await sketchBst(page)
 	await insertKey(page, '200')
 	await page.getByTestId('play-toggle').click()
@@ -60,8 +60,41 @@ test('the play bar buttons step too; forward on the last step finishes', async (
 	await page.getByTestId('play-back').click()
 	await expect(counter(page)).toHaveText('1/3')
 	for (let i = 0; i < 3; i++) await page.getByTestId('play-forward').click()
+	// The result is in (one undo step); the bar stays on the last step until Done.
+	expect((await tree(page)).nodes).toHaveLength(before.nodes.length + 1)
+	await expect(page.getByTestId('play-forward')).toBeDisabled()
+	await page.getByTestId('play-done').click()
 	await expect(page.getByTestId('play-bar')).toHaveCount(0)
 	expect((await tree(page)).nodes).toHaveLength(before.nodes.length + 1)
+})
+
+test('after playing, the bar stays: step back through it, replay it; Esc closes it and keeps the result', async ({
+	page,
+}) => {
+	const before = await sketchBst(page)
+	await insertKey(page, '200')
+	await expect(page.getByTestId('play-done')).toBeVisible({ timeout: 5000 })
+	await expect(counter(page)).toHaveText('3/3')
+	await page.keyboard.press('ArrowLeft')
+	await page.keyboard.press('ArrowLeft')
+	await expect(counter(page)).toHaveText('1/3')
+	await expect(caption(page)).toHaveText(`200 > ${before.nodes[0].value}: go right`)
+	await page.keyboard.press('ArrowRight')
+	await page.keyboard.press('ArrowRight')
+	await expect(page.getByTestId('play-toggle')).toHaveAttribute('aria-label', 'Replay (Space)')
+	await page.keyboard.press('Space')
+	await expect(counter(page)).toHaveText('3/3', { timeout: 5000 })
+	await page.keyboard.press('Escape')
+	await expect(page.getByTestId('play-bar')).toHaveCount(0)
+	expect((await tree(page)).nodes).toHaveLength(before.nodes.length + 1)
+})
+
+test('selecting something else closes a finished operation', async ({ page }) => {
+	await sketchBst(page)
+	await insertKey(page, '200')
+	await expect(page.getByTestId('play-done')).toBeVisible({ timeout: 5000 })
+	await page.mouse.click(150, 700)
+	await expect(page.getByTestId('play-bar')).toHaveCount(0)
 })
 
 test('step-by-step mode: operations open paused on their first step', async ({ page }) => {

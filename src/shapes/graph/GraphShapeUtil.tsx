@@ -17,7 +17,7 @@ import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { spatialNeighbor } from '../../nodelink/geometry'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import { prunePointers } from '../../pointers/pointers'
-import { playOperation, playbackFor } from '../../nodelink/playback'
+import { isBusy, playOperation, playbackFor } from '../../nodelink/playback'
 import { edgeCellKey, type Scene, type SceneNode } from '../../nodelink/scene'
 import {
 	connectHandleId,
@@ -284,8 +284,8 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		const scene = this.getScene(shape)
 		// Connect grips on the node under the pointer (all nodes on touch screens), as for its x.
 		let grips: SceneNode[] = []
-		const playing = playbackFor(this.editor, shape.id)
-		if (!dragging && !playing && showsStructureControls(this.editor, shape) && this.editor.isIn('select.idle')) {
+		const busy = isBusy(playbackFor(this.editor, shape.id))
+		if (!dragging && !busy && showsStructureControls(this.editor, shape) && this.editor.isIn('select.idle')) {
 			const { showNode } = this.controlTargets(shape)
 			grips = scene.nodes.filter((n) => showNode(n.key))
 		}

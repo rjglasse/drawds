@@ -95,10 +95,13 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
 - `src/nodelink/playback.ts` - animated operations, stepped through: frames (props override, value swaps
   between node keys, highlights on nodes and `edge:` keys that accumulate and can be cleared with null, badges,
   a queue/stack `strip`, a one-line `caption`) shown every STEP_MS, then the final update commits as one undo
-  step; highlights fade (FADE_MS) or, with Shift, become marks. While an operation is open `PlayBar`
-  (`src/controls`) sits under the structure and keys go to it first (window capture: Space, Left/Right,
-  Enter / Shift+Enter, Esc cancels without changing anything); step-by-step mode (localStorage) opens
-  operations paused. `stateAt(frames, step)` is the pure accumulation. `displayScene` (frame or committed)
+  step; highlights fade (FADE_MS) or, with Shift, become marks. While an operation is open `PlayBar` sits
+  under the structure (drawn by `PlaybackOverlay` in tldraw's InFrontOfTheCanvas, with the queue/stack strip,
+  so neither lies outside the shape's box) and keys go to it first (window capture: Space, Left/Right, Enter /
+  Shift+Enter, Esc cancels without changing anything). Once the result is committed the bar stays (`done`):
+  step back through it or replay it, then Done / Enter / Esc, or select something else / edit the shape;
+  `isBusy` says when the shape's own controls should hide. Step-by-step mode (localStorage) opens operations
+  paused. `stateAt(frames, step)` is the pure accumulation. `displayScene` (frame or committed)
   feeds rendering and the selection outline. SceneSvg draws node shapes then values in two passes so a value
   in flight is never painted over.
 - `src/pointers/` - named pointers (i, curr, root...): `props.pointers` on every cell shape, `{id, name, at}`

@@ -1,4 +1,4 @@
-import { atom, type Atom, type Editor, type TLShapeId, type TLShapePartial } from 'tldraw'
+import { atom, react, type Atom, type Editor, type TLShapeId, type TLShapePartial } from 'tldraw'
 import type { MarkColor, Marks } from '../cells/marks'
 import { isTyping, swallowKeyUp } from '../controls/keys'
 
@@ -52,9 +52,9 @@ export function stateAt(frames: readonly Frame[], step: number): StepState {
 /** What the shape should draw right now. */
 export interface PlaybackView extends StepState {
 	shapeId: TLShapeId
-	/** The current frame, until the operation commits. */
+	/** The current frame, while the operation is open. */
 	frame?: Frame
-	/** After the commit, the highlights fade out. */
+	/** After it has been dismissed, the highlights fade out. */
 	fading: boolean
 	/** Changes on every step shown, so animations restart. */
 	id: number
@@ -62,6 +62,8 @@ export interface PlaybackView extends StepState {
 	step: number
 	steps: number
 	paused: boolean
+	/** The result has been committed; the bar stays up to review or replay until dismissed. */
+	done: boolean
 }
 
 /** Time per frame, and how long highlights take to fade after an operation. */
@@ -78,13 +80,16 @@ interface Operation {
 	withMarks?(update: TLShapePartial | undefined, marks: Marks): TLShapePartial
 	step: number
 	paused: boolean
+	/** Set once the result is committed. */
+	done: boolean
 }
 
 interface Player {
 	view: Atom<PlaybackView | null>
 	op?: Operation
 	timer?: ReturnType<typeof setTimeout>
-	detachKeys?: () => void
+	/** Undo the key capture and the watcher of an open operation. */
+	detach: (() => void)[]
 }
 
 const players = new WeakMap<Editor, Player>()
@@ -93,7 +98,7 @@ let nextViewId = 1
 function player(editor: Editor): Player {
 	let p = players.get(editor)
 	if (!p) {
-		p = { view: atom('playback', null) }
+		p = { view: atom('playback', null), detach: [] }
 		players.set(editor, p)
 	}
 	return p
@@ -124,10 +129,10 @@ export function setStepByStep(editor: Editor, on: boolean) {
 		// Storage can be unavailable (private windows); the setting then lasts for this page.
 	}
 	const op = player(editor).op
-	if (op && op.paused !== on) togglePlayback(editor)
+	if (op && !op.done && op.paused !== on) togglePlayback(editor)
 }
 
-/** Whether an operation is open (playing or paused) on any shape. */
+/** Whether an operation's bar is up (playing, paused, or done and waiting to be dismissed). */
 export function isPlaying(editor: Editor) {
 	return !!player(editor).op
 }
@@ -139,10 +144,24 @@ export function playbackFor(editor: Editor, shapeId: TLShapeId): PlaybackView | 
 }
 
 /**
+ * Whether the shape is busy with an operation: playing, paused, or stepped back through after it
+ * finished. A finished operation resting on its last step leaves the shape's controls usable.
+ */
+export function isBusy(view: PlaybackView | null | undefined) {
+	return !!view && !view.fading && !(view.done && view.step === view.steps - 1)
+}
+
+/** The operation being shown, on whichever shape. Reactive. */
+export function currentPlayback(editor: Editor): PlaybackView | null {
+	return player(editor).view.get()
+}
+
+/**
  * Play an operation's frames, then apply `final` (one undo step, named `label`). The teacher can
- * pause, step back and forth, finish or cancel it on the way (see the play bar and `keys`).
- * Highlights accumulate across frames plus `finalFlash`, then fade; with `keep` they become marks
- * instead (`withMarks` merges them into the final update).
+ * pause, step back and forth or cancel on the way (see the play bar and `attachKeys`); once the
+ * result is in, the bar stays up to step through or replay it until dismissed. Highlights
+ * accumulate across frames plus `finalFlash`, then fade on dismissal; with `keep` they become
+ * marks instead (`withMarks` merges them into an update).
  */
 export function playOperation(
 	editor: Editor,
@@ -166,29 +185,41 @@ export function playOperation(
 	}
 ) {
 	const p = player(editor)
-	if (p.op) commit(editor, false)
+	if (p.op) finishPlayback(editor)
 	clearTimeout(p.timer)
-	p.op = { shapeId, label, frames, final, finalFlash, keep, withMarks, step: 0, paused: stepByStepAtom.get() }
-	if (!frames.length) return commit(editor, false)
-	p.detachKeys = attachKeys(editor)
+	p.op = { shapeId, label, frames, final, finalFlash, keep, withMarks, step: 0, paused: stepByStepAtom.get(), done: false }
+	if (!frames.length) {
+		commit(editor, false)
+		return dismiss(editor, false)
+	}
+	p.detach.push(attachKeys(editor))
 	show(p)
 	schedule(editor)
+}
+
+/** All the highlights of the last step, plus the final ones. */
+function finalHighlights(op: Operation) {
+	return { ...stateAt(op.frames, op.frames.length - 1).flash, ...op.finalFlash }
 }
 
 function show(p: Player, { back = false } = {}) {
 	const op = p.op!
 	const frame = op.frames[op.step]
+	const last = op.step === op.frames.length - 1
+	const state = stateAt(op.frames, op.step)
 	// Stepping back replays the swaps of the step being undone, so the values arc home again.
 	const swaps = back ? op.frames[op.step + 1]?.swaps : frame.swaps
 	p.view.set({
 		shapeId: op.shapeId,
 		frame: { ...frame, swaps },
-		...stateAt(op.frames, op.step),
+		...state,
+		flash: op.done && last ? finalHighlights(op) : state.flash,
 		fading: false,
 		id: nextViewId++,
 		step: op.step,
 		steps: op.frames.length,
 		paused: op.paused,
+		done: op.done,
 	})
 }
 
@@ -198,15 +229,23 @@ function schedule(editor: Editor) {
 	if (p.op && !p.op.paused) p.timer = setTimeout(() => stepForward(editor), STEP_MS)
 }
 
-/** Show the next step; past the last one, commit. `keep` (Shift) keeps the highlights as marks. */
+/**
+ * Show the next step. From the last one, commit the result (`keep`, Shift: as marks) and stay up
+ * for review; a replay of a finished operation stops there.
+ */
 export function stepForward(editor: Editor, keep = false) {
 	const p = player(editor)
 	const op = p.op
 	if (!op) return
-	if (op.step >= op.frames.length - 1) return commit(editor, keep)
-	op.step++
-	show(p)
-	schedule(editor)
+	if (op.step < op.frames.length - 1) {
+		op.step++
+		show(p)
+		return schedule(editor)
+	}
+	clearTimeout(p.timer)
+	op.paused = true
+	if (!op.done) commit(editor, keep)
+	else show(p)
 }
 
 /** Show the previous step, and pause there. */
@@ -224,60 +263,96 @@ export function stepBack(editor: Editor) {
 	}
 }
 
-/** Pause, or carry on playing from here. */
+/** Pause, or carry on playing from here; a finished operation at its end replays from the start. */
 export function togglePlayback(editor: Editor) {
 	const p = player(editor)
 	const op = p.op
 	if (!op) return
+	if (op.done && op.paused && op.step === op.frames.length - 1) op.step = 0
 	op.paused = !op.paused
-	p.view.update((view) => view && { ...view, paused: op.paused })
+	show(p)
 	schedule(editor)
 }
 
-/** Jump to the result and commit it. */
+/** Commit the result if it isn't in yet, and close the bar. `keep`: the highlights become marks. */
 export function finishPlayback(editor: Editor, keep = false) {
-	if (player(editor).op) commit(editor, keep)
+	const op = player(editor).op
+	if (!op) return
+	if (!op.done) commit(editor, keep)
+	dismiss(editor, keep && op.done && !op.keep)
 }
 
-/** Abandon the operation: the shape stays as it was. */
+/** Before the result is in, abandon the operation (nothing changes); after, close the bar. */
 export function cancelPlayback(editor: Editor) {
-	const p = player(editor)
-	if (!p.op) return
-	clearTimeout(p.timer)
-	p.detachKeys?.()
-	p.op = undefined
-	p.view.set(null)
-}
-
-function commit(editor: Editor, keepNow: boolean) {
 	const p = player(editor)
 	const op = p.op
 	if (!op) return
+	if (op.done) return dismiss(editor, false)
 	clearTimeout(p.timer)
-	p.detachKeys?.()
-	p.detachKeys = undefined
+	close(p)
+	p.view.set(null)
+}
+
+function close(p: Player) {
+	p.detach.forEach((f) => f())
+	p.detach = []
 	p.op = undefined
-	const last = stateAt(op.frames, op.frames.length - 1)
-	const all = { ...last.flash, ...op.finalFlash }
-	const keep = op.keep || keepNow
-	const update = keep && op.withMarks ? op.withMarks(op.final, all) : op.final
+}
+
+/** Apply the result, as one undo step, and leave the bar up on the last step. */
+function commit(editor: Editor, keepNow: boolean) {
+	const p = player(editor)
+	const op = p.op
+	if (!op || op.done) return
+	clearTimeout(p.timer)
+	op.keep = op.keep || keepNow
+	const update = op.keep && op.withMarks ? op.withMarks(op.final, finalHighlights(op)) : op.final
 	if (update) {
 		editor.markHistoryStoppingPoint(op.label)
 		editor.updateShape(update)
 	}
-	if (keep) {
+	op.done = true
+	op.paused = true
+	op.step = op.frames.length - 1
+	show(p)
+	// The bar goes when the teacher moves on: another shape selected, or this one changed.
+	const committed = editor.getShape(op.shapeId)?.props
+	p.detach.push(
+		react('dismiss finished operation', () => {
+			const shape = editor.getShape(op.shapeId)
+			if (!shape || shape.props !== committed || editor.getOnlySelectedShapeId() !== op.shapeId) {
+				queueMicrotask(() => p.op === op && dismiss(editor, false))
+			}
+		})
+	)
+}
+
+/** Close the bar of a finished operation; its highlights fade, or with `keep` become marks. */
+function dismiss(editor: Editor, keep: boolean) {
+	const p = player(editor)
+	const op = p.op
+	if (!op) return
+	clearTimeout(p.timer)
+	close(p)
+	const all = finalHighlights(op)
+	if (keep && op.withMarks) {
+		editor.markHistoryStoppingPoint('keep highlights')
+		editor.updateShape(op.withMarks(op.final, all))
+	}
+	if (keep || op.keep) {
 		p.view.set(null)
 		return
 	}
 	p.view.set({
 		shapeId: op.shapeId,
 		flash: all,
-		badges: last.badges,
+		badges: stateAt(op.frames, op.frames.length - 1).badges,
 		fading: true,
 		id: nextViewId++,
 		step: 0,
 		steps: 0,
 		paused: false,
+		done: true,
 	})
 	p.timer = setTimeout(() => p.view.set(null), FADE_MS)
 }
