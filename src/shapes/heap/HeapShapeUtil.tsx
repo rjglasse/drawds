@@ -2,7 +2,12 @@ import type { TLShapePartial } from 'tldraw'
 import { pruneMarks, swapMarks, type MarkColor, type Marks } from '../../cells/marks'
 import { fillValues } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
+import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { NodeLinkShapeUtil } from '../../nodelink/NodeLinkShapeUtil'
+import type { SceneNode } from '../../nodelink/scene'
+import type { PointerAnchor } from '../../pointers/layout'
+import { prunePointers } from '../../pointers/pointers'
+import { getTreeMetrics } from '../tree/layout'
 import { playOperation, type Frame } from '../../nodelink/playback'
 import { buildByInsertion, childIndices, heapInsert, heapRemoveAt, heapify, parentIndex, type HeapType, type Sift } from './heap'
 import { HEAP_SHAPE_TYPE, heapShapeMigrations, heapShapeProps, type HeapShape } from './heap-shape-types'
@@ -33,6 +38,7 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 			fill: 'random',
 			seed: 0,
 			marks: {},
+			pointers: [],
 			color: 'black',
 			size: 'm',
 			font: 'mono',
@@ -95,6 +101,37 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 	/** Rebuild the heap property (Floyd), e.g. after switching between min and max. */
 	reheapify(shape: HeapShape): TLShapePartial<HeapShape> {
 		return this.update(shape, heapify(shape.props.values, shape.props.heapType).values)
+	}
+
+	// Pointers (i, parent, child...) stay at indices: above tree nodes, below array cells (under their
+	// index). Arrow keys do the index arithmetic: Left / Right to children 2i + 1 / 2i + 2 and Up to
+	// (i - 1) / 2 in the tree, Left / Right to i - 1 / i + 1 in the array.
+
+	override pointerSide(_shape: HeapShape, node: SceneNode) {
+		return node.key.startsWith('a') ? ('below' as const) : ('above' as const)
+	}
+
+	override pointerAnchor(shape: HeapShape, key: string): PointerAnchor | undefined {
+		const anchor = super.pointerAnchor(shape, key)
+		if (!anchor || !key.startsWith('a')) return anchor
+		const { labelFontSize } = getTreeMetrics(shape.props.size)
+		return { ...anchor, box: { ...anchor.box, h: anchor.box.h + labelFontSize * 1.8 } }
+	}
+
+	override pointerStep(shape: HeapShape, key: string, direction: PointerDirection): string | undefined {
+		const i = indexOfKey(key)
+		const n = shape.props.values.length
+		if (i === undefined) return undefined
+		const inArray = key.startsWith('a')
+		const j = inArray
+			? { left: i - 1, right: i + 1, up: -1, down: -1 }[direction]
+			: { left: 2 * i + 1, right: 2 * i + 2, down: 2 * i + 1, up: i > 0 ? parentIndex(i) : -1 }[direction]
+		if (j < 0 || j >= n) return undefined
+		return inArray ? arrayKey(j) : String(j)
+	}
+
+	pointerNames() {
+		return ['i', 'parent', 'child', 'last']
 	}
 
 	// Live operations. x on a tree node removes it (on the root: extract-min / extract-max); the
@@ -189,10 +226,12 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 		finalFlash: Marks
 	) {
 		const keys = values.map((_, i) => String(i))
+		// Pointers stay at their index in either view; one past the new end goes.
+		const pointers = prunePointers(shape.props.pointers, [...keys, ...keys.map((k) => arrayKey(Number(k)))])
 		const final: TLShapePartial<HeapShape> = {
 			id: shape.id,
 			type: HEAP_SHAPE_TYPE,
-			props: { values, marks: pruneMarks(marks, keys) },
+			props: { values, marks: pruneMarks(marks, keys), pointers },
 		}
 		playOperation(this.editor, {
 			shapeId: shape.id,

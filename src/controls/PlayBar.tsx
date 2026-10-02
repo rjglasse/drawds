@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { Editor, TLThemeColors, VecLike } from 'tldraw'
+import { useValue, type Editor, type TLThemeColors, type VecLike } from 'tldraw'
 import {
 	cancelPlayback,
 	isStepByStep,
@@ -40,7 +40,7 @@ export function PlayBar({
 }) {
 	const zoom = editor.getZoomLevel()
 	const last = view.step >= view.steps - 1
-	const stepByStep = isStepByStep()
+	const stepByStep = useValue('step by step', isStepByStep, [])
 	const button = (
 		testId: string,
 		label: string,

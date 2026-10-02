@@ -17,7 +17,7 @@ import {
 	type TLShapePartial,
 	type VecLike,
 } from 'tldraw'
-import { CellShapeUtil, type CellFont } from '../cells/CellShapeUtil'
+import { CellShapeUtil, type CellFont, type PointerDirection } from '../cells/CellShapeUtil'
 import type { EditableCells } from '../cells/editable-cells'
 import type { Marks } from '../cells/marks'
 import { growHandle, isGrowHandle } from '../controls/grow'
@@ -27,10 +27,11 @@ import { KeyPrompt } from '../controls/KeyPrompt'
 import { PlayBar } from '../controls/PlayBar'
 import { closePrompt, isPromptOpen, openPrompt } from '../controls/prompt'
 import { showsStructureControls } from '../controls/visibility'
-import { labelBox, routeScene, type EdgeRoute } from './geometry'
+import type { PointerAnchor, PointerSide } from '../pointers/layout'
+import { boxContains, labelBox, nodeBox, nodeContains, routeScene, spatialNeighbor, type EdgeRoute } from './geometry'
 import { hoveredEdge, hoveredNode } from './hover'
 import { playbackFor, type Strip } from './playback'
-import { edgeCellKey, type Scene, type SceneEdge } from './scene'
+import { edgeCellKey, type Scene, type SceneEdge, type SceneNode } from './scene'
 import { sceneCells } from './scene-cells'
 import { SceneSvg, StripSvg, stripSize } from './SceneSvg'
 
@@ -130,6 +131,33 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		return edge === undefined ? undefined : edgeCellKey(edge)
 	}
 
+	// Pointers sit on nodes (and on null markers, so curr can become null). Shapes override the
+	// side they are drawn on and how arrow keys step them along the structure.
+
+	/** Which side of a node its pointers are drawn on. */
+	pointerSide(_shape: S, _node: SceneNode): PointerSide {
+		return 'above'
+	}
+
+	pointerAnchor(shape: S, key: string): PointerAnchor | undefined {
+		const node = this.getScene(shape).nodes.find((n) => n.key === key)
+		if (!node || node.kind === 'label') return undefined
+		return { box: nodeBox(node), side: this.pointerSide(shape, node) }
+	}
+
+	override pointerTargetAt(shape: S, point: VecLike): string | undefined {
+		return this.getScene(shape).nodes.find(
+			(n) => n.kind !== 'label' && (n.kind === 'null' ? boxContains(nodeBox(n), point) : nodeContains(n, point))
+		)?.key
+	}
+
+	/** By default, the nearest node in the arrow's direction. */
+	pointerStep(shape: S, key: string, direction: PointerDirection): string | undefined {
+		const nodes = this.getScene(shape).nodes.filter((n) => n.kind !== 'label')
+		const from = nodes.find((n) => n.key === key)
+		return from && spatialNeighbor(from, nodes.filter((n) => n !== from), direction)?.key
+	}
+
 	getCellFont(shape: S): CellFont {
 		return { fontFamily: this.getFontFamily(shape), fontSize: this.getScene(shape).metrics.fontSize }
 	}
@@ -152,7 +180,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		const edges = [...routeScene(scene).values()].map(
 			(route) => new Polyline2d({ points: route.points.map((p) => new Vec(p.x, p.y)) })
 		)
-		const children = [...nodes, ...edges]
+		const children = [...nodes, ...edges, ...this.pointerGeometry(shape)]
 		return children.length ? new Group2d({ children }) : new Rectangle2d({ width: 1, height: 1, isFilled: false })
 	}
 
@@ -205,6 +233,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 						this.getGrowGrips?.(shape).map((grip) => (
 							<GrowGrip key={grip.id} at={grip.at} zoom={zoom} colors={colors} />
 						))}
+					{this.renderPointers(shape, colors)}
 				</SVGContainer>
 				{controls &&
 					!playing?.frame &&
@@ -236,6 +265,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 					/>
 				)}
 				{open && <PlayBar editor={this.editor} view={playing} at={below.bar} colors={colors} />}
+				{this.renderPointerOverlays(shape, colors)}
 				{this.renderCellEditor(shape)}
 			</>
 		)
@@ -447,13 +477,16 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	override toSvg(shape: S, ctx: SvgExportContext) {
 		const colors = this.editor.getCurrentTheme().colors[ctx.colorMode]
 		return (
-			<SceneSvg
-				scene={this.getScene(shape)}
-				colors={colors}
-				color={this.style(shape).color}
-				fontFamily={this.getFontFamily(shape)}
-				marks={this.sceneMarks(shape)}
-			/>
+			<>
+				<SceneSvg
+					scene={this.getScene(shape)}
+					colors={colors}
+					color={this.style(shape).color}
+					fontFamily={this.getFontFamily(shape)}
+					marks={this.sceneMarks(shape)}
+				/>
+				{this.renderPointers(shape, colors, { exporting: true })}
+			</>
 		)
 	}
 

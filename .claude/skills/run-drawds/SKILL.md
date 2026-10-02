@@ -195,6 +195,22 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `type`. Don't press Esc to leave it if nothing opened: Esc in idle deselects the graph. Clicks
   inside a selected graph's box but off its nodes/edges drag the whole graph (tldraw), and a
   double-click there makes a text shape.
+- **Operations open a play bar** under the structure (`[data-testid="play-bar"]`): while it
+  is open, `key Space` pauses / plays, `key ArrowRight` / `key ArrowLeft` step, `key Enter`
+  finishes (`Shift+Enter` keeps the highlights as marks), `key Escape` cancels (nothing
+  changes). Read `[data-testid="play-caption"]` and `[data-testid="play-counter"]` ("3/7").
+  The step-by-step toggle (`play-step-mode`) is remembered in localStorage: operations then
+  open paused on step 1.
+- **Graph traversals**: `rclick` a node, then `[data-testid="context-menu.graph-bfs"]` or
+  `graph-dfs`. The queue / call stack is `[data-testid="playback-strip"]`.
+- **Pointers**: `rclick` an element, `clicksel [data-testid="context-menu-sub.drawds-pointer-button"]`,
+  then `[data-testid="context-menu.pointer-i"]` (names depend on the structure; `pointer-custom`
+  opens a name prompt, `key-prompt`). **Wait ~400 ms between context menus**: a menu that is
+  still closing swallows the next right-click. A pointer's label is `[data-testid="pointer-<name>"]`
+  (only while its shape is selected): click it to pick it up, then arrow keys step it, `Delete`
+  removes, `Enter` renames, `Escape` puts it down; or drag it onto another element. Pointers slide
+  for 280 ms: `wait 400` before a screenshot. Read them with
+  `eval editor.getOnlySelectedShape().props.pointers`.
 - **tldraw coalesces pointer moves**: Playwright's `mouse.move(..., { steps })` sends them faster
   than a frame, so path-following tools (graphs) see corners cut. `graph` and the e2e
   `sketchGraph` helper move one step per frame.

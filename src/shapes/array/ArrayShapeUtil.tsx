@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import {
+	Group2d,
 	Rectangle2d,
 	SVGContainer,
 	getColorValue,
@@ -10,14 +11,17 @@ import {
 	type TLHandleDragInfo,
 	type TLShapePartial,
 	type TLThemeColors,
+	type VecLike,
 } from 'tldraw'
-import { CellShapeUtil } from '../../cells/CellShapeUtil'
+import { CellShapeUtil, type PointerDirection } from '../../cells/CellShapeUtil'
 import { pruneMarks } from '../../cells/marks'
 import { GROW_HANDLE_ID, growHandle, grownCount } from '../../controls/grow'
 import { GrowGrip } from '../../controls/GrowGrip'
 import { showsStructureControls } from '../../controls/visibility'
 import { extendValues, fillValues } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
+import type { PointerAnchor } from '../../pointers/layout'
+import { prunePointers } from '../../pointers/pointers'
 import { ARRAY_SHAPE_TYPE, arrayShapeMigrations, arrayShapeProps, type ArrayShape } from './array-shape-types'
 import { arrayCells } from './cells'
 import { getArrayGrowPoint, getArrayLayout, getArrayMetrics } from './layout'
@@ -41,6 +45,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			fill: 'random',
 			seed: 0,
 			marks: {},
+			pointers: [],
 			color: 'black',
 			size: 'm',
 			font: 'mono',
@@ -91,7 +96,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			return
 		}
 		if (handle.id !== GROW_HANDLE_ID) return
-		const { values, direction, fill, seed, marks } = initial.props
+		const { values, direction, fill, seed, marks, pointers } = initial.props
 		const axis = direction === 'horizontal' ? { x: 1, y: 0 } : { x: 0, y: 1 }
 		const step = getArrayMetrics(initial.props).cell
 		const count = grownCount(values.length, this.growPoint(initial), handle, axis, step)
@@ -103,6 +108,11 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 				marks: pruneMarks(
 					marks,
 					Array.from({ length: count }, (_, i) => String(i))
+				),
+				// Pointers may sit one past either end: -1 .. count.
+				pointers: prunePointers(
+					pointers,
+					Array.from({ length: count + 2 }, (_, i) => String(i - 1))
 				),
 			},
 		}
@@ -124,6 +134,43 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		swapState(this.editor).drag.set(null)
 	}
 
+	// Pointers: above the cells (right of a vertical array, whose indices are on the left). They can
+	// step one past either end, as loops do (i == n, j == -1), where a dashed cell is drawn.
+
+	pointerAnchor(shape: ArrayShape, key: string): PointerAnchor | undefined {
+		const i = Number(key)
+		const n = shape.props.values.length
+		if (!Number.isInteger(i) || i < -1 || i > n) return undefined
+		const metrics = getArrayMetrics(shape.props)
+		const { x, y } = getArrayLayout(n, shape.props.direction, metrics).cellAt(i)
+		return { box: { x, y, w: metrics.cell, h: metrics.cell }, side: shape.props.direction === 'horizontal' ? 'above' : 'right' }
+	}
+
+	override pointerTargetAt(shape: ArrayShape, point: VecLike): string | undefined {
+		const { values, direction } = shape.props
+		const metrics = getArrayMetrics(shape.props)
+		const { cells } = getArrayLayout(values.length, direction, metrics)
+		const [along, across, extent] =
+			direction === 'horizontal' ? [point.x - cells.x, point.y - cells.y, cells.h] : [point.y - cells.y, point.x - cells.x, cells.w]
+		// Generous across the array, so a pointer dropped on its label row still lands on the cell.
+		if (across < -metrics.cell || across > extent + metrics.cell) return undefined
+		const i = Math.floor(along / metrics.cell)
+		return i >= -1 && i <= values.length ? String(i) : undefined
+	}
+
+	pointerStep(shape: ArrayShape, key: string, direction: PointerDirection): string | undefined {
+		const step =
+			shape.props.direction === 'horizontal'
+				? { left: -1, right: 1, up: 0, down: 0 }[direction]
+				: { up: -1, down: 1, left: 0, right: 0 }[direction]
+		const next = String(Number(key) + step)
+		return step && this.pointerAnchor(shape, next) ? next : undefined
+	}
+
+	pointerNames() {
+		return ['i', 'j', 'k', 'lo', 'mid', 'hi']
+	}
+
 	private growPoint(shape: ArrayShape) {
 		return getArrayGrowPoint(shape.props.values.length, shape.props.direction, getArrayMetrics(shape.props))
 	}
@@ -143,7 +190,21 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			shape.props.direction,
 			getArrayMetrics(shape.props)
 		)
-		return new Rectangle2d({ width, height, isFilled: true })
+		const body = new Rectangle2d({ width, height, isFilled: true })
+		const pointers = this.pointerGeometry(shape)
+		if (!pointers.length) return body
+		// Cells a pointer reaches past either end are drawn too, so they count in the bounds.
+		const slots = this.offEndSlots(shape).map((i) => {
+			const { box } = this.pointerAnchor(shape, String(i))!
+			return new Rectangle2d({ x: box.x, y: box.y, width: box.w, height: box.h, isFilled: false })
+		})
+		return new Group2d({ children: [body, ...pointers, ...slots] })
+	}
+
+	/** Indices just off the array (-1, n) that a pointer is at. */
+	private offEndSlots(shape: ArrayShape) {
+		const n = shape.props.values.length
+		return [-1, n].filter((i) => shape.props.pointers.some((p) => p.at === String(i)))
 	}
 
 	component(shape: ArrayShape) {
@@ -162,11 +223,14 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 						hiddenIndex={editingKey === undefined ? undefined : Number(editingKey)}
 						drag={dragging?.shapeId === shape.id ? dragging : undefined}
 						swap={swapped?.shapeId === shape.id ? swapped : undefined}
+						offEnd={this.offEndSlots(shape)}
 					/>
+					{this.renderPointers(shape, colors)}
 					{showsStructureControls(this.editor, shape) && (
 						<GrowGrip at={this.growPoint(shape)} zoom={this.editor.getZoomLevel()} colors={colors} />
 					)}
 				</SVGContainer>
+				{this.renderPointerOverlays(shape, colors)}
 				{this.renderCellEditor(shape)}
 			</>
 		)
@@ -174,7 +238,12 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	override toSvg(shape: ArrayShape, ctx: SvgExportContext) {
 		const colors = this.editor.getCurrentTheme().colors[ctx.colorMode]
-		return <ArraySvg shape={shape} colors={colors} fontFamily={this.getFontFamily(shape)} />
+		return (
+			<>
+				<ArraySvg shape={shape} colors={colors} fontFamily={this.getFontFamily(shape)} offEnd={this.offEndSlots(shape)} />
+				{this.renderPointers(shape, colors, { exporting: true })}
+			</>
+		)
 	}
 
 	getIndicatorPath(shape: ArrayShape) {
@@ -208,10 +277,13 @@ function ArraySvg({
 	hiddenIndex,
 	drag,
 	swap,
+	offEnd = [],
 }: {
 	shape: ArrayShape
 	colors: TLThemeColors
 	fontFamily: string
+	/** Indices just off the array that a pointer is at: drawn as dashed cells. */
+	offEnd?: number[]
 	/** Cell whose value is drawn by the inline editor instead. */
 	hiddenIndex?: number
 	/** A cell being dragged onto another (canvas only). */
@@ -246,6 +318,20 @@ function ArraySvg({
 
 	return (
 		<g fontFamily={fontFamily} textAnchor="middle" dominantBaseline="central">
+			{offEnd.map((i) => (
+				<rect
+					key={`off-${i}`}
+					x={cellAt(i).x}
+					y={cellAt(i).y}
+					width={cell}
+					height={cell}
+					fill="none"
+					stroke={stroke}
+					strokeWidth={strokeWidth}
+					strokeDasharray={`${strokeWidth * 3} ${strokeWidth * 2.5}`}
+					opacity={0.45}
+				/>
+			))}
 			<rect
 				x={cells.x}
 				y={cells.y}
@@ -319,10 +405,10 @@ function ArraySvg({
 				</text>
 			)}
 			{showIndices &&
-				values.map((_, i) => {
+				[...values.keys(), ...offEnd].map((i) => {
 					const { x, y } = layout.indexAt(i)
 					return (
-						<text key={`i${i}`} x={x} y={y} fontSize={metrics.indexFontSize} fill={colors.text} opacity={0.5}>
+						<text key={`i${i}`} x={x} y={y} fontSize={metrics.indexFontSize} fill={colors.text} opacity={i < 0 || i >= values.length ? 0.3 : 0.5}>
 							{i}
 						</text>
 					)

@@ -4,6 +4,7 @@ import {
 	DefaultSizeStyle,
 	StyleProp,
 	T,
+	createShapePropsMigrationIds,
 	createShapePropsMigrationSequence,
 	type RecordProps,
 	type TLDefaultColorStyle,
@@ -12,6 +13,7 @@ import {
 	type TLShape,
 } from 'tldraw'
 import { marksValidator, type Marks } from '../../cells/marks'
+import { pointersValidator, type Pointer } from '../../pointers/pointers'
 import type { FillMode } from '../../data/fill'
 import { FillStyle } from '../../data/fill-style'
 import type { HeapType } from './heap'
@@ -32,6 +34,8 @@ export interface HeapShapeProps {
 	seed: number
 	/** Highlight colours keyed by index; they travel with values as they sift. */
 	marks: Marks
+	/** Named pointers (i, parent...) on tree nodes (`i`) or array cells (`a<i>`); they stay at indices. */
+	pointers: Pointer[]
 	color: TLDefaultColorStyle
 	size: TLDefaultSizeStyle
 	font: TLDefaultFontStyle
@@ -51,10 +55,27 @@ export const heapShapeProps: RecordProps<HeapShape> = {
 	fill: FillStyle,
 	seed: T.number,
 	marks: marksValidator,
+	pointers: pointersValidator,
 	color: DefaultColorStyle,
 	size: DefaultSizeStyle,
 	font: DefaultFontStyle,
 }
 
+const versions = createShapePropsMigrationIds(HEAP_SHAPE_TYPE, {
+	AddPointers: 1,
+})
+
 /** Heaps are persisted in the browser, so every props change needs a step here. */
-export const heapShapeMigrations = createShapePropsMigrationSequence({ sequence: [] })
+export const heapShapeMigrations = createShapePropsMigrationSequence({
+	sequence: [
+		{
+			id: versions.AddPointers,
+			up(props) {
+				props.pointers = []
+			},
+			down(props) {
+				delete props.pointers
+			},
+		},
+	],
+})

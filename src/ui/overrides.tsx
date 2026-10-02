@@ -23,6 +23,8 @@ import { useState } from 'react'
 import { clearMarks, markElement, markTargetUnderPointer } from '../cells/marking'
 import { MARK_COLORS, MARK_MEANINGS, type MarkColor } from '../cells/marks'
 import { NodeLinkShapeUtil } from '../nodelink/NodeLinkShapeUtil'
+import { placePointer, removePointer, type Pointer } from '../pointers/pointers'
+import { pointerState } from '../pointers/state'
 import { FillPicker, fillPickerTranslations } from './FillPicker'
 import { GraphPickers, graphPickerTranslations } from './GraphPickers'
 import { maskIcon } from './icons'
@@ -193,6 +195,61 @@ function NodeOperationsMenu() {
 	)
 }
 
+/**
+ * Pointer submenu for the element under the pointer when the menu opened: the structure's usual
+ * names (a name already on the shape moves here), a custom name, and removing pointers here.
+ */
+function PointerMenu() {
+	const editor = useEditor()
+	const [target] = useState(() => markTargetUnderPointer(editor))
+	if (!target || target.key === undefined || !target.util.pointerAnchor?.(target.shape, target.key)) return null
+	const { util, shape, key } = target
+	const pointers = util.getPointers(shape)
+	const here = pointers.filter((p) => p.at === key)
+	const names = (util.pointerNames?.(shape) ?? []).filter((name) => !here.some((p) => p.name === name))
+	const change = (label: string, f: (pointers: Pointer[]) => Pointer[]) => {
+		const current = editor.getShape(shape.id)
+		if (!current) return
+		editor.markHistoryStoppingPoint(label)
+		editor.updateShape(util.withPointers(current, f(util.getPointers(current))))
+	}
+	return (
+		<TldrawUiMenuGroup id="drawds-pointer">
+			<TldrawUiMenuSubmenu id="drawds-pointer" label="Pointer">
+				<TldrawUiMenuGroup id="drawds-pointer-names">
+					{names.map((name) => (
+						<TldrawUiMenuItem
+							key={name}
+							id={`pointer-${name}`}
+							label={pointers.some((p) => p.name === name) ? `${name} (move here)` : name}
+							onSelect={() => change('add pointer', (ps) => placePointer(ps, name, key))}
+						/>
+					))}
+					<TldrawUiMenuItem
+						id="pointer-custom"
+						label="Custom name..."
+						onSelect={() => {
+							pointerState(editor).prompt.set({ shapeId: shape.id, at: key })
+						}}
+					/>
+				</TldrawUiMenuGroup>
+				{here.length > 0 && (
+					<TldrawUiMenuGroup id="drawds-pointer-remove">
+						{here.map((p) => (
+							<TldrawUiMenuItem
+								key={p.id}
+								id={`remove-pointer-${p.name}`}
+								label={`Remove ${p.name}`}
+								onSelect={() => change('remove pointer', (ps) => removePointer(ps, p.id))}
+							/>
+						))}
+					</TldrawUiMenuGroup>
+				)}
+			</TldrawUiMenuSubmenu>
+		</TldrawUiMenuGroup>
+	)
+}
+
 function RelayoutMenuItem() {
 	const editor = useEditor()
 	const actions = useActions()
@@ -239,6 +296,7 @@ export const components: TLComponents = {
 		<DefaultContextMenu {...props}>
 			<NodeOperationsMenu />
 			<MarkMenu />
+			<PointerMenu />
 			<RelayoutMenuItem />
 			<DefaultContextMenuContent />
 		</DefaultContextMenu>

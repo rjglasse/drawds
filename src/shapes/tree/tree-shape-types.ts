@@ -13,6 +13,7 @@ import {
 	type TLShape,
 } from 'tldraw'
 import { marksValidator, type Marks } from '../../cells/marks'
+import { pointersValidator, type Pointer } from '../../pointers/pointers'
 import type { FillMode } from '../../data/fill'
 import { FillStyle } from '../../data/fill-style'
 
@@ -55,6 +56,8 @@ export interface TreeShapeProps {
 	seed: number
 	/** Highlight colours on nodes, keyed by node id. */
 	marks: Marks
+	/** Named pointers (root, curr...) at node ids, or at null markers when they are shown. */
+	pointers: Pointer[]
 	color: TLDefaultColorStyle
 	size: TLDefaultSizeStyle
 	font: TLDefaultFontStyle
@@ -83,6 +86,7 @@ export const treeShapeProps: RecordProps<TreeShape> = {
 	fill: FillStyle,
 	seed: T.number,
 	marks: marksValidator,
+	pointers: pointersValidator,
 	color: DefaultColorStyle,
 	size: DefaultSizeStyle,
 	font: DefaultFontStyle,
@@ -91,6 +95,7 @@ export const treeShapeProps: RecordProps<TreeShape> = {
 const versions = createShapePropsMigrationIds(TREE_SHAPE_TYPE, {
 	AddMarks: 1,
 	AddKind: 2,
+	AddPointers: 3,
 })
 
 /** Trees are persisted in the browser, so every props change needs a step here. */
@@ -112,6 +117,15 @@ export const treeShapeMigrations = createShapePropsMigrationSequence({
 			},
 			down(props) {
 				delete props.kind
+			},
+		},
+		{
+			id: versions.AddPointers,
+			up(props) {
+				props.pointers = []
+			},
+			down(props) {
+				delete props.pointers
 			},
 		},
 	],

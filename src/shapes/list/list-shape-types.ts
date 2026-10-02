@@ -12,6 +12,7 @@ import {
 	type TLShape,
 } from 'tldraw'
 import { marksValidator, type Marks } from '../../cells/marks'
+import { pointersValidator, type Pointer } from '../../pointers/pointers'
 import type { FillMode } from '../../data/fill'
 import { FillStyle } from '../../data/fill-style'
 
@@ -37,6 +38,8 @@ export interface ListShapeProps {
 	seed: number
 	/** Highlight colours on nodes, keyed by node id. */
 	marks: Marks
+	/** Named pointers (curr, prev...) at node ids, or at the null after the tail. */
+	pointers: Pointer[]
 	color: TLDefaultColorStyle
 	size: TLDefaultSizeStyle
 	font: TLDefaultFontStyle
@@ -56,6 +59,7 @@ export const listShapeProps: RecordProps<ListShape> = {
 	fill: FillStyle,
 	seed: T.number,
 	marks: marksValidator,
+	pointers: pointersValidator,
 	color: DefaultColorStyle,
 	size: DefaultSizeStyle,
 	font: DefaultFontStyle,
@@ -63,6 +67,7 @@ export const listShapeProps: RecordProps<ListShape> = {
 
 const versions = createShapePropsMigrationIds(LIST_SHAPE_TYPE, {
 	AddMarks: 1,
+	AddPointers: 2,
 })
 
 /** Lists are persisted in the browser, so every props change needs a step here. */
@@ -75,6 +80,15 @@ export const listShapeMigrations = createShapePropsMigrationSequence({
 			},
 			down(props) {
 				delete props.marks
+			},
+		},
+		{
+			id: versions.AddPointers,
+			up(props) {
+				props.pointers = []
+			},
+			down(props) {
+				delete props.pointers
 			},
 		},
 	],

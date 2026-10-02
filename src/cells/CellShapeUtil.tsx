@@ -1,5 +1,12 @@
-import { useLayoutEffect, useRef, type KeyboardEvent, type PointerEvent } from 'react'
-import { ShapeUtil, type TLShape, type TLShapePartial, type VecLike } from 'tldraw'
+import { useLayoutEffect, useRef, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { Rectangle2d, ShapeUtil, type TLShape, type TLShapePartial, type TLThemeColors, type VecLike } from 'tldraw'
+import { showsStructureControls } from '../controls/visibility'
+import { playbackFor } from '../nodelink/playback'
+import { placePointers, type PlacedPointer, type PointerAnchor } from '../pointers/layout'
+import { PointerOverlays } from '../pointers/PointerOverlays'
+import type { Pointer } from '../pointers/pointers'
+import { PointersSvg } from '../pointers/PointersSvg'
+import { pointerState } from '../pointers/state'
 import {
 	beginCellEdit,
 	endCellEdit,
@@ -14,6 +21,9 @@ export interface CellFont {
 	fontFamily: string
 	fontSize: number
 }
+
+/** Which way an arrow key steps a picked-up pointer. */
+export type PointerDirection = 'left' | 'right' | 'up' | 'down'
 
 /**
  * Base for data-structure shapes whose cells can be edited in place. Double-click a cell (or
@@ -36,6 +46,90 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 
 	withMarks(shape: S, marks: Marks): TLShapePartial<S> {
 		return { id: shape.id, type: shape.type, props: { marks } } as unknown as TLShapePartial<S>
+	}
+
+	// Named pointers (i, curr, root...): stored as `props.pointers`. A shape offers them by saying
+	// where a pointer at each element is drawn (`pointerAnchor`) and how arrow keys step one.
+
+	/** Where pointers at element `key` are drawn; undefined if a pointer can't sit there. */
+	pointerAnchor?(shape: S, key: string): PointerAnchor | undefined
+	/** Where a pointer at `key` goes when stepped with an arrow key, if anywhere. */
+	pointerStep?(shape: S, key: string, direction: PointerDirection): string | undefined
+	/** The structure's usual pointer names, offered in the context menu. */
+	pointerNames?(shape: S): string[]
+
+	/** The element a pointer dragged to `point` (shape space) would land on. */
+	pointerTargetAt(shape: S, point: VecLike): string | undefined {
+		const key = this.cells.cellAt(shape, point)
+		return key !== undefined && this.pointerAnchor?.(shape, key) ? key : undefined
+	}
+
+	getPointers(shape: S): Pointer[] {
+		return (shape.props as { pointers?: Pointer[] }).pointers ?? []
+	}
+
+	withPointers(shape: S, pointers: Pointer[]): TLShapePartial<S> {
+		return { id: shape.id, type: shape.type, props: { pointers } } as unknown as TLShapePartial<S>
+	}
+
+	getPointerFontSize(shape: S) {
+		return this.getCellFont(shape).fontSize * 0.72
+	}
+
+	private placed = new WeakMap<object, PlacedPointer[]>()
+
+	/** The shape's pointers, laid out around their elements (shape space). */
+	placedPointers(shape: S): PlacedPointer[] {
+		let placed = this.placed.get(shape.props)
+		if (!placed) {
+			placed = this.pointerAnchor
+				? placePointers(this.getPointers(shape), (key) => this.pointerAnchor?.(shape, key), this.getPointerFontSize(shape))
+				: []
+			this.placed.set(shape.props, placed)
+		}
+		return placed
+	}
+
+	/** Pointer labels as geometry, so they count in the shape's bounds (selection, export). */
+	protected pointerGeometry(shape: S) {
+		return this.placedPointers(shape).map(
+			({ label }) => new Rectangle2d({ x: label.x, y: label.y, width: label.w, height: label.h, isFilled: true })
+		)
+	}
+
+	/** The pointers as drawn on the canvas (sliding when they move), or in an export. */
+	protected renderPointers(shape: S, colors: TLThemeColors, { exporting = false } = {}): ReactNode {
+		const placed = this.placedPointers(shape)
+		const state = pointerState(this.editor)
+		const drag = exporting ? undefined : state.drag.get()
+		const dragging = drag?.shapeId === shape.id ? drag : undefined
+		const focus = exporting ? undefined : state.focus.get()
+		const target = dragging?.target !== undefined ? this.pointerAnchor?.(shape, dragging.target)?.box : undefined
+		const name = dragging && this.getPointers(shape).find((p) => p.id === dragging.pointerId)?.name
+		if (!placed.length && !dragging) return null
+		return (
+			<PointersSvg
+				placed={placed}
+				fontSize={this.getPointerFontSize(shape)}
+				fontFamily={this.getCellFont(shape).fontFamily}
+				colors={colors}
+				animate={!exporting}
+				focusId={focus?.shapeId === shape.id && this.editor.getOnlySelectedShapeId() === shape.id ? focus.pointerId : undefined}
+				hiddenId={dragging?.pointerId}
+				drag={dragging && name !== undefined ? { name, at: dragging.at, target } : undefined}
+				zoom={this.editor.getZoomLevel()}
+			/>
+		)
+	}
+
+	/** Picking up, dragging, renaming and removing pointers, while the shape is selected. */
+	protected renderPointerOverlays(shape: S, colors: TLThemeColors): ReactNode {
+		if (!this.pointerAnchor) return null
+		const interactive =
+			showsStructureControls(this.editor, shape) && this.editor.isIn('select.idle') && !playbackFor(this.editor, shape.id)
+		return (
+			<PointerOverlays util={this} shape={shape} placed={this.placedPointers(shape)} interactive={interactive} colors={colors} />
+		)
 	}
 
 	/** The element a mark at `point` (shape space) applies to: by default, the cell there. */

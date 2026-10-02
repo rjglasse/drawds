@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { open, sketchArray, sketchList, sketchTree, withEditor } from './helpers'
+import { open, sketchArray, sketchGraph, sketchHeap, sketchList, sketchTree, withEditor } from './helpers'
 
 test('arrays saved before fill modes existed still load', async ({ page }) => {
 	await open(page)
@@ -41,5 +41,35 @@ test('lists, trees and arrays saved before marks existed still load', async ({ p
 		['array', {}],
 		['binary-tree', {}],
 		['linked-list', {}],
+	])
+})
+
+test('every structure saved before pointers existed still loads, with none', async ({ page }) => {
+	await open(page)
+	await sketchArray(page, [300, 200], 2)
+	await sketchList(page, [300, 400], 2)
+	await sketchTree(page, [800, 150], 2, 1)
+	await sketchHeap(page, [800, 450], 3)
+	await sketchGraph(page, [300, 600], 3)
+	const loaded = await withEditor(page, (editor) => {
+		const doc = structuredClone(editor.getSnapshot().document)
+		const sequences = (doc.schema as { sequences: Record<string, number> }).sequences
+		sequences['com.tldraw.shape.array'] = 2
+		sequences['com.tldraw.shape.linked-list'] = 1
+		sequences['com.tldraw.shape.binary-tree'] = 2
+		sequences['com.tldraw.shape.heap'] = 0
+		sequences['com.tldraw.shape.graph'] = 0
+		for (const record of Object.values(doc.store) as { typeName: string; props?: Record<string, unknown> }[]) {
+			if (record.typeName === 'shape' && record.props) delete record.props.pointers
+		}
+		editor.loadSnapshot({ document: doc })
+		return editor.getCurrentPageShapes().map((s) => [s.type, (s.props as { pointers?: unknown }).pointers])
+	})
+	expect(loaded.sort()).toEqual([
+		['array', []],
+		['binary-tree', []],
+		['graph', []],
+		['heap', []],
+		['linked-list', []],
 	])
 })

@@ -92,10 +92,21 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   kept; `same` only decides whether the shape is redrawn, so gestures can follow the pointer's path (graphs).
 - `src/shapes/array/swap.ts` - drag a cell's handle onto another cell to swap (drag state in a per-editor atom,
   ghost + target highlight while dragging, CSS `drawds-swap` arc animation keyed per swap).
-- `src/nodelink/playback.ts` - animated operations: frames (props override, value swaps between node keys,
-  accumulating highlights) shown every STEP_MS, then the final update commits as one undo step; highlights fade
-  (FADE_MS) or, with Shift, become marks. `displayScene` (frame or committed) feeds rendering and the selection
-  outline. SceneSvg draws node shapes then values in two passes so a value in flight is never painted over.
+- `src/nodelink/playback.ts` - animated operations, stepped through: frames (props override, value swaps
+  between node keys, highlights on nodes and `edge:` keys that accumulate and can be cleared with null, badges,
+  a queue/stack `strip`, a one-line `caption`) shown every STEP_MS, then the final update commits as one undo
+  step; highlights fade (FADE_MS) or, with Shift, become marks. While an operation is open `PlayBar`
+  (`src/controls`) sits under the structure and keys go to it first (window capture: Space, Left/Right,
+  Enter / Shift+Enter, Esc cancels without changing anything); step-by-step mode (localStorage) opens
+  operations paused. `stateAt(frames, step)` is the pure accumulation. `displayScene` (frame or committed)
+  feeds rendering and the selection outline. SceneSvg draws node shapes then values in two passes so a value
+  in flight is never painted over.
+- `src/pointers/` - named pointers (i, curr, root...): `props.pointers` on every cell shape, `{id, name, at}`
+  with `at` an element key (arrays allow -1 and n, lists `#null`). Pure model (`pointers.ts`) and layout
+  (`layout.ts`: labels side by side or stacked, arrow onto the element); `CellShapeUtil` renders them
+  (`renderPointers`, sliding via a CSS transition; `renderPointerOverlays` for drag / click-to-pick-up / arrow
+  keys / rename prompt). Shapes implement `pointerAnchor` (box + side), `pointerStep`, `pointerNames`;
+  node-link shapes get defaults. Added from the context menu's Pointer submenu.
 - `src/shapes/heap/` - heaps stored as their array (`values`, index i's children 2i+1, 2i+2), drawn as the
   implicit complete tree (keys `"i"`) plus the array (keys `"a" + i`); marks keyed by index. `heap.ts` is pure
   (sift up/down with swaps + path, insert, removeAt, heapify, violations).
@@ -152,7 +163,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
 - Child slots: implement `getEmptySlots` + `addChildAt`; the base draws a + on the hovered node's lower-left /
   lower-right corner per empty slot and opens the new child for editing.
 - Animated operations: implement `removeNodeAnimated` and/or `getInsertPrompt` + `insertKey`, build frames and
-  call `playOperation`; compare keys with `compareKeys` (numeric when both are numbers).
+  call `playOperation`; compare keys with `compareKeys` (numeric when both are numbers). Give every frame a
+  `caption` saying why (the teacher may pause on it), and end with a frame showing why it stopped.
+- Operations from a node (BFS / DFS on graphs): implement `nodeOperations(shape, key)`; they appear in that
+  node's context menu. Traversals are pure frame generators (`src/shapes/graph/traverse.ts`).
+- Pointers: when elements go, prune pointers with `prunePointers` wherever marks are pruned. Atoms read inside
+  a separate React component (not the shape's `component()`) need `useValue`, or it won't re-render.
 - Removable edges: implement `removeEdge` (+ optional `canRemoveEdge`); the base draws an x mid-edge (beside the
   label when there is one). A hovered node wins over edges, so node buttons never compete with edge buttons.
 - Edge marks: set `markableEdges = true`; `markKeyAt` then returns `edge:<key>` for an edge near the pointer

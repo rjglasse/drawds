@@ -12,7 +12,10 @@ import { GROW_HANDLE_ID } from '../../controls/grow'
 import { GrowGrip } from '../../controls/GrowGrip'
 import { showsStructureControls } from '../../controls/visibility'
 import { arrowHead, routeEdge } from '../../nodelink/geometry'
+import type { PointerDirection } from '../../cells/CellShapeUtil'
+import { spatialNeighbor } from '../../nodelink/geometry'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
+import { prunePointers } from '../../pointers/pointers'
 import { playOperation, playbackFor } from '../../nodelink/playback'
 import { edgeCellKey, type Scene, type SceneNode } from '../../nodelink/scene'
 import {
@@ -68,6 +71,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 			labels: 'letters',
 			seed: 0,
 			marks: {},
+			pointers: [],
 			color: 'black',
 			size: 'm',
 			font: 'mono',
@@ -239,6 +243,26 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		})
 	}
 
+	// Pointers (s, u, v...) sit above nodes; arrow keys step to the adjacent node in that direction
+	// (any node in that direction if no neighbour lies that way).
+
+	override pointerStep(shape: GraphShape, key: string, direction: PointerDirection): string | undefined {
+		const nodes = this.getScene(shape).nodes
+		const from = nodes.find((n) => n.key === key)
+		if (!from) return undefined
+		const adjacent = new Set(shape.props.edges.flatMap((e) => (e.from === key ? [e.to] : e.to === key ? [e.from] : [])))
+		const near = spatialNeighbor(
+			from,
+			nodes.filter((n) => adjacent.has(n.key)),
+			direction
+		)
+		return (near ?? spatialNeighbor(from, nodes.filter((n) => n !== from), direction))?.key
+	}
+
+	pointerNames() {
+		return ['s', 't', 'u', 'v', 'curr']
+	}
+
 	// Options from the style panel, applied to the selected graph.
 
 	/** Undirected: one edge per pair of nodes, so u->v and v->u twins merge. */
@@ -287,9 +311,16 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		)
 	}
 
-	/** New nodes and edges; marks on anything removed go with it. */
+	/** New nodes and edges; marks and pointers on anything removed go with it. */
 	private withModel(shape: GraphShape, model: GraphModel, marks = shape.props.marks): TLShapePartial<GraphShape> {
-		return this.update(shape, { ...model, marks: pruneMarks(marks, markKeys(model)) })
+		return this.update(shape, {
+			...model,
+			marks: pruneMarks(marks, markKeys(model)),
+			pointers: prunePointers(
+				shape.props.pointers,
+				model.nodes.map((n) => n.id)
+			),
+		})
 	}
 
 	private update(shape: GraphShape, props: Partial<GraphShape['props']>): TLShapePartial<GraphShape> {

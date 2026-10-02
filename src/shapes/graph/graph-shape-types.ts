@@ -4,6 +4,7 @@ import {
 	DefaultSizeStyle,
 	StyleProp,
 	T,
+	createShapePropsMigrationIds,
 	createShapePropsMigrationSequence,
 	type RecordProps,
 	type TLDefaultColorStyle,
@@ -12,6 +13,7 @@ import {
 	type TLShape,
 } from 'tldraw'
 import { marksValidator, type Marks } from '../../cells/marks'
+import { pointersValidator, type Pointer } from '../../pointers/pointers'
 
 export const GRAPH_SHAPE_TYPE = 'graph'
 
@@ -68,6 +70,8 @@ export interface GraphShapeProps {
 	seed: number
 	/** Highlight colours, keyed by node id or `edge:<edge id>`. */
 	marks: Marks
+	/** Named pointers (s, u, v...) at node ids. */
+	pointers: Pointer[]
 	color: TLDefaultColorStyle
 	size: TLDefaultSizeStyle
 	font: TLDefaultFontStyle
@@ -89,10 +93,27 @@ export const graphShapeProps: RecordProps<GraphShape> = {
 	labels: GraphLabelsStyle,
 	seed: T.number,
 	marks: marksValidator,
+	pointers: pointersValidator,
 	color: DefaultColorStyle,
 	size: DefaultSizeStyle,
 	font: DefaultFontStyle,
 }
 
+const versions = createShapePropsMigrationIds(GRAPH_SHAPE_TYPE, {
+	AddPointers: 1,
+})
+
 /** Graphs are persisted in the browser, so every props change needs a step here. */
-export const graphShapeMigrations = createShapePropsMigrationSequence({ sequence: [] })
+export const graphShapeMigrations = createShapePropsMigrationSequence({
+	sequence: [
+		{
+			id: versions.AddPointers,
+			up(props) {
+				props.pointers = []
+			},
+			down(props) {
+				delete props.pointers
+			},
+		},
+	],
+})

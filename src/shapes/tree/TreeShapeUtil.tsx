@@ -3,11 +3,13 @@ import { pruneMarks, type MarkColor, type Marks } from '../../cells/marks'
 import { compareKeys } from '../../data/compare'
 import { fillValues, insertValue } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
+import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { NodeLinkShapeUtil } from '../../nodelink/NodeLinkShapeUtil'
+import { prunePointers } from '../../pointers/pointers'
 import { playOperation, type Frame } from '../../nodelink/playback'
 import { assignInOrder, bstDelete, bstInsert } from './bst'
-import { treeBasePosition, treeRootCentre, treeScene } from './layout'
-import { addChild, levelOrder, removeSubtree } from './model'
+import { nullKey, treeBasePosition, treeRootCentre, treeScene } from './layout'
+import { addChild, levelOrder, parentOf, removeSubtree } from './model'
 import {
 	TREE_SHAPE_TYPE,
 	treeShapeMigrations,
@@ -29,6 +31,7 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 			fill: 'random',
 			seed: 0,
 			marks: {},
+			pointers: [],
 			color: 'black',
 			size: 'm',
 			font: 'mono',
@@ -116,6 +119,25 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 		)
 		const added = addChild(nodes, key, slot, value)
 		return { update: this.withNodes(shape, added.nodes), key: added.id }
+	}
+
+	// Pointers (root, curr...) sit above nodes. Arrow keys follow the tree: Left / Right to that
+	// child (or its null marker, when nulls are shown), Up to the parent, Down to the first child.
+
+	override pointerStep(shape: TreeShape, key: string, direction: PointerDirection): string | undefined {
+		const { nodes } = shape.props
+		const scene = this.getScene(shape)
+		const shown = (k: string) => scene.nodes.some((n) => n.key === k)
+		const nullOf = /^#null:(.*):(\d)$/.exec(key)
+		if (direction === 'up') return nullOf ? nullOf[1] : parentOf(nodes, key)?.id
+		const node = nodes.find((n) => n.id === key)
+		if (!node) return undefined
+		const child = (slot: number) => node.children[slot] ?? (shown(nullKey(node.id, slot)) ? nullKey(node.id, slot) : undefined)
+		return direction === 'left' ? child(0) : direction === 'right' ? child(1) : (child(0) ?? child(1))
+	}
+
+	pointerNames() {
+		return ['root', 'curr', 'parent', 'p', 'q']
 	}
 
 	/** One step of an animation that highlights a node, saying why. */
@@ -216,8 +238,8 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 	}
 
 	/**
-	 * New nodes, positioned so the root stays where it is on the page. Marks on removed nodes go
-	 * with them (ids are paths, so a node added later in the same place mustn't inherit a mark).
+	 * New nodes, positioned so the root stays where it is on the page. Marks and pointers on removed
+	 * nodes go with them (ids are paths, so a node added later in the same place mustn't inherit one).
 	 */
 	private withNodes(shape: TreeShape, nodes: TreeNode[]): TLShapePartial<TreeShape> {
 		const before = treeRootCentre(shape.props)
@@ -227,7 +249,16 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 			shape.props.marks,
 			nodes.map((n) => n.id)
 		)
-		return { id: shape.id, type: TREE_SHAPE_TYPE, x: shape.x + shift.x, y: shape.y + shift.y, props: { nodes, marks } }
+		// Pointers may also sit on null markers: any empty slot of a surviving node.
+		const slots = nodes.flatMap((n) => [0, 1].filter((slot) => !n.children[slot]).map((slot) => nullKey(n.id, slot)))
+		const pointers = prunePointers(shape.props.pointers, [...nodes.map((n) => n.id), ...slots])
+		return {
+			id: shape.id,
+			type: TREE_SHAPE_TYPE,
+			x: shape.x + shift.x,
+			y: shape.y + shift.y,
+			props: { nodes, marks, pointers },
+		}
 	}
 
 	private update(shape: TreeShape, nodes: TreeNode[]): TLShapePartial<TreeShape> {

@@ -1,5 +1,6 @@
 import { atom, type Atom, type Editor, type TLShapeId, type TLShapePartial } from 'tldraw'
 import type { MarkColor, Marks } from '../cells/marks'
+import { isTyping, swallowKeyUp } from '../controls/keys'
 
 /** A queue or stack shown under the structure while an operation runs (BFS's queue, DFS's stack). */
 export interface Strip {
@@ -124,6 +125,11 @@ export function setStepByStep(editor: Editor, on: boolean) {
 	}
 	const op = player(editor).op
 	if (op && op.paused !== on) togglePlayback(editor)
+}
+
+/** Whether an operation is open (playing or paused) on any shape. */
+export function isPlaying(editor: Editor) {
+	return !!player(editor).op
 }
 
 /** The animation state for a shape, if it is playing one. Reactive. */
@@ -276,12 +282,6 @@ function commit(editor: Editor, keepNow: boolean) {
 	p.timer = setTimeout(() => p.view.set(null), FADE_MS)
 }
 
-/** Whether `target` takes typing (keys there belong to it, not to the play bar). */
-function isTyping(target: EventTarget | null) {
-	const el = target as HTMLElement | null
-	return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
-}
-
 /**
  * While an operation is open: Space plays / pauses, Left / Right step, Enter finishes (Shift keeps
  * the highlights as marks), Esc cancels. Listened for on the window in the capture phase, ahead of
@@ -307,17 +307,4 @@ function attachKeys(editor: Editor) {
 	}
 	win.addEventListener('keydown', onKeyDown, true)
 	return () => win.removeEventListener('keydown', onKeyDown, true)
-}
-
-/**
- * Keep the release of a key we handled from tldraw too: it acts on some keys as they come up
- * (Enter starts editing the selected shape), possibly after the operation has closed.
- */
-function swallowKeyUp(win: Window, key: string) {
-	const onKeyUp = (e: KeyboardEvent) => {
-		if (e.key !== key) return
-		e.stopPropagation()
-		win.removeEventListener('keyup', onKeyUp, true)
-	}
-	win.addEventListener('keyup', onKeyUp, true)
 }

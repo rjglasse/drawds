@@ -3,9 +3,14 @@ import { pruneMarks } from '../../cells/marks'
 import { fillValues } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
 import { GROW_HANDLE_ID, GROW_START_HANDLE_ID, grownCount } from '../../controls/grow'
+import type { PointerDirection } from '../../cells/CellShapeUtil'
+import { valueBox } from '../../nodelink/geometry'
 import { NodeLinkShapeUtil } from '../../nodelink/NodeLinkShapeUtil'
 import type { SceneEdge } from '../../nodelink/scene'
+import type { PointerAnchor } from '../../pointers/layout'
+import { prunePointers } from '../../pointers/pointers'
 import {
+	NULL_KEY,
 	getListMetrics,
 	listAxis,
 	listBasePosition,
@@ -34,6 +39,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 			fill: 'random',
 			seed: 0,
 			marks: {},
+			pointers: [],
 			color: 'black',
 			size: 'm',
 			font: 'mono',
@@ -102,9 +108,33 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		return shape.props.nodes.length > 1
 	}
 
+	// Pointers (curr, prev...) sit below the list (right of a vertical one), clear of the head label,
+	// pointing at the value compartment. The arrow along the list steps to the next node, then null.
+
+	override pointerAnchor(shape: ListShape, key: string): PointerAnchor | undefined {
+		const anchor = super.pointerAnchor(shape, key)
+		const node = anchor && this.getScene(shape).nodes.find((n) => n.key === key)
+		if (!anchor || !node) return undefined
+		const side = listAxis(shape.props.direction).y === 0 ? 'below' : 'right'
+		return { box: node.pointer ? valueBox(node) : anchor.box, side }
+	}
+
+	override pointerStep(shape: ListShape, key: string, direction: PointerDirection): string | undefined {
+		const keys = [...shape.props.nodes.map((n) => n.id), NULL_KEY]
+		const i = keys.indexOf(key)
+		const axis = listAxis(shape.props.direction)
+		const d = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[direction]
+		const along = d[0] * axis.x + d[1] * axis.y
+		return i < 0 || !along ? undefined : keys[i + along]
+	}
+
+	pointerNames() {
+		return ['curr', 'prev', 'next', 'tail']
+	}
+
 	/**
-	 * New nodes, positioned so the first surviving node of `initial` stays put on the page; marks on
-	 * removed nodes go with them.
+	 * New nodes, positioned so the first surviving node of `initial` stays put on the page; marks and
+	 * pointers on removed nodes go with them.
 	 */
 	private withNodes(shape: ListShape, initial: ListShape, nodes: ListNode[]): TLShapePartial<ListShape> {
 		const shift = Vec.Rot(anchorShift(initial.props, { ...initial.props, nodes }), initial.rotation)
@@ -112,7 +142,14 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 			initial.props.marks,
 			nodes.map((n) => n.id)
 		)
-		return { id: shape.id, type: LIST_SHAPE_TYPE, x: initial.x + shift.x, y: initial.y + shift.y, props: { nodes, marks } }
+		const pointers = prunePointers(initial.props.pointers, [...nodes.map((n) => n.id), NULL_KEY])
+		return {
+			id: shape.id,
+			type: LIST_SHAPE_TYPE,
+			x: initial.x + shift.x,
+			y: initial.y + shift.y,
+			props: { nodes, marks, pointers },
+		}
 	}
 
 	refill(shape: ListShape) {
