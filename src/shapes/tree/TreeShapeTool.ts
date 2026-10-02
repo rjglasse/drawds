@@ -1,4 +1,5 @@
 import { createDragTool } from '../../sketch/LineSketchTool'
+import { assignInOrder } from './bst'
 import { MAX_DEPTH, generateTree } from './generate'
 import { getTreeMetrics, treeRootCentre } from './layout'
 import { TREE_SHAPE_TYPE, type TreeShape } from './tree-shape-types'
@@ -11,6 +12,7 @@ interface TreeGesture {
 /**
  * Press to place the root; drag down and a level appears every level-height; lean right for a
  * fuller tree (perfect at the far right), left for a sparser one (a bare stick at the far left).
+ * For a BST that spans balanced to degenerate.
  */
 export const TreeShapeTool = createDragTool<TreeShape, TreeGesture>({
 	type: TREE_SHAPE_TYPE,
@@ -24,8 +26,10 @@ export const TreeShapeTool = createDragTool<TreeShape, TreeGesture>({
 	},
 	same: (a, b) => a.depth === b.depth && a.fullness === b.fullness,
 	layout(shape, origin, { depth, fullness }) {
-		const { seed, fill, nulls, size } = shape.props
-		const nodes = generateTree(seed, depth, fullness, fill)
+		const { seed, fill, nulls, size, kind } = shape.props
+		const generated = generateTree(seed, depth, fullness, fill)
+		// A BST takes the same shape with its keys sorted in in-order, so it is valid whatever the shape.
+		const nodes = kind === 'bst' ? assignInOrder(generated, generated.map((n) => n.value)) : generated
 		const root = treeRootCentre({ nodes, nulls, size })
 		return { x: origin.x - root.x, y: origin.y - root.y, props: { nodes } }
 	},

@@ -21,6 +21,13 @@ npm run dev
   for a sparser one (a bare "stick" at the far left), straight down for a random shape. Nodes already drawn
   keep their place and value as the tree grows.
 
+- **Binary search tree**: choose **BST** in the style panel (with the tree tool or a tree selected). Any sketched
+  shape gets sorted keys in in-order positions, so it's always valid; lean left for a degenerate chain, right for a
+  balanced tree. Switching an existing tree to BST keeps its keys and sorts them into place.
+- **Heap** (`Shift+P`, for priority queue): press for the root and drag right; a value is inserted per cell-width,
+  so the tree fills level by level while its backing array grows underneath. Min or max in the style panel
+  (switching rebuilds the heap). Point at any node or array cell to see its parent (orange) and children (green).
+
 For all: Esc cancels while sketching, and one undo removes the whole shape. Colour, size (cell size) and font
 come from the style panel.
 
@@ -48,6 +55,16 @@ Trees: point at a node to get a **+** on its lower-left / lower-right corner for
 left / right child and opens it for editing) and an **x** that removes the node and its whole subtree (the root
 has none; delete the shape instead). The layout tidies itself after each change and the root stays put. The
 style panel's **null children** toggle draws `null` in every empty slot.
+
+### Live operations (BSTs and heaps)
+
+- **Insert**: select the BST or heap and click its **+** (above a BST's root, after a heap's array), type a key and
+  press Enter. A BST lights up its comparison path node by node, then the new node appears; a heap appends the
+  value and sifts it up as a chain of swaps, in the tree and the array at once.
+- **Delete**: point at a node and click its **x**. BSTs handle all three cases (a two-child node takes its in-order
+  successor's key); on a heap, x on the root is extract-min / extract-max (the last value moves up and sifts down).
+- Highlights fade after the operation; hold **Shift** (Shift+Enter, Shift+click) to keep them as marks.
+- One undo per operation. Editing a value by hand doesn't re-sort anything, so you can set "spot the error" puzzles.
 
 ### Marking elements
 

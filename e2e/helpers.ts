@@ -57,6 +57,22 @@ export async function sketchTree(page: Page, [x, y]: [number, number], depth: nu
 	await page.mouse.up()
 }
 
+/** Sketch a heap of n values (one inserted per cell-width dragged right), root centred on `at`. */
+export async function sketchHeap(page: Page, [x, y]: [number, number], n: number) {
+	await page.keyboard.press('Shift+P')
+	await page.mouse.move(x, y)
+	await page.mouse.down()
+	await page.mouse.move(x + (n - 1) * CELL + 10, y, { steps: 20 })
+	await page.mouse.up()
+}
+
+/** Type into the selected shape's "insert a key" prompt and submit (Shift+Enter keeps highlights). */
+export async function insertKey(page: Page, key: string, keep = false) {
+	await page.getByTestId('insert-key').click()
+	await page.getByTestId('key-prompt').fill(key)
+	await page.keyboard.press(keep ? 'Shift+Enter' : 'Enter')
+}
+
 /** Screen position of a node's drag handle on the only selected shape. */
 export async function handlePosition(page: Page, key: string): Promise<[number, number]> {
 	const at = await page.evaluate((key) => {
@@ -72,10 +88,10 @@ export async function handlePosition(page: Page, key: string): Promise<[number, 
 }
 
 /**
- * Move the pointer to a node of the only selected node-link shape, or half-way between two nodes
- * (on the arrow joining them). With a mouse, node and edge controls only appear near the pointer.
+ * Screen position of a node of the only selected node-link shape, or of the point half-way between
+ * several nodes (between two linked nodes, that is on the edge joining them).
  */
-export async function hoverNode(page: Page, ...keys: string[]) {
+export async function nodeScreenPosition(page: Page, ...keys: string[]): Promise<[number, number]> {
 	const at = await page.evaluate(
 		(keys) => {
 			const e = window.editor!
@@ -94,7 +110,12 @@ export async function hoverNode(page: Page, ...keys: string[]) {
 		keys
 	)
 	expect(at, `node(s) ${keys.join(', ')} on the selected shape`).not.toBeNull()
-	await page.mouse.move(at![0], at![1])
+	return at!
+}
+
+/** Move the pointer to a node (or between nodes); with a mouse, node and edge controls only appear near it. */
+export async function hoverNode(page: Page, ...keys: string[]) {
+	await page.mouse.move(...(await nodeScreenPosition(page, ...keys)))
 }
 
 /** The aria-label of the focused element, e.g. "Cell 0" while editing a cell. */

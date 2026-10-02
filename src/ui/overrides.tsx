@@ -28,10 +28,12 @@ import { maskIcon } from './icons'
 import arrayIconUrl from './icons/array.svg'
 import listIconUrl from './icons/list.svg'
 import treeIconUrl from './icons/tree.svg'
-import { NullsPicker, nullsPickerTranslations } from './NullsPicker'
+import { HeapPickers, heapPickerTranslations } from './HeapPickers'
+import heapIconUrl from './icons/heap.svg'
+import { TreePickers, treePickerTranslations } from './TreePickers'
 
 /** Our structure tools, in toolbar order. */
-const STRUCTURE_TOOLS = ['array', 'linked-list', 'binary-tree'] as const
+const STRUCTURE_TOOLS = ['array', 'linked-list', 'binary-tree', 'heap'] as const
 
 const RELAYOUT = 'drawds.relayout'
 
@@ -70,6 +72,14 @@ export const uiOverrides: TLUiOverrides = {
 			kbd: 'shift+t',
 			onSelect: () => editor.setCurrentTool('binary-tree'),
 		}
+		tools.heap = {
+			id: 'heap',
+			icon: maskIcon(heapIconUrl),
+			label: 'Heap',
+			// "p" for priority queue; plain "h" is the hand tool.
+			kbd: 'shift+p',
+			onSelect: () => editor.setCurrentTool('heap'),
+		}
 		return tools
 	},
 	actions(editor, actions) {
@@ -101,7 +111,7 @@ export const uiOverrides: TLUiOverrides = {
 		}
 		return actions
 	},
-	translations: { en: { ...fillPickerTranslations, ...nullsPickerTranslations } },
+	translations: { en: { ...fillPickerTranslations, ...treePickerTranslations, ...heapPickerTranslations } },
 }
 
 function StructureToolbarItem({ id }: { id: string }) {
@@ -186,7 +196,8 @@ export const components: TLComponents = {
 		<DefaultStylePanel {...props}>
 			<DefaultStylePanelContent />
 			<FillPicker />
-			<NullsPicker />
+			<TreePickers />
+			<HeapPickers />
 		</DefaultStylePanel>
 	),
 	ContextMenu: (props) => (

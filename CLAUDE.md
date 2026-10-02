@@ -91,6 +91,15 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `createLineSketchTool` on top of it (`nextSketchState`, pure; arrays, lists).
 - `src/shapes/array/swap.ts` - drag a cell's handle onto another cell to swap (drag state in a per-editor atom,
   ghost + target highlight while dragging, CSS `drawds-swap` arc animation keyed per swap).
+- `src/nodelink/playback.ts` - animated operations: frames (props override, value swaps between node keys,
+  accumulating highlights) shown every STEP_MS, then the final update commits as one undo step; highlights fade
+  (FADE_MS) or, with Shift, become marks. `displayScene` (frame or committed) feeds rendering and the selection
+  outline. SceneSvg draws node shapes then values in two passes so a value in flight is never painted over.
+- `src/shapes/heap/` - heaps stored as their array (`values`, index i's children 2i+1, 2i+2), drawn as the
+  implicit complete tree (keys `"i"`) plus the array (keys `"a" + i`); marks keyed by index. `heap.ts` is pure
+  (sift up/down with swaps + path, insert, removeAt, heapify, violations).
+- `src/shapes/tree/bst.ts` - BST as a *kind* of binary tree (`drawds:tree-kind` style): in-order key placement,
+  insert (path), delete (leaf / one child / two children via successor), violation check with ancestor bounds.
 - `src/shapes/tree/` - binary trees: nodes with `children: [left, right]` slots (null = empty), root first;
   `generate.ts` (random shapes by depth + fullness, growth-stable: existence depends only on seed + path, ids
   are `n` + path), `layout.ts` (contour-based tidy layout; a lone child offset `lone`, well under half the
@@ -134,6 +143,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   growth and insertion skip values already present. `repeats` keeps duplicates.
 - Child slots: implement `getEmptySlots` + `addChildAt`; the base draws a + on the hovered node's lower-left /
   lower-right corner per empty slot and opens the new child for editing.
+- Animated operations: implement `removeNodeAnimated` and/or `getInsertPrompt` + `insertKey`, build frames and
+  call `playOperation`; compare keys with `compareKeys` (numeric when both are numbers).
 - Insertable edges: implement `insertOnEdge` (+ optional `canInsertOnEdge`) returning the update and the new
   node's key; the base draws a + mid-edge, applies the update as one undo step, then opens the new node with
   `CellShapeUtil.editCell(shape, key)` (start editing any cell programmatically).

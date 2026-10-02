@@ -1,0 +1,75 @@
+import { expect, test, type Page } from '@playwright/test'
+import { heapInsert, heapRemoveAt, heapViolations } from '../src/shapes/heap/heap'
+import type { HeapShapeProps } from '../src/shapes/heap/heap-shape-types'
+import { focusedLabel, hoverNode, insertKey, nodeScreenPosition, open, shapesOfType, sketchHeap, withEditor } from './helpers'
+
+const heap = async (page: Page) => (await shapesOfType<HeapShapeProps>(page, 'heap'))[0].props
+const valid = (p: HeapShapeProps) => heapViolations(p.values, p.heapType).size === 0
+
+test.beforeEach(({ page }) => open(page))
+
+test('drag right to grow a valid min heap, drawn as a tree with its array below', async ({ page }) => {
+	await sketchHeap(page, [600, 120], 10)
+	const props = await heap(page)
+	expect(props.values).toHaveLength(10)
+	expect(props.heapType).toBe('min')
+	expect(valid(props)).toBe(true)
+	const keys = await withEditor(page, (e) => {
+		const s = e.getOnlySelectedShape()!
+		return (e.getShapeUtil(s) as unknown as { getScene(x: unknown): { nodes: { key: string }[] } }).getScene(s).nodes.map((n) => n.key)
+	})
+	expect(keys).toContain('9')
+	expect(keys).toContain('a9')
+})
+
+test('insert sifts the value up; the heap stays valid; one undo', async ({ page }) => {
+	await sketchHeap(page, [600, 120], 9)
+	const before = await heap(page)
+	const expected = heapInsert(before.values, '-1', 'min')
+	await insertKey(page, '-1')
+	await expect.poll(async () => (await heap(page)).values.length, { timeout: 8000 }).toBe(10)
+	const after = await heap(page)
+	expect(after.values).toEqual(expected.values)
+	expect(after.values[0]).toBe('-1')
+	await page.keyboard.press('ControlOrMeta+z')
+	expect((await heap(page)).values).toEqual(before.values)
+})
+
+test('x on the root extracts the minimum', async ({ page }) => {
+	await sketchHeap(page, [600, 120], 10)
+	const before = await heap(page)
+	const expected = heapRemoveAt(before.values, 0, 'min')
+	await hoverNode(page, '0')
+	await page.getByTestId('remove-node-0').click()
+	await expect.poll(async () => (await heap(page)).values.length, { timeout: 8000 }).toBe(9)
+	expect((await heap(page)).values).toEqual(expected.values)
+	expect(valid(await heap(page))).toBe(true)
+})
+
+test('switching to max rebuilds the heap', async ({ page }) => {
+	await sketchHeap(page, [600, 120], 8)
+	await page.getByTestId('style.heap-type.max').click()
+	const props = await heap(page)
+	expect(props.heapType).toBe('max')
+	expect(valid(props)).toBe(true)
+})
+
+test('editing a cell in the array view edits the tree node too, without re-heapifying', async ({ page }) => {
+	await sketchHeap(page, [600, 120], 5)
+	await page.mouse.dblclick(...(await nodeScreenPosition(page, 'a4')))
+	expect(await focusedLabel(page)).toBe('Cell a4')
+	await page.keyboard.type('-5')
+	await page.keyboard.press('Enter')
+	const props = await heap(page)
+	expect(props.values[4]).toBe('-5')
+	// A broken heap is allowed: it's a "spot the error" exercise.
+	expect(valid(props)).toBe(false)
+})
+
+test('pointing at an index highlights it, its parent and its children in both views', async ({ page }) => {
+	await sketchHeap(page, [600, 120], 7)
+	await hoverNode(page, 'a1')
+	const flashed = await page.evaluate(() => document.querySelectorAll('.drawds-flash').length)
+	// Index 1, parent 0 and children 3 and 4, each in the tree and in the array.
+	expect(flashed).toBe(8)
+})

@@ -3,6 +3,8 @@ import 'tldraw/tldraw.css'
 import './drawds.css'
 import { ArrayShapeTool } from './shapes/array/ArrayShapeTool'
 import { ArrayShapeUtil } from './shapes/array/ArrayShapeUtil'
+import { HeapShapeTool } from './shapes/heap/HeapShapeTool'
+import { HeapShapeUtil } from './shapes/heap/HeapShapeUtil'
 import { ListShapeTool } from './shapes/list/ListShapeTool'
 import { ListShapeUtil } from './shapes/list/ListShapeUtil'
 import { TreeShapeTool } from './shapes/tree/TreeShapeTool'
@@ -10,8 +12,8 @@ import { TreeShapeUtil } from './shapes/tree/TreeShapeUtil'
 import { components, uiOverrides } from './ui/overrides'
 
 // Defined at module level so they aren't recreated on every render.
-const shapeUtils = [ArrayShapeUtil, ListShapeUtil, TreeShapeUtil]
-const tools = [ArrayShapeTool, ListShapeTool, TreeShapeTool]
+const shapeUtils = [ArrayShapeUtil, ListShapeUtil, TreeShapeUtil, HeapShapeUtil]
+const tools = [ArrayShapeTool, ListShapeTool, TreeShapeTool, HeapShapeTool]
 // Digits mark the element under the pointer (1-4, 0 clears), so tldraw's "press n for the nth
 // toolbar tool" shortcuts are off; every tool still has its letter shortcut.
 const options = { enableToolbarKeyboardShortcuts: false }

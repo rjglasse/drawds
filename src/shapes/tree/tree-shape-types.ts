@@ -36,9 +36,20 @@ export const NullsStyle = StyleProp.defineEnum('drawds:nulls', {
 })
 export type NullsMode = T.TypeOf<typeof NullsStyle>
 
+/**
+ * A plain binary tree, or a binary search tree: keys sorted in in-order, inserted and deleted by
+ * the BST algorithms rather than placed by hand.
+ */
+export const TreeKindStyle = StyleProp.defineEnum('drawds:tree-kind', {
+	defaultValue: 'tree' as const,
+	values: ['tree', 'bst'] as const,
+})
+export type TreeKind = T.TypeOf<typeof TreeKindStyle>
+
 export interface TreeShapeProps {
 	/** All nodes; the first is the root. */
 	nodes: TreeNode[]
+	kind: TreeKind
 	nulls: NullsMode
 	fill: FillMode
 	seed: number
@@ -67,6 +78,7 @@ export const treeShapeProps: RecordProps<TreeShape> = {
 			dy: T.number,
 		})
 	),
+	kind: TreeKindStyle,
 	nulls: NullsStyle,
 	fill: FillStyle,
 	seed: T.number,
@@ -78,6 +90,7 @@ export const treeShapeProps: RecordProps<TreeShape> = {
 
 const versions = createShapePropsMigrationIds(TREE_SHAPE_TYPE, {
 	AddMarks: 1,
+	AddKind: 2,
 })
 
 /** Trees are persisted in the browser, so every props change needs a step here. */
@@ -90,6 +103,15 @@ export const treeShapeMigrations = createShapePropsMigrationSequence({
 			},
 			down(props) {
 				delete props.marks
+			},
+		},
+		{
+			id: versions.AddKind,
+			up(props) {
+				props.kind = 'tree'
+			},
+			down(props) {
+				delete props.kind
 			},
 		},
 	],

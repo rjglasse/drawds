@@ -25,7 +25,8 @@ export function ControlButton({
 	label: string
 	testId: string
 	colors: TLThemeColors
-	onPress(): void
+	/** `keep` is true when Shift was held: keep the operation's highlights as marks. */
+	onPress(keep: boolean): void
 }) {
 	const zoom = editor.getZoomLevel()
 	const size = 18 / zoom
@@ -42,7 +43,7 @@ export function ControlButton({
 			onPointerUp={(e) => editor.markEventAsHandled(e)}
 			onClick={(e) => {
 				e.stopPropagation()
-				onPress()
+				onPress(e.shiftKey)
 			}}
 			style={{
 				position: 'absolute',

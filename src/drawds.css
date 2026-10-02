@@ -16,3 +16,14 @@
 		transform: translate(0, 0);
 	}
 }
+
+/* Highlights from an animated operation fade out once it has committed (src/nodelink/playback.ts). */
+.drawds-flash-fade {
+	animation: drawds-fade 1.6s ease-in 0.5s forwards;
+}
+
+@keyframes drawds-fade {
+	to {
+		opacity: 0;
+	}
+}

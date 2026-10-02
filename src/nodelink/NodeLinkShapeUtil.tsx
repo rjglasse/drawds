@@ -19,12 +19,16 @@ import {
 } from 'tldraw'
 import { CellShapeUtil, type CellFont } from '../cells/CellShapeUtil'
 import type { EditableCells } from '../cells/editable-cells'
+import type { Marks } from '../cells/marks'
 import { growHandle, isGrowHandle } from '../controls/grow'
 import { GrowGrip } from '../controls/GrowGrip'
 import { ControlButton } from '../controls/ControlButton'
+import { KeyPrompt } from '../controls/KeyPrompt'
+import { closePrompt, isPromptOpen, openPrompt } from '../controls/prompt'
 import { showsStructureControls } from '../controls/visibility'
 import { routeScene } from './geometry'
 import { hoveredEdge, hoveredNode } from './hover'
+import { playbackFor } from './playback'
 import type { Scene, SceneEdge } from './scene'
 import { sceneCells } from './scene-cells'
 import { SceneSvg } from './SceneSvg'
@@ -74,6 +78,16 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	 */
 	getEmptySlots?(shape: S, key: string): number[]
 	addChildAt?(shape: S, key: string, slot: number): { update: TLShapePartial<S>; key: string } | undefined
+	/**
+	 * Remove a node as an animated operation (BST delete, heap extract). Return true if handled;
+	 * otherwise `removeNode` applies at once. `keep`: Shift was held, keep highlights as marks.
+	 */
+	removeNodeAnimated?(shape: S, key: string, keep: boolean): boolean
+	/** An "insert a key" button (and the prompt it opens), for structures that place keys themselves. */
+	getInsertPrompt?(shape: S): { at: VecLike; label: string } | undefined
+	insertKey?(shape: S, key: string, keep: boolean): void
+	/** Steady highlights while the pointer is over a node (e.g. a heap's parent and children). */
+	hoverHighlights?(shape: S, key: string): Marks
 
 	readonly cells: EditableCells<S> = sceneCells<S>(this)
 	private scenes = new WeakMap<object, Scene>()
@@ -113,30 +127,80 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		return children.length ? new Group2d({ children }) : new Rectangle2d({ width: 1, height: 1, isFilled: false })
 	}
 
+	/** Marks to draw, keyed by scene node key (structures with two views of one value map both). */
+	sceneMarks(shape: S) {
+		return this.getMarks(shape)
+	}
+
 	component(shape: S) {
 		const colors = this.editor.getCurrentTheme().colors[this.editor.getColorMode()]
 		const controls = showsStructureControls(this.editor, shape)
 		const zoom = this.editor.getZoomLevel()
+		const playing = playbackFor(this.editor, shape.id)
+		const scene = this.displayScene(shape)
+		const prompt = this.getInsertPrompt?.(shape)
+		const promptOpen = isPromptOpen(this.editor, shape.id)
+		const hover = controls && !playing ? this.hoverHighlightsAtPointer(shape) : undefined
 		return (
 			<>
 				<SVGContainer>
 					<SceneSvg
-						scene={this.getScene(shape)}
+						scene={scene}
 						colors={colors}
 						color={this.style(shape).color}
 						fontFamily={this.getFontFamily(shape)}
 						hiddenKey={this.getEditingKey(shape)}
-						marks={this.getMarks(shape)}
+						marks={this.sceneMarks(shape)}
+						flash={
+							playing ? { marks: playing.flash, fading: playing.fading, id: playing.id } : hover && { marks: hover, fading: false, id: 0 }
+						}
+						swaps={playing?.frame?.swaps && { pairs: playing.frame.swaps, id: playing.id }}
 					/>
 					{controls &&
 						this.getGrowGrips?.(shape).map((grip) => (
 							<GrowGrip key={grip.id} at={grip.at} zoom={zoom} colors={colors} />
 						))}
 				</SVGContainer>
-				{controls && this.renderNodeAndEdgeButtons(shape, colors)}
+				{controls && !playing?.frame && this.renderNodeAndEdgeButtons(shape, colors)}
+				{controls && prompt && !promptOpen && (
+					<ControlButton
+						editor={this.editor}
+						kind="insert"
+						at={prompt.at}
+						label={prompt.label}
+						testId="insert-key"
+						colors={colors}
+						onPress={() => openPrompt(this.editor, shape.id)}
+					/>
+				)}
+				{prompt && promptOpen && (
+					<KeyPrompt
+						editor={this.editor}
+						at={prompt.at}
+						label={prompt.label}
+						colors={colors}
+						onCancel={() => closePrompt(this.editor)}
+						onSubmit={(value, keep) => {
+							closePrompt(this.editor)
+							const current = this.editor.getShape(shape.id) as S | undefined
+							if (current) this.insertKey?.(current, value, keep)
+						}}
+					/>
+				)}
 				{this.renderCellEditor(shape)}
 			</>
 		)
+	}
+
+	private hoverHighlightsAtPointer(shape: S): Marks | undefined {
+		if (!this.hoverHighlights || this.editor.getInstanceState().isCoarsePointer) return undefined
+		const p = this.editor.getPointInShapeSpace(shape, this.editor.inputs.getCurrentPagePoint())
+		const key = hoveredNode(
+			this.getScene(shape).nodes.filter((n) => n.editable),
+			p,
+			0
+		)
+		return key === undefined ? undefined : this.hoverHighlights(shape, key)
 	}
 
 	/**
@@ -148,8 +212,9 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		const scene = this.getScene(shape)
 		const routes = routeScene(scene)
 		const zoom = this.editor.getZoomLevel()
-		const removable = this.removeNode
-			? scene.nodes.filter(
+		const removable =
+			this.removeNode || this.removeNodeAnimated
+				? scene.nodes.filter(
 					(n) => n.kind !== 'null' && n.kind !== 'label' && (this.canRemoveNode?.(shape, n.key) ?? true)
 				)
 			: []
@@ -219,7 +284,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 							label={`Remove node ${n.value}`}
 							testId={`remove-node-${n.key}`}
 							colors={colors}
-							onPress={() => this.pressRemove(shape, n.key)}
+							onPress={(keep) => this.pressRemove(shape, n.key, keep)}
 						/>
 					))}
 				{insertable
@@ -250,9 +315,11 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		if (updated) this.editCell(updated, added.key)
 	}
 
-	private pressRemove(shape: S, key: string) {
+	private pressRemove(shape: S, key: string, keep: boolean) {
 		const current = this.editor.getShape(shape.id) as S | undefined
-		if (!current || !this.removeNode) return
+		if (!current) return
+		if (this.removeNodeAnimated?.(current, key, keep)) return
+		if (!this.removeNode) return
 		this.editor.markHistoryStoppingPoint('remove node')
 		this.editor.updateShape(this.removeNode(current, key))
 	}
@@ -276,14 +343,23 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 				colors={colors}
 				color={this.style(shape).color}
 				fontFamily={this.getFontFamily(shape)}
-				marks={this.getMarks(shape)}
+				marks={this.sceneMarks(shape)}
 			/>
 		)
 	}
 
+	/**
+	 * The scene being shown: while an operation plays, its current frame rather than the committed
+	 * props. Reactive, so the selection outline (tldraw caches it in a computed) follows the frames.
+	 */
+	displayScene(shape: S): Scene {
+		const frame = playbackFor(this.editor, shape.id)?.frame
+		return frame?.props ? this.buildScene({ ...shape, props: { ...shape.props, ...frame.props } }) : this.getScene(shape)
+	}
+
 	getIndicatorPath(shape: S) {
 		const path = new Path2D()
-		for (const n of this.getScene(shape).nodes) {
+		for (const n of this.displayScene(shape).nodes) {
 			if (n.kind === 'null' || n.kind === 'label') continue
 			if (n.kind === 'circle') {
 				path.moveTo(n.x + n.w / 2, n.y)

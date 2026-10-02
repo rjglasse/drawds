@@ -165,6 +165,12 @@ const commands = {
 		await commands.drag(x, y, +x + +lean * 2 * CELL, +y + (+depth - 1) * TREE_LEVEL + 10)
 		return commands.shapes()
 	},
+	// Sketch a heap of n values (inserted one per cell-width dragged right), root centred on (x, y).
+	async heap(x, y, n) {
+		await page.keyboard.press('Shift+P')
+		await commands.drag(x, y, +x + (+n - 1) * CELL + 10, +y)
+		return commands.shapes()
+	},
 	// Sketch a linked list of n nodes with the list tool; the head node is centred on (x, y).
 	async list(x, y, n, dir = 'right') {
 		await sketch('Shift+N', LIST_STEP, x, y, n, dir)
@@ -178,6 +184,7 @@ const commands = {
 				x: Math.round(s.x),
 				y: Math.round(s.y),
 				...(s.type === 'array' ? { direction: s.props.direction, fill: s.props.fill, values: s.props.values } : {}),
+				...(s.type === 'heap' ? { heapType: s.props.heapType, values: s.props.values, marks: s.props.marks } : {}),
 				...(s.type === 'binary-tree' ? { nulls: s.props.nulls, fill: s.props.fill, nodes: s.props.nodes.map((n) => n.id + '=' + n.value + (n.dx || n.dy ? '*' : '')) } : {}),
 				...(s.type === 'linked-list'
 					? { direction: s.props.direction, fill: s.props.fill, nodes: s.props.nodes.map((n) => n.value + (n.dx || n.dy ? '*' : '')) }
