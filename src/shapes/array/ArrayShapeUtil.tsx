@@ -1,8 +1,9 @@
+import type { CSSProperties } from 'react'
 import {
 	Rectangle2d,
 	SVGContainer,
-	ZERO_INDEX_KEY,
 	getColorValue,
+	getIndices,
 	type SvgExportContext,
 	type TLFontFace,
 	type TLHandle,
@@ -11,14 +12,19 @@ import {
 	type TLThemeColors,
 } from 'tldraw'
 import { CellShapeUtil } from '../../cells/CellShapeUtil'
-import { extendValues, fillValues } from '../../data/fill'
-import type { Refillable } from '../../data/fill-style'
+import { pruneMarks } from '../../cells/marks'
 import { GROW_HANDLE_ID, growHandle, grownCount } from '../../controls/grow'
 import { GrowGrip } from '../../controls/GrowGrip'
 import { showsStructureControls } from '../../controls/visibility'
+import { extendValues, fillValues } from '../../data/fill'
+import type { Refillable } from '../../data/fill-style'
 import { ARRAY_SHAPE_TYPE, arrayShapeMigrations, arrayShapeProps, type ArrayShape } from './array-shape-types'
 import { arrayCells } from './cells'
 import { getArrayGrowPoint, getArrayLayout, getArrayMetrics } from './layout'
+import { cellHandleId, cellOfHandle, swapCells, swapState, type LastSwap, type SwapDrag } from './swap'
+
+/** How long two swapped values take to arc into their new cells. */
+const SWAP_MS = 450
 
 export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refillable {
 	static override type = ARRAY_SHAPE_TYPE
@@ -34,6 +40,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			showIndices: true,
 			fill: 'random',
 			seed: 0,
+			marks: {},
 			color: 'black',
 			size: 'm',
 			font: 'mono',
@@ -45,21 +52,76 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		return { id: shape.id, type: ARRAY_SHAPE_TYPE, props: { values: fillValues(fill, seed, values.length) } }
 	}
 
+	/**
+	 * A handle under each cell (drag it onto another cell to swap their values; on the right edge
+	 * for vertical arrays) plus the grow grip past the end.
+	 */
 	override getHandles(shape: ArrayShape): TLHandle[] {
-		return [growHandle(this.growPoint(shape), ZERO_INDEX_KEY)]
+		const { values, direction } = shape.props
+		const metrics = getArrayMetrics(shape.props)
+		const layout = getArrayLayout(values.length, direction, metrics)
+		const indices = getIndices(values.length + 1)
+		const handles: TLHandle[] = values.map((value, i) => {
+			const { x, y } = layout.cellAt(i)
+			const at =
+				direction === 'horizontal' ? { x: x + metrics.cell / 2, y: y + metrics.cell } : { x: x + metrics.cell, y: y + metrics.cell / 2 }
+			return { id: cellHandleId(i), type: 'vertex', label: `Swap ${value} with another cell`, index: indices[i], ...at }
+		})
+		handles.push(growHandle(this.growPoint(shape), indices[values.length]))
+		return handles
 	}
 
-	/** Dragging the grow grip adds cells past the end (or removes them), keeping existing values. */
+	override onHandleDragStart(shape: ArrayShape, { handle }: TLHandleDragInfo<ArrayShape>) {
+		const from = cellOfHandle(handle.id)
+		if (from !== undefined) swapState(this.editor).drag.set({ shapeId: shape.id, from, to: from, at: handle })
+	}
+
+	/**
+	 * The grow grip adds or removes cells past the end, keeping existing values. A cell handle
+	 * doesn't change the shape while dragging: it moves a ghost value and picks the target cell.
+	 */
 	override onHandleDrag(
 		shape: ArrayShape,
 		{ handle, initial = shape }: TLHandleDragInfo<ArrayShape>
 	): TLShapePartial<ArrayShape> | void {
+		const from = cellOfHandle(handle.id)
+		if (from !== undefined) {
+			const key = this.cells.cellAt(shape, handle)
+			swapState(this.editor).drag.set({ shapeId: shape.id, from, to: key === undefined ? undefined : Number(key), at: handle })
+			return
+		}
 		if (handle.id !== GROW_HANDLE_ID) return
-		const { values, direction, fill, seed } = initial.props
+		const { values, direction, fill, seed, marks } = initial.props
 		const axis = direction === 'horizontal' ? { x: 1, y: 0 } : { x: 0, y: 1 }
 		const step = getArrayMetrics(initial.props).cell
 		const count = grownCount(values.length, this.growPoint(initial), handle, axis, step)
-		return { id: shape.id, type: ARRAY_SHAPE_TYPE, props: { values: extendValues(values, fill, seed, count) } }
+		return {
+			id: shape.id,
+			type: ARRAY_SHAPE_TYPE,
+			props: {
+				values: extendValues(values, fill, seed, count),
+				marks: pruneMarks(
+					marks,
+					Array.from({ length: count }, (_, i) => String(i))
+				),
+			},
+		}
+	}
+
+	/** Dropping a cell on another swaps their values (and marks), with a short animation. */
+	override onHandleDragEnd(shape: ArrayShape): TLShapePartial<ArrayShape> | void {
+		const { drag, last } = swapState(this.editor)
+		const current = drag.get()
+		drag.set(null)
+		if (!current || current.shapeId !== shape.id) return
+		const { from, to } = current
+		if (to === undefined || to === from) return
+		last.set({ shapeId: shape.id, a: from, b: to, id: Date.now() })
+		return { id: shape.id, type: ARRAY_SHAPE_TYPE, props: swapCells(shape.props.values, shape.props.marks, from, to) }
+	}
+
+	override onHandleDragCancel() {
+		swapState(this.editor).drag.set(null)
 	}
 
 	private growPoint(shape: ArrayShape) {
@@ -87,6 +149,9 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	component(shape: ArrayShape) {
 		const colors = this.editor.getCurrentTheme().colors[this.editor.getColorMode()]
 		const editingKey = this.getEditingKey(shape)
+		const { drag, last } = swapState(this.editor)
+		const dragging = drag.get()
+		const swapped = last.get()
 		return (
 			<>
 				<SVGContainer>
@@ -95,6 +160,8 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 						colors={colors}
 						fontFamily={this.getFontFamily(shape)}
 						hiddenIndex={editingKey === undefined ? undefined : Number(editingKey)}
+						drag={dragging?.shapeId === shape.id ? dragging : undefined}
+						swap={swapped?.shapeId === shape.id ? swapped : undefined}
 					/>
 					{showsStructureControls(this.editor, shape) && (
 						<GrowGrip at={this.growPoint(shape)} zoom={this.editor.getZoomLevel()} colors={colors} />
@@ -139,18 +206,43 @@ function ArraySvg({
 	colors,
 	fontFamily,
 	hiddenIndex,
+	drag,
+	swap,
 }: {
 	shape: ArrayShape
 	colors: TLThemeColors
 	fontFamily: string
 	/** Cell whose value is drawn by the inline editor instead. */
 	hiddenIndex?: number
+	/** A cell being dragged onto another (canvas only). */
+	drag?: SwapDrag
+	/** The latest swap, animated once when it happens (canvas only). */
+	swap?: LastSwap
 }) {
-	const { values, direction, showIndices, color } = shape.props
+	const { values, direction, showIndices, color, marks } = shape.props
 	const metrics = getArrayMetrics(shape.props)
 	const layout = getArrayLayout(values.length, direction, metrics)
-	const { cells } = layout
+	const { cells, cellAt } = layout
+	const { cell, strokeWidth } = metrics
 	const stroke = getColorValue(colors, color, 'solid')
+	const textSize = (value: string) => metrics.fontSize * Math.min(1, 3 / Math.max(1, value.length))
+
+	// Two swapped values arc past each other into their new cells: one over, one under.
+	const swapStyle = (i: number): CSSProperties | undefined => {
+		if (!swap || (i !== swap.a && i !== swap.b)) return undefined
+		const other = i === swap.a ? swap.b : swap.a
+		const dx = cellAt(other).x - cellAt(i).x
+		const dy = cellAt(other).y - cellAt(i).y
+		const lift = (i === swap.a ? -1 : 1) * cell * 0.9
+		const [mx, my] = direction === 'horizontal' ? [dx / 2, dy / 2 + lift] : [dx / 2 + lift, dy / 2]
+		return {
+			'--from-x': `${dx}px`,
+			'--from-y': `${dy}px`,
+			'--mid-x': `${mx}px`,
+			'--mid-y': `${my}px`,
+			animation: `drawds-swap ${SWAP_MS}ms ease-in-out`,
+		} as CSSProperties
+	}
 
 	return (
 		<g fontFamily={fontFamily} textAnchor="middle" dominantBaseline="central">
@@ -161,37 +253,76 @@ function ArraySvg({
 				height={cells.h}
 				fill={getColorValue(colors, color, 'semi')}
 				stroke={stroke}
-				strokeWidth={metrics.strokeWidth}
+				strokeWidth={strokeWidth}
 				strokeLinejoin="round"
 			/>
 			{values.slice(1).map((_, k) => {
-				const { x, y } = layout.cellAt(k + 1)
+				const { x, y } = cellAt(k + 1)
 				return direction === 'horizontal' ? (
-					<line key={k} x1={x} y1={y} x2={x} y2={y + metrics.cell} stroke={stroke} strokeWidth={metrics.strokeWidth} />
+					<line key={k} x1={x} y1={y} x2={x} y2={y + cell} stroke={stroke} strokeWidth={strokeWidth} />
 				) : (
-					<line key={k} x1={x} y1={y} x2={x + metrics.cell} y2={y} stroke={stroke} strokeWidth={metrics.strokeWidth} />
+					<line key={k} x1={x} y1={y} x2={x + cell} y2={y} stroke={stroke} strokeWidth={strokeWidth} />
 				)
 			})}
+			{values.map((_, i) => {
+				const mark = marks[String(i)]
+				if (!mark) return null
+				const { x, y } = cellAt(i)
+				return (
+					<rect
+						key={`mark-${i}`}
+						x={x}
+						y={y}
+						width={cell}
+						height={cell}
+						fill={getColorValue(colors, mark, 'semi')}
+						stroke={getColorValue(colors, mark, 'solid')}
+						strokeWidth={strokeWidth * 1.6}
+						strokeLinejoin="round"
+					/>
+				)
+			})}
+			{drag?.to !== undefined && drag.to !== drag.from && (
+				<rect
+					x={cellAt(drag.to).x + strokeWidth}
+					y={cellAt(drag.to).y + strokeWidth}
+					width={cell - strokeWidth * 2}
+					height={cell - strokeWidth * 2}
+					fill="none"
+					stroke={colors.selectionStroke}
+					strokeWidth={strokeWidth * 1.5}
+					strokeDasharray={`${strokeWidth * 3} ${strokeWidth * 2}`}
+				/>
+			)}
 			{values.map((value, i) => {
 				if (i === hiddenIndex) return null
-				const { x, y } = layout.cellAt(i)
+				const { x, y } = cellAt(i)
+				const animated = swapStyle(i)
 				return (
 					<text
-						key={i}
-						x={x + metrics.cell / 2}
-						y={y + metrics.cell / 2}
-						fontSize={metrics.fontSize * Math.min(1, 3 / Math.max(1, value.length))}
+						// A new key per swap remounts the two texts, which restarts their animation.
+						key={animated ? `${i}:${swap!.id}` : i}
+						x={x + cell / 2}
+						y={y + cell / 2}
+						fontSize={textSize(value)}
 						fill={colors.text}
+						opacity={drag?.from === i ? 0.25 : 1}
+						style={animated}
 					>
 						{value}
 					</text>
 				)
 			})}
+			{drag && (
+				<text x={drag.at.x} y={drag.at.y - cell * 0.35} fontSize={textSize(values[drag.from] ?? '')} fill={colors.text} opacity={0.85}>
+					{values[drag.from]}
+				</text>
+			)}
 			{showIndices &&
 				values.map((_, i) => {
 					const { x, y } = layout.indexAt(i)
 					return (
-						<text key={i} x={x} y={y} fontSize={metrics.indexFontSize} fill={colors.text} opacity={0.5}>
+						<text key={`i${i}`} x={x} y={y} fontSize={metrics.indexFontSize} fill={colors.text} opacity={0.5}>
 							{i}
 						</text>
 					)

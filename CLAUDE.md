@@ -89,6 +89,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   node). `geometry.ts` is the pure edge routing (clipping, curved twins, self-loops, arrowheads).
 - `src/sketch/` - press-and-drag tools: `createDragTool` (generic gesture state; trees) and
   `createLineSketchTool` on top of it (`nextSketchState`, pure; arrays, lists).
+- `src/shapes/array/swap.ts` - drag a cell's handle onto another cell to swap (drag state in a per-editor atom,
+  ghost + target highlight while dragging, CSS `drawds-swap` arc animation keyed per swap).
 - `src/shapes/tree/` - binary trees: nodes with `children: [left, right]` slots (null = empty), root first;
   `generate.ts` (random shapes by depth + fullness, growth-stable: existence depends only on seed + path, ids
   are `n` + path), `layout.ts` (contour-based tidy layout; a lone child offset `lone`, well under half the
@@ -124,6 +126,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
 - Removable nodes: node-link shapes implement `removeNode` (+ optional `canRemoveNode`); the base draws an x
   on each node and makes each removal one undo step. With a mouse only the node / edge near the pointer shows
   its button (`src/nodelink/hover.ts`, reach 16 screen px); coarse pointers show all.
+- Marks (`src/cells/marks.ts`, `marking.ts`): every cell shape stores `props.marks` (cell key -> colour);
+  `CellShapeUtil.getMarks/withMarks`; keys 1-4 / 0 are tldraw actions acting on the element under the pointer
+  (`markTargetUnderPointer`), which is why tldraw's numbered toolbar shortcuts are disabled in App.tsx. Prune
+  marks when elements are removed (tree ids are paths and get reused); swap them when values swap.
 - Random fills are distinct (`random`, `letters`; sorted modes strictly monotone) until the pool runs out;
   growth and insertion skip values already present. `repeats` keeps duplicates.
 - Child slots: implement `getEmptySlots` + `addChildAt`; the base draws a + on the hovered node's lower-left /

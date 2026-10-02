@@ -1,4 +1,5 @@
 import { getColorValue, type TLDefaultColorStyle, type TLThemeColors } from 'tldraw'
+import type { MarkColor, Marks } from '../cells/marks'
 import { arrowHead, labelBox, pointerAnchor, routeScene, valueBox } from './geometry'
 import { edgeCellKey, type Scene, type SceneNode } from './scene'
 
@@ -19,6 +20,7 @@ export function SceneSvg({
 	color,
 	fontFamily,
 	hiddenKey,
+	marks = {},
 }: {
 	scene: Scene
 	colors: TLThemeColors
@@ -26,6 +28,8 @@ export function SceneSvg({
 	fontFamily: string
 	/** Cell whose value is drawn by the inline editor instead. */
 	hiddenKey?: string
+	/** Highlight colours on nodes, keyed by node key. */
+	marks?: Marks
 }) {
 	const { strokeWidth, fontSize, labelFontSize } = scene.metrics
 	const paint: Paint = {
@@ -65,10 +69,25 @@ export function SceneSvg({
 				)
 			})}
 			{scene.nodes.map((node) => (
-				<NodeSvg key={node.key} node={node} paint={paint} hideValue={node.key === hiddenKey} />
+				<NodeSvg
+					key={node.key}
+					node={node}
+					paint={marks[node.key] ? markedPaint(paint, colors, marks[node.key]) : paint}
+					hideValue={node.key === hiddenKey}
+				/>
 			))}
 		</g>
 	)
+}
+
+/** A marked node is filled and outlined in its mark colour, with a heavier outline. */
+function markedPaint(paint: Paint, colors: TLThemeColors, mark: MarkColor): Paint {
+	return {
+		...paint,
+		fill: getColorValue(colors, mark, 'semi'),
+		stroke: getColorValue(colors, mark, 'solid'),
+		strokeWidth: paint.strokeWidth * 1.6,
+	}
 }
 
 function NodeSvg({ node, paint, hideValue }: { node: SceneNode; paint: Paint; hideValue: boolean }) {

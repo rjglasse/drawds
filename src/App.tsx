@@ -12,6 +12,9 @@ import { components, uiOverrides } from './ui/overrides'
 // Defined at module level so they aren't recreated on every render.
 const shapeUtils = [ArrayShapeUtil, ListShapeUtil, TreeShapeUtil]
 const tools = [ArrayShapeTool, ListShapeTool, TreeShapeTool]
+// Digits mark the element under the pointer (1-4, 0 clears), so tldraw's "press n for the nth
+// toolbar tool" shortcuts are off; every tool still has its letter shortcut.
+const options = { enableToolbarKeyboardShortcuts: false }
 
 declare global {
 	interface Window {
@@ -33,6 +36,7 @@ export default function App() {
 				tools={tools}
 				overrides={uiOverrides}
 				components={components}
+				options={options}
 				onMount={onMount}
 			/>
 		</div>

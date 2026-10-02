@@ -9,6 +9,7 @@ import {
 	DefaultToolbarContent,
 	TldrawUiMenuGroup,
 	TldrawUiMenuItem,
+	TldrawUiMenuSubmenu,
 	useActions,
 	useEditor,
 	useIsToolSelected,
@@ -18,6 +19,9 @@ import {
 	type TLComponents,
 	type TLUiOverrides,
 } from 'tldraw'
+import { useState } from 'react'
+import { clearMarks, markElement, markTargetUnderPointer } from '../cells/marking'
+import { MARK_COLORS, MARK_MEANINGS, type MarkColor } from '../cells/marks'
 import { NodeLinkShapeUtil } from '../nodelink/NodeLinkShapeUtil'
 import { FillPicker, fillPickerTranslations } from './FillPicker'
 import { maskIcon } from './icons'
@@ -30,6 +34,8 @@ import { NullsPicker, nullsPickerTranslations } from './NullsPicker'
 const STRUCTURE_TOOLS = ['array', 'linked-list', 'binary-tree'] as const
 
 const RELAYOUT = 'drawds.relayout'
+
+const markLabel = (color: MarkColor) => `${color[0].toUpperCase()}${color.slice(1)} (${MARK_MEANINGS[color]})`
 
 /** Selected node-link shapes that have nodes dragged away from their automatic layout. */
 function relayoutTargets(editor: Editor) {
@@ -77,6 +83,22 @@ export const uiOverrides: TLUiOverrides = {
 				editor.updateShapes(targets.map(({ shape, util }) => util.resetLayout(shape)))
 			},
 		}
+		// Point at a cell or node and press 1-4 to mark it (again to clear), 0 to clear. Shortcuts are
+		// off while typing in a cell, so digits typed as values never mark anything.
+		MARK_COLORS.forEach((color, i) => {
+			actions[`drawds.mark-${color}`] = {
+				id: `drawds.mark-${color}`,
+				label: `Mark ${markLabel(color)}`,
+				kbd: String(i + 1),
+				onSelect: () => markElement(editor, markTargetUnderPointer(editor), color),
+			}
+		})
+		actions['drawds.unmark'] = {
+			id: 'drawds.unmark',
+			label: 'Clear mark',
+			kbd: '0',
+			onSelect: () => markElement(editor, markTargetUnderPointer(editor), null),
+		}
 		return actions
 	},
 	translations: { en: { ...fillPickerTranslations, ...nullsPickerTranslations } },
@@ -86,6 +108,45 @@ function StructureToolbarItem({ id }: { id: string }) {
 	const tools = useTools()
 	const isSelected = useIsToolSelected(tools[id])
 	return <TldrawUiMenuItem {...tools[id]} isSelected={isSelected} />
+}
+
+/**
+ * Mark submenu for the element under the pointer when the menu opened (captured then, because the
+ * pointer moves onto the menu afterwards).
+ */
+function MarkMenu() {
+	const editor = useEditor()
+	const [target] = useState(() => markTargetUnderPointer(editor))
+	if (!target) return null
+	const hasMarks = Object.keys(target.util.getMarks(target.shape)).length > 0
+	return (
+		<TldrawUiMenuGroup id="drawds-mark">
+			<TldrawUiMenuSubmenu id="drawds-mark" label="Mark">
+				{target.key !== undefined && (
+					<TldrawUiMenuGroup id="drawds-mark-colors">
+						{MARK_COLORS.map((color, i) => (
+							<TldrawUiMenuItem
+								key={color}
+								id={`mark-${color}`}
+								label={markLabel(color)}
+								kbd={String(i + 1)}
+								onSelect={() => markElement(editor, target, color)}
+							/>
+						))}
+						<TldrawUiMenuItem id="unmark" label="Clear mark" kbd="0" onSelect={() => markElement(editor, target, null)} />
+					</TldrawUiMenuGroup>
+				)}
+				<TldrawUiMenuGroup id="drawds-mark-all">
+					<TldrawUiMenuItem
+						id="clear-marks"
+						label="Clear all marks"
+						disabled={!hasMarks}
+						onSelect={() => clearMarks(editor, target)}
+					/>
+				</TldrawUiMenuGroup>
+			</TldrawUiMenuSubmenu>
+		</TldrawUiMenuGroup>
+	)
 }
 
 function RelayoutMenuItem() {
@@ -130,6 +191,7 @@ export const components: TLComponents = {
 	),
 	ContextMenu: (props) => (
 		<DefaultContextMenu {...props}>
+			<MarkMenu />
 			<RelayoutMenuItem />
 			<DefaultContextMenuContent />
 		</DefaultContextMenu>

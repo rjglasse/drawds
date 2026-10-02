@@ -4,6 +4,7 @@ import {
 	DefaultSizeStyle,
 	StyleProp,
 	T,
+	createShapePropsMigrationIds,
 	createShapePropsMigrationSequence,
 	type RecordProps,
 	type TLDefaultColorStyle,
@@ -11,6 +12,7 @@ import {
 	type TLDefaultSizeStyle,
 	type TLShape,
 } from 'tldraw'
+import { marksValidator, type Marks } from '../../cells/marks'
 import type { FillMode } from '../../data/fill'
 import { FillStyle } from '../../data/fill-style'
 
@@ -40,6 +42,8 @@ export interface TreeShapeProps {
 	nulls: NullsMode
 	fill: FillMode
 	seed: number
+	/** Highlight colours on nodes, keyed by node id. */
+	marks: Marks
 	color: TLDefaultColorStyle
 	size: TLDefaultSizeStyle
 	font: TLDefaultFontStyle
@@ -66,10 +70,27 @@ export const treeShapeProps: RecordProps<TreeShape> = {
 	nulls: NullsStyle,
 	fill: FillStyle,
 	seed: T.number,
+	marks: marksValidator,
 	color: DefaultColorStyle,
 	size: DefaultSizeStyle,
 	font: DefaultFontStyle,
 }
 
+const versions = createShapePropsMigrationIds(TREE_SHAPE_TYPE, {
+	AddMarks: 1,
+})
+
 /** Trees are persisted in the browser, so every props change needs a step here. */
-export const treeShapeMigrations = createShapePropsMigrationSequence({ sequence: [] })
+export const treeShapeMigrations = createShapePropsMigrationSequence({
+	sequence: [
+		{
+			id: versions.AddMarks,
+			up(props) {
+				props.marks = {}
+			},
+			down(props) {
+				delete props.marks
+			},
+		},
+	],
+})

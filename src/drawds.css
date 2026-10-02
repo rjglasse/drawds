@@ -3,3 +3,16 @@
 	filter: brightness(0.92);
 	transform: scale(1.12);
 }
+
+/* Two swapped array values arc past each other into their new cells (ArraySvg). */
+@keyframes drawds-swap {
+	from {
+		transform: translate(var(--from-x), var(--from-y));
+	}
+	50% {
+		transform: translate(var(--mid-x), var(--mid-y));
+	}
+	to {
+		transform: translate(0, 0);
+	}
+}

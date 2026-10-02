@@ -126,6 +126,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 						color={this.style(shape).color}
 						fontFamily={this.getFontFamily(shape)}
 						hiddenKey={this.getEditingKey(shape)}
+						marks={this.getMarks(shape)}
 					/>
 					{controls &&
 						this.getGrowGrips?.(shape).map((grip) => (
@@ -275,6 +276,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 				colors={colors}
 				color={this.style(shape).color}
 				fontFamily={this.getFontFamily(shape)}
+				marks={this.getMarks(shape)}
 			/>
 		)
 	}

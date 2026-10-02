@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, type KeyboardEvent, type PointerEvent } from 'react'
-import { ShapeUtil, type TLShape } from 'tldraw'
+import { ShapeUtil, type TLShape, type TLShapePartial } from 'tldraw'
 import {
 	beginCellEdit,
 	endCellEdit,
@@ -8,6 +8,7 @@ import {
 	type CellKey,
 	type EditableCells,
 } from './editable-cells'
+import type { Marks } from './marks'
 
 export interface CellFont {
 	fontFamily: string
@@ -27,6 +28,15 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 
 	/** Font for the inline input, so typing looks like the rendered value. */
 	abstract getCellFont(shape: S): CellFont
+
+	/** Marks on this shape's cells. Every cell shape stores them as `props.marks`. */
+	getMarks(shape: S): Marks {
+		return (shape.props as { marks?: Marks }).marks ?? {}
+	}
+
+	withMarks(shape: S, marks: Marks): TLShapePartial<S> {
+		return { id: shape.id, type: shape.type, props: { marks } } as unknown as TLShapePartial<S>
+	}
 
 	override canEdit() {
 		return true

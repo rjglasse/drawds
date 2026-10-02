@@ -1,4 +1,5 @@
 import { Vec, type TLShapePartial, type VecLike } from 'tldraw'
+import { pruneMarks } from '../../cells/marks'
 import { fillValues } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
 import { GROW_HANDLE_ID, GROW_START_HANDLE_ID, grownCount } from '../../controls/grow'
@@ -32,6 +33,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 			direction: 'right',
 			fill: 'random',
 			seed: 0,
+			marks: {},
 			color: 'black',
 			size: 'm',
 			font: 'mono',
@@ -100,10 +102,17 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		return shape.props.nodes.length > 1
 	}
 
-	/** New nodes, positioned so the first surviving node of `initial` stays put on the page. */
+	/**
+	 * New nodes, positioned so the first surviving node of `initial` stays put on the page; marks on
+	 * removed nodes go with them.
+	 */
 	private withNodes(shape: ListShape, initial: ListShape, nodes: ListNode[]): TLShapePartial<ListShape> {
 		const shift = Vec.Rot(anchorShift(initial.props, { ...initial.props, nodes }), initial.rotation)
-		return { id: shape.id, type: LIST_SHAPE_TYPE, x: initial.x + shift.x, y: initial.y + shift.y, props: { nodes } }
+		const marks = pruneMarks(
+			initial.props.marks,
+			nodes.map((n) => n.id)
+		)
+		return { id: shape.id, type: LIST_SHAPE_TYPE, x: initial.x + shift.x, y: initial.y + shift.y, props: { nodes, marks } }
 	}
 
 	refill(shape: ListShape) {

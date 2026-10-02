@@ -3,6 +3,7 @@ import {
 	DefaultFontStyle,
 	DefaultSizeStyle,
 	T,
+	createShapePropsMigrationIds,
 	createShapePropsMigrationSequence,
 	type RecordProps,
 	type TLDefaultColorStyle,
@@ -10,6 +11,7 @@ import {
 	type TLDefaultSizeStyle,
 	type TLShape,
 } from 'tldraw'
+import { marksValidator, type Marks } from '../../cells/marks'
 import type { FillMode } from '../../data/fill'
 import { FillStyle } from '../../data/fill-style'
 
@@ -33,6 +35,8 @@ export interface ListShapeProps {
 	direction: ListDirection
 	fill: FillMode
 	seed: number
+	/** Highlight colours on nodes, keyed by node id. */
+	marks: Marks
 	color: TLDefaultColorStyle
 	size: TLDefaultSizeStyle
 	font: TLDefaultFontStyle
@@ -51,10 +55,27 @@ export const listShapeProps: RecordProps<ListShape> = {
 	direction: T.literalEnum('right', 'left', 'down', 'up'),
 	fill: FillStyle,
 	seed: T.number,
+	marks: marksValidator,
 	color: DefaultColorStyle,
 	size: DefaultSizeStyle,
 	font: DefaultFontStyle,
 }
 
+const versions = createShapePropsMigrationIds(LIST_SHAPE_TYPE, {
+	AddMarks: 1,
+})
+
 /** Lists are persisted in the browser, so every props change needs a step here. */
-export const listShapeMigrations = createShapePropsMigrationSequence({ sequence: [] })
+export const listShapeMigrations = createShapePropsMigrationSequence({
+	sequence: [
+		{
+			id: versions.AddMarks,
+			up(props) {
+				props.marks = {}
+			},
+			down(props) {
+				delete props.marks
+			},
+		},
+	],
+})

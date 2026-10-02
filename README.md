@@ -49,6 +49,18 @@ left / right child and opens it for editing) and an **x** that removes the node 
 has none; delete the shape instead). The layout tidies itself after each change and the root stays put. The
 style panel's **null children** toggle draws `null` in every empty slot.
 
+### Marking elements
+
+Point at any cell or node (it doesn't need to be selected) and press **1** red (pivot), **2** orange (comparing),
+**3** green (sorted) or **4** blue (visited); the same key again, or **0**, clears it. Right-click an element for
+the same choices under **Mark**, plus **Clear all marks**. Marks follow nodes when lists and trees change, travel
+with values when array cells swap, and appear in exports. Digits typed while editing a value are just digits.
+
+### Swapping array cells
+
+Select an array: each cell gets a small handle underneath (on the right for vertical arrays). Drag it onto another
+cell and the two values swap, arcing past each other so students can follow. One undo per swap; Esc cancels.
+
 ### Fill
 
 The style panel's **Fill** picker chooses how values are generated: random integers (0-99, all different), random

@@ -99,7 +99,7 @@ numbers sorted, and `fill` is `"ascending"`.
 | `list x y n [right\|left\|up\|down]` | Shift+N, then drag so an `n`-node linked list appears with its head node centred on (x, y). Size M: nodes are 115.2 px apart. Prints `shapes`. |
 | `hover <key> [key2]` | move the pointer to a node of the only selected node-link shape, or half-way between two (on the arrow joining them); needed before clicking an x or + |
 | `tree x y depth [lean]` | Shift+T, then drag down so a tree of `depth` levels appears with its root centred on (x, y); `lean` -1 (bare stick) .. 0 (random) .. 1 (perfect). Trees are random per sketch: for scripted edits start from `tree x y 1` (a lone root) and add children |
-| `dragnode <key> dx dy` | drag a handle of the **only selected** shape: a list node (`n0`, `n1`, ...), the end grip `grow` (arrays, lists) or a list's head grip `grow-start` |
+| `dragnode <key> dx dy` | drag a handle of the **only selected** shape: a list or tree node (`n0`, `nL`, ...), an array cell (`cell:0`, ... - dropping on another cell swaps them), the end grip `grow` (arrays, lists) or a list's head grip `grow-start` |
 | `drag x1 y1 x2 y2 [steps]` | press, move in `steps` (default 20), release |
 | `move x y` / `down` / `up` | low-level mouse, for checks in the middle of a gesture |
 | `click x y` / `dblclick x y` / `rclick x y` | mouse clicks (double-click a cell to edit it; right-click opens the context menu) |
@@ -163,6 +163,12 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   is drawn by the shape. Random fills append the next draws of the shape's
   seed, so `fillValues('random', seed, n)` predicts the grown values; with
   values 0-99, repeats are normal (about 1 in 100 per neighbouring pair).
+- **Marking**: `move x y` onto a cell / node (or `hover <id>`), then `key 1`..`key 4`
+  (red, orange, green, blue) or `key 0` to clear; read back with
+  `eval editor.getOnlySelectedShape().props.marks`. Digits never switch tools
+  (`enableToolbarKeyboardShortcuts` is off). Context menu: `rclick x y`,
+  `clicksel [data-testid="context-menu-sub.drawds-mark-button"]`, then
+  `[data-testid="context-menu.mark-green"]`.
 - **Tree controls**: `hover <id>` then `[data-testid="add-child-<id>-left|right"]`
   (only for empty slots) or `[data-testid="remove-node-<id>"]` (never on the
   root `n`). Node ids are paths: `n`, `nL`, `nR`, `nLR`... Null children:

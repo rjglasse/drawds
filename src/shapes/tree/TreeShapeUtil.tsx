@@ -1,4 +1,5 @@
 import { Vec, type TLShapePartial, type VecLike } from 'tldraw'
+import { pruneMarks } from '../../cells/marks'
 import { fillValues, insertValue } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
 import { NodeLinkShapeUtil } from '../../nodelink/NodeLinkShapeUtil'
@@ -23,6 +24,7 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 			nulls: 'hide',
 			fill: 'random',
 			seed: 0,
+			marks: {},
 			color: 'black',
 			size: 'm',
 			font: 'mono',
@@ -94,12 +96,19 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 		return { update: this.withNodes(shape, added.nodes), key: added.id }
 	}
 
-	/** New nodes, positioned so the root stays where it is on the page. */
+	/**
+	 * New nodes, positioned so the root stays where it is on the page. Marks on removed nodes go
+	 * with them (ids are paths, so a node added later in the same place mustn't inherit a mark).
+	 */
 	private withNodes(shape: TreeShape, nodes: TreeNode[]): TLShapePartial<TreeShape> {
 		const before = treeRootCentre(shape.props)
 		const after = treeRootCentre({ ...shape.props, nodes })
 		const shift = Vec.Rot(Vec.Sub(before, after), shape.rotation)
-		return { id: shape.id, type: TREE_SHAPE_TYPE, x: shape.x + shift.x, y: shape.y + shift.y, props: { nodes } }
+		const marks = pruneMarks(
+			shape.props.marks,
+			nodes.map((n) => n.id)
+		)
+		return { id: shape.id, type: TREE_SHAPE_TYPE, x: shape.x + shift.x, y: shape.y + shift.y, props: { nodes, marks } }
 	}
 
 	private update(shape: TreeShape, nodes: TreeNode[]): TLShapePartial<TreeShape> {
