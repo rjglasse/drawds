@@ -60,18 +60,67 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 
 ## Build & Test
 
-_Add your build and test commands here_
-
 ```bash
-# Example:
-# npm install
-# npm test
+npm install
+npm run dev        # Vite dev server; window.editor is exposed in dev for poking/driving
+npm test           # vitest (pure layout/data logic), src/**/*.test.ts
+npm run test:e2e   # Playwright against the dev server, installed Chrome, e2e/*.e2e.ts
+npm run typecheck  # tsc -b
+npm run build      # typecheck + production bundle
 ```
+
+To launch, drive, screenshot or export the running app, use the `run-drawds` skill
+(`.claude/skills/run-drawds/SKILL.md`, driver `driver.mjs` next to it).
 
 ## Architecture Overview
 
-_Add a brief overview of your project architecture_
+React + Vite + TypeScript app around a single `<Tldraw>` canvas (tldraw SDK v5, see https://tldraw.dev).
+Each data structure is a custom tldraw shape plus a gesture-driven tool:
+
+- `src/shapes/<structure>/` - `*-shape-types.ts` (props, `TLGlobalShapePropsMap` augmentation, props
+  migrations), `*ShapeUtil.tsx`, `*ShapeTool.ts`, `layout.ts` (pure, unit-tested geometry/gesture maths).
+  `src/shapes/sizes.ts` has the shared S/M/L/XL cell sizes.
+- `src/cells/` - shared in-place cell editing: `EditableCells<S>` (hit-test, box, get/set, neighbours) and
+  `CellShapeUtil`, a ShapeUtil base that wires tldraw's edit lifecycle and renders the inline input.
+- `src/nodelink/` - node-link structures (lists now; trees, heaps, graphs next). Decision (dds-55z.15.1): ONE
+  shape per structure, props hold the model. A subclass of `NodeLinkShapeUtil` turns props into a `Scene`
+  (positioned nodes + edges, shape space) and applies model edits; the base does geometry, `SceneSvg`
+  rendering/export, value editing via `sceneCells`, and node dragging via tldraw handles (bottom edge of each
+  node). `geometry.ts` is the pure edge routing (clipping, curved twins, self-loops, arrowheads).
+- `src/sketch/` - the shared press-and-drag gesture: `nextSketchState` (pure) and `createLineSketchTool`.
+- `src/controls/` - on-canvas controls shown while a structure is the only selected shape
+  (`showsStructureControls`): grow grips (tldraw `create` handles `grow` / `grow-start`, drawn only on hover,
+  plus our own '+' `GrowGrip`; `grownCount` is pure) and `ControlButton` (HTML insert '+' / remove 'x',
+  since handles can't be clicked). New values come from `extendValues` in `src/data/fill.ts` (end or start).
+- `src/data/` - seeded RNG (`mulberry32`) and fill generators (`fillValues`); `fill-style.ts` is the
+  `drawds:fill` StyleProp plus `refillSelectedShapes`.
+- `src/ui/` - toolbar/shortcuts/context menu (`overrides.tsx`), style panel Fill picker, icons.
 
 ## Conventions & Patterns
 
-_Add your project-specific conventions here_
+- Render shapes as SVG via one component shared by `component()` and `toSvg()` so export matches the canvas.
+- Use tldraw style props (`DefaultColorStyle`, `DefaultSizeStyle`, `DefaultFontStyle`) so the built-in style panel
+  drives our shapes; set `shapeType` on the tool so the panel shows them while the tool is active.
+- Keep gesture/layout maths in pure functions and test them with vitest.
+- A creation gesture is one undo step: `markHistoryStoppingPoint` on enter, `bailToMark` on cancel.
+- New structure with editable values: extend `CellShapeUtil`, implement `EditableCells` (pure, unit-test it),
+  skip drawing the value of `getEditingKey(shape)`, and render `this.renderCellEditor(shape)` in `component`.
+  Cell keys are strings (array index, later "r,c", node ids).
+- New node-link structure: extend `NodeLinkShapeUtil`, write a pure `layout.ts` that returns a `Scene`
+  (normalised to start at 0,0, then drag offsets applied), and build its tool with `createLineSketchTool` (or a
+  new gesture). Values come from `fillValues(fill, seed, n)`; store `fill` (FillStyle) and `seed` on the shape
+  and implement `refill` so the Fill picker can regenerate it.
+- Growable structure: arrays add the handle in `getHandles` and handle `GROW_HANDLE_ID` in `onHandleDrag`;
+  node-link shapes implement `getGrowGrips` + `growTo(shape, initial, gripId, to)`. Always compute from
+  `info.initial` (the shape at drag start), and shift `x`/`y` when the shape's origin moves so existing
+  elements stay put on the page (lists: `anchorShift` keeps the first surviving node fixed).
+- Removable nodes: node-link shapes implement `removeNode` (+ optional `canRemoveNode`); the base draws an x
+  on each node and makes each removal one undo step.
+- Insertable edges: implement `insertOnEdge` (+ optional `canInsertOnEdge`) returning the update and the new
+  node's key; the base draws a + mid-edge, applies the update as one undo step, then opens the new node with
+  `CellShapeUtil.editCell(shape, key)` (start editing any cell programmatically).
+- Persisted props: shapes are saved in IndexedDB (`persistenceKey`), so any props change needs a step in that
+  shape's `createShapePropsMigrationSequence`, with a unit test and ideally an e2e load check
+  (`e2e/migration.e2e.ts`).
+- Tool icons: pass JSX via `maskIcon()` rather than a string + `assetUrls` (Vite's inlined SVG data URIs break
+  tldraw's unquoted CSS `url()`).
