@@ -1,0 +1,5 @@
+/* On-canvas structure controls (see src/controls). */
+.drawds-control-button:hover {
+	filter: brightness(0.92);
+	transform: scale(1.12);
+}
