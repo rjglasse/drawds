@@ -171,6 +171,28 @@ function MarkMenu() {
 	)
 }
 
+/**
+ * Operations that start from the node under the pointer when the menu opened (a graph's BFS / DFS
+ * from it), captured then like the mark target.
+ */
+function NodeOperationsMenu() {
+	const editor = useEditor()
+	const [operations] = useState(() => {
+		const target = markTargetUnderPointer(editor)
+		const util = target?.util
+		if (!target || target.key === undefined || !(util instanceof NodeLinkShapeUtil) || !util.nodeOperations) return []
+		return util.nodeOperations(target.shape, target.key)
+	})
+	if (!operations.length) return null
+	return (
+		<TldrawUiMenuGroup id="drawds-node-operations">
+			{operations.map((op) => (
+				<TldrawUiMenuItem key={op.id} id={op.id} label={op.label} onSelect={op.run} />
+			))}
+		</TldrawUiMenuGroup>
+	)
+}
+
 function RelayoutMenuItem() {
 	const editor = useEditor()
 	const actions = useActions()
@@ -215,6 +237,7 @@ export const components: TLComponents = {
 	),
 	ContextMenu: (props) => (
 		<DefaultContextMenu {...props}>
+			<NodeOperationsMenu />
 			<MarkMenu />
 			<RelayoutMenuItem />
 			<DefaultContextMenuContent />

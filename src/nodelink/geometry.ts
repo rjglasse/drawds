@@ -227,3 +227,39 @@ export function spatialNeighbor<T extends Point>(
 	}
 	return best
 }
+
+/** Where a badge may sit around a node, best first (never below: that's the node's drag handle). */
+const BADGE_DIRECTIONS = [
+	[-1, -1],
+	[1, -1],
+	[-1, 0],
+	[1, 0],
+	[-1, 1],
+	[1, 1],
+	[0, -1],
+].map(([x, y]) => ({ x: x / Math.hypot(x, y), y: y / Math.hypot(x, y) }))
+
+/** Which way from a node to put its badge, so it stays clear of the node's edges and their arrowheads. */
+export function badgeDirection(node: SceneNode, scene: Scene): Point {
+	const byKey = new Map(scene.nodes.map((n) => [n.key, n]))
+	const angles = scene.edges.flatMap((e) => {
+		const other = e.from === node.key ? byKey.get(e.to) : e.to === node.key ? byKey.get(e.from) : undefined
+		return other && other !== node ? [Math.atan2(other.y - node.y, other.x - node.x)] : []
+	})
+	const clearance = (d: Point) => {
+		const a = Math.atan2(d.y, d.x)
+		return Math.min(
+			Math.PI,
+			...angles.map((b) => {
+				const diff = Math.abs(a - b) % (2 * Math.PI)
+				return Math.min(diff, 2 * Math.PI - diff)
+			})
+		)
+	}
+	// The first spot, in order of preference, that is well clear of every edge; else the clearest.
+	const clear = BADGE_DIRECTIONS.find((d) => clearance(d) >= Math.PI / 3)
+	if (clear) return clear
+	let best = BADGE_DIRECTIONS[0]
+	for (const d of BADGE_DIRECTIONS) if (clearance(d) > clearance(best)) best = d
+	return best
+}

@@ -34,6 +34,13 @@ import { edgeCellKey, type Scene, type SceneEdge } from './scene'
 import { sceneCells } from './scene-cells'
 import { SceneSvg, StripSvg, stripSize } from './SceneSvg'
 
+/** An operation offered from a node's context menu. */
+export interface NodeOperation {
+	id: string
+	label: string
+	run(): void
+}
+
 /** Style props every node-link shape has. */
 interface NodeLinkStyle {
 	color: TLDefaultColorStyle
@@ -92,6 +99,8 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	insertKey?(shape: S, key: string, keep: boolean): void
 	/** Steady highlights while the pointer is over a node (e.g. a heap's parent and children). */
 	hoverHighlights?(shape: S, key: string): Marks
+	/** Operations that start from a node, offered in its context menu (e.g. a graph's BFS from it). */
+	nodeOperations?(shape: S, key: string): NodeOperation[]
 
 	/**
 	 * Whether edges take marks too (keyed `edge:<key>`, like edge cells). Shapes that opt in prune
@@ -192,6 +201,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 						/>
 					)}
 					{controls &&
+						!open &&
 						this.getGrowGrips?.(shape).map((grip) => (
 							<GrowGrip key={grip.id} at={grip.at} zoom={zoom} colors={colors} />
 						))}

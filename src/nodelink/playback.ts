@@ -104,7 +104,7 @@ const STEP_BY_STEP_KEY = 'drawds:step-by-step'
 
 function readStepByStep() {
 	try {
-		return globalThis.localStorage?.getItem(STEP_BY_STEP_KEY) === 'on'
+		return typeof window !== 'undefined' && window.localStorage.getItem(STEP_BY_STEP_KEY) === 'on'
 	} catch {
 		return false
 	}
@@ -118,7 +118,7 @@ export const isStepByStep = () => stepByStepAtom.get()
 export function setStepByStep(editor: Editor, on: boolean) {
 	stepByStepAtom.set(on)
 	try {
-		globalThis.localStorage?.setItem(STEP_BY_STEP_KEY, on ? 'on' : 'off')
+		window.localStorage.setItem(STEP_BY_STEP_KEY, on ? 'on' : 'off')
 	} catch {
 		// Storage can be unavailable (private windows); the setting then lasts for this page.
 	}
@@ -302,15 +302,22 @@ function attachKeys(editor: Editor) {
 		if (!action) return
 		e.preventDefault()
 		e.stopPropagation()
+		swallowKeyUp(win, e.key)
 		if (!e.repeat || e.key.startsWith('Arrow')) action()
 	}
-	const onKeyUp = (e: KeyboardEvent) => {
-		if (e.key === ' ' && !isTyping(e.target)) e.stopPropagation()
-	}
 	win.addEventListener('keydown', onKeyDown, true)
-	win.addEventListener('keyup', onKeyUp, true)
-	return () => {
-		win.removeEventListener('keydown', onKeyDown, true)
+	return () => win.removeEventListener('keydown', onKeyDown, true)
+}
+
+/**
+ * Keep the release of a key we handled from tldraw too: it acts on some keys as they come up
+ * (Enter starts editing the selected shape), possibly after the operation has closed.
+ */
+function swallowKeyUp(win: Window, key: string) {
+	const onKeyUp = (e: KeyboardEvent) => {
+		if (e.key !== key) return
+		e.stopPropagation()
 		win.removeEventListener('keyup', onKeyUp, true)
 	}
+	win.addEventListener('keyup', onKeyUp, true)
 }

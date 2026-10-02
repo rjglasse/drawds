@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import { getColorValue, type TLDefaultColorStyle, type TLThemeColors } from 'tldraw'
 import type { MarkColor, Marks } from '../cells/marks'
-import { arrowHead, labelBox, pointerAnchor, routeScene, valueBox } from './geometry'
+import { arrowHead, badgeDirection, boundaryPoint, labelBox, pointerAnchor, routeScene, valueBox } from './geometry'
 import type { Strip } from './playback'
 import { edgeCellKey, type Scene, type SceneMetrics, type SceneNode } from './scene'
 
@@ -156,20 +156,38 @@ export function SceneSvg({
 			{flash?.badges &&
 				scene.nodes.map((node) =>
 					flash.badges?.[node.key] ? (
-						<NodeBadge key={`badge-${node.key}-${flash.id}`} node={node} text={flash.badges[node.key]} paint={paint} fading={flash.fading} />
+						<NodeBadge
+							key={`badge-${node.key}-${flash.id}`}
+							node={node}
+							direction={badgeDirection(node, scene)}
+							text={flash.badges[node.key]}
+							paint={paint}
+							fading={flash.fading}
+						/>
 					) : null
 				)}
 		</g>
 	)
 }
 
-/** A small round label at a node's upper left (outside it), e.g. the order it was discovered in. */
-function NodeBadge({ node, text, paint, fading }: { node: SceneNode; text: string; paint: Paint; fading: boolean }) {
+/** A small round label just outside a node, e.g. the order it was discovered in. */
+function NodeBadge({
+	node,
+	direction,
+	text,
+	paint,
+	fading,
+}: {
+	node: SceneNode
+	direction: { x: number; y: number }
+	text: string
+	paint: Paint
+	fading: boolean
+}) {
 	const r = paint.labelFontSize * 0.78 * Math.max(1, text.length * 0.6)
-	const reach = node.kind === 'circle' ? (node.w / 2) * Math.SQRT1_2 : node.w / 2
-	const reachY = node.kind === 'circle' ? (node.h / 2) * Math.SQRT1_2 : node.h / 2
-	const x = node.x - reach - r * 0.55
-	const y = node.y - reachY - r * 0.55
+	const edge = boundaryPoint(node, { x: node.x + direction.x * node.w, y: node.y + direction.y * node.h })
+	const x = edge.x + direction.x * r * 0.75
+	const y = edge.y + direction.y * r * 0.75
 	return (
 		<g className={fading ? 'drawds-flash drawds-flash-fade' : 'drawds-flash'}>
 			<circle cx={x} cy={y} r={r} fill={paint.background} stroke={paint.text} strokeWidth={paint.strokeWidth * 0.8} />

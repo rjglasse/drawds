@@ -12,7 +12,8 @@ import { GROW_HANDLE_ID } from '../../controls/grow'
 import { GrowGrip } from '../../controls/GrowGrip'
 import { showsStructureControls } from '../../controls/visibility'
 import { arrowHead, routeEdge } from '../../nodelink/geometry'
-import { NodeLinkShapeUtil } from '../../nodelink/NodeLinkShapeUtil'
+import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
+import { playOperation, playbackFor } from '../../nodelink/playback'
 import { edgeCellKey, type Scene, type SceneNode } from '../../nodelink/scene'
 import {
 	connectHandleId,
@@ -31,6 +32,7 @@ import {
 	type GraphShape,
 } from './graph-shape-types'
 import { getGraphMetrics, graphCorner, graphScene, toUnits } from './layout'
+import { bfs, dfs } from './traverse'
 import {
 	addEdge,
 	addNode,
@@ -210,6 +212,33 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		}, 0)
 	}
 
+	// Traversals, from a node's context menu: they play step by step (see the play bar). Shift at the
+	// end keeps the visited nodes and the tree edges as marks.
+
+	nodeOperations(shape: GraphShape, key: string): NodeOperation[] {
+		const node = shape.props.nodes.find((n) => n.id === key)
+		if (!node) return []
+		return [
+			{ id: 'graph-bfs', label: `Breadth-first search from ${node.value}`, run: () => this.traverse(shape.id, key, 'bfs') },
+			{ id: 'graph-dfs', label: `Depth-first search from ${node.value}`, run: () => this.traverse(shape.id, key, 'dfs') },
+		]
+	}
+
+	private traverse(id: GraphShape['id'], start: string, kind: 'bfs' | 'dfs') {
+		const shape = this.editor.getShape(id) as GraphShape | undefined
+		if (!shape) return
+		const { frames } = (kind === 'bfs' ? bfs : dfs)(shape.props, start, shape.props.direction === 'directed')
+		playOperation(this.editor, {
+			shapeId: id,
+			label: kind === 'bfs' ? 'breadth-first search' : 'depth-first search',
+			frames,
+			withMarks: (_update, highlights) => {
+				const current = (this.editor.getShape(id) as GraphShape | undefined) ?? shape
+				return this.withModel(current, current.props, { ...current.props.marks, ...highlights })
+			},
+		})
+	}
+
 	// Options from the style panel, applied to the selected graph.
 
 	/** Undirected: one edge per pair of nodes, so u->v and v->u twins merge. */
@@ -229,7 +258,8 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		const scene = this.getScene(shape)
 		// Connect grips on the node under the pointer (all nodes on touch screens), as for its x.
 		let grips: SceneNode[] = []
-		if (!dragging && showsStructureControls(this.editor, shape) && this.editor.isIn('select.idle')) {
+		const playing = playbackFor(this.editor, shape.id)
+		if (!dragging && !playing && showsStructureControls(this.editor, shape) && this.editor.isIn('select.idle')) {
 			const { showNode } = this.controlTargets(shape)
 			grips = scene.nodes.filter((n) => showNode(n.key))
 		}
@@ -258,8 +288,8 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 	}
 
 	/** New nodes and edges; marks on anything removed go with it. */
-	private withModel(shape: GraphShape, model: GraphModel): TLShapePartial<GraphShape> {
-		return this.update(shape, { ...model, marks: pruneMarks(shape.props.marks, markKeys(model)) })
+	private withModel(shape: GraphShape, model: GraphModel, marks = shape.props.marks): TLShapePartial<GraphShape> {
+		return this.update(shape, { ...model, marks: pruneMarks(marks, markKeys(model)) })
 	}
 
 	private update(shape: GraphShape, props: Partial<GraphShape['props']>): TLShapePartial<GraphShape> {

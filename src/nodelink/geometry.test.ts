@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+	badgeDirection,
 	bendFor,
 	boundaryPoint,
 	nodeContains,
@@ -9,7 +10,7 @@ import {
 	spatialNeighbor,
 	valueBox,
 } from './geometry'
-import type { SceneEdge, SceneNode } from './scene'
+import type { Scene, SceneEdge, SceneNode } from './scene'
 
 const node = (key: string, x: number, y: number, kind: SceneNode['kind'] = 'box', w = 40, h = 40): SceneNode => ({
 	key,
@@ -122,5 +123,34 @@ describe('spatialNeighbor', () => {
 		expect(spatialNeighbor(cells[0], cells, 'right')?.key).toBe('r')
 		expect(spatialNeighbor(cells[0], cells, 'down')?.key).toBe('d')
 		expect(spatialNeighbor(cells[0], cells, 'left')).toBeUndefined()
+	})
+})
+
+describe('badgeDirection', () => {
+	const circle = (key: string, x: number, y: number): SceneNode => ({
+		key,
+		kind: 'circle',
+		x,
+		y,
+		w: 40,
+		h: 40,
+		value: key,
+		editable: true,
+		draggable: true,
+	})
+	const scene = (edges: [string, string][]): Scene => ({
+		nodes: [circle('a', 0, 0), circle('nw', -100, -100), circle('ne', 100, -100)],
+		edges: edges.map(([from, to]) => ({ key: from + to, from, to, directed: true })),
+		metrics: { fontSize: 20, labelFontSize: 14, strokeWidth: 2 },
+	})
+
+	it('prefers the upper left, but moves away from an edge arriving there', () => {
+		const a = scene([]).nodes[0]
+		const free = badgeDirection(a, scene([]))
+		expect([free.x, free.y].map((v) => v.toFixed(3))).toEqual(['-0.707', '-0.707'])
+		const away = badgeDirection(a, scene([['nw', 'a']]))
+		expect([away.x, away.y].map((v) => v.toFixed(3))).toEqual(['0.707', '-0.707'])
+		const both = badgeDirection(a, scene([['nw', 'a'], ['a', 'ne']]))
+		expect(both.y).toBeGreaterThanOrEqual(0)
 	})
 })
