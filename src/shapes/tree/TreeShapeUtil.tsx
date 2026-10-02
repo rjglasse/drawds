@@ -1,5 +1,6 @@
 import { Vec, type TLShapePartial, type VecLike } from 'tldraw'
 import { pruneMarks, type MarkColor, type Marks } from '../../cells/marks'
+import { compareKeys } from '../../data/compare'
 import { fillValues, insertValue } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
 import { NodeLinkShapeUtil } from '../../nodelink/NodeLinkShapeUtil'
@@ -117,9 +118,9 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 		return { update: this.withNodes(shape, added.nodes), key: added.id }
 	}
 
-	/** One step of an animation that highlights a node. */
-	private static highlight(id: string, color: MarkColor): Frame {
-		return { flash: { [id]: color } }
+	/** One step of an animation that highlights a node, saying why. */
+	private static highlight(id: string, color: MarkColor, caption?: string): Frame {
+		return { flash: { [id]: color }, caption }
 	}
 
 	// BST operations, animated: the comparison path lights up node by node (orange), then the
@@ -133,7 +134,20 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 
 	insertKey(shape: TreeShape, key: string, keep: boolean) {
 		const result = bstInsert(shape.props.nodes, key)
-		const frames = result.path.map((id) => TreeShapeUtil.highlight(id, 'orange'))
+		const valueOf = new Map(shape.props.nodes.map((n) => [n.id, n.value]))
+		// Each comparison on the way down; the last one says where the new key goes.
+		const frames = result.path.map((id, i) => {
+			const v = valueOf.get(id)!
+			const cmp = compareKeys(key, v)
+			if (cmp === 0) return TreeShapeUtil.highlight(id, 'orange', `${key} = ${v}: already in the tree`)
+			const [sign, side] = cmp < 0 ? ['<', 'left'] : ['>', 'right']
+			const last = i === result.path.length - 1
+			return TreeShapeUtil.highlight(
+				id,
+				'orange',
+				last ? `${key} ${sign} ${v}, which has no ${side} child: ${key} goes there` : `${key} ${sign} ${v}: go ${side}`
+			)
+		})
 		this.play(shape, 'insert key', frames, keep, {
 			nodes: result.found ? undefined : result.nodes,
 			// Found: the key was already there (blue); otherwise the new node (green).
@@ -144,10 +158,27 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 	removeNodeAnimated(shape: TreeShape, key: string, keep: boolean) {
 		if (shape.props.kind !== 'bst') return false
 		const result = bstDelete(shape.props.nodes, key)
+		const valueOf = new Map(shape.props.nodes.map((n) => [n.id, n.value]))
+		const v = valueOf.get(key)
+		const why = {
+			leaf: `Delete ${v}: a leaf, so just remove it`,
+			'one-child': `Delete ${v}: it has one child, which takes its place`,
+			'two-children': `Delete ${v}: two children, so find its successor (the smallest key on its right)`,
+		}[result.kind]
 		const frames = [
-			TreeShapeUtil.highlight(key, 'red'),
-			...result.path.map((id) => TreeShapeUtil.highlight(id, 'orange')),
-			...(result.successor ? [TreeShapeUtil.highlight(result.successor, 'green')] : []),
+			TreeShapeUtil.highlight(key, 'red', why),
+			...result.path.map((id, i) =>
+				TreeShapeUtil.highlight(id, 'orange', i === 0 ? `Go right to ${valueOf.get(id)}` : `Go left to ${valueOf.get(id)}`)
+			),
+			...(result.successor
+				? [
+						TreeShapeUtil.highlight(
+							result.successor,
+							'green',
+							`${valueOf.get(result.successor)} has no left child: it is the successor, and replaces ${v}`
+						),
+					]
+				: []),
 		]
 		// With two children the node stays, now holding its successor's value.
 		this.play(shape, 'delete key', frames, keep, {

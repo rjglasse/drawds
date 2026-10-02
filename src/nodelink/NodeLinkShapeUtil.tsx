@@ -24,14 +24,15 @@ import { growHandle, isGrowHandle } from '../controls/grow'
 import { GrowGrip } from '../controls/GrowGrip'
 import { ControlButton } from '../controls/ControlButton'
 import { KeyPrompt } from '../controls/KeyPrompt'
+import { PlayBar } from '../controls/PlayBar'
 import { closePrompt, isPromptOpen, openPrompt } from '../controls/prompt'
 import { showsStructureControls } from '../controls/visibility'
 import { labelBox, routeScene, type EdgeRoute } from './geometry'
 import { hoveredEdge, hoveredNode } from './hover'
-import { playbackFor } from './playback'
+import { playbackFor, type Strip } from './playback'
 import { edgeCellKey, type Scene, type SceneEdge } from './scene'
 import { sceneCells } from './scene-cells'
-import { SceneSvg } from './SceneSvg'
+import { SceneSvg, StripSvg, stripSize } from './SceneSvg'
 
 /** Style props every node-link shape has. */
 interface NodeLinkStyle {
@@ -160,6 +161,9 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		const prompt = this.getInsertPrompt?.(shape)
 		const promptOpen = isPromptOpen(this.editor, shape.id)
 		const hover = controls && !playing ? this.hoverHighlightsAtPointer(shape) : undefined
+		// An operation is open (playing, paused or stepping) until it commits or is cancelled.
+		const open = !!playing && !playing.fading
+		const below = this.belowScene(scene, playing?.strip)
 		return (
 			<>
 				<SVGContainer>
@@ -171,10 +175,22 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 						hiddenKey={this.getEditingKey(shape)}
 						marks={this.sceneMarks(shape)}
 						flash={
-							playing ? { marks: playing.flash, fading: playing.fading, id: playing.id } : hover && { marks: hover, fading: false, id: 0 }
+							playing
+								? { marks: playing.flash, badges: playing.badges, fading: playing.fading, id: playing.id }
+								: hover && { marks: hover, fading: false, id: 0 }
 						}
 						swaps={playing?.frame?.swaps && { pairs: playing.frame.swaps, id: playing.id }}
 					/>
+					{open && playing.strip && (
+						<StripSvg
+							strip={playing.strip}
+							at={below.strip}
+							metrics={scene.metrics}
+							colors={colors}
+							color={this.style(shape).color}
+							fontFamily={this.getFontFamily(shape)}
+						/>
+					)}
 					{controls &&
 						this.getGrowGrips?.(shape).map((grip) => (
 							<GrowGrip key={grip.id} at={grip.at} zoom={zoom} colors={colors} />
@@ -184,7 +200,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 					!playing?.frame &&
 					!this.editor.isIn('select.dragging_handle') &&
 					this.renderNodeAndEdgeButtons(shape, colors)}
-				{controls && prompt && !promptOpen && (
+				{controls && prompt && !promptOpen && !open && (
 					<ControlButton
 						editor={this.editor}
 						kind="insert"
@@ -209,9 +225,21 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 						}}
 					/>
 				)}
+				{open && <PlayBar editor={this.editor} view={playing} at={below.bar} colors={colors} />}
 				{this.renderCellEditor(shape)}
 			</>
 		)
+	}
+
+	/** Where an open operation's strip (queue / stack) and play bar go: under the scene, in that order. */
+	private belowScene(scene: Scene, strip: Strip | undefined) {
+		const left = Math.min(...scene.nodes.map((n) => n.x - n.w / 2))
+		const right = Math.max(...scene.nodes.map((n) => n.x + n.w / 2))
+		let bottom = Math.max(...scene.nodes.map((n) => n.y + n.h / 2))
+		const gap = scene.metrics.fontSize
+		const stripAt = { x: left, y: bottom + gap }
+		if (strip) bottom = stripAt.y + stripSize(strip, scene.metrics).h
+		return { strip: stripAt, bar: { x: (left + right) / 2, y: bottom + gap } }
 	}
 
 	private hoverHighlightsAtPointer(shape: S): Marks | undefined {

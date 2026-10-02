@@ -2,7 +2,8 @@ import type { CSSProperties } from 'react'
 import { getColorValue, type TLDefaultColorStyle, type TLThemeColors } from 'tldraw'
 import type { MarkColor, Marks } from '../cells/marks'
 import { arrowHead, labelBox, pointerAnchor, routeScene, valueBox } from './geometry'
-import { edgeCellKey, type Scene, type SceneNode } from './scene'
+import type { Strip } from './playback'
+import { edgeCellKey, type Scene, type SceneMetrics, type SceneNode } from './scene'
 
 interface Paint {
 	stroke: string
@@ -14,9 +15,13 @@ interface Paint {
 	labelFontSize: number
 }
 
-/** Highlights from an animated operation: drawn over nodes, fading out once it has committed. */
+/**
+ * Highlights from an animated operation, on nodes and edges (`edge:<key>`), plus small badges
+ * beside nodes (e.g. discovery order): drawn over the scene, fading out once it has committed.
+ */
 export interface FlashView {
 	marks: Marks
+	badges?: Record<string, string>
 	fading: boolean
 	id: number
 }
@@ -98,10 +103,21 @@ export function SceneSvg({
 				const mark = marks[labelKey]
 				const stroke = mark ? getColorValue(colors, mark, 'solid') : paint.stroke
 				const width = mark ? strokeWidth * 2.2 : strokeWidth
+				const flashColor = flash?.marks[labelKey]
+				const flashStroke = flashColor && getColorValue(colors, flashColor, 'solid')
 				return (
 					<g key={edge.key}>
 						<path d={route.d} fill="none" stroke={stroke} strokeWidth={width} strokeLinecap="round" />
 						{edge.directed && <polygon points={arrowHead(route.tip, route.angle, width * 3 + 6)} fill={stroke} />}
+						{flash && flashStroke && (
+							// Keyed per step, like node highlights, so the fade restarts when the operation commits.
+							<g key={`flash-${flash.id}`} className={flash.fading ? 'drawds-flash drawds-flash-fade' : 'drawds-flash'}>
+								<path d={route.d} fill="none" stroke={flashStroke} strokeWidth={strokeWidth * 2.2} strokeLinecap="round" />
+								{edge.directed && (
+									<polygon points={arrowHead(route.tip, route.angle, strokeWidth * 2.2 * 3 + 6)} fill={flashStroke} />
+								)}
+							</g>
+						)}
 						{box && (
 							<>
 								<rect x={box.x} y={box.y} width={box.w} height={box.h} rx={box.h / 2} fill={paint.background} />
@@ -137,6 +153,29 @@ export function SceneSvg({
 					/>
 				)
 			})}
+			{flash?.badges &&
+				scene.nodes.map((node) =>
+					flash.badges?.[node.key] ? (
+						<NodeBadge key={`badge-${node.key}-${flash.id}`} node={node} text={flash.badges[node.key]} paint={paint} fading={flash.fading} />
+					) : null
+				)}
+		</g>
+	)
+}
+
+/** A small round label at a node's upper left (outside it), e.g. the order it was discovered in. */
+function NodeBadge({ node, text, paint, fading }: { node: SceneNode; text: string; paint: Paint; fading: boolean }) {
+	const r = paint.labelFontSize * 0.78 * Math.max(1, text.length * 0.6)
+	const reach = node.kind === 'circle' ? (node.w / 2) * Math.SQRT1_2 : node.w / 2
+	const reachY = node.kind === 'circle' ? (node.h / 2) * Math.SQRT1_2 : node.h / 2
+	const x = node.x - reach - r * 0.55
+	const y = node.y - reachY - r * 0.55
+	return (
+		<g className={fading ? 'drawds-flash drawds-flash-fade' : 'drawds-flash'}>
+			<circle cx={x} cy={y} r={r} fill={paint.background} stroke={paint.text} strokeWidth={paint.strokeWidth * 0.8} />
+			<text x={x} y={y} fontSize={paint.labelFontSize * 0.95} fill={paint.text}>
+				{text}
+			</text>
 		</g>
 	)
 }
@@ -235,5 +274,74 @@ function NodeValueSvg({
 		>
 			{value}
 		</text>
+	)
+}
+
+/** Size of a queue / stack strip: a title line over a row of boxes, one per item. */
+export function stripSize(strip: Strip, { fontSize, labelFontSize }: SceneMetrics) {
+	const box = fontSize * 1.9
+	const title = labelFontSize * 1.5
+	return { box, title, w: Math.max(1, strip.items.length) * box, h: title + box }
+}
+
+/**
+ * An operation's queue or stack, drawn under the structure as a row of boxes (front / bottom on
+ * the left) with its title above. Canvas only.
+ */
+export function StripSvg({
+	strip,
+	at,
+	metrics,
+	colors,
+	color,
+	fontFamily,
+}: {
+	strip: Strip
+	/** Top-left corner, in shape space. */
+	at: { x: number; y: number }
+	metrics: SceneMetrics
+	colors: TLThemeColors
+	color: TLDefaultColorStyle
+	fontFamily: string
+}) {
+	const { box, title } = stripSize(strip, metrics)
+	const stroke = getColorValue(colors, color, 'solid')
+	const y = at.y + title
+	return (
+		<g data-testid="playback-strip" fontFamily={fontFamily} dominantBaseline="central" pointerEvents="none">
+			<text x={at.x} y={at.y + title / 2} fontSize={metrics.labelFontSize} fill={colors.text} opacity={0.75}>
+				{strip.title}
+			</text>
+			{strip.items.length === 0 ? (
+				<rect
+					x={at.x}
+					y={y}
+					width={box}
+					height={box}
+					fill="none"
+					stroke={stroke}
+					strokeWidth={metrics.strokeWidth}
+					strokeDasharray={`${metrics.strokeWidth * 3} ${metrics.strokeWidth * 2}`}
+					opacity={0.5}
+				/>
+			) : (
+				strip.items.map((item, i) => (
+					<g key={i}>
+						<rect
+							x={at.x + i * box}
+							y={y}
+							width={box}
+							height={box}
+							fill={getColorValue(colors, color, 'semi')}
+							stroke={stroke}
+							strokeWidth={metrics.strokeWidth}
+						/>
+						<text x={at.x + i * box + box / 2} y={y + box / 2} textAnchor="middle" fontSize={metrics.fontSize * 0.85} fill={colors.text}>
+							{item}
+						</text>
+					</g>
+				))
+			)}
+		</g>
 	)
 }

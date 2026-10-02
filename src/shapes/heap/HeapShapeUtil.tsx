@@ -4,7 +4,7 @@ import { fillValues } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
 import { NodeLinkShapeUtil } from '../../nodelink/NodeLinkShapeUtil'
 import { playOperation, type Frame } from '../../nodelink/playback'
-import { buildByInsertion, childIndices, heapInsert, heapRemoveAt, heapify, parentIndex, type Sift } from './heap'
+import { buildByInsertion, childIndices, heapInsert, heapRemoveAt, heapify, parentIndex, type HeapType, type Sift } from './heap'
 import { HEAP_SHAPE_TYPE, heapShapeMigrations, heapShapeProps, type HeapShape } from './heap-shape-types'
 import { arrayKey, heapScene, indexOfKey } from './layout'
 
@@ -118,9 +118,15 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 		if (i < last && marks[String(last)]) after[String(i)] = marks[String(last)]
 		delete after[String(last)]
 		const frames: Frame[] = [
-			{ flash: both(i, 'red') },
-			...(i < last ? [{ props: { values: moved }, flash: both(i, 'orange') }] : []),
-			...this.siftFrames(moved, result),
+			{
+				flash: both(i, 'red'),
+				caption: i === 0 ? `Extract the ${heapType}, ${values[0]}` : `Remove ${values[i]} (index ${i})`,
+			},
+			...(i < last
+				? [{ props: { values: moved }, flash: both(i, 'orange'), caption: `Move the last value, ${values[last]}, into index ${i}` }]
+				: []),
+			// heapRemoveAt sifts the moved value up only if it now beats its parent, which means a swap.
+			...this.siftFrames(moved, result, heapType, result.swaps.length > 0 && result.swaps[0][1] < result.swaps[0][0]),
 		]
 		after = result.swaps.reduce((m, [a, b]) => swapMarks(m, String(a), String(b)), after)
 		this.play(shape, 'remove from heap', frames, keep, result.values, after, result.at >= 0 ? both(result.at, 'green') : {})
@@ -137,20 +143,40 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 		const result = heapInsert(values, value, heapType)
 		const appended = [...values, value]
 		const frames: Frame[] = [
-			{ props: { values: appended }, flash: both(values.length, 'orange') },
-			...this.siftFrames(appended, result),
+			{ props: { values: appended }, flash: both(values.length, 'orange'), caption: `Append ${value} at the end (index ${values.length})` },
+			...this.siftFrames(appended, result, heapType, true),
 		]
 		const after = result.swaps.reduce((m, [a, b]) => swapMarks(m, String(a), String(b)), marks)
 		this.play(shape, 'insert into heap', frames, keep, result.values, after, both(result.at, 'green'))
 	}
 
-	/** One frame per swap of a sift, starting from `start`: the two values arc between their nodes. */
-	private siftFrames(start: readonly string[], sift: Sift): Frame[] {
+	/**
+	 * One frame per swap of a sift that moves a value `up` or down from `start` (the two values arc
+	 * between their nodes), then one showing where it came to rest and why.
+	 */
+	private siftFrames(start: readonly string[], sift: Sift, type: HeapType, up: boolean): Frame[] {
 		const values = [...start]
-		return sift.swaps.map(([a, b]) => {
+		// In a min heap smaller values go up; in a max heap larger ones.
+		const [beats, yields, holds, child] = type === 'min' ? ['<', '≥', '≤', 'smaller'] : ['>', '≤', '≥', 'larger']
+		const frames: Frame[] = sift.swaps.map(([a, b]) => {
+			const caption = up
+				? `${values[a]} ${beats} ${values[b]}, its parent: swap them`
+				: `${values[b]} ${beats} ${values[a]}: ${values[b]} is the ${child} child, so swap them`
 			;[values[a], values[b]] = [values[b], values[a]]
-			return { props: { values: [...values] }, swaps: swapPairs(a, b), flash: { ...both(a, 'orange'), ...both(b, 'orange') } }
+			return { props: { values: [...values] }, swaps: swapPairs(a, b), flash: { ...both(a, 'orange'), ...both(b, 'orange') }, caption }
 		})
+		const at = sift.at
+		if (at < 0) return frames
+		const v = values[at]
+		const kids = childIndices(at).filter((c) => c < values.length)
+		const caption = up
+			? at === 0
+				? `${v} is at the root: done`
+				: `${v} ${yields} ${values[parentIndex(at)]}, its parent: done`
+			: kids.length
+				? `${v} ${holds} its children (${kids.map((c) => values[c]).join(', ')}): done`
+				: `${v} has no children: done`
+		return [...frames, { props: { values: [...values] }, flash: both(at, 'green'), caption }]
 	}
 
 	private play(
