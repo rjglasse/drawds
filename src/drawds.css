@@ -1,3 +1,26 @@
+/*
+ * tldraw's UI takes the page's font, which is the browser's serif default until something sets one:
+ * use the system sans-serif (as the play bar does), a size up from tldraw's 12px in menus, the style
+ * panel, tooltips and dialogs.
+ */
+.tl-container {
+	font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.tlui-button,
+.tlui-button__label,
+.tlui-tooltip,
+.tlui-toast__container,
+.tlui-dialog__content,
+.tlui-dialog__header__title,
+.tlui-style-panel__double-select-picker {
+	font-size: 13px;
+}
+
+.tlui-kbd {
+	font-size: 12px;
+}
+
 /* On-canvas structure controls (see src/controls). */
 .drawds-control-button:hover {
 	filter: brightness(0.92);
