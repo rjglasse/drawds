@@ -115,7 +115,7 @@ test('delete step by step: later values shift left one at a time', async ({ page
 	await page.keyboard.press('ArrowRight')
 	await expect(caption(page)).toHaveText('a[1] = a[2] (c)')
 	await stepToEnd(page)
-	await expect(caption(page)).toHaveText('n = n - 1: the last cell is no longer used. 3 values moved')
+	await expect(caption(page)).toHaveText('The array shrinks by one cell (it grows and shrinks, like a Python list). 3 values moved')
 	expect(await props(page)).toMatchObject({ values: ['a', 'c', 'd', 'e'], marks: { 2: 'red' } })
 })
 
@@ -123,7 +123,7 @@ test('insert step by step: room is made from the end, then the value goes in', a
 	await sketchArray(page, [200, 200], 3)
 	await setValues(page, ['10', '20', '30'])
 	await arrayOp(page, 1, 'array-shift', 'array-insert')
-	await expect(caption(page)).toContainText('at index 1. First make room: n = n + 1')
+	await expect(caption(page)).toContainText('at index 1. First the array grows by one cell, to make room')
 	// The array shows the extra cell while the operation runs, inside the shape's bounds.
 	const width = () => withEditor(page, (editor) => editor.getShapePageBounds(editor.getOnlySelectedShape()!)!.w)
 	expect(await width()).toBe(4 * CELL)

@@ -586,7 +586,7 @@ export function deleteAt(start: ArrayState, k: number): ArrayOperation {
 	const result = withoutCell(start, k)
 	r.set(result)
 	const moved = r.counts.moves
-	r.step(`n = n - 1: the last cell is no longer used. ${moved} value${moved === 1 ? '' : 's'} moved`)
+	r.step(`The array shrinks by one cell (it grows and shrinks, like a Python list). ${moved} value${moved === 1 ? '' : 's'} moved`)
 	return { frames: r.frames, result }
 }
 
@@ -599,8 +599,8 @@ export function insertAt(start: ArrayState, k: number, value: string): ArrayOper
 	const r = recorder({ values: [...start.values, ''], marks: start.marks }, { moves: 0 })
 	r.step(
 		k === n
-			? `Insert ${value} at the end: n = n + 1, and nothing has to move`
-			: `Insert ${value} at index ${k}. First make room: n = n + 1`,
+			? `Insert ${value} at the end: the array grows by one cell, and nothing has to move`
+			: `Insert ${value} at index ${k}. First the array grows by one cell, to make room`,
 		{ lit: { [n]: LOOK } }
 	)
 	for (let i = n; i > k; i--) {
@@ -658,7 +658,7 @@ export function withUsedCell(state: ArrayState, used: number, k: number, value: 
 // values, the rest are blank spare slots. Inserting needs a spare slot; when the array is full,
 // a bigger one has to be made and everything copied into it.
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+const plural = (n: number, word: string, many = `${word}s`) => `${n} ${n === 1 ? word : many}`
 
 /**
  * Insert `value` at index k of a fixed array. With a spare slot, the used values from the end back
@@ -736,7 +736,7 @@ function growSteps(r: Recorder, capacity: number, { oneByOne }: { oneByOne: bool
 export function growFixed(start: ArrayState, used: number): ArrayOperation {
 	const r = recorder({ ...start, used }, { copies: 0 })
 	growSteps(r, Math.max(1, start.values.length * 2), { oneByOne: true })
-	r.step(`Growing cost ${plural(r.counts.copies, 'copy')}, one per value: doubling makes it rare`)
+	r.step(`Growing cost ${plural(r.counts.copies, 'copy', 'copies')}, one per value: doubling makes it rare`)
 	return { frames: r.frames, result: { ...r.state, aux: undefined } }
 }
 
@@ -762,4 +762,40 @@ export function appendFixed(start: ArrayState, used: number, value: string): Arr
 	r.set({ values, marks: r.state.marks, used: used + 1 })
 	r.step(`a[size] = ${value}; size = ${used + 1}. Nothing had to move`, { lit: { [used]: DONE }, pointers: [ptr('size', used + 1)] })
 	return { frames: r.frames, result: r.state, finalFlash: { [used]: DONE } }
+}
+
+export type GrowthPolicy = 'double' | 'plus-one'
+
+/**
+ * Append `values` one after another to a fixed array, growing it whenever it is full: to twice the
+ * capacity, or by one cell. Each grow copies every value (in one step); the counts show what that
+ * costs: doubling stays under 2 copies per append (amortised O(1)), growing by one copies
+ * everything every time (O(n) per append).
+ */
+export function appendMany(start: ArrayState, used: number, values: readonly string[], policy: GrowthPolicy): ArrayOperation {
+	const r = recorder({ ...start, used }, { appends: 0, copies: 0 })
+	const how = policy === 'double' ? 'doubling the capacity when full' : 'growing by one cell when full'
+	r.step(`Append ${plural(values.length, 'value')}, ${how}: size ${used}, capacity ${start.values.length}`)
+	for (const value of values) {
+		const size = r.state.used ?? used
+		const capacity = r.state.values.length
+		if (size >= capacity) {
+			const next = policy === 'double' ? Math.max(1, capacity * 2) : capacity + 1
+			r.step(`Append ${value}: full (size = capacity = ${capacity}), so grow to ${next} first`, { lit: { [capacity - 1]: GONE } })
+			growSteps(r, next, { oneByOne: false })
+		}
+		const after = [...r.state.values]
+		after[size] = value
+		r.set({ values: after, marks: r.state.marks, used: size + 1 })
+		r.counts.appends++
+		r.step(`Append ${value}: a[${size}] = ${value}; size = ${size + 1}`, { lit: { [size]: DONE }, pointers: [ptr('size', size + 1)] })
+	}
+	const { appends, copies } = r.counts
+	const each = (copies / Math.max(1, appends)).toFixed(1)
+	r.step(
+		policy === 'double'
+			? `${plural(appends, 'append')} cost ${plural(copies, 'copy', 'copies')}, ${each} per append: doubling keeps it under 2 each, however many (amortised O(1))`
+			: `${plural(appends, 'append')} cost ${plural(copies, 'copy', 'copies')}, ${each} per append: growing by one copies everything every time, so each append costs O(n)`
+	)
+	return { frames: r.frames, result: r.state }
 }

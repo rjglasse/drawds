@@ -3,6 +3,7 @@ import type { Frame } from '../../nodelink/playback'
 import { stateAt } from '../../nodelink/playback'
 import {
 	appendFixed,
+	appendMany,
 	binarySearch,
 	bubbleSort,
 	deleteAt,
@@ -309,6 +310,7 @@ describe('fixed capacity', () => {
 			['aux:2', '2'],
 		])
 		expect(counts(op)).toEqual({ copies: 3 })
+		expect(last(op).caption).toBe('Growing cost 3 copies, one per value: doubling makes it rare')
 	})
 
 	it('append writes into a[size] when there is room, and grows first when full', () => {
@@ -319,5 +321,25 @@ describe('fixed capacity', () => {
 		expect(full.result).toMatchObject({ values: ['a', 'b', 'c', ''], used: 3 })
 		expect(counts(full)).toEqual({ copies: 2 })
 		expect(full.frames.map((f) => f.caption)).toContain('Copy all 2 values into newArr')
+	})
+})
+
+describe('appending many values', () => {
+	const full = { values: ['1', '2', '3', '4'], marks: {}, used: 4 }
+	const more = ['5', '6', '7', '8', '9', '10', '11', '12']
+
+	it('doubling: two grows (4 -> 8 -> 16), 12 copies for 8 appends', () => {
+		const op = appendMany(full, 4, more, 'double')
+		expect(op.result).toMatchObject({ used: 12 })
+		expect(op.result?.values).toHaveLength(16)
+		expect(counts(op)).toEqual({ appends: 8, copies: 12 })
+		expect(last(op).caption).toBe('8 appends cost 12 copies, 1.5 per append: doubling keeps it under 2 each, however many (amortised O(1))')
+	})
+
+	it('growing by one: a grow on every append, 4 + 5 + ... + 11 = 60 copies', () => {
+		const op = appendMany(full, 4, more, 'plus-one')
+		expect(op.result?.values).toHaveLength(12)
+		expect(counts(op)).toEqual({ appends: 8, copies: 60 })
+		expect(last(op).caption).toMatch(/^8 appends cost 60 copies, 7.5 per append/)
 	})
 })

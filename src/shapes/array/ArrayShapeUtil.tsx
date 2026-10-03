@@ -30,6 +30,7 @@ import { ARRAY_SHAPE_TYPE, arrayShapeMigrations, arrayShapeProps, usedCount, typ
 import { arrayCells } from './cells'
 import {
 	appendFixed,
+	appendMany,
 	binarySearch,
 	bubbleSort,
 	deleteAt,
@@ -286,6 +287,12 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 							label: 'Grow: double the capacity',
 							run: () => this.play(shape.id, 'grow', (a) => growFixed(a, a.used!), { whole: true }),
 						},
+						...(['double', 'plus-one'] as const).map((policy) => ({
+							...capacity,
+							id: `array-append-many-${policy}`,
+							label: `Append 8 values, ${policy === 'double' ? 'doubling' : 'growing by one'} when full`,
+							run: () => this.play(shape.id, 'append', (a) => appendMany(a, a.used!, this.appendValues(shape.id, a, 8), policy), { whole: true }),
+						})),
 					]
 				: []
 		return [
@@ -362,10 +369,15 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	}
 
 	/** The next value of the fill mode's stream, for appending to the values in use. */
-	private appendValue(id: ArrayShape['id'], { values, used = values.length }: ArrayState) {
+	private appendValue(id: ArrayShape['id'], array: ArrayState) {
+		return this.appendValues(id, array, 1)[0]
+	}
+
+	/** The next `count` values of the fill mode's stream. */
+	private appendValues(id: ArrayShape['id'], { values, used = values.length }: ArrayState, count: number) {
 		const shape = this.editor.getShape(id) as ArrayShape | undefined
 		const { fill, seed } = shape?.props ?? this.getDefaultProps()
-		return extendValues(values.slice(0, used), fill, seed, used + 1)[used]
+		return extendValues(values.slice(0, used), fill, seed, used + count).slice(used)
 	}
 
 	/** A value for a cell inserted at index k: between its neighbours if sorted, else not there yet. */
