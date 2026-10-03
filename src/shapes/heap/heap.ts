@@ -1,4 +1,6 @@
+import type { MarkColor, Marks } from '../../cells/marks'
 import { compareKeys } from '../../data/compare'
+import type { Frame } from '../../nodelink/playback'
 
 export type HeapType = 'min' | 'max'
 
@@ -88,4 +90,57 @@ export function heapViolations(values: readonly string[], type: HeapType): Set<n
 	const bad = new Set<number>()
 	for (let i = 1; i < values.length; i++) if (above(values[i], values[parentIndex(i)], type)) bad.add(i)
 	return bad
+}
+
+/**
+ * Floyd's build-heap, step by step: leaves are heaps on their own (green); each parent, from the
+ * last back to the root, sifts down, after which everything from it to the end is a heap, so the
+ * green grows: a suffix of the array, bottom-up in the tree. Keys are indices (the shape lights
+ * both of its views). Pointer i stays on the parent being sifted.
+ */
+export function buildHeapSteps(start: readonly string[], type: HeapType): { frames: Frame[]; values: string[]; swaps: [number, number][] } {
+	const n = start.length
+	const values = [...start]
+	const frames: Frame[] = []
+	const swaps: [number, number][] = []
+	let shown: Marks = {}
+	const green = (from: number): Marks => Object.fromEntries(Array.from({ length: Math.max(0, n - from) }, (_, k) => [String(from + k), 'green']))
+	const step = (caption: string, lit: Marks, extra: Partial<Frame> = {}) => {
+		const flash: Record<string, MarkColor | null> = {}
+		for (const key of Object.keys(shown)) if (!lit[key]) flash[key] = null
+		for (const [key, color] of Object.entries(lit)) if (shown[key] !== color) flash[key] = color
+		shown = lit
+		frames.push({ caption, props: { values: [...values] }, flash, counts: { swaps: swaps.length }, ...extra })
+	}
+	const [beats, holds, child] = type === 'min' ? ['<', '≤', 'smaller'] : ['>', '≥', 'larger']
+	const last = n > 1 ? parentIndex(n - 1) : -1
+	step(
+		last < 0
+			? 'A single value is a heap already'
+			: `The leaves (index ${last + 1} on) are heaps on their own. Sift down each parent, from the last (index ${last}) back to the root`,
+		green(last + 1)
+	)
+	for (let i = last; i >= 0; i--) {
+		const pointers = [{ id: '#i', name: 'i', at: String(i) }]
+		step(`i = ${i}: sift ${values[i]} down until it ${holds} its children`, { ...green(i + 1), [i]: 'orange' }, { pointers })
+		let at = i
+		for (;;) {
+			let best = at
+			for (const c of childIndices(at)) if (c < n && above(values[c], values[best], type)) best = c
+			if (best === at) break
+			const caption = `${values[best]} ${beats} ${values[at]}: ${values[best]} is the ${child} child, so swap them`
+			;[values[at], values[best]] = [values[best], values[at]]
+			swaps.push([at, best])
+			step(caption, { ...green(i + 1), [best]: 'orange' }, { pointers, swaps: [[String(at), String(best)]] })
+			at = best
+		}
+		const kids = childIndices(at)
+			.filter((c) => c < n)
+			.map((c) => values[c])
+		const rest = kids.length ? `${holds} its children (${kids.join(', ')})` : 'has no children'
+		step(`${values[at]} ${rest}: the subtree at index ${i} is a heap`, green(i), { pointers })
+	}
+	const s = swaps.length
+	step(`Every parent ${holds} its children: a ${type} heap, after ${s} swap${s === 1 ? '' : 's'}`, green(0))
+	return { frames, values, swaps }
 }

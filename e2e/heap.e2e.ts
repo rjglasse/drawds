@@ -75,3 +75,31 @@ test('pointing at an index highlights it, its parent and its children in both vi
 	// Index 1, parent 0 and children 3 and 4, each in the tree and in the array.
 	expect(flashed).toBe(8)
 })
+
+test('shuffle breaks the heap; build heap step by step restores it (Floyd), one undo', async ({ page }) => {
+	await sketchHeap(page, [600, 120], 7)
+	const heapMenu = async (item: string) => {
+		await page.mouse.click(...(await nodeScreenPosition(page, '0')), { button: 'right' })
+		await page.getByTestId('context-menu-sub.drawds-heap-actions-button').click()
+		await page.getByTestId(`context-menu.${item}`).click()
+	}
+	// Shuffles until it isn't a heap (a shuffle can land on another heap).
+	for (let tries = 0; tries < 10 && valid(await heap(page)); tries++) {
+		await heapMenu('heap-shuffle')
+		await page.waitForTimeout(400)
+	}
+	const shuffled = await heap(page)
+	expect(valid(shuffled)).toBe(false)
+	await heapMenu('heap-build')
+	await expect(page.getByTestId('play-caption')).toHaveText(
+		'The leaves (index 3 on) are heaps on their own. Sift down each parent, from the last (index 2) back to the root'
+	)
+	while (!(await page.getByTestId('play-done').count())) await page.keyboard.press('ArrowRight')
+	await expect(page.getByTestId('play-caption')).toContainText('Every parent ≤ its children: a min heap')
+	const built = await heap(page)
+	expect(valid(built)).toBe(true)
+	expect([...built.values].sort()).toEqual([...shuffled.values].sort())
+	await page.keyboard.press('Enter')
+	await page.keyboard.press('ControlOrMeta+z')
+	expect((await heap(page)).values).toEqual(shuffled.values)
+})

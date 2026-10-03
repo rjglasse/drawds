@@ -1,21 +1,48 @@
 import type { TLShapePartial } from 'tldraw'
 import { pruneMarks, swapMarks, type MarkColor, type Marks } from '../../cells/marks'
 import { fillValues } from '../../data/fill'
+import { mulberry32, newSeed } from '../../data/random'
 import type { Refillable } from '../../data/fill-style'
 import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import type { Scene, SceneNode } from '../../nodelink/scene'
 import type { PointerAnchor } from '../../pointers/layout'
 import { prunePointers } from '../../pointers/pointers'
+import { rearrange, shuffledOrder } from '../array/rearrange'
 import { getTreeMetrics } from '../tree/layout'
 import { ORDER_NAMES, traverseTree, type TreeOrder } from '../tree/traverse'
 import { playOperation, type Frame } from '../../nodelink/playback'
-import { buildByInsertion, childIndices, heapInsert, heapRemoveAt, heapify, parentIndex, type HeapType, type Sift } from './heap'
+import {
+	buildByInsertion,
+	buildHeapSteps,
+	childIndices,
+	heapInsert,
+	heapRemoveAt,
+	heapify,
+	parentIndex,
+	type HeapType,
+	type Sift,
+} from './heap'
 import { HEAP_SHAPE_TYPE, heapShapeMigrations, heapShapeProps, type HeapShape } from './heap-shape-types'
 import { arrayKey, heapScene, heapTreeNodes, indexOfKey } from './layout'
 
 /** Highlight index i in both views (tree node and array cell). */
 const both = (i: number, color: MarkColor): Marks => ({ [String(i)]: color, [arrayKey(i)]: color })
+
+/** A frame keyed by index (tree view) lighting, swapping and numbering both views. */
+function inBothViews(frame: Frame): Frame {
+	const dup = <T,>(entries: Record<string, T> | undefined) =>
+		entries &&
+		Object.fromEntries(
+			Object.entries(entries).flatMap(([k, v]) => (/^\d+$/.test(k) ? [[k, v], [arrayKey(Number(k)), v]] : [[k, v]]))
+		)
+	return {
+		...frame,
+		flash: dup(frame.flash),
+		badges: dup(frame.badges),
+		swaps: frame.swaps?.flatMap(([a, b]) => swapPairs(Number(a), Number(b))),
+	}
+}
 
 /** Animate a swap of indices a and b in both views. */
 const swapPairs = (a: number, b: number): [string, string][] => [
@@ -149,21 +176,43 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 		}))
 	}
 
+	/** On the whole heap: build it step by step (Floyd), and shuffle its values to give that work to do. */
+	override shapeOperations(shape: HeapShape): NodeOperation[] {
+		const heap = { submenu: 'Heap', submenuId: 'heap-actions' }
+		return [
+			{ ...heap, id: 'heap-build', label: 'Build heap step by step', run: () => this.buildHeap(shape.id) },
+			{ ...heap, id: 'heap-shuffle', label: 'Shuffle values (not a heap any more)', run: () => this.shuffle(shape.id) },
+		]
+	}
+
+	/** Floyd's build-heap on the values as they are, step by step in both views. */
+	private buildHeap(id: HeapShape['id']) {
+		const shape = this.editor.getShape(id) as HeapShape | undefined
+		if (!shape) return
+		const { frames, values, swaps } = buildHeapSteps(shape.props.values, shape.props.heapType)
+		const after = swaps.reduce((m, [a, b]) => swapMarks(m, String(a), String(b)), shape.props.marks)
+		this.play(shape, 'build heap', frames.map(inBothViews), false, values, after, {})
+	}
+
+	/** Shuffle the values (marks with them): the heap property is broken until it is rebuilt. */
+	private shuffle(id: HeapShape['id']) {
+		const shape = this.editor.getShape(id) as HeapShape | undefined
+		if (!shape) return
+		const { values, marks } = shape.props
+		this.editor.markHistoryStoppingPoint('shuffle heap')
+		this.editor.updateShape({ id, type: HEAP_SHAPE_TYPE, props: rearrange(values, marks, shuffledOrder(values.length, mulberry32(newSeed()))) })
+	}
+
 	private traverse(id: HeapShape['id'], start: string, order: TreeOrder) {
 		const shape = this.editor.getShape(id) as HeapShape | undefined
 		if (!shape) return
 		const note = order === 'level' && start === '0' ? "That is the heap's array, index by index" : undefined
 		const { frames } = traverseTree(heapTreeNodes(shape.props.values), start, order, { note })
-		// Tree node i stands for array cell i too: light and number both.
-		const toArray = <T,>(entries: Record<string, T> | undefined) =>
-			entries &&
-			Object.fromEntries(
-				Object.entries(entries).flatMap(([k, v]) => (/^\d+$/.test(k) ? [[k, v], [arrayKey(Number(k)), v]] : [[k, v]]))
-			)
 		playOperation(this.editor, {
 			shapeId: id,
 			label: `${ORDER_NAMES[order].toLowerCase()} traversal`,
-			frames: frames.map((f) => ({ ...f, flash: toArray(f.flash), badges: toArray(f.badges) })),
+			// Tree node i stands for array cell i too: light and number both.
+			frames: frames.map(inBothViews),
 			// Marks are kept per index.
 			withMarks: (_update, highlights) => {
 				const current = (this.editor.getShape(id) as HeapShape | undefined) ?? shape
