@@ -1,6 +1,6 @@
 import type { MarkColor, Marks } from '../../cells/marks'
 import { compareKeys } from '../../data/compare'
-import type { Frame } from '../../nodelink/playback'
+import type { Frame, Strip } from '../../nodelink/playback'
 import type { Pointer } from '../../pointers/pointers'
 import { swapCells } from './swap'
 
@@ -12,6 +12,8 @@ import { swapCells } from './swap'
 const LOOK: MarkColor = 'orange'
 const DONE: MarkColor = 'green'
 const GONE: MarkColor = 'red'
+const PIVOT: MarkColor = 'red'
+const SMALL: MarkColor = 'blue'
 
 /** The array an operation works on: values and the marks travelling with them. */
 export interface ArrayState {
@@ -44,6 +46,7 @@ interface Step {
 	dim?: string[]
 	swaps?: [number, number][]
 	moves?: [number, number][]
+	strips?: Strip[]
 }
 
 /**
@@ -64,7 +67,7 @@ function recorder(start: ArrayState, counts: Record<string, number>) {
 		set(next: ArrayState) {
 			state = next
 		},
-		step(caption: string, { lit: next = {}, pointers = [], dim = [], swaps, moves }: Step = {}) {
+		step(caption: string, { lit: next = {}, pointers = [], dim = [], swaps, moves, strips }: Step = {}) {
 			const flash: Record<string, MarkColor | null> = {}
 			for (const key of Object.keys(shown)) if (!next[key]) flash[key] = null
 			for (const [key, color] of Object.entries(next)) if (shown[key] !== color) flash[key] = color
@@ -78,6 +81,7 @@ function recorder(start: ArrayState, counts: Record<string, number>) {
 				dim,
 				swaps: keys(swaps),
 				moves: keys(moves),
+				strips,
 				counts: { ...counts },
 			})
 		},
@@ -303,6 +307,96 @@ export function bubbleSort(start: ArrayState): ArrayOperation {
 		r.step(`End of pass ${pass}: ${r.state.values[end]} has bubbled up to index ${end}`, { lit: lit(end, n - 1, DONE) })
 	}
 	return sorted(r, n)
+}
+
+// Quicksort (Lomuto's partition): the last value of the range is the pivot (red); i marks the end of
+// the values smaller than it (blue), j walks the rest; then the pivot swaps into its final place.
+
+type Recorder = ReturnType<typeof recorder>
+
+/** Steps of partitioning a[lo..hi] around a[hi]; returns the pivot's final index. */
+function partition(r: Recorder, lo: number, hi: number, settled: Marks, around: Pick<Step, 'dim' | 'strips'>): number {
+	const p = r.state.values[hi]
+	let i = lo - 1
+	// Settled cells, the pivot, the smaller values so far, and whatever else this step lights.
+	const shown = (extra: Marks = {}): Marks => ({ ...settled, ...lit(lo, i, SMALL), [hi]: PIVOT, ...extra })
+	const at = (j?: number) => [ptr('i', i), ...(j === undefined ? [] : [ptr('j', j)])]
+	r.step(`pivot = a[${hi}] = ${p}. i = ${i}: no values smaller than the pivot yet`, { ...around, lit: shown(), pointers: at(lo) })
+	for (let j = lo; j < hi; j++) {
+		const x = r.state.values[j]
+		r.counts.comparisons++
+		if (compareKeys(x, p) >= 0) {
+			r.step(`a[${j}] = ${x} ≥ ${p}: it stays on the right`, { ...around, lit: shown({ [j]: LOOK }), pointers: at(j) })
+			continue
+		}
+		r.step(`a[${j}] = ${x} < ${p}: it belongs with the smaller values`, { ...around, lit: shown({ [j]: LOOK }), pointers: at(j) })
+		i++
+		if (i === j) {
+			r.step(`i = ${i}, which is j: a[${j}] is in place already`, { ...around, lit: shown(), pointers: at(j) })
+			continue
+		}
+		r.set(swapped(r.state, i, j))
+		r.counts.swaps++
+		r.step(`i = ${i}; swap(a[${i}], a[${j}])`, { ...around, lit: shown(), pointers: at(j), swaps: [[i, j]] })
+	}
+	const to = i + 1
+	if (to !== hi) {
+		r.set(swapped(r.state, to, hi))
+		r.counts.swaps++
+	}
+	settled[String(to)] = DONE
+	r.step(
+		to === hi
+			? `No value is larger than the pivot: ${p} stays at index ${hi}, its final place`
+			: `swap(a[${to}], a[${hi}]): the pivot ${p} lands at index ${to}, its final place. Smaller values are left of it, the others right`,
+		{ ...around, lit: { ...settled, ...lit(lo, i, SMALL) }, pointers: [ptr('i', i)], swaps: to === hi ? undefined : [[to, hi]] }
+	)
+	return to
+}
+
+/** One partition of the whole array around its last value. */
+export function partitionArray(start: ArrayState): ArrayOperation {
+	const n = start.values.length
+	const r = recorder(start, sortCounts())
+	const settled: Marks = {}
+	const p = partition(r, 0, n - 1, settled, {})
+	return { frames: r.frames, result: r.state, finalFlash: { [p]: DONE } }
+}
+
+/**
+ * Quicksort: partition, then sort each side the same way. The range being worked on is the one
+ * not faded; the calls still open are a stack under the array (the innermost on the right).
+ */
+export function quicksort(start: ArrayState): ArrayOperation {
+	const n = start.values.length
+	const r = recorder(start, sortCounts())
+	const settled: Marks = {}
+	const calls: string[] = []
+	const outside = (lo: number, hi: number) => span(0, n - 1).filter((k) => Number(k) < lo || Number(k) > hi)
+	const sort = (lo: number, hi: number) => {
+		calls.push(`${lo}..${hi}`)
+		const around = { dim: outside(lo, hi), strips: [{ title: 'call stack', items: [...calls] }] }
+		if (lo >= hi) {
+			if (lo === hi) settled[String(lo)] = DONE
+			r.step(`quicksort(${lo}, ${hi}): ${lo === hi ? `one value, a[${lo}], is sorted` : 'no values: nothing to do'}`, {
+				...around,
+				lit: { ...settled },
+			})
+		} else {
+			r.step(`quicksort(${lo}, ${hi}): partition a[${lo}..${hi}]`, { ...around, lit: { ...settled } })
+			const p = partition(r, lo, hi, settled, around)
+			sort(lo, p - 1)
+			sort(p + 1, hi)
+		}
+		calls.pop()
+	}
+	sort(0, n - 1)
+	const { comparisons, swaps } = r.counts
+	r.step(`Every call has returned: sorted, with ${comparisons} comparisons and ${swaps} swaps`, {
+		lit: lit(0, n - 1, DONE),
+		strips: [{ title: 'call stack', items: [] }],
+	})
+	return { frames: r.frames, result: r.state }
 }
 
 // Inserting and deleting, shifting the values after the index: one copy per value, where a linked

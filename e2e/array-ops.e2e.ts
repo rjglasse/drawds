@@ -161,3 +161,27 @@ test('instant actions: sort, reverse, shuffle, new values, indices', async ({ pa
 	await page.keyboard.press('ControlOrMeta+z')
 	expect((await props(page)).showIndices).toBe(true)
 })
+
+test('quicksort: the call stack strip grows and empties; sorted at the end', async ({ page }) => {
+	await sketchArray(page, [200, 200], 6)
+	await setValues(page, ['5', '2', '6', '1', '3', '4'])
+	await arrayOp(page, 0, 'array-sort', 'array-quicksort')
+	await expect(caption(page)).toHaveText('quicksort(0, 5): partition a[0..5]')
+	const strip = page.getByTestId('playback-strip')
+	await expect(strip).toContainText('call stack')
+	await expect(strip).toContainText('0..5')
+	await page.keyboard.press('ArrowRight')
+	await expect(caption(page)).toHaveText('pivot = a[5] = 4. i = -1: no values smaller than the pivot yet')
+	await stepToEnd(page)
+	await expect(caption(page)).toContainText('Every call has returned: sorted')
+	expect(await values(page)).toEqual(['1', '2', '3', '4', '5', '6'])
+	await expect(strip).not.toContainText('0..5')
+})
+
+test('partition: the pivot lands in its final place', async ({ page }) => {
+	await sketchArray(page, [200, 200], 5)
+	await setValues(page, ['7', '2', '9', '1', '5'])
+	await arrayOp(page, 0, 'array-sort', 'array-partition')
+	await page.keyboard.press('Enter')
+	expect(await values(page)).toEqual(['2', '1', '5', '7', '9'])
+})

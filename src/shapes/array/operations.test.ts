@@ -9,6 +9,8 @@ import {
 	insertionSort,
 	isSorted,
 	linearSearch,
+	partitionArray,
+	quicksort,
 	selectionSort,
 	type ArrayOperation,
 } from './operations'
@@ -180,5 +182,38 @@ describe('rearrangements', () => {
 	it('isSorted', () => {
 		expect(isSorted(['1', '2', '2', '10'])).toBe(true)
 		expect(isSorted(['2', '10', '1'])).toBe(false)
+	})
+})
+
+describe('quicksort', () => {
+	it('partition puts the pivot in its final place, smaller values left of it', () => {
+		const op = partitionArray(arr(7, 2, 9, 1, 5))
+		expect(op.result?.values).toEqual(['2', '1', '5', '7', '9'])
+		expect(op.finalFlash).toEqual({ 2: 'green' })
+		expect(counts(op)).toEqual({ comparisons: 4, swaps: 3 })
+		expect(last(op).caption).toMatch(/^swap\(a\[2\], a\[4\]\): the pivot 5 lands at index 2/)
+		expectConsistent(op, ['7', '2', '9', '1', '5'])
+	})
+
+	it('a pivot larger than everything stays put', () => {
+		expect(last(partitionArray(arr(3, 1, 9))).caption).toBe('No value is larger than the pivot: 9 stays at index 2, its final place')
+	})
+
+	it('quicksort sorts, the call stack shown and emptied at the end', () => {
+		const start = arr(5, 2, 4, 6, 1, 3, 8, 7)
+		const op = quicksort(start)
+		expect(op.result?.values).toEqual(['1', '2', '3', '4', '5', '6', '7', '8'])
+		expectConsistent(op, start.values)
+		expect(op.frames[0].strips).toEqual([{ title: 'call stack', items: ['0..7'] }])
+		expect(op.frames.some((f) => (f.strips?.[0].items.length ?? 0) >= 3)).toBe(true)
+		expect(last(op).strips).toEqual([{ title: 'call stack', items: [] }])
+		// While sorting the left part, the right part is out of play.
+		const left = op.frames.find((f) => f.caption?.startsWith('quicksort(0, 1)'))
+		expect(left?.dim).toEqual(['2', '3', '4', '5', '6', '7'])
+		expect(op.result).toEqual({ values: op.result?.values, marks: {} })
+	})
+
+	it('marks travel', () => {
+		expect(quicksort({ values: ['3', '1', '2'], marks: { 1: 'red' } }).result).toEqual({ values: ['1', '2', '3'], marks: { 0: 'red' } })
 	})
 })
