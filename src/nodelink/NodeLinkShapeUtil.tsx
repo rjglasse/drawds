@@ -29,10 +29,10 @@ import { showsStructureControls } from '../controls/visibility'
 import { POINTER_FONT_SCALE, placePointers, type PlacedPointer, type PointerAnchor, type PointerSide } from '../pointers/layout'
 import { boxContains, labelBox, nodeBox, nodeContains, routeScene, spatialNeighbor, type EdgeRoute } from './geometry'
 import { hoveredEdge, hoveredNode } from './hover'
-import { animationMs, isBusy, playbackFor, type Frame, type Strip } from './playback'
+import { animationMs, isBusy, playbackFor, type Frame } from './playback'
 import { edgeCellKey, translateScene, type Scene, type SceneEdge, type SceneNode } from './scene'
 import { sceneCells } from './scene-cells'
-import { SceneSvg, stripsHeight } from './SceneSvg'
+import { SceneSvg } from './SceneSvg'
 
 export type { NodeOperation } from '../cells/CellShapeUtil'
 
@@ -309,33 +309,20 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		)
 	}
 
-	/**
-	 * Where an operation's strip (queue / stack) and play bar go, in shape space: under the scene, in
-	 * that order. Also what the strip is drawn with.
-	 */
-	override playbackLayout(shape: S, strips: readonly Strip[] | undefined): PlaybackLayout {
-		const scene = this.displayScene(shape)
-		// Below any pointers under the structure too (a list's curr and prev).
-		const framePointers = this.framePointers(shape, playbackFor(this.editor, shape.id)?.frame, scene)
+	/** What a step draws (shape space): its scene, and its pointers (a list's curr and prev under it). */
+	override playbackLayout(shape: S, frame: Frame | undefined): PlaybackLayout {
+		const scene = this.displayScene(shape, frame)
+		const framePointers = this.framePointers(shape, frame, scene)
 		const pointers = framePointers ?? this.placedPointers(shape)
 		return {
-			...this.belowScene(scene, strips, Math.max(...pointers.map((p) => p.label.y + p.label.h))),
+			left: Math.min(...scene.nodes.map((n) => n.x - n.w / 2)),
+			bottom: Math.max(...scene.nodes.map((n) => n.y + n.h / 2), ...pointers.map((p) => p.label.y + p.label.h)),
 			metrics: scene.metrics,
 			color: this.style(shape).color,
 			fontFamily: this.getFontFamily(shape),
 			// In front of the canvas: they may lie outside the shape's box (curr above the root).
 			pointers: framePointers && { placed: framePointers, fontSize: this.getPointerFontSize(shape), slots: [] },
 		}
-	}
-
-	private belowScene(scene: Scene, strips: readonly Strip[] | undefined, below = -Infinity) {
-		const left = Math.min(...scene.nodes.map((n) => n.x - n.w / 2))
-		const right = Math.max(...scene.nodes.map((n) => n.x + n.w / 2))
-		let bottom = Math.max(below, ...scene.nodes.map((n) => n.y + n.h / 2))
-		const gap = scene.metrics.fontSize
-		const stripAt = { x: left, y: bottom + gap }
-		if (strips?.length) bottom = stripAt.y + stripsHeight(strips, scene.metrics)
-		return { strip: stripAt, bar: { x: (left + right) / 2, y: bottom + gap } }
 	}
 
 	private hoverHighlightsAtPointer(shape: S): Marks | undefined {
@@ -550,8 +537,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	 * The scene being shown: while an operation plays, its current frame rather than the committed
 	 * props. Reactive, so the selection outline (tldraw caches it in a computed) follows the frames.
 	 */
-	displayScene(shape: S): Scene {
-		const frame = playbackFor(this.editor, shape.id)?.frame
+	displayScene(shape: S, frame: Frame | undefined = playbackFor(this.editor, shape.id)?.frame): Scene {
 		if (!frame?.scene && !frame?.props) return this.getScene(shape)
 		// At the committed layout's offset, so whatever the step doesn't change stays put.
 		const raw = frame.scene ?? this.buildScene({ ...shape, props: { ...shape.props, ...frame.props } })

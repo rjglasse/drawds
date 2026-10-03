@@ -22,8 +22,7 @@ import { showsStructureControls } from '../../controls/visibility'
 import { extendValues, fillValues, insertValue } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
 import { mulberry32, newSeed } from '../../data/random'
-import { animationMs, isBusy, playOperation, playbackFor, type Strip } from '../../nodelink/playback'
-import { stripsHeight } from '../../nodelink/SceneSvg'
+import { animationMs, isBusy, playOperation, playbackFor, type Frame } from '../../nodelink/playback'
 import { placePointers, type PointerAnchor } from '../../pointers/layout'
 import { prunePointers, type Pointer } from '../../pointers/pointers'
 import { ARRAY_SHAPE_TYPE, arrayShapeMigrations, arrayShapeProps, usedCount, type ArrayShape } from './array-shape-types'
@@ -637,45 +636,39 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	 * The props being shown: while an operation plays, its step's values and marks over the shape's
 	 * own. (Pointers stay the shape's, so the drawing's origin doesn't move.) Reactive.
 	 */
-	displayShape(shape: ArrayShape): ArrayShape {
-		const props = playbackFor(this.editor, shape.id)?.frame?.props as (Partial<ArrayShape['props']> & { aux?: AuxRow }) | undefined
+	displayShape(shape: ArrayShape, frame: Frame | undefined = playbackFor(this.editor, shape.id)?.frame): ArrayShape {
+		const props = frame?.props as (Partial<ArrayShape['props']> & { aux?: AuxRow }) | undefined
 		if (!props) return shape
 		const { aux: _aux, ...rest } = props
 		return { ...shape, props: { ...shape.props, ...rest, pointers: shape.props.pointers } }
 	}
 
 	/** A second row of cells the operation's step shows under the array (a new array), if any. */
-	private displayAux(shape: ArrayShape): AuxRow | undefined {
-		return (playbackFor(this.editor, shape.id)?.frame?.props as { aux?: AuxRow } | undefined)?.aux
+	private displayAux(shape: ArrayShape, frame: Frame | undefined = playbackFor(this.editor, shape.id)?.frame): AuxRow | undefined {
+		return (frame?.props as { aux?: AuxRow } | undefined)?.aux
 	}
 
 	/** The step's own pointers (lo, mid, hi...), if it has any: drawn by the play overlay. */
-	private framePointers(shape: ArrayShape): Pointer[] | undefined {
-		return playbackFor(this.editor, shape.id)?.frame?.pointers
+	private framePointers(shape: ArrayShape, frame: Frame | undefined = playbackFor(this.editor, shape.id)?.frame): Pointer[] | undefined {
+		return frame?.pointers
 	}
 
-	override playbackLayout(shape: ArrayShape, strips: readonly Strip[] | undefined): PlaybackLayout {
-		const shown = this.displayShape(shape)
+	/** What a step draws (shape space): the cells it shows, with any second row and dashed slots past the end. */
+	override playbackLayout(shape: ArrayShape, frame: Frame | undefined): PlaybackLayout {
+		const shown = this.displayShape(shape, frame)
 		const metrics = getArrayMetrics(shape.props)
 		const { values, direction } = shown.props
 		const layout = getArrayLayout(values.length, direction, metrics)
-		const framePointers = this.framePointers(shape)
+		const framePointers = this.framePointers(shape, frame)
 		const slots = framePointers
 			? this.offEndSlots(shown, framePointers).map((i) => ({ ...layout.cellAt(i), w: metrics.cell, h: metrics.cell }))
 			: []
 		const sceneMetrics = { fontSize: metrics.fontSize, labelFontSize: metrics.indexFontSize, strokeWidth: metrics.strokeWidth }
-		const left = layout.cells.x
-		const right = layout.cells.x + layout.cells.w
-		// Under the second row too, when a step shows one.
-		const aux = this.displayAux(shape)
+		const aux = this.displayAux(shape, frame)
 		const auxBounds = aux && getAuxLayout(aux.values.length, direction, metrics, layout).bounds
-		let bottom = Math.max(metrics.origin.y + layout.height, ...slots.map((b) => b.y + b.h), auxBounds ? auxBounds.y + auxBounds.h : -Infinity)
-		const gap = metrics.fontSize
-		const strip = { x: left, y: bottom + gap }
-		if (strips?.length) bottom = strip.y + stripsHeight(strips, sceneMetrics)
 		return {
-			strip,
-			bar: { x: (left + right) / 2, y: bottom + gap },
+			left: Math.min(layout.cells.x, metrics.origin.x),
+			bottom: Math.max(metrics.origin.y + layout.height, ...slots.map((b) => b.y + b.h), auxBounds ? auxBounds.y + auxBounds.h : -Infinity),
 			metrics: sceneMetrics,
 			color: shape.props.color,
 			fontFamily: this.getFontFamily(shape),

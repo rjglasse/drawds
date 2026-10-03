@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { TreeShapeProps } from '../src/shapes/tree/tree-shape-types'
-import { insertKey, open, shapesOfType, sketchHeap, sketchTree } from './helpers'
+import { insertKey, open, shapesOfType, sketchArray, sketchHeap, sketchTree } from './helpers'
 
 const tree = async (page: Page) => (await shapesOfType<TreeShapeProps>(page, 'binary-tree'))[0].props
 const caption = (page: Page) => page.getByTestId('play-caption')
@@ -129,4 +129,31 @@ test('the speed button cycles 1x, 2x, 4x, ½x and is remembered', async ({ page 
 	await page.reload()
 	await page.waitForFunction(() => !!window.editor)
 	expect(await page.evaluate(() => localStorage.getItem('drawds:speed'))).toBe('2')
+})
+
+test('the play bar holds still: its buttons stay put as captions, strips and rows come and go', async ({ page }) => {
+	const where = async () => {
+		const boxes = await Promise.all(['play-toggle', 'play-forward', 'play-speed'].map((id) => page.getByTestId(id).boundingBox()))
+		return boxes.map((b) => [Math.round(b!.x), Math.round(b!.y)])
+	}
+	const holdsStill = async (steps: number) => {
+		const first = await where()
+		for (let i = 0; i < steps; i++) {
+			await page.keyboard.press('ArrowRight')
+			expect(await where()).toEqual(first)
+		}
+	}
+	await sketchArray(page, [200, 250], 6)
+	await page.mouse.click(200, 250, { button: 'right' })
+	await page.getByTestId('context-menu-sub.drawds-array-sort-button').click()
+	await page.getByTestId('context-menu.array-bubble-sort').click()
+	await holdsStill(8)
+	await page.keyboard.press('Escape')
+	await page.waitForTimeout(400)
+	// A fixed array growing: a second row appears under it, then goes.
+	await page.getByTestId('style.array-sizing.fixed').click()
+	await page.mouse.click(200, 250, { button: 'right' })
+	await page.getByTestId('context-menu-sub.drawds-array-capacity-button').click()
+	await page.getByTestId('context-menu.array-grow').click()
+	await holdsStill(7)
 })

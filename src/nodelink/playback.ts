@@ -75,6 +75,8 @@ export interface PlaybackView extends StepState {
 	shapeId: TLShapeId
 	/** The current frame, while the operation is open. */
 	frame?: Frame
+	/** Every frame of the operation (the same array throughout it), to place its bar once. */
+	frames: readonly Frame[]
 	/** After it has been dismissed, the highlights fade out. */
 	fading: boolean
 	/** Changes on every step shown, so animations restart. */
@@ -275,6 +277,7 @@ function show(p: Player, { back = false } = {}) {
 	p.view.set({
 		shapeId: op.shapeId,
 		frame: { ...frame, swaps, moves },
+		frames: op.frames,
 		...state,
 		flash: op.done && last ? finalHighlights(op) : state.flash,
 		fading: false,
@@ -408,6 +411,7 @@ function dismiss(editor: Editor, keep: boolean) {
 	}
 	p.view.set({
 		shapeId: op.shapeId,
+		frames: [],
 		flash: all,
 		badges: stateAt(op.frames, op.frames.length - 1).badges,
 		fading: true,

@@ -12,7 +12,7 @@ import {
 import { KeyPrompt } from '../controls/KeyPrompt'
 import { operationPrompt } from '../controls/prompt'
 import { showsStructureControls } from '../controls/visibility'
-import { playbackFor, type Strip } from '../nodelink/playback'
+import { playbackFor, type Frame } from '../nodelink/playback'
 import type { Box } from '../nodelink/geometry'
 import type { SceneMetrics } from '../nodelink/scene'
 import { POINTER_FONT_SCALE, placePointers, type PlacedPointer, type PointerAnchor } from '../pointers/layout'
@@ -51,12 +51,14 @@ export interface NodeOperation {
 	run(value?: string): void
 }
 
-/** Where an operation's strips (queue / stack) and play bar go, and what the strips are drawn with. */
+/**
+ * What a step of an operation draws, for placing its strips (queue / stack) and play bar under it,
+ * and what the strips are drawn with.
+ */
 export interface PlaybackLayout {
-	/** Top-left corner of the strips, in shape space. */
-	strip: VecLike
-	/** Top centre of the play bar, in shape space. */
-	bar: VecLike
+	/** The structure's left edge and bottom (its pointers and any second row included), shape space. */
+	left: number
+	bottom: number
 	metrics: SceneMetrics
 	color: TLDefaultColorStyle
 	fontFamily: string
@@ -104,8 +106,8 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 	nodeOperations?(shape: S, key: string): NodeOperation[]
 	/** Operations on the whole structure, offered wherever it is right-clicked (e.g. an array's sorts). */
 	shapeOperations?(shape: S): NodeOperation[]
-	/** Where an operation's strips and play bar go; shapes without it can't show operations. */
-	playbackLayout?(shape: S, strips: readonly Strip[] | undefined): PlaybackLayout
+	/** What a step (or, without one, the shape itself) draws; shapes without it can't show operations. */
+	playbackLayout?(shape: S, frame: Frame | undefined): PlaybackLayout
 
 	/** The value prompt of an operation started from an element (e.g. "Find a value..."), above it. */
 	protected renderOperationPrompt(shape: S, colors: TLThemeColors): ReactNode {

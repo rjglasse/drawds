@@ -1,14 +1,50 @@
-import { getColorValue, useEditor, useValue } from 'tldraw'
+import { getColorValue, useEditor, useValue, type TLShape } from 'tldraw'
 import { CellShapeUtil } from '../cells/CellShapeUtil'
-import { currentPlayback } from '../nodelink/playback'
+import { currentPlayback, type Frame, type Strip } from '../nodelink/playback'
 import { StripSvg, stripGap, stripsHeight } from '../nodelink/SceneSvg'
 import { PointersSvg } from '../pointers/PointersSvg'
 import { PlayBar } from './PlayBar'
 
+/** Where an operation's strips and play bar go, in shape space. */
+interface Placement {
+	strip: { x: number; y: number }
+	bar: { x: number; y: number }
+}
+
+const placements = new WeakMap<readonly Frame[], { props: object; placement: Placement }>()
+
+/**
+ * The strips and the bar, placed once for the whole operation, so they hold still while it plays:
+ * from the leftmost edge any step reaches, under the lowest point any step reaches (and under the
+ * tallest strips). Worked out once per operation and shape props.
+ */
+function placementFor(util: CellShapeUtil<TLShape>, shape: TLShape, frames: readonly Frame[]): Placement {
+	const cached = placements.get(frames)
+	if (cached?.props === shape.props) return cached.placement
+	let left = Infinity
+	let bottom = -Infinity
+	let tallest = 0
+	let strips: Strip[] | undefined
+	let gap = 0
+	for (const frame of frames.length ? frames : [undefined]) {
+		const layout = util.playbackLayout!(shape, frame)
+		left = Math.min(left, layout.left)
+		bottom = Math.max(bottom, layout.bottom)
+		if (frame?.strips) strips = frame.strips
+		if (strips?.length) tallest = Math.max(tallest, stripsHeight(strips, layout.metrics))
+		gap = layout.metrics.fontSize
+	}
+	const strip = { x: left, y: bottom + gap }
+	const placement = { strip, bar: { x: left, y: tallest ? strip.y + tallest + gap : strip.y } }
+	placements.set(frames, { props: shape.props, placement })
+	return placement
+}
+
 /**
  * The play bar and the queue / stack strip of the operation being shown, drawn in front of the
- * canvas (tldraw's InFrontOfTheCanvas) under the structure, following the camera. Drawn inside the
- * shape they would lie outside its box, and could leave ghosts when the camera moves.
+ * canvas (tldraw's InFrontOfTheCanvas) under the structure, following the camera, with the step's
+ * own pointers. Drawn inside the shape they would lie outside its box, and could leave ghosts when
+ * the camera moves.
  */
 export function PlaybackOverlay() {
 	const editor = useEditor()
@@ -20,14 +56,15 @@ export function PlaybackOverlay() {
 			const shape = editor.getShape(view.shapeId)
 			const util = shape && editor.getShapeUtil(shape)
 			if (!shape || !(util instanceof CellShapeUtil) || !util.playbackLayout) return null
-			const layout = util.playbackLayout(shape, view.strips)
+			const layout = util.playbackLayout(shape, view.frame)
+			const placement = placementFor(util as CellShapeUtil<TLShape>, shape, view.frames)
 			const transform = editor.getShapePageTransform(shape)
 			const toViewport = (p: { x: number; y: number }) => editor.pageToViewport(transform.applyToPoint(p))
 			return {
 				view,
 				layout,
-				strip: toViewport(layout.strip),
-				bar: toViewport(layout.bar),
+				strip: toViewport(placement.strip),
+				bar: toViewport(placement.bar),
 				origin: toViewport({ x: 0, y: 0 }),
 				zoom: editor.getZoomLevel(),
 				colors: editor.getCurrentTheme().colors[editor.getColorMode()],

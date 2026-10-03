@@ -113,7 +113,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   replacing earlier ones; counts show in the play bar), a one-line `caption`) shown every STEP_MS, then the final update commits as one undo
   step; highlights fade (FADE_MS) or, with Shift, become marks. While an operation is open `PlayBar` sits
   under the structure (drawn by `PlaybackOverlay` in tldraw's InFrontOfTheCanvas, with the queue/stack strip,
-  so neither lies outside the shape's box) and keys go to it first (window capture: Space, Left/Right, Enter /
+  so neither lies outside the shape's box). It holds still: shapes report each step's extent
+  (`playbackLayout(shape, frame)`: left edge, bottom), and the overlay places strips and bar once per
+  operation (`view.frames`), from the leftmost edge and under the lowest point any step reaches; the bar's
+  buttons come first in fixed places, the caption last and keys go to it first (window capture: Space, Left/Right, Enter /
   Shift+Enter, Esc cancels without changing anything). Once the result is committed the bar stays (`done`):
   step back through it or replay it, then Done / Enter / Esc, or select something else / edit the shape;
   `isBusy` says when the shape's own controls should hide. Operations open paused on step 1 so the teacher sets
