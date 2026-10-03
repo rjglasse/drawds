@@ -113,3 +113,20 @@ test('with autoplay on, operations play by themselves', async ({ page }) => {
 	await expect(page.getByTestId('play-done')).toBeVisible({ timeout: 8000 })
 	await expect(caption(page)).toContainText('done')
 })
+
+test('the speed button cycles 1x, 2x, 4x, ½x and is remembered', async ({ page }) => {
+	await sketchBst(page)
+	await insertKey(page, '200')
+	const speed = page.getByTestId('play-speed')
+	await expect(speed).toHaveText('1×')
+	for (const next of ['2×', '4×', '½×', '1×', '2×']) {
+		await speed.click()
+		await expect(speed).toHaveText(next)
+	}
+	// Faster playing: 3 steps at 2x are done well within a second.
+	await page.keyboard.press('Space')
+	await expect(page.getByTestId('play-done')).toBeVisible({ timeout: 1500 })
+	await page.reload()
+	await page.waitForFunction(() => !!window.editor)
+	expect(await page.evaluate(() => localStorage.getItem('drawds:speed'))).toBe('2')
+})

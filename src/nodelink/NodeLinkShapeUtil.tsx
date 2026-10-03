@@ -29,7 +29,7 @@ import { showsStructureControls } from '../controls/visibility'
 import { POINTER_FONT_SCALE, placePointers, type PlacedPointer, type PointerAnchor, type PointerSide } from '../pointers/layout'
 import { boxContains, labelBox, nodeBox, nodeContains, routeScene, spatialNeighbor, type EdgeRoute } from './geometry'
 import { hoveredEdge, hoveredNode } from './hover'
-import { isBusy, playbackFor, type Frame, type Strip } from './playback'
+import { animationMs, isBusy, playbackFor, type Frame, type Strip } from './playback'
 import { edgeCellKey, translateScene, type Scene, type SceneEdge, type SceneNode } from './scene'
 import { sceneCells } from './scene-cells'
 import { SceneSvg, stripsHeight } from './SceneSvg'
@@ -259,7 +259,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 						}
 						swaps={
 							playing?.frame && (playing.frame.swaps || playing.frame.moves)
-								? { pairs: playing.frame.swaps ?? [], moves: playing.frame.moves, id: playing.id }
+								? { pairs: playing.frame.swaps ?? [], moves: playing.frame.moves, id: playing.id, ms: animationMs(380, playing) }
 								: undefined
 						}
 						dim={playing && !playing.fading ? playing.dim : undefined}

@@ -29,6 +29,8 @@ export interface FlashView {
 /** Values that just swapped between pairs of nodes, animated arcing from one to the other. */
 export interface SwapView {
 	pairs: [string, string][]
+	/** How long the arcs take (shorter while playing fast). */
+	ms?: number
 	/** Values copied from one node to another (`[from, to]`): only the copy moves. */
 	moves?: [string, string][]
 	id: number
@@ -96,7 +98,7 @@ export function SceneSvg({
 				'--from-y': `${dy}px`,
 				'--mid-x': `${dx / 2 + (-dy / len) * lift}px`,
 				'--mid-y': `${dy / 2 + (dx / len) * lift}px`,
-				animation: 'drawds-swap 380ms ease-in-out',
+				animation: `drawds-swap ${swaps?.ms ?? 380}ms ease-in-out`,
 			} as CSSProperties
 		}
 		return undefined

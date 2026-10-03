@@ -24,6 +24,8 @@ export interface Slides {
 	from: Record<number, number>
 	/** Changes with every move, so the animation restarts. */
 	id: number
+	/** How long the slide takes (shorter while an operation plays fast). */
+	ms?: number
 }
 
 /** The latest swap (or rearrangement) on a shape, animated once. */

@@ -143,6 +143,45 @@ const autoplayAtom = atom('autoplay', readAutoplay())
 /** Whether operations play as soon as they start. Reactive. */
 export const isAutoplay = () => autoplayAtom.get()
 
+// Playing speed, a per-browser preference like autoplay: long operations (bubble sort) at 2x or 4x,
+// or slower to talk over each step.
+
+export const SPEEDS = [0.5, 1, 2, 4] as const
+const SPEED_KEY = 'drawds:speed'
+
+function readSpeed() {
+	try {
+		const v = Number(typeof window !== 'undefined' ? window.localStorage.getItem(SPEED_KEY) : NaN)
+		return (SPEEDS as readonly number[]).includes(v) ? v : 1
+	} catch {
+		return 1
+	}
+}
+
+const speedAtom = atom('playback speed', readSpeed())
+
+/** The playing speed (1 = STEP_MS a step). Reactive. */
+export const playbackSpeed = () => speedAtom.get()
+
+/** The next speed up, wrapping round to the slowest. */
+export function cycleSpeed() {
+	const next = SPEEDS[(SPEEDS.indexOf(speedAtom.get() as (typeof SPEEDS)[number]) + 1) % SPEEDS.length]
+	speedAtom.set(next)
+	try {
+		window.localStorage.setItem(SPEED_KEY, String(next))
+	} catch {
+		// Storage can be unavailable (private windows); the setting then lasts for this page.
+	}
+}
+
+/**
+ * How long a step's own animation (values arcing, a slide) may take: its full `ms` when stepping
+ * by hand, but no longer than most of a step while playing fast. Reactive.
+ */
+export function animationMs(ms: number, view: PlaybackView | null | undefined) {
+	return view && !view.paused && !view.fading ? Math.min(ms, (STEP_MS / speedAtom.get()) * 0.85) : ms
+}
+
 export function setAutoplay(editor: Editor, on: boolean) {
 	autoplayAtom.set(on)
 	try {
@@ -250,7 +289,7 @@ function show(p: Player, { back = false } = {}) {
 function schedule(editor: Editor) {
 	const p = player(editor)
 	clearTimeout(p.timer)
-	if (p.op && !p.op.paused) p.timer = setTimeout(() => stepForward(editor), STEP_MS)
+	if (p.op && !p.op.paused) p.timer = setTimeout(() => stepForward(editor), STEP_MS / speedAtom.get())
 }
 
 /**

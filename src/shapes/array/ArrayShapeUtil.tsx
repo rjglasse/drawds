@@ -22,7 +22,7 @@ import { showsStructureControls } from '../../controls/visibility'
 import { extendValues, fillValues, insertValue } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
 import { mulberry32, newSeed } from '../../data/random'
-import { isBusy, playOperation, playbackFor, type Strip } from '../../nodelink/playback'
+import { animationMs, isBusy, playOperation, playbackFor, type Strip } from '../../nodelink/playback'
 import { stripsHeight } from '../../nodelink/SceneSvg'
 import { placePointers, type PointerAnchor } from '../../pointers/layout'
 import { prunePointers, type Pointer } from '../../pointers/pointers'
@@ -522,7 +522,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const framePointers = !!frame?.pointers
 		const slides: Slides | undefined =
 			frame && (frame.swaps?.length || frame.moves?.length)
-				? { from: frameSlides(frame.swaps, frame.moves), id: playing.id }
+				? { from: frameSlides(frame.swaps, frame.moves), id: playing.id, ms: animationMs(SLIDE_MS, playing) }
 				: swapped?.shapeId === shape.id
 					? swapped
 					: undefined
@@ -643,7 +643,7 @@ function ArraySvg({
 			'--from-y': `${dy}px`,
 			'--mid-x': `${mx}px`,
 			'--mid-y': `${my}px`,
-			animation: `drawds-swap ${SLIDE_MS}ms ease-in-out`,
+			animation: `drawds-swap ${slides?.ms ?? SLIDE_MS}ms ease-in-out`,
 		} as CSSProperties
 	}
 	const dimmed = new Set(dim)

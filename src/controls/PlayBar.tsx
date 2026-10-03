@@ -2,8 +2,10 @@ import type { ReactNode } from 'react'
 import { getColorValue, useValue, type Editor, type TLThemeColors, type VecLike } from 'tldraw'
 import {
 	cancelPlayback,
+	cycleSpeed,
 	finishPlayback,
 	isAutoplay,
+	playbackSpeed,
 	setAutoplay,
 	stepBack,
 	stepForward,
@@ -45,6 +47,7 @@ export function PlayBar({
 	const last = view.step >= view.steps - 1
 	const replay = view.done && view.paused && last
 	const autoplay = useValue('autoplay', isAutoplay, [])
+	const speed = useValue('playback speed', playbackSpeed, [])
 	const button = (
 		testId: string,
 		label: string,
@@ -155,6 +158,34 @@ export function PlayBar({
 			<span data-testid="play-counter" style={{ opacity: 0.55, fontVariantNumeric: 'tabular-nums', paddingRight: 4 }}>
 				{view.step + 1}/{view.steps}
 			</span>
+			<button
+				type="button"
+				data-testid="play-speed"
+				aria-label={`Speed ${speed}x (click for the next)`}
+				title="Playing speed (click for the next)"
+				onMouseDown={(e) => e.preventDefault()}
+				onPointerDown={(e) => editor.markEventAsHandled(e)}
+				onPointerUp={(e) => editor.markEventAsHandled(e)}
+				onClick={(e) => {
+					e.stopPropagation()
+					cycleSpeed()
+				}}
+				style={{
+					minWidth: 30,
+					height: 26,
+					padding: '0 4px',
+					border: 'none',
+					borderRadius: 6,
+					background: 'transparent',
+					color: colors.text,
+					font: 'inherit',
+					fontVariantNumeric: 'tabular-nums',
+					cursor: 'pointer',
+					flex: 'none',
+				}}
+			>
+				{speed === 0.5 ? '½' : speed}×
+			</button>
 			{button('play-autoplay', 'Play operations as soon as they start', 'autoplay', () => setAutoplay(editor, !autoplay), {
 				pressed: autoplay,
 			})}
