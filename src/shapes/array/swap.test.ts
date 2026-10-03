@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cellHandleId, cellOfHandle, frameSlides, orderSlides, swapCells } from './swap'
+import { cellHandleId, cellOfHandle, crossSlides, frameSlides, orderSlides, swapCells } from './swap'
 
 describe('swapCells', () => {
 	it('exchanges two values and their marks', () => {
@@ -22,5 +22,17 @@ describe('slides', () => {
 
 	it('a rearrangement slides each value that moved from its old index', () => {
 		expect(orderSlides([2, 1, 0])).toEqual({ 0: 2, 2: 0 })
+	})
+})
+
+describe('slides between rows', () => {
+	it('copies into the second row and back up are kept apart from moves within the array', () => {
+		const moves: [string, string][] = [
+			['0', 'aux:0'],
+			['aux:1', '1'],
+			['3', '2'],
+		]
+		expect(frameSlides([], moves)).toEqual({ 2: 3 })
+		expect(crossSlides(moves)).toEqual({ toAux: { 0: 0 }, toMain: { 1: 1 } })
 	})
 })

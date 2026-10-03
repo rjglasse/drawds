@@ -75,3 +75,59 @@ test('sorting a fixed array sorts the values in use; back to growing drops the s
 	await page.keyboard.press('ControlOrMeta+z')
 	expect(await props(page)).toMatchObject({ sizing: 'fixed', values: ['10', '20', '30', '', ''] })
 })
+
+const caption = (page: Page) => page.getByTestId('play-caption')
+
+async function stepToEnd(page: Page) {
+	while (!(await page.getByTestId('play-done').count())) await page.keyboard.press('ArrowRight')
+}
+
+async function arrayMenu(page: Page, submenu: string, item: string, at = 200) {
+	await page.mouse.click(at, 200, { button: 'right' })
+	await page.getByTestId(`context-menu-sub.drawds-${submenu}-button`).click()
+	await page.getByTestId(`context-menu.${item}`).click()
+}
+
+test('insert into a full fixed array stops; Grow doubles it via newArr, one copy per value', async ({ page }) => {
+	await fixedArray(page, 3, 3)
+	const before = await props(page)
+	await arrayMenu(page, 'array-shift', 'array-insert')
+	await expect(caption(page)).toContainText('the array is full, so there is no room for')
+	await page.keyboard.press('Enter')
+	expect(await props(page)).toEqual(before)
+	await page.waitForTimeout(400)
+	await arrayMenu(page, 'array-capacity', 'array-grow')
+	await expect(caption(page)).toHaveText("newArr = new int[6]: a new array with room for 6. Arrays can't grow, so the values have to move")
+	await expect(page.getByTestId('array-aux')).toHaveCount(1)
+	await page.keyboard.press('ArrowRight')
+	await expect(caption(page)).toHaveText(`newArr[0] = a[0] (${before.values[0]})`)
+	await stepToEnd(page)
+	await expect(page.getByTestId('array-aux')).toHaveCount(0)
+	expect(await props(page)).toMatchObject({ values: [...before.values, '', '', ''], used: 3 })
+	await expect(page.getByTestId('play-counts')).toHaveText('copies 3')
+})
+
+test('insert and delete step by step keep the capacity; append grows a full array first', async ({ page }) => {
+	await fixedArray(page, 2, 3)
+	const before = await props(page)
+	await arrayMenu(page, 'array-shift', 'array-insert')
+	await stepToEnd(page)
+	let p = await props(page)
+	expect(p.used).toBe(3)
+	expect(p.values).toHaveLength(3)
+	expect(p.values.slice(1)).toEqual(before.values.slice(0, 2))
+	await page.keyboard.press('Enter')
+	await page.waitForTimeout(400)
+	await arrayMenu(page, 'array-capacity', 'array-append')
+	await expect(caption(page)).toContainText('the array is full. Grow it first')
+	await stepToEnd(page)
+	p = await props(page)
+	expect(p).toMatchObject({ used: 4 })
+	expect(p.values).toHaveLength(6)
+	await page.keyboard.press('Enter')
+	await page.waitForTimeout(400)
+	await arrayMenu(page, 'array-shift', 'array-delete')
+	await stepToEnd(page)
+	await expect(caption(page)).toContainText('size = 3: a[3] is a spare slot again')
+	expect((await props(page)).values).toHaveLength(6)
+})

@@ -56,15 +56,31 @@ export function swapCells(values: readonly string[], marks: Marks, a: number, b:
 	return { values: next, marks: swapMarks(marks, String(a), String(b)) }
 }
 
-/** Slides for a frame's swapped pairs and copied values (cell keys are indices). */
+const AUX = 'aux:'
+
+/** Slides for a frame's swapped pairs and copied values within the array (cell keys are indices). */
 export function frameSlides(swaps: readonly [string, string][] = [], moves: readonly [string, string][] = []) {
 	const from: Record<number, number> = {}
 	for (const [a, b] of swaps) {
 		from[Number(a)] = Number(b)
 		from[Number(b)] = Number(a)
 	}
-	for (const [a, b] of moves) from[Number(b)] = Number(a)
+	for (const [a, b] of moves) if (!a.startsWith(AUX) && !b.startsWith(AUX)) from[Number(b)] = Number(a)
 	return from
+}
+
+/**
+ * Values copied between the array and a second row under it (`aux:<i>` keys): into the second row
+ * (aux index -> array index it came from) and back up (array index -> aux index).
+ */
+export function crossSlides(moves: readonly [string, string][] = []) {
+	const toAux: Record<number, number> = {}
+	const toMain: Record<number, number> = {}
+	for (const [a, b] of moves) {
+		if (b.startsWith(AUX) && !a.startsWith(AUX)) toAux[Number(b.slice(AUX.length))] = Number(a)
+		else if (a.startsWith(AUX) && !b.startsWith(AUX)) toMain[Number(b)] = Number(a.slice(AUX.length))
+	}
+	return { toAux, toMain }
 }
 
 /** Slides for a rearrangement: `order[i]` is the old index of the value now at i. */

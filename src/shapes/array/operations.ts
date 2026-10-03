@@ -15,10 +15,21 @@ const GONE: MarkColor = 'red'
 const PIVOT: MarkColor = 'red'
 const SMALL: MarkColor = 'blue'
 
-/** The array an operation works on: values and the marks travelling with them. */
+/** A second row of cells drawn under the array during a step: a new array being filled. */
+export interface AuxRow {
+	title: string
+	values: string[]
+}
+
+/**
+ * The array an operation works on: values and the marks travelling with them; for a fixed
+ * capacity, how many are in use (the rest are blank). During a step, maybe a second row.
+ */
 export interface ArrayState {
 	values: string[]
 	marks: Marks
+	used?: number
+	aux?: AuxRow
 }
 
 export interface ArrayOperation {
@@ -45,7 +56,8 @@ interface Step {
 	pointers?: Pointer[]
 	dim?: string[]
 	swaps?: [number, number][]
-	moves?: [number, number][]
+	/** Copies, `[from, to]`: cell indices, or `aux:<i>` for the second row's cells. */
+	moves?: [number | string, number | string][]
 	strips?: Strip[]
 }
 
@@ -56,7 +68,7 @@ interface Step {
 function recorder(start: ArrayState, counts: Record<string, number>) {
 	const frames: Frame[] = []
 	let shown: Marks = {}
-	let state: ArrayState = { values: [...start.values], marks: { ...start.marks } }
+	let state: ArrayState = { ...start, values: [...start.values], marks: { ...start.marks } }
 	return {
 		frames,
 		counts,
@@ -72,10 +84,11 @@ function recorder(start: ArrayState, counts: Record<string, number>) {
 			for (const key of Object.keys(shown)) if (!next[key]) flash[key] = null
 			for (const [key, color] of Object.entries(next)) if (shown[key] !== color) flash[key] = color
 			shown = { ...next }
-			const keys = (pairs?: [number, number][]) => pairs?.map(([a, b]): [string, string] => [String(a), String(b)])
+			const keys = (pairs?: [number | string, number | string][]) => pairs?.map(([a, b]): [string, string] => [String(a), String(b)])
+			const { values, marks, used, aux } = state
 			frames.push({
 				caption,
-				props: { values: state.values, marks: state.marks },
+				props: { values, marks, ...(used === undefined ? {} : { used }), ...(aux ? { aux } : {}) },
 				flash,
 				pointers,
 				dim,
@@ -88,7 +101,7 @@ function recorder(start: ArrayState, counts: Record<string, number>) {
 	}
 }
 
-const swapped = (state: ArrayState, a: number, b: number): ArrayState => swapCells(state.values, state.marks, a, b)
+const swapped = (state: ArrayState, a: number, b: number): ArrayState => ({ ...state, ...swapCells(state.values, state.marks, a, b) })
 
 /** a[to] = a[from]: the value (and its mark) copied, the old one at `to` overwritten. */
 function copied(state: ArrayState, from: number, to: number): ArrayState {
@@ -97,7 +110,7 @@ function copied(state: ArrayState, from: number, to: number): ArrayState {
 	const marks = { ...state.marks }
 	if (marks[String(from)]) marks[String(to)] = marks[String(from)]
 	else delete marks[String(to)]
-	return { values, marks }
+	return { ...state, values, marks }
 }
 
 // Searching.
@@ -639,4 +652,114 @@ export function withUsedCell(state: ArrayState, used: number, k: number, value: 
 	// The spare slot that was at index `used` is now at used + 1, and is taken.
 	values.splice(used + 1, 1)
 	return { values, marks }
+}
+
+// Fixed capacity, as in C and Java: the array's cells are its capacity, the first `used` hold
+// values, the rest are blank spare slots. Inserting needs a spare slot; when the array is full,
+// a bigger one has to be made and everything copied into it.
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+
+/**
+ * Insert `value` at index k of a fixed array. With a spare slot, the used values from the end back
+ * to k move right one at a time, then a[k] = value and size goes up. Full, it stops and says so.
+ */
+export function insertFixed(start: ArrayState, used: number, k: number, value: string): ArrayOperation {
+	const capacity = start.values.length
+	const r = recorder({ ...start, used }, { moves: 0 })
+	if (used >= capacity) {
+		r.step(`size = capacity = ${capacity}: the array is full, so there is no room for ${value}. Grow it first (Capacity > Grow)`, {
+			lit: { [capacity - 1]: GONE },
+		})
+		return { frames: r.frames }
+	}
+	r.step(`Insert ${value} at index ${k}: size ${used} < capacity ${capacity}, so a[${used}] is free`, { lit: { [used]: LOOK } })
+	for (let i = used; i > k; i--) {
+		r.set(copied(r.state, i - 1, i))
+		r.counts.moves++
+		const why = i === used ? ': from the end, so nothing is overwritten' : ''
+		r.step(`a[${i}] = a[${i - 1}] (${r.state.values[i]})${why}`, { pointers: [ptr('i', i)], moves: [[i - 1, i]] })
+	}
+	const result = { ...withUsedCell(start, used, k, value), used: used + 1 }
+	r.set(result)
+	r.step(`a[${k}] = ${value}; size = ${used + 1}. ${plural(r.counts.moves, 'value')} moved`, { lit: { [k]: DONE }, pointers: [ptr('i', k)] })
+	return { frames: r.frames, result, finalFlash: { [k]: DONE } }
+}
+
+/** Delete a[k] of a fixed array: the used values after it move left, then the last used slot is spare. */
+export function deleteFixed(start: ArrayState, used: number, k: number): ArrayOperation {
+	const r = recorder({ ...start, used }, { moves: 0 })
+	r.step(`Delete a[${k}] = ${start.values[k]}: the values after it, up to a[size - 1], move one cell left`, {
+		lit: { [k]: GONE },
+		pointers: [ptr('i', k)],
+	})
+	for (let i = k; i < used - 1; i++) {
+		r.set(copied(r.state, i + 1, i))
+		r.counts.moves++
+		r.step(`a[${i}] = a[${i + 1}] (${r.state.values[i]})`, { pointers: [ptr('i', i)], moves: [[i + 1, i]] })
+	}
+	const result = { ...withoutUsedCell(start, k), used: used - 1 }
+	r.set(result)
+	r.step(`size = ${used - 1}: a[${used - 1}] is a spare slot again. ${plural(r.counts.moves, 'value')} moved`)
+	return { frames: r.frames, result }
+}
+
+/**
+ * Steps of growing a fixed array to `capacity` cells: newArr appears under it, the values in use
+ * are copied down (one step each, or all in one), then a = newArr takes its place.
+ */
+function growSteps(r: Recorder, capacity: number, { oneByOne }: { oneByOne: boolean }) {
+	const { values, used = values.length } = r.state
+	const old = values.length
+	const title = `newArr = new int[${capacity}]`
+	const blank = Array<string>(capacity).fill('')
+	r.set({ ...r.state, aux: { title, values: blank } })
+	r.step(`${title}: a new array with room for ${capacity}. Arrays can't grow, so the values have to move`)
+	if (oneByOne) {
+		for (let i = 0; i < used; i++) {
+			r.set({ ...r.state, aux: { title, values: [...values.slice(0, i + 1), ...blank.slice(i + 1)] } })
+			r.counts.copies++
+			r.step(`newArr[${i}] = a[${i}] (${values[i]})`, { pointers: [ptr('i', i)], lit: { [i]: LOOK }, moves: [[i, `aux:${i}`]] })
+		}
+	} else {
+		r.set({ ...r.state, aux: { title, values: [...values.slice(0, used), ...blank.slice(used)] } })
+		r.counts.copies += used
+		r.step(`Copy all ${plural(used, 'value')} into newArr`, { moves: Array.from({ length: used }, (_, i): [number, string] => [i, `aux:${i}`]) })
+	}
+	r.set({ values: [...values.slice(0, used), ...blank.slice(used)], marks: r.state.marks, used })
+	r.step(`a = newArr: capacity ${old} → ${capacity}. The old array is garbage now`, {
+		moves: Array.from({ length: used }, (_, i): [string, number] => [`aux:${i}`, i]),
+	})
+}
+
+/** Grow a fixed array to twice its capacity, value by value. */
+export function growFixed(start: ArrayState, used: number): ArrayOperation {
+	const r = recorder({ ...start, used }, { copies: 0 })
+	growSteps(r, Math.max(1, start.values.length * 2), { oneByOne: true })
+	r.step(`Growing cost ${plural(r.counts.copies, 'copy')}, one per value: doubling makes it rare`)
+	return { frames: r.frames, result: { ...r.state, aux: undefined } }
+}
+
+/**
+ * Append `value` to a fixed array, as ArrayList.add does: straight into a[size] when there is a
+ * spare slot (nothing moves), else grow to twice the capacity first.
+ */
+export function appendFixed(start: ArrayState, used: number, value: string): ArrayOperation {
+	const r = recorder({ ...start, used }, { copies: 0 })
+	if (used >= start.values.length) {
+		r.step(`Append ${value}: size = capacity = ${used}, the array is full. Grow it first, to twice the capacity`, {
+			lit: { [used - 1]: GONE },
+		})
+		growSteps(r, Math.max(1, start.values.length * 2), { oneByOne: false })
+	}
+	const capacity = r.state.values.length
+	r.step(`Append ${value}: size ${used} < capacity ${capacity}, so it goes straight into a[${used}]`, {
+		lit: { [used]: LOOK },
+		pointers: [ptr('size', used)],
+	})
+	const values = [...r.state.values]
+	values[used] = value
+	r.set({ values, marks: r.state.marks, used: used + 1 })
+	r.step(`a[size] = ${value}; size = ${used + 1}. Nothing had to move`, { lit: { [used]: DONE }, pointers: [ptr('size', used + 1)] })
+	return { frames: r.frames, result: r.state, finalFlash: { [used]: DONE } }
 }

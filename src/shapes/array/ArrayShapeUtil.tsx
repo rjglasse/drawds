@@ -29,11 +29,15 @@ import { prunePointers, type Pointer } from '../../pointers/pointers'
 import { ARRAY_SHAPE_TYPE, arrayShapeMigrations, arrayShapeProps, usedCount, type ArrayShape } from './array-shape-types'
 import { arrayCells } from './cells'
 import {
+	appendFixed,
 	binarySearch,
 	bubbleSort,
 	deleteAt,
+	deleteFixed,
+	growFixed,
 	hoarePartition,
 	insertAt,
+	insertFixed,
 	insertionSort,
 	linearSearch,
 	mergeSort,
@@ -46,10 +50,11 @@ import {
 	withUsedCell,
 	type ArrayOperation,
 	type ArrayState,
+	type AuxRow,
 } from './operations'
 import { movesAnything, rearrange, reversedOrder, shuffledOrder, sortedOrder } from './rearrange'
-import { getArrayGrowPoint, getArrayLayout, getArrayMetrics, hoveredCell } from './layout'
-import { cellHandleId, cellOfHandle, frameSlides, orderSlides, swapCells, swapState, type Slides, type SwapDrag } from './swap'
+import { getArrayGrowPoint, getArrayLayout, getArrayMetrics, getAuxLayout, hoveredCell } from './layout'
+import { cellHandleId, cellOfHandle, crossSlides, frameSlides, orderSlides, swapCells, swapState, type Slides, type SwapDrag } from './swap'
 
 /** How long values take to arc into their new cells (a swap, a sort, a shift). */
 export const SLIDE_MS = 450
@@ -227,7 +232,20 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			...find('array-binary-search', 'Binary search', binarySearch),
 			...find('array-linear-search', 'Linear search', linearSearch),
 			...(sizing === 'fixed'
-				? []
+				? [
+						{
+							...shift,
+							id: 'array-insert',
+							label: `Insert at index ${k}`,
+							run: () => this.play(shape.id, 'insert', (a) => insertFixed(a, a.used!, k, this.newValue(shape.props, a.values.slice(0, a.used), k)), { whole: true }),
+						},
+						{
+							...shift,
+							id: 'array-delete',
+							label: `Delete a[${k}] (${v})`,
+							run: () => this.play(shape.id, 'delete', (a) => deleteFixed(a, a.used!, k), { whole: true }),
+						},
+					]
 				: [
 						{ ...shift, id: 'array-insert', label: `Insert at index ${k}`, run: () => this.play(shape.id, 'insert', (a) => this.insertOp(shape.id, a, k)) },
 						...(values.length > 1
@@ -240,6 +258,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	override shapeOperations(shape: ArrayShape): NodeOperation[] {
 		const sorts = { submenu: 'Sort step by step', submenuId: 'array-sort' }
 		const actions = { submenu: 'Array', submenuId: 'array-actions' }
+		const capacity = { submenu: 'Capacity', submenuId: 'array-capacity' }
 		const sort = (id: string, label: string, op: (a: ArrayState) => ArrayOperation): NodeOperation => ({
 			...sorts,
 			id,
@@ -252,7 +271,25 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			label,
 			run: () => this.rearrange(shape.id, label.toLowerCase(), make),
 		})
+		const fixedOnly: NodeOperation[] =
+			shape.props.sizing === 'fixed'
+				? [
+						{
+							...capacity,
+							id: 'array-append',
+							label: 'Append a value (grows when full)',
+							run: () => this.play(shape.id, 'append', (a) => appendFixed(a, a.used!, this.appendValue(shape.id, a)), { whole: true }),
+						},
+						{
+							...capacity,
+							id: 'array-grow',
+							label: 'Grow: double the capacity',
+							run: () => this.play(shape.id, 'grow', (a) => growFixed(a, a.used!), { whole: true }),
+						},
+					]
+				: []
 		return [
+			...fixedOnly,
 			// Sorting needs two values in use.
 			...(usedCount(shape.props) < 2
 				? []
@@ -283,20 +320,26 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	 * Play an operation on the array as it is now; its result (if any) is one undo step. It works on
 	 * the values in use: a fixed array's spare slots are added back to every step, blank.
 	 */
-	private play(id: ArrayShape['id'], label: string, operation: (array: ArrayState) => ArrayOperation) {
+	private play(
+		id: ArrayShape['id'],
+		label: string,
+		operation: (array: ArrayState) => ArrayOperation,
+		{ whole = false }: { whole?: boolean } = {}
+	) {
 		const shape = this.editor.getShape(id) as ArrayShape | undefined
 		if (!shape) return
-		const { values, marks } = inUse(shape.props)
+		// `whole`: the operation gets every cell and the size (a fixed array's insert, grow...).
+		const { values, marks } = whole ? shape.props : inUse(shape.props)
 		// A growing array is as long as the operation makes it.
-		const capacity = shape.props.sizing === 'fixed' ? shape.props.values.length : 0
-		const op = operation({ values, marks })
+		const capacity = shape.props.sizing === 'fixed' && !whole ? shape.props.values.length : 0
+		const op = operation({ values, marks, ...(whole ? { used: usedCount(shape.props) } : {}) })
 		const frames = op.frames.map((f) => {
 			const props = f.props as Partial<ArrayState> | undefined
 			return props?.values ? { ...f, props: { ...props, values: padded(props.values, capacity) } } : f
 		})
 		const { finalFlash } = op
 		const result = op.result && { ...op.result, values: padded(op.result.values, capacity) }
-		const final = result && this.withValues(shape, result)
+		const final = result && this.withValues(shape, result, result.used)
 		playOperation(this.editor, {
 			shapeId: id,
 			label,
@@ -316,6 +359,13 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	private insertOp(id: ArrayShape['id'], array: ArrayState, k: number) {
 		const shape = this.editor.getShape(id) as ArrayShape | undefined
 		return insertAt(array, k, this.newValue(shape?.props ?? this.getDefaultProps(), array.values, k))
+	}
+
+	/** The next value of the fill mode's stream, for appending to the values in use. */
+	private appendValue(id: ArrayShape['id'], { values, used = values.length }: ArrayState) {
+		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		const { fill, seed } = shape?.props ?? this.getDefaultProps()
+		return extendValues(values.slice(0, used), fill, seed, used + 1)[used]
 	}
 
 	/** A value for a cell inserted at index k: between its neighbours if sorted, else not there yet. */
@@ -549,16 +599,20 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		// The cells shown: an operation's step may have one more (making room to insert). It only
 		// ever grows past the end, so the origin stays put. Reactive (tldraw caches it in a computed).
 		const count = this.displayShape(shape).props.values.length
-		const { width, height } = getArrayLayout(count, shape.props.direction, metrics)
-		const body = new Rectangle2d({ ...metrics.origin, width, height, isFilled: true })
+		const layout = getArrayLayout(count, shape.props.direction, metrics)
+		const body = new Rectangle2d({ ...metrics.origin, width: layout.width, height: layout.height, isFilled: true })
+		// A second row (a new array being filled) lies under or right of the array: inside the box.
+		const aux = this.displayAux(shape)
+		const auxBounds = aux && getAuxLayout(aux.values.length, shape.props.direction, metrics, layout).bounds
+		const extra = auxBounds ? [new Rectangle2d({ x: auxBounds.x, y: auxBounds.y, width: auxBounds.w, height: auxBounds.h, isFilled: true })] : []
 		const pointers = this.pointerGeometry(shape)
-		if (!pointers.length) return body
+		if (!pointers.length && !extra.length) return body
 		// Cells a pointer reaches past either end are drawn too, so they count in the bounds.
 		const slots = this.offEndSlots(shape).map((i) => {
 			const { box } = this.pointerAnchor(shape, String(i))!
 			return new Rectangle2d({ x: box.x, y: box.y, width: box.w, height: box.h, isFilled: false })
 		})
-		return new Group2d({ children: [body, ...pointers, ...slots] })
+		return new Group2d({ children: [body, ...extra, ...pointers, ...slots] })
 	}
 
 	/** Indices just off the array (-1, n) that a pointer is at. */
@@ -572,8 +626,15 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	 * own. (Pointers stay the shape's, so the drawing's origin doesn't move.) Reactive.
 	 */
 	displayShape(shape: ArrayShape): ArrayShape {
-		const props = playbackFor(this.editor, shape.id)?.frame?.props as Partial<ArrayShape['props']> | undefined
-		return props ? { ...shape, props: { ...shape.props, ...props, pointers: shape.props.pointers } } : shape
+		const props = playbackFor(this.editor, shape.id)?.frame?.props as (Partial<ArrayShape['props']> & { aux?: AuxRow }) | undefined
+		if (!props) return shape
+		const { aux: _aux, ...rest } = props
+		return { ...shape, props: { ...shape.props, ...rest, pointers: shape.props.pointers } }
+	}
+
+	/** A second row of cells the operation's step shows under the array (a new array), if any. */
+	private displayAux(shape: ArrayShape): AuxRow | undefined {
+		return (playbackFor(this.editor, shape.id)?.frame?.props as { aux?: AuxRow } | undefined)?.aux
 	}
 
 	/** The step's own pointers (lo, mid, hi...), if it has any: drawn by the play overlay. */
@@ -593,7 +654,10 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const sceneMetrics = { fontSize: metrics.fontSize, labelFontSize: metrics.indexFontSize, strokeWidth: metrics.strokeWidth }
 		const left = layout.cells.x
 		const right = layout.cells.x + layout.cells.w
-		let bottom = Math.max(metrics.origin.y + layout.height, ...slots.map((b) => b.y + b.h))
+		// Under the second row too, when a step shows one.
+		const aux = this.displayAux(shape)
+		const auxBounds = aux && getAuxLayout(aux.values.length, direction, metrics, layout).bounds
+		let bottom = Math.max(metrics.origin.y + layout.height, ...slots.map((b) => b.y + b.h), auxBounds ? auxBounds.y + auxBounds.h : -Infinity)
 		const gap = metrics.fontSize
 		const strip = { x: left, y: bottom + gap }
 		if (strips?.length) bottom = strip.y + stripsHeight(strips, sceneMetrics)
@@ -627,6 +691,8 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 				: swapped?.shapeId === shape.id
 					? swapped
 					: undefined
+		const aux = this.displayAux(shape)
+		const cross = frame?.moves?.length && playing ? { ...crossSlides(frame.moves), id: playing.id } : undefined
 		return (
 			<>
 				<SVGContainer>
@@ -640,6 +706,8 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 						flash={playing && { marks: playing.flash, fading: playing.fading, id: playing.id }}
 						dim={playing && !playing.fading ? (playing.dim ?? []) : undefined}
 						offEnd={framePointers ? [] : this.offEndSlots(shape)}
+						aux={aux}
+						cross={cross}
 					/>
 					{!framePointers && this.renderPointers(shape, colors)}
 					{showsStructureControls(this.editor, shape) && !isBusy(playing) && (
@@ -719,6 +787,8 @@ function ArraySvg({
 	flash,
 	dim,
 	offEnd = [],
+	aux,
+	cross,
 }: {
 	shape: ArrayShape
 	colors: TLThemeColors
@@ -735,6 +805,10 @@ function ArraySvg({
 	flash?: { marks: Marks; fading: boolean; id: number }
 	/** Canvas only, while an operation is open: cells out of play, drawn faded (in or out). */
 	dim?: readonly string[]
+	/** Canvas only: a second row under the array, such as a new array being filled. */
+	aux?: AuxRow
+	/** Values moving between the array and the second row this step. */
+	cross?: { toAux: Record<number, number>; toMain: Record<number, number>; id: number }
 }) {
 	const { values, direction, showIndices, color, marks, sizing } = shape.props
 	const metrics = getArrayMetrics(shape.props)
@@ -767,6 +841,22 @@ function ArraySvg({
 		} as CSSProperties
 	}
 	const dimmed = new Set(dim)
+	const auxLayout = aux && getAuxLayout(aux.values.length, direction, metrics, layout)
+	// Values moving up from a second row the step no longer draws (a = newArr): where it was, as
+	// long as the array now is.
+	const fromBelow = auxLayout ?? (cross && Object.keys(cross.toMain).length ? getAuxLayout(values.length, direction, metrics, layout) : undefined)
+	// Between the rows a value moves straight down (or across) to its cell, or back up.
+	const crossStyle = (to: { x: number; y: number }, from: { x: number; y: number }): CSSProperties => {
+		const dx = from.x - to.x
+		const dy = from.y - to.y
+		return {
+			'--from-x': `${dx}px`,
+			'--from-y': `${dy}px`,
+			'--mid-x': `${dx / 2}px`,
+			'--mid-y': `${dy / 2}px`,
+			animation: `drawds-swap ${slides?.ms ?? SLIDE_MS}ms ease-in-out`,
+		} as CSSProperties
+	}
 
 	return (
 		<g fontFamily={fontFamily} textAnchor="middle" dominantBaseline="central">
@@ -897,12 +987,13 @@ function ArraySvg({
 			{values.map((value, i) => {
 				if (i === hiddenIndex) return null
 				const { x, y } = cellAt(i)
-				const animated = slideStyle(i)
+				const up = cross?.toMain[i]
+				const animated = up !== undefined && fromBelow ? crossStyle(cellAt(i), fromBelow.cellAt(up)) : slideStyle(i)
 				const faded = dimmed.has(String(i))
 				return (
 					<text
 						// A new key per move remounts the texts that move, which restarts their animation.
-						key={animated ? `${i}:${slides!.id}` : i}
+						key={up !== undefined ? `${i}:up-${cross!.id}` : animated ? `${i}:${slides!.id}` : i}
 						x={x + cell / 2}
 						y={y + cell / 2}
 						fontSize={textSize(value)}
@@ -928,6 +1019,56 @@ function ArraySvg({
 						</text>
 					)
 				})}
+			{aux && auxLayout && (
+				<g data-testid="array-aux">
+					<text x={auxLayout.titleAt.x} y={auxLayout.titleAt.y} textAnchor="start" fontSize={metrics.indexFontSize} fill={colors.text} opacity={0.8}>
+						{aux.title}
+					</text>
+					<rect
+						x={auxLayout.cells.x}
+						y={auxLayout.cells.y}
+						width={auxLayout.cells.w}
+						height={auxLayout.cells.h}
+						fill={getColorValue(colors, color, 'semi')}
+						stroke={stroke}
+						strokeWidth={strokeWidth}
+						strokeLinejoin="round"
+					/>
+					{aux.values.slice(1).map((_, k) => {
+						const { x, y } = auxLayout.cellAt(k + 1)
+						return direction === 'horizontal' ? (
+							<line key={k} x1={x} y1={y} x2={x} y2={y + cell} stroke={stroke} strokeWidth={strokeWidth} />
+						) : (
+							<line key={k} x1={x} y1={y} x2={x + cell} y2={y} stroke={stroke} strokeWidth={strokeWidth} />
+						)
+					})}
+					{aux.values.map((value, j) => {
+						const { x, y } = auxLayout.cellAt(j)
+						const down = cross?.toAux[j]
+						return (
+							<text
+								key={down !== undefined ? `aux${j}:${cross!.id}` : `aux${j}`}
+								x={x + cell / 2}
+								y={y + cell / 2}
+								fontSize={textSize(value)}
+								fill={colors.text}
+								style={down !== undefined ? crossStyle(auxLayout.cellAt(j), cellAt(down)) : undefined}
+							>
+								{value}
+							</text>
+						)
+					})}
+					{showIndices &&
+						aux.values.map((_, j) => {
+							const { x, y } = auxLayout.indexAt(j)
+							return (
+								<text key={`ai${j}`} x={x} y={y} fontSize={metrics.indexFontSize} fill={colors.text} opacity={0.5}>
+									{j}
+								</text>
+							)
+						})}
+				</g>
+			)}
 		</g>
 	)
 }

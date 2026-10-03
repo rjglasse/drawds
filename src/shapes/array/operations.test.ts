@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest'
 import type { Frame } from '../../nodelink/playback'
 import { stateAt } from '../../nodelink/playback'
 import {
+	appendFixed,
 	binarySearch,
 	bubbleSort,
 	deleteAt,
+	deleteFixed,
+	growFixed,
 	hoarePartition,
 	insertAt,
+	insertFixed,
 	insertionSort,
 	isSorted,
 	linearSearch,
@@ -257,5 +261,63 @@ describe('hoare partition and merge sort', () => {
 	it('merge sort keeps equal values in order and marks travel', () => {
 		const op = mergeSort({ values: ['2', '1', '2'], marks: { 0: 'red', 2: 'blue' } })
 		expect(op.result).toEqual({ values: ['1', '2', '2'], marks: { 1: 'red', 2: 'blue' } })
+	})
+})
+
+describe('fixed capacity', () => {
+	const fixed = (values: string[], used: number) => ({ values, marks: {}, used })
+	const usedOf = (f: Frame) => (f.props as { used?: number }).used
+
+	it('insert shifts the used values right into the spare slot; size goes up', () => {
+		const op = insertFixed(fixed(['a', 'b', 'c', ''], 3), 3, 1, 'x')
+		expect(op.result).toMatchObject({ values: ['a', 'x', 'b', 'c'], used: 4 })
+		expect(op.frames.flatMap((f) => f.moves ?? [])).toEqual([
+			['2', '3'],
+			['1', '2'],
+		])
+		expect(op.frames[0].caption).toBe('Insert x at index 1: size 3 < capacity 4, so a[3] is free')
+		expect(last(op).caption).toBe('a[1] = x; size = 4. 2 values moved')
+		expect(usedOf(last(op))).toBe(4)
+	})
+
+	it('insert into a full array stops: nothing changes', () => {
+		const op = insertFixed(fixed(['a', 'b'], 2), 2, 0, 'x')
+		expect(op.result).toBeUndefined()
+		expect(op.frames).toHaveLength(1)
+		expect(op.frames[0].caption).toMatch(/^size = capacity = 2: the array is full/)
+	})
+
+	it('delete shifts left and leaves a blank spare slot; the capacity stays', () => {
+		const op = deleteFixed({ values: ['a', 'b', 'c', ''], marks: { 2: 'red' }, used: 3 }, 3, 0)
+		expect(op.result).toMatchObject({ values: ['b', 'c', '', ''], marks: { 1: 'red' }, used: 2 })
+		expect(last(op).caption).toBe('size = 2: a[2] is a spare slot again. 2 values moved')
+	})
+
+	it('grow makes newArr twice the size, copies each value down, then takes its place', () => {
+		const op = growFixed(fixed(['a', 'b', 'c'], 3), 3)
+		expect(op.result).toEqual({ values: ['a', 'b', 'c', '', '', ''], marks: {}, used: 3 })
+		const aux = (f: Frame) => (f.props as { aux?: { title: string; values: string[] } }).aux
+		expect(aux(op.frames[0])).toEqual({ title: 'newArr = new int[6]', values: ['', '', '', '', '', ''] })
+		expect(aux(op.frames[2])?.values).toEqual(['a', 'b', '', '', '', ''])
+		expect(op.frames[2].moves).toEqual([['1', 'aux:1']])
+		const replace = op.frames.find((f) => f.caption?.startsWith('a = newArr'))!
+		expect(aux(replace)).toBeUndefined()
+		expect(replace.caption).toBe('a = newArr: capacity 3 → 6. The old array is garbage now')
+		expect(replace.moves).toEqual([
+			['aux:0', '0'],
+			['aux:1', '1'],
+			['aux:2', '2'],
+		])
+		expect(counts(op)).toEqual({ copies: 3 })
+	})
+
+	it('append writes into a[size] when there is room, and grows first when full', () => {
+		const room = appendFixed(fixed(['a', ''], 1), 1, 'b')
+		expect(room.result).toMatchObject({ values: ['a', 'b'], used: 2 })
+		expect(counts(room)).toEqual({ copies: 0 })
+		const full = appendFixed(fixed(['a', 'b'], 2), 2, 'c')
+		expect(full.result).toMatchObject({ values: ['a', 'b', 'c', ''], used: 3 })
+		expect(counts(full)).toEqual({ copies: 2 })
+		expect(full.frames.map((f) => f.caption)).toContain('Copy all 2 values into newArr')
 	})
 })

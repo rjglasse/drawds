@@ -140,3 +140,33 @@ export function hoveredCell(
 				: Math.floor(along / metrics.cell)
 	return { index: clamp(index, count - 1), boundary }
 }
+
+/**
+ * Where a second row of `count` cells goes during an operation (a new array being filled): under
+ * a horizontal array, with its title above it; right of a vertical one, clear of its pointers.
+ * Cells line up with the array's, so a[i] -> newArr[i] is a straight move.
+ */
+export function getAuxLayout(count: number, direction: ArrayDirection, metrics: ArrayMetrics, main: ArrayLayout) {
+	const { cell, gutter, origin, indexFontSize, fontSize } = metrics
+	const title = indexFontSize * 1.8
+	const n = Math.max(1, count)
+	if (direction === 'horizontal') {
+		const top = origin.y + main.height + fontSize * 0.6
+		const y = top + title
+		return {
+			titleAt: { x: origin.x, y: top + title / 2 },
+			cells: { x: origin.x, y, w: n * cell, h: cell },
+			cellAt: (i: number) => ({ x: origin.x + i * cell, y }),
+			indexAt: (i: number) => ({ x: origin.x + i * cell + cell / 2, y: y + cell + gutter / 2 }),
+			bounds: { x: origin.x, y: top, w: n * cell, h: title + cell + gutter },
+		}
+	}
+	const x = origin.x + main.width + cell * 2.2
+	return {
+		titleAt: { x, y: origin.y + title / 2 },
+		cells: { x, y: origin.y + title, w: cell, h: n * cell },
+		cellAt: (i: number) => ({ x, y: origin.y + title + i * cell }),
+		indexAt: (i: number) => ({ x: x + cell + gutter / 2, y: origin.y + title + i * cell + cell / 2 }),
+		bounds: { x, y: origin.y, w: cell + gutter + cell * 3, h: title + n * cell },
+	}
+}
