@@ -82,3 +82,36 @@ test('reverse: every arrow turned, the list drawn the other way, nodes where the
 	const now = await Promise.all(['n0', 'n3'].map((k) => nodeScreenPosition(page, k)))
 	now.forEach((p, i) => p.forEach((v, j) => expect(Math.abs(v - at[i][j])).toBeLessThan(1)))
 })
+
+/** Give the list known values. */
+async function setValues(page: Page, values: string[]) {
+	await page.evaluate((values) => {
+		const editor = window.editor!
+		const shape = editor.getCurrentPageShapes().find((s) => s.type === 'linked-list')! as unknown as {
+			id: never
+			props: { nodes: { value: string }[] }
+		}
+		editor.updateShape({ id: shape.id, type: 'linked-list', props: { nodes: shape.props.nodes.map((n, i) => ({ ...n, value: values[i] })) } } as never)
+	}, values)
+}
+
+test('find the middle: slow takes one step for every two of fast', async ({ page }) => {
+	await sketchList(page, [200, 200], 5)
+	await setValues(page, ['10', '20', '30', '40', '50'])
+	await listOp(page, 'n0', 'list-middle')
+	await expect(caption(page)).toHaveText('slow = head, fast = head')
+	await page.keyboard.press('ArrowRight')
+	await expect(caption(page)).toHaveText('slow = slow.next (20), fast = fast.next.next (30)')
+	await stepToEnd(page)
+	await expect(caption(page)).toContainText('so slow is at the middle: 30')
+})
+
+test('insert in order: walk to the place, then link the node in; the list stays sorted', async ({ page }) => {
+	await sketchList(page, [200, 200], 4)
+	await setValues(page, ['10', '20', '30', '40'])
+	await listOp(page, 'n0', 'list-insert-sorted')
+	await page.getByTestId('key-prompt').fill('25')
+	await page.keyboard.press('Enter')
+	await stepToEnd(page)
+	expect(await values(page)).toEqual(['10', '20', '25', '30', '40'])
+})

@@ -3,7 +3,7 @@ import { stateAt } from '../../nodelink/playback'
 import type { Scene } from '../../nodelink/scene'
 import { HEAD_KEY, NULL_KEY } from './layout'
 import type { ListNode } from './list-shape-types'
-import { NULL_BEFORE_KEY, deleteFromList, findInList, insertIntoList, reverseList } from './operations'
+import { NULL_BEFORE_KEY, deleteFromList, findInList, findMiddle, insertIntoList, insertSorted, reverseList } from './operations'
 
 const nodes: ListNode[] = ['7', '3', '9', '4'].map((value, i) => ({ id: `n${i}`, value, dx: 0, dy: 0 }))
 const props = { nodes, direction: 'right' as const, size: 'm' as const }
@@ -87,5 +87,56 @@ describe('reverseList', () => {
 		expect(where(frames[3])).toEqual(['prev@n0', 'curr@n1', 'next@n1'])
 		// Nothing is left lit at the end but the head arrow that just moved.
 		expect(stateAt(frames, frames.length - 1).flash).toEqual({ [`edge:${HEAD_KEY}->`]: 'orange' })
+	})
+})
+
+describe('findMiddle', () => {
+	const list = (n: number) => ({ ...props, nodes: Array.from({ length: n }, (_, i) => ({ id: `n${i}`, value: String(i * 10), dx: 0, dy: 0 })) })
+
+	it('slow takes one step for fast’s two; slow ends in the middle', () => {
+		const { frames, finalFlash } = findMiddle(list(5))
+		expect(frames.map(where)).toEqual([
+			['slow@n0', 'fast@n0'],
+			['slow@n1', 'fast@n2'],
+			['slow@n2', 'fast@n4'],
+			['slow@n2', 'fast@n4'],
+		])
+		expect(frames.at(-1)!.caption).toBe("fast.next is null: fast can't take two more steps, so slow is at the middle: 20 (after 2 steps, half the list)")
+		expect(finalFlash).toEqual({ n2: 'green' })
+	})
+
+	it('with an even count, fast runs off to null and slow is on the second middle', () => {
+		const { frames } = findMiddle(list(4))
+		expect(where(frames.at(-1)!)).toEqual(['slow@n2', `fast@${NULL_KEY}`])
+		expect(frames.at(-1)!.caption).toMatch(/^fast is null, so slow is at the middle: 20/)
+	})
+})
+
+describe('insertSorted', () => {
+	const sorted = { ...props, nodes: ['2', '5', '8'].map((value, i) => ({ id: `n${i}`, value, dx: 0, dy: 0 })) }
+
+	it('walks to the first value not smaller, then links the node in between', () => {
+		const { frames, nodes: after } = insertSorted(sorted, 'n9', '6')
+		expect(after!.map((n) => n.value)).toEqual(['2', '5', '6', '8'])
+		expect(frames.map((f) => f.caption)).toEqual([
+			'curr = head: 2 < 6, so keep going',
+			'prev = curr, curr = curr.next: 5 < 6, so keep going',
+			'prev = curr, curr = curr.next: 8 ≥ 6, so 6 goes between 5 and 8',
+			'node = new Node(6): its next is null for now',
+			'node.next = prev.next: the new node points at 8 too',
+			'prev.next = node: 5 now points at 6. (The other way round, the rest of the list would be lost)',
+		])
+		expect(where(frames[4])).toEqual(['prev@n1', 'node@n9', 'curr@n2'])
+	})
+
+	it('at the head and at the end', () => {
+		expect(insertSorted(sorted, 'n9', '1').nodes!.map((n) => n.value)).toEqual(['1', '2', '5', '8'])
+		const end = insertSorted(sorted, 'n9', '9')
+		expect(end.nodes!.map((n) => n.value)).toEqual(['2', '5', '8', '9'])
+		expect(end.frames.map((f) => f.caption)).toContain('curr = null: 9 is the largest, so it goes at the end, after 8')
+	})
+
+	it('warns when the list is not sorted', () => {
+		expect(insertSorted(props, 'n9', '5').frames[0].caption).toBe("Careful: 7 > 3, so the list isn't sorted and 5 may land out of order")
 	})
 })

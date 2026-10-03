@@ -1,4 +1,5 @@
 import type { MarkColor } from '../../cells/marks'
+import { compareKeys } from '../../data/compare'
 import type { Frame } from '../../nodelink/playback'
 import { edgeCellKey, type Scene, type SceneEdge, type SceneNode } from '../../nodelink/scene'
 import type { Pointer } from '../../pointers/pointers'
@@ -264,4 +265,88 @@ export function reverseList(props: ListProps): ListOperation {
 		caption: `head = prev: the list starts at ${name(prev)}, reversed`,
 	})
 	return { frames, nodes: [...nodes].reverse(), direction: FLIPPED[props.direction] }
+}
+
+/**
+ * Find the middle with two pointers: slow takes one step while fast takes two, so when fast runs
+ * out of list, slow is half-way. (With an even count, slow ends on the second of the two middles.)
+ */
+export function findMiddle(props: ListProps): ListOperation {
+	const { nodes } = props
+	const at = (i: number) => nodes[i]?.id ?? NULL_KEY
+	const name = (i: number) => nodes[i]?.value ?? 'null'
+	const frames: Frame[] = []
+	let slow = 0
+	let fast = 0
+	frames.push({
+		pointers: [pointer('slow', at(slow)), pointer('fast', at(fast))],
+		flash: { [at(slow)]: LOOK },
+		caption: 'slow = head, fast = head',
+	})
+	let steps = 0
+	while (fast < nodes.length && fast + 1 < nodes.length) {
+		const before = slow
+		slow += 1
+		fast += 2
+		steps++
+		frames.push({
+			pointers: [pointer('slow', at(slow)), pointer('fast', at(fast))],
+			flash: { [at(before)]: null, [at(slow)]: LOOK },
+			caption: `slow = slow.next (${name(slow)}), fast = fast.next.next (${name(fast)})`,
+		})
+	}
+	const why = fast >= nodes.length ? 'fast is null' : "fast.next is null: fast can't take two more steps"
+	frames.push({
+		pointers: [pointer('slow', at(slow)), pointer('fast', at(fast))],
+		flash: { [at(slow)]: FOUND },
+		caption: `${why}, so slow is at the middle: ${name(slow)} (after ${steps} step${steps === 1 ? '' : 's'}, half the list)`,
+	})
+	return { frames, finalFlash: { [at(slow)]: FOUND } }
+}
+
+/**
+ * Insert `value` into a sorted list, keeping it sorted: prev and curr walk until curr's value is
+ * not smaller (or curr is null), then the new node goes between them with the usual two
+ * assignments (at the head if it belongs first).
+ */
+export function insertSorted(props: ListProps, id: string, value: string): ListOperation {
+	const { nodes } = props
+	const frames: Frame[] = []
+	const unsorted = nodes.findIndex((n, i) => i > 0 && compareKeys(nodes[i - 1].value, n.value) > 0)
+	if (unsorted > 0) {
+		const [a, b] = [nodes[unsorted - 1], nodes[unsorted]]
+		frames.push({
+			flash: { [a.id]: GONE, [b.id]: GONE },
+			caption: `Careful: ${a.value} > ${b.value}, so the list isn't sorted and ${value} may land out of order`,
+		})
+		frames.push({ flash: { [a.id]: null, [b.id]: null }, caption: 'Insert in order anyway' })
+	}
+	let k = 0
+	while (k < nodes.length && compareKeys(nodes[k].value, value) < 0) {
+		const prev = k > 0 ? [pointer('prev', nodes[k - 1].id)] : []
+		frames.push({
+			pointers: [...prev, pointer('curr', nodes[k].id)],
+			flash: { [nodes[k].id]: LOOK, ...(k ? { [nodes[k - 1].id]: null } : {}) },
+			caption: `${k === 0 ? 'curr = head' : 'prev = curr, curr = curr.next'}: ${nodes[k].value} < ${value}, so keep going`,
+		})
+		k++
+	}
+	const stop = nodes[k]
+	frames.push({
+		pointers: [...(k > 0 ? [pointer('prev', nodes[k - 1].id)] : []), pointer('curr', stop?.id ?? NULL_KEY)],
+		flash: k > 0 ? { [nodes[k - 1].id]: null } : {},
+		caption: stop
+			? `${k === 0 ? 'curr = head' : 'prev = curr, curr = curr.next'}: ${stop.value} ≥ ${value}, so ${value} goes ${k === 0 ? 'first, at the head' : `between ${nodes[k - 1].value} and ${stop.value}`}`
+			: `curr = null: ${value} is the largest, so it goes at the end, after ${nodes[k - 1].value}`,
+	})
+	const insert = insertIntoList(props, nodes[k - 1]?.id, id, value)
+	if (k === 0) return { ...insert, frames: [...frames, ...insert.frames] }
+	// The walk replaces insertIntoList's opening step ("curr is at ..."), and what it calls curr (the
+	// node before) is prev here, with curr staying on the node after.
+	const linking = insert.frames.slice(1).map((f) => ({
+		...f,
+		pointers: [...(f.pointers ?? []).map((p) => (p.name === 'curr' ? pointer('prev', p.at) : p)), pointer('curr', stop?.id ?? NULL_KEY)],
+		caption: f.caption?.replace(/\bcurr\b/g, 'prev'),
+	}))
+	return { ...insert, frames: [...frames, ...linking] }
 }

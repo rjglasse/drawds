@@ -28,7 +28,7 @@ import {
 	type ListShape,
 } from './list-shape-types'
 import { anchorShift, insertListNode, removeListNode, resizeList } from './ops'
-import { deleteFromList, findInList, insertIntoList, reverseList, type ListOperation } from './operations'
+import { deleteFromList, findInList, findMiddle, insertIntoList, insertSorted, reverseList, type ListOperation } from './operations'
 
 export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refillable {
 	static override type = LIST_SHAPE_TYPE
@@ -155,7 +155,15 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 				submenu,
 				run: (value) => value !== undefined && this.play(shape.id, 'find', () => findInList(props(), value)),
 			},
+			{ id: 'list-middle', label: 'Find the middle (slow and fast)', submenu, run: run('find the middle', () => findMiddle(props())) },
 			{ id: 'list-insert-after', label: `Insert after ${node.value}`, submenu, run: run('insert', () => this.insertOp(props(), key)) },
+			{
+				id: 'list-insert-sorted',
+				label: 'Insert in order',
+				prompt: 'Value to insert',
+				submenu,
+				run: (value) => value !== undefined && this.play(shape.id, 'insert', () => insertSorted(props(), this.newId(props()), value)),
+			},
 			{ id: 'list-insert-head', label: 'Insert at the head', submenu, run: run('insert', () => this.insertOp(props(), undefined)) },
 			...(nodes.length > 1
 				? [{ id: 'list-delete', label: `Delete ${node.value}`, submenu, run: run('delete', () => deleteFromList(props(), key)) }]
@@ -164,11 +172,16 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		]
 	}
 
+	/** An id no node has: one past the highest. */
+	private newId({ nodes }: Pick<ListShape['props'], 'nodes'>) {
+		return `n${1 + Math.max(-1, ...nodes.map((n) => Number(n.id.slice(1))).filter(Number.isFinite))}`
+	}
+
 	/** Insert a new node with a value that fits the fill mode (as the + on an arrow does). */
 	private insertOp(props: ListShape['props'], afterId: string | undefined): ListOperation {
 		const { nodes, fill, seed } = props
 		const i = afterId === undefined ? -1 : nodes.findIndex((n) => n.id === afterId)
-		const index = 1 + Math.max(-1, ...nodes.map((n) => Number(n.id.slice(1))).filter(Number.isFinite))
+		const index = Number(this.newId(props).slice(1))
 		const value = insertValue(
 			nodes[i]?.value,
 			nodes[i + 1]?.value,
