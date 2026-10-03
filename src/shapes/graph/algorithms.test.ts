@@ -1,0 +1,99 @@
+import { describe, expect, it } from 'vitest'
+import { stateAt } from '../../nodelink/playback'
+import { dijkstra, kruskal, prim, topologicalSort } from './algorithms'
+import type { GraphModel } from './model'
+
+const node = (id: string, value: string) => ({ id, value, x: 0, y: 0 })
+const edge = (id: string, from: string, to: string, weight: number) => ({ id, from, to, weight: String(weight) })
+
+//   A --4-- B --5-- D --3-- E
+//    \     /       /
+//     1   2       8
+//      \ /       /
+//       C -------
+const graph: GraphModel = {
+	nodes: [node('a', 'A'), node('b', 'B'), node('c', 'C'), node('d', 'D'), node('e', 'E')],
+	edges: [edge('ab', 'a', 'b', 4), edge('ac', 'a', 'c', 1), edge('cb', 'c', 'b', 2), edge('bd', 'b', 'd', 5), edge('cd', 'c', 'd', 8), edge('de', 'd', 'e', 3)],
+}
+const weighted = { directed: false, weighted: true }
+const last = (frames: { caption?: string }[]) => frames[frames.length - 1].caption
+
+describe('dijkstra', () => {
+	it('finds the shortest distances, the best edges green', () => {
+		const run = dijkstra(graph, 'a', weighted)
+		expect(Object.fromEntries(run.dist!)).toEqual({ a: 0, b: 3, c: 1, d: 8, e: 11 })
+		expect(run.chosen.sort()).toEqual(['ac', 'bd', 'cb', 'de'])
+		const end = stateAt(run.frames, run.frames.length - 1)
+		// A to B first went straight (4), then via C (3): only the better edge stays green.
+		expect(end.flash['edge:ab']).toBeUndefined()
+		expect(end.flash['edge:cb']).toBe('green')
+		expect(end.badges).toEqual({ a: '0', b: '3', c: '1', d: '8', e: '11' })
+		expect(last(run.frames)).toBe('Every node is finished: the green edges are the shortest paths from A')
+	})
+
+	it('narrates each relaxation and keeps a priority queue', () => {
+		const { frames } = dijkstra(graph, 'a', weighted)
+		expect(frames[0].caption).toBe('dist(A) = 0, every other node ∞')
+		expect(frames[0].badges).toEqual({ a: '0', b: '∞', c: '∞', d: '∞', e: '∞' })
+		expect(frames.map((f) => f.caption)).toContain('C–B (2): 1 + 2 = 3 < 4, so dist(B) = 3, via C')
+		// D first gets 9 via C, then 8 via B: its green edge moves from C–D to B–D.
+		expect(frames.map((f) => f.caption)).toContain('B–D (5): 3 + 5 = 8 < 9, so dist(D) = 8, via B')
+		expect(frames[0].strips?.[0].items).toEqual(['A:0'])
+		expect(stateAt(frames, frames.length - 1).counts).toEqual({ updates: 6 })
+	})
+
+	it('counts every edge as 1 on an unweighted graph, and reports unreachable nodes', () => {
+		const run = dijkstra({ ...graph, nodes: [...graph.nodes, node('z', 'Z')] }, 'a', { directed: false, weighted: false })
+		expect(run.dist!.get('d')).toBe(2)
+		expect(run.frames[0].caption).toMatch(/^The graph is unweighted, so every edge counts 1\./)
+		expect(last(run.frames)).toMatch(/^Nothing left to take: 1 node can't be reached/)
+	})
+})
+
+describe('minimum spanning trees', () => {
+	it('prim grows the tree by the cheapest edge leaving it', () => {
+		const run = prim(graph, 'a', weighted)
+		expect(run.chosen).toEqual(['ac', 'cb', 'bd', 'de'])
+		expect(last(run.frames)).toBe('Every node is in the tree: a minimum spanning tree, total weight 11')
+		expect(run.frames[1].caption).toBe('2 edges leave the tree; the cheapest is A–C (1)')
+	})
+
+	it('kruskal takes edges cheapest first, skipping those that close a cycle', () => {
+		const run = kruskal(graph, weighted)
+		expect(run.chosen).toEqual(['ac', 'cb', 'de', 'bd'])
+		expect(run.frames.map((f) => f.caption)).toContain('A–B (4): A and B are already connected, so it would close a cycle: skip it')
+		expect(last(run.frames)).toBe('4 edges for 5 nodes: a minimum spanning tree, total weight 11')
+	})
+
+	it('a disconnected graph gets a forest', () => {
+		const run = kruskal({ ...graph, nodes: [...graph.nodes, node('z', 'Z')] }, weighted)
+		expect(last(run.frames)).toBe("No edges left and the graph isn't connected: a minimum spanning forest, total weight 11")
+	})
+})
+
+describe('topological sort', () => {
+	const dag: GraphModel = {
+		nodes: graph.nodes,
+		edges: [edge('ab', 'a', 'b', 1), edge('ac', 'a', 'c', 1), edge('cb', 'c', 'b', 1), edge('bd', 'b', 'd', 1), edge('cd', 'c', 'd', 1), edge('de', 'd', 'e', 1)],
+	}
+
+	it('orders the nodes so every edge points forward, numbering them at the end', () => {
+		const run = topologicalSort(dag)
+		expect(run.order).toEqual(['a', 'c', 'b', 'd', 'e'])
+		expect(run.frames[0].badges).toEqual({ a: '0', b: '2', c: '1', d: '2', e: '1' })
+		expect(run.frames.at(-1)?.badges).toEqual({ a: '1', c: '2', b: '3', d: '4', e: '5' })
+		expect(last(run.frames)).toBe('Every node is placed: A, C, B, D, E. Every edge points forward in this order')
+	})
+
+	it('fades placed nodes and removed edges as it goes', () => {
+		const { frames } = topologicalSort(dag)
+		const placedA = frames.find((f) => f.caption === 'A is placed, with its edges gone')
+		expect(placedA?.dim).toEqual(['edge:ab', 'edge:ac', 'a'])
+	})
+
+	it('finds a cycle', () => {
+		const run = topologicalSort({ ...dag, edges: [...dag.edges, edge('ea', 'e', 'a', 1)] })
+		expect(run.order).toEqual([])
+		expect(last(run.frames)).toMatch(/^The queue is empty, but A, B, C, D, E still have incoming edges/)
+	})
+})

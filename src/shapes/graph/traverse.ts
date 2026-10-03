@@ -42,7 +42,7 @@ export function neighbours({ nodes, edges }: GraphModel, directed: boolean) {
  * Collects frames. An edge that is only looked at flashes for its own step, then goes back to the
  * colour it had (a tree edge stays green).
  */
-class Recorder {
+export class Recorder {
 	frames: Frame[] = []
 	private colours = new Map<string, MarkColor>()
 	private restore: Record<string, MarkColor | null> = {}
@@ -57,11 +57,11 @@ class Recorder {
 		this.frames.push({ ...frame, flash })
 	}
 
-	/** A frame that only looks at an edge. */
-	look(edge: string, frame: Frame) {
+	/** A frame that only looks at an edge (orange, or another colour: red for one that is rejected). */
+	look(edge: string, frame: Frame, color: MarkColor = LOOKING) {
 		const key = edgeCellKey(edge)
 		const before = this.colours.get(key) ?? null
-		this.add({ ...frame, flash: { ...frame.flash, [key]: LOOKING } })
+		this.add({ ...frame, flash: { ...frame.flash, [key]: color } })
 		this.restore = { [key]: before }
 	}
 }

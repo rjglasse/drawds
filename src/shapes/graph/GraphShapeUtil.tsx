@@ -17,7 +17,7 @@ import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { spatialNeighbor } from '../../nodelink/geometry'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import { prunePointers } from '../../pointers/pointers'
-import { isBusy, playOperation, playbackFor } from '../../nodelink/playback'
+import { isBusy, playOperation, playbackFor, type Frame } from '../../nodelink/playback'
 import { edgeCellKey, type Scene, type SceneNode } from '../../nodelink/scene'
 import {
 	connectHandleId,
@@ -36,6 +36,7 @@ import {
 	type GraphShape,
 } from './graph-shape-types'
 import { getGraphMetrics, graphCorner, graphScene, toUnits } from './layout'
+import { dijkstra, kruskal, prim, topologicalSort } from './algorithms'
 import { bfs, dfs } from './traverse'
 import {
 	addEdge,
@@ -225,19 +226,68 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 	nodeOperations(shape: GraphShape, key: string): NodeOperation[] {
 		const node = shape.props.nodes.find((n) => n.id === key)
 		if (!node) return []
+		const directed = shape.props.direction === 'directed'
 		return [
 			{ id: 'graph-bfs', label: `Breadth-first search from ${node.value}`, run: () => this.traverse(shape.id, key, 'bfs') },
 			{ id: 'graph-dfs', label: `Depth-first search from ${node.value}`, run: () => this.traverse(shape.id, key, 'dfs') },
+			{
+				id: 'graph-dijkstra',
+				label: `Shortest paths from ${node.value} (Dijkstra)`,
+				run: () => this.runAlgorithm(shape.id, 'shortest paths', (s) => dijkstra(s.props, key, this.algorithmOptions(s)).frames),
+			},
+			// A spanning tree is about undirected graphs.
+			...(directed
+				? []
+				: [
+						{
+							id: 'graph-prim',
+							label: `Minimum spanning tree from ${node.value} (Prim)`,
+							run: () => this.runAlgorithm(shape.id, 'minimum spanning tree', (s) => prim(s.props, key, this.algorithmOptions(s)).frames),
+						},
+					]),
 		]
 	}
 
+	/** Algorithms on the whole graph: Kruskal's spanning tree (undirected), topological sort (directed). */
+	override shapeOperations(shape: GraphShape): NodeOperation[] {
+		const algorithms = { submenu: 'Graph algorithms', submenuId: 'graph-algorithms' }
+		return shape.props.direction === 'directed'
+			? [
+					{
+						...algorithms,
+						id: 'graph-topological-sort',
+						label: 'Topological sort',
+						run: () => this.runAlgorithm(shape.id, 'topological sort', (s) => topologicalSort(s.props).frames),
+					},
+				]
+			: [
+					{
+						...algorithms,
+						id: 'graph-kruskal',
+						label: 'Minimum spanning tree (Kruskal)',
+						run: () => this.runAlgorithm(shape.id, 'minimum spanning tree', (s) => kruskal(s.props, this.algorithmOptions(s)).frames),
+					},
+				]
+	}
+
+	private algorithmOptions(shape: GraphShape) {
+		return { directed: shape.props.direction === 'directed', weighted: shape.props.weights === 'weighted' }
+	}
+
 	private traverse(id: GraphShape['id'], start: string, kind: 'bfs' | 'dfs') {
+		this.runAlgorithm(id, kind === 'bfs' ? 'breadth-first search' : 'depth-first search', (shape) =>
+			(kind === 'bfs' ? bfs : dfs)(shape.props, start, shape.props.direction === 'directed').frames
+		)
+	}
+
+	/** Play an algorithm's steps on the graph as it is now; nothing changes (Shift at the end keeps the highlights as marks). */
+	private runAlgorithm(id: GraphShape['id'], label: string, steps: (shape: GraphShape) => Frame[]) {
 		const shape = this.editor.getShape(id) as GraphShape | undefined
 		if (!shape) return
-		const { frames } = (kind === 'bfs' ? bfs : dfs)(shape.props, start, shape.props.direction === 'directed')
+		const frames = steps(shape)
 		playOperation(this.editor, {
 			shapeId: id,
-			label: kind === 'bfs' ? 'breadth-first search' : 'depth-first search',
+			label,
 			frames,
 			withMarks: (_update, highlights) => {
 				const current = (this.editor.getShape(id) as GraphShape | undefined) ?? shape

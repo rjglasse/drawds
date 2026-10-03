@@ -58,7 +58,7 @@ export function SceneSvg({
 	flash?: FlashView
 	/** Canvas only: values arcing into their new nodes. */
 	swaps?: SwapView
-	/** Canvas only, while an operation is open: nodes out of play, drawn faded (with edges touching them). */
+	/** Canvas only, while an operation is open: nodes (with the edges touching them) and edges (`edge:<key>`) out of play, drawn faded. */
 	dim?: readonly string[]
 }) {
 	const { strokeWidth, fontSize, labelFontSize } = scene.metrics
@@ -117,7 +117,7 @@ export function SceneSvg({
 				const flashColor = flash?.marks[labelKey]
 				const flashStroke = flashColor && getColorValue(colors, flashColor, 'solid')
 				return (
-					<g key={edge.key} {...fade(dimmed.has(edge.from) || dimmed.has(edge.to))}>
+					<g key={edge.key} {...fade(dimmed.has(labelKey) || dimmed.has(edge.from) || dimmed.has(edge.to))}>
 						<path d={route.d} fill="none" stroke={stroke} strokeWidth={width} strokeLinecap="round" />
 						{edge.directed && <polygon points={arrowHead(route.tip, route.angle, width * 3 + 6)} fill={stroke} />}
 						{flash && flashStroke && (
@@ -309,11 +309,13 @@ function NodeValueSvg({
 	)
 }
 
-/** Size of a strip: a title line over a row of boxes, one per item. */
+/** Size of a strip: a title line over a row of boxes, one per item, widened for long items ("A:12"). */
 export function stripSize(strip: Strip, { fontSize, labelFontSize }: SceneMetrics) {
 	const box = fontSize * 1.9
 	const title = labelFontSize * 1.5
-	return { box, title, w: Math.max(1, strip.items.length) * box, h: title + box }
+	const longest = Math.max(0, ...strip.items.map((item) => item.length))
+	const itemW = Math.max(box, longest * fontSize * 0.85 * 0.6 + fontSize * 0.7)
+	return { box, itemW, title, w: Math.max(1, strip.items.length) * itemW, h: title + box }
 }
 
 /** Gap between strips stacked one under the other. */
@@ -344,7 +346,7 @@ export function StripSvg({
 	color: TLDefaultColorStyle
 	fontFamily: string
 }) {
-	const { box, title } = stripSize(strip, metrics)
+	const { box, itemW, title } = stripSize(strip, metrics)
 	const stroke = getColorValue(colors, color, 'solid')
 	const y = at.y + title
 	return (
@@ -368,15 +370,15 @@ export function StripSvg({
 				strip.items.map((item, i) => (
 					<g key={i}>
 						<rect
-							x={at.x + i * box}
+							x={at.x + i * itemW}
 							y={y}
-							width={box}
+							width={itemW}
 							height={box}
 							fill={getColorValue(colors, color, 'semi')}
 							stroke={stroke}
 							strokeWidth={metrics.strokeWidth}
 						/>
-						<text x={at.x + i * box + box / 2} y={y + box / 2} textAnchor="middle" fontSize={metrics.fontSize * 0.85} fill={colors.text}>
+						<text x={at.x + i * itemW + itemW / 2} y={y + box / 2} textAnchor="middle" fontSize={metrics.fontSize * 0.85} fill={colors.text}>
 							{item}
 						</text>
 					</g>
