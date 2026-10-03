@@ -202,7 +202,8 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   stays (`[data-testid="play-done"]` appears; `play-forward` is disabled): step back, `Space`
   replays, `Enter` / `Escape` / `play-done` close it, as does selecting another shape. Read `[data-testid="play-caption"]` and `[data-testid="play-counter"]` ("3/7").
   Operations open **paused on step 1** (`key Enter` to finish at once, `key Space` to play):
-  the autoplay toggle (`play-autoplay`, remembered in localStorage) plays them straight away.
+  the autoplay toggle (`play-autoplay`, remembered in localStorage) plays them straight away; `play-speed`
+  cycles 1x, 2x, 4x, ½x (localStorage `drawds:speed`).
 - **Graph traversals**: `rclick` a node, then `[data-testid="context-menu.graph-bfs"]` or
   `graph-dfs`. **Tree / heap traversals**: `rclick` a node, `clicksel
   [data-testid="context-menu-sub.drawds-node-operations-0-button"]` (Traverse from ...), then
@@ -212,7 +213,7 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
 - **List operations**: `rclick` a list node, `clicksel
   [data-testid="context-menu-sub.drawds-node-operations-0-button"]` (Step by step), then
   `context-menu.list-find`, `list-find-value` (opens `key-prompt`), `list-insert-after`,
-  `list-insert-head`, `list-delete` or `list-reverse`. Step with `key ArrowRight` (they open
+  `list-insert-head`, `list-delete`, `list-reverse`, `list-middle` or `list-insert-sorted` (opens `key-prompt`). Step with `key ArrowRight` (they open
   paused); a reversed list is drawn the other way (`direction` flips) with nodes in place.
 - **Graph algorithms**: `rclick` a node, then `context-menu.graph-dijkstra` or (undirected) `graph-prim`; on
   the whole graph `context-menu-sub.drawds-graph-algorithms-button` then `graph-kruskal` (undirected) or
@@ -225,7 +226,8 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `[data-testid="context-menu-sub.drawds-array-search-button"]` (items `context-menu.array-binary-search`,
   `array-binary-search-value` (opens `key-prompt`), `array-linear-search`, `array-linear-search-value`),
   `drawds-array-shift` (`array-insert`, `array-delete`), `drawds-array-sort` (`array-insertion-sort`,
-  `array-selection-sort`, `array-bubble-sort`, `array-partition`, `array-quicksort`) or `drawds-array-actions`
+  `array-selection-sort`, `array-bubble-sort`, `array-partition`, `array-quicksort`, `array-hoare-partition`,
+  `array-merge-sort`) or `drawds-array-actions`
   (instant: `array-sort`, `array-sort-descending`, `array-shuffle`, `array-reverse`, `array-reroll`,
   `array-indices`). The step's pointers (lo, mid, hi, i, j, min) are drawn in front of the canvas:
   `[data-pointer="lo"]`; running totals are `[data-testid="play-counts"]` ("comparisons 3 · swaps 1").

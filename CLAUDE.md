@@ -96,8 +96,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `drawds-swap` keyframes keyed per move: crossing values arc (forward over, back under), a one-way shift slides
   straight. `ArrayShapeUtil.slide` animates once, then forgets.
 - `src/shapes/array/operations.ts` - array algorithms as pure frame generators over `{values, marks}` (marks
-  travel): binary / linear search, insertion / selection / bubble sort, Lomuto partition and quicksort (range
-  faded with `dim`, open calls as a `call stack` strip), insert / delete by shifting. A `recorder` turns what
+  travel): binary / linear search, insertion / selection / bubble sort, Lomuto and Hoare partitions, quicksort
+  (range faded with `dim`, open calls as a `call stack` strip), merge sort (a `merged` strip, copy-back as
+  `moves`), insert / delete by shifting. A `recorder` turns what
   each step lights into flash changes and stamps values, pointers, `dim` and `counts` on every frame.
   `rearrange.ts` has the instant orders (sorted, reversed, shuffled). Offered from the context menu
   (`nodeOperations`: Search, Insert / delete step by step; `shapeOperations`: Sort step by step, Array), plus
@@ -112,7 +113,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   Shift+Enter, Esc cancels without changing anything). Once the result is committed the bar stays (`done`):
   step back through it or replay it, then Done / Enter / Esc, or select something else / edit the shape;
   `isBusy` says when the shape's own controls should hide. Operations open paused on step 1 so the teacher sets
-  the pace; the bar's autoplay toggle (localStorage) plays them straight away instead. `stateAt(frames, step)` is the pure accumulation. `displayScene` (frame or committed)
+  the pace; the bar's autoplay toggle (localStorage) plays them straight away instead, at the bar's speed
+  (`SPEEDS` ½x-4x, localStorage; animations within a step use `animationMs` to fit while playing). `stateAt(frames, step)` is the pure accumulation. `displayScene` (frame or committed)
   feeds rendering and the selection outline (arrays: `displayShape`, which also sizes the geometry, so a step
   with an extra cell stays in the box). SceneSvg draws node shapes then values in two passes so a value
   in flight is never painted over. Any `CellShapeUtil` with `playbackLayout` can play operations; it may hand
@@ -201,7 +203,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
 - Steps the props can't express (a list node not linked in yet, an arrow re-pointed or curving back) give the
   frame a whole `scene` (layout coordinates; drawn at the committed offset) and their own `pointers` (curr,
   prev, next: they slide between steps); `SceneEdge.bend` curves an edge. See `src/shapes/list/operations.ts`
-  (find, insert after / at the head, delete, reverse), narrated as the code a teacher writes.
+  (find, insert after / at the head, delete, reverse, find the middle with slow / fast, insert in order),
+  narrated as the code a teacher writes.
 - Pointers: when elements go, prune pointers with `prunePointers` wherever marks are pruned. Atoms read inside
   a separate React component (not the shape's `component()`) need `useValue`, or it won't re-render.
 - Removable edges: implement `removeEdge` (+ optional `canRemoveEdge`); the base draws an x mid-edge (beside the
