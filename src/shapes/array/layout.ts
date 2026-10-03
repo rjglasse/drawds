@@ -101,3 +101,32 @@ export function getSketchPosition(
 		? { x: origin.x - half - back, y: origin.y - half }
 		: { x: origin.x - half - gutter, y: origin.y - half - back }
 }
+
+/**
+ * The cell under `point` (shape space), its box grown by `reach` so it stays hovered on the way to
+ * its buttons, and the cell boundary nearest the point: `boundary` k is just before cell k (n is
+ * past the end). In the band where each cell's x button sits on its corner (above a horizontal
+ * array: top-right; right of a vertical one: top-right too), the cell whose corner is nearest, so
+ * the button doesn't jump to the neighbour on the way to it.
+ */
+export function hoveredCell(
+	point: Point,
+	count: number,
+	direction: ArrayDirection,
+	metrics: ArrayMetrics,
+	reach: number
+): { index: number; boundary: number } | undefined {
+	const { cells } = getArrayLayout(count, direction, metrics)
+	const [along, across, extent] =
+		direction === 'horizontal' ? [point.x - cells.x, point.y - cells.y, cells.h] : [point.y - cells.y, point.x - cells.x, cells.w]
+	if (across < -reach || across > extent + reach || along < -reach || along > count * metrics.cell + reach) return undefined
+	const clamp = (v: number, hi: number) => Math.max(0, Math.min(hi, v))
+	const boundary = clamp(Math.round(along / metrics.cell), count)
+	const index =
+		direction === 'horizontal' && across < 0
+			? boundary - 1
+			: direction === 'vertical' && across > extent
+				? boundary
+				: Math.floor(along / metrics.cell)
+	return { index: clamp(index, count - 1), boundary }
+}

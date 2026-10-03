@@ -16,6 +16,7 @@ import {
 import { CellShapeUtil, type NodeOperation, type PlaybackLayout, type PointerDirection } from '../../cells/CellShapeUtil'
 import { pruneMarks, type Marks } from '../../cells/marks'
 import { GROW_HANDLE_ID, growHandle, grownCount } from '../../controls/grow'
+import { ControlButton } from '../../controls/ControlButton'
 import { GrowGrip } from '../../controls/GrowGrip'
 import { showsStructureControls } from '../../controls/visibility'
 import { extendValues, fillValues, insertValue } from '../../data/fill'
@@ -37,11 +38,13 @@ import {
 	partitionArray,
 	quicksort,
 	selectionSort,
+	withCell,
+	withoutCell,
 	type ArrayOperation,
 	type ArrayState,
 } from './operations'
 import { movesAnything, rearrange, reversedOrder, shuffledOrder, sortedOrder } from './rearrange'
-import { getArrayGrowPoint, getArrayLayout, getArrayMetrics } from './layout'
+import { getArrayGrowPoint, getArrayLayout, getArrayMetrics, hoveredCell } from './layout'
 import { cellHandleId, cellOfHandle, frameSlides, orderSlides, swapCells, swapState, type Slides, type SwapDrag } from './swap'
 
 /** How long values take to arc into their new cells (a swap, a sort, a shift). */
@@ -252,10 +255,91 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	/** Insert a value that fits the fill mode (as growing does), at index k. */
 	private insertOp(id: ArrayShape['id'], array: ArrayState, k: number) {
 		const shape = this.editor.getShape(id) as ArrayShape | undefined
-		const { fill, seed } = shape?.props ?? this.getDefaultProps()
-		const { values } = array
-		const value = insertValue(values[k - 1], values[k], fill, seed, Date.now() % 100000, values)
-		return insertAt(array, k, value)
+		return insertAt(array, k, this.newValue(shape?.props ?? this.getDefaultProps(), array.values, k))
+	}
+
+	/** A value for a cell inserted at index k: between its neighbours if sorted, else not there yet. */
+	private newValue({ fill, seed }: Pick<ArrayShape['props'], 'fill' | 'seed'>, values: readonly string[], k: number) {
+		return insertValue(values[k - 1], values[k], fill, seed, Date.now() % 100000, values)
+	}
+
+	/**
+	 * Quick edits while the array is selected: an x on the cell near the pointer deletes it and a +
+	 * on the boundary nearest the pointer inserts a value there (opened for typing); the values after
+	 * slide over. Touch screens have no hover, so they show every button.
+	 */
+	private renderCellButtons(shape: ArrayShape, colors: TLThemeColors) {
+		const { values, direction } = shape.props
+		const n = values.length
+		const metrics = getArrayMetrics(shape.props)
+		const layout = getArrayLayout(n, direction, metrics)
+		const zoom = this.editor.getZoomLevel()
+		const coarse = this.editor.getInstanceState().isCoarsePointer
+		const point = this.editor.getPointInShapeSpace(shape, this.editor.inputs.getCurrentPagePoint())
+		const hovered = coarse ? undefined : hoveredCell(point, n, direction, metrics, 16 / zoom)
+		if (!coarse && !hovered) return null
+		const removable = n < 2 ? [] : coarse ? [...values.keys()] : [hovered!.index]
+		// Not past the end: the grow grip adds cells there.
+		const boundaries = (coarse ? [...values.keys()] : [hovered!.boundary]).filter((b) => b < n)
+		const { cell } = metrics
+		const nudge = 5 / zoom
+		return (
+			<>
+				{removable.map((k) => {
+					const { x, y } = layout.cellAt(k)
+					return (
+						<ControlButton
+							key={`remove-${k}`}
+							editor={this.editor}
+							kind="remove"
+							at={{ x: x + cell + nudge, y: y - nudge }}
+							label={`Delete a[${k}] (${values[k]})`}
+							testId={`remove-cell-${k}`}
+							colors={colors}
+							onPress={() => this.pressDelete(shape.id, k)}
+						/>
+					)
+				})}
+				{boundaries.map((b) => {
+					const { x, y } = layout.cellAt(b)
+					return (
+						<ControlButton
+							key={`insert-${b}`}
+							editor={this.editor}
+							kind="insert"
+							// On the boundary's lower (vertical: left) end, clear of the values and the x.
+							at={direction === 'horizontal' ? { x, y: y + cell } : { x, y }}
+							label={`Insert a value at index ${b}`}
+							testId={`insert-cell-${b}`}
+							colors={colors}
+							onPress={() => this.pressInsert(shape.id, b)}
+						/>
+					)
+				})}
+			</>
+		)
+	}
+
+	/** Delete cell k at once (one undo step): the values after it slide one cell back. */
+	private pressDelete(id: ArrayShape['id'], k: number) {
+		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		if (!shape || shape.props.values.length < 2) return
+		const { values, marks } = shape.props
+		this.editor.markHistoryStoppingPoint('delete cell')
+		this.editor.updateShape(this.withValues(shape, withoutCell({ values, marks }, k)))
+		this.slide(shape, Object.fromEntries(values.slice(k + 1).map((_, j) => [k + j, k + j + 1])))
+	}
+
+	/** Insert a value at index k (one undo step), sliding the rest along, and open it for typing. */
+	private pressInsert(id: ArrayShape['id'], k: number) {
+		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		if (!shape) return
+		const { values, marks } = shape.props
+		this.editor.markHistoryStoppingPoint('insert cell')
+		this.editor.updateShape(this.withValues(shape, withCell({ values, marks }, k, this.newValue(shape.props, values, k))))
+		this.slide(shape, Object.fromEntries(values.slice(k).map((_, j) => [k + j + 1, k + j])))
+		const updated = this.editor.getShape(id) as ArrayShape | undefined
+		if (updated) this.editCell(updated, String(k))
 	}
 
 	/** New values and marks (pointers past the new end go); marks are dropped with their cells. */
@@ -461,6 +545,10 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 						<GrowGrip at={this.growPoint(shape)} zoom={this.editor.getZoomLevel()} colors={colors} />
 					)}
 				</SVGContainer>
+				{showsStructureControls(this.editor, shape) &&
+					!isBusy(playing) &&
+					this.editor.isIn('select.idle') &&
+					this.renderCellButtons(shape, colors)}
 				{this.renderOperationPrompt(shape, colors)}
 				{this.renderPointerOverlays(shape, colors)}
 				{this.renderCellEditor(shape)}
@@ -539,13 +627,16 @@ function ArraySvg({
 	const textSize = (value: string) => metrics.fontSize * Math.min(1, 3 / Math.max(1, value.length))
 
 	// A value arcs from its old cell into its new one: those moving towards the end over the array,
-	// those moving back under it, so two that swap or cross pass each other.
+	// those moving back under it, so two that swap or cross pass each other. When every value moves
+	// the same way (a shift) none cross, so they slide straight along.
+	const moves = Object.entries(slides?.from ?? {}).map(([to, from]) => Math.sign(Number(to) - from))
+	const crossing = moves.includes(1) && moves.includes(-1)
 	const slideStyle = (i: number): CSSProperties | undefined => {
 		const from = slides?.from[i]
 		if (from === undefined || from === i) return undefined
 		const dx = cellAt(from).x - cellAt(i).x
 		const dy = cellAt(from).y - cellAt(i).y
-		const lift = (i > from ? -1 : 1) * cell * Math.min(0.9, 0.35 + 0.15 * Math.abs(i - from))
+		const lift = crossing ? (i > from ? -1 : 1) * cell * Math.min(0.9, 0.35 + 0.15 * Math.abs(i - from)) : 0
 		const [mx, my] = direction === 'horizontal' ? [dx / 2, dy / 2 + lift] : [dx / 2 + lift, dy / 2]
 		return {
 			'--from-x': `${dx}px`,

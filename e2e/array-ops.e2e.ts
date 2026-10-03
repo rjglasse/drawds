@@ -185,3 +185,33 @@ test('partition: the pivot lands in its final place', async ({ page }) => {
 	await page.keyboard.press('Enter')
 	expect(await values(page)).toEqual(['2', '1', '5', '7', '9'])
 })
+
+test('hover controls: x deletes a cell, + inserts one and opens it for typing; one undo each', async ({ page }) => {
+	await sketchArray(page, [200, 200], 4)
+	await setValues(page, ['10', '20', '30', '40'], { 2: 'green' })
+	// Over the right half of cell 1: its x, and the + on the boundary with cell 2.
+	await page.mouse.move(200 + CELL + 10, 195)
+	await expect(page.getByTestId('remove-cell-1')).toBeVisible()
+	await expect(page.getByTestId('insert-cell-2')).toBeVisible()
+	await expect(page.getByTestId('remove-cell-0')).toHaveCount(0)
+	await page.getByTestId('remove-cell-1').click()
+	expect(await props(page)).toMatchObject({ values: ['10', '30', '40'], marks: { 1: 'green' } })
+	await page.mouse.move(200 + 10, 195)
+	await page.getByTestId('insert-cell-1').click()
+	await expect(page.locator('input[aria-label="Cell 1"]')).toBeFocused()
+	await page.keyboard.type('15')
+	await page.keyboard.press('Enter')
+	expect(await props(page)).toMatchObject({ values: ['10', '15', '30', '40'], marks: { 2: 'green' } })
+	await page.keyboard.press('ControlOrMeta+z')
+	await page.keyboard.press('ControlOrMeta+z')
+	expect(await values(page)).toEqual(['10', '30', '40'])
+	await page.keyboard.press('ControlOrMeta+z')
+	expect(await values(page)).toEqual(['10', '20', '30', '40'])
+})
+
+test('a lone cell has no x; there is no + past the end (the grow grip adds there)', async ({ page }) => {
+	await sketchArray(page, [200, 200], 1)
+	await page.mouse.move(200 + 20, 195)
+	await expect(page.getByTestId('remove-cell-0')).toHaveCount(0)
+	await expect(page.getByTestId('insert-cell-1')).toHaveCount(0)
+})

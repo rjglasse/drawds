@@ -418,18 +418,12 @@ export function deleteAt(start: ArrayState, k: number): ArrayOperation {
 		r.counts.moves++
 		r.step(`a[${i}] = a[${i + 1}] (${r.state.values[i]})`, { pointers: [ptr('i', i)], moves: [[i + 1, i]] })
 	}
-	const values = start.values.filter((_, i) => i !== k)
-	const marks: Marks = {}
-	for (const [key, color] of Object.entries(start.marks)) {
-		const i = Number(key)
-		if (i < k) marks[key] = color
-		else if (i > k) marks[String(i - 1)] = color
-	}
 	// The last step shows the result, so the array stays as it is once the operation is done.
-	r.set({ values, marks })
+	const result = withoutCell(start, k)
+	r.set(result)
 	const moved = r.counts.moves
 	r.step(`n = n - 1: the last cell is no longer used. ${moved} value${moved === 1 ? '' : 's'} moved`)
-	return { frames: r.frames, result: { values, marks } }
+	return { frames: r.frames, result }
 }
 
 /**
@@ -451,11 +445,27 @@ export function insertAt(start: ArrayState, k: number, value: string): ArrayOper
 		const why = i === n ? ': from the end, so nothing is overwritten' : ''
 		r.step(`a[${i}] = a[${i - 1}] (${r.state.values[i]})${why}`, { pointers: [ptr('i', i)], moves: [[i - 1, i]] })
 	}
-	const values = [...start.values.slice(0, k), value, ...start.values.slice(k)]
-	const marks: Marks = {}
-	for (const [key, color] of Object.entries(start.marks)) marks[String(Number(key) < k ? Number(key) : Number(key) + 1)] = color
-	r.set({ values, marks })
+	const result = withCell(start, k, value)
+	r.set(result)
 	const moved = r.counts.moves
 	r.step(`a[${k}] = ${value}. ${moved} value${moved === 1 ? '' : 's'} moved to make room`, { lit: { [k]: DONE }, pointers: [ptr('i', k)] })
-	return { frames: r.frames, result: { values, marks }, finalFlash: { [k]: DONE } }
+	return { frames: r.frames, result, finalFlash: { [k]: DONE } }
+}
+
+/** The array without cell k: later values (and their marks) one index down. */
+export function withoutCell({ values, marks }: ArrayState, k: number): ArrayState {
+	const moved: Marks = {}
+	for (const [key, color] of Object.entries(marks)) {
+		const i = Number(key)
+		if (i < k) moved[key] = color
+		else if (i > k) moved[String(i - 1)] = color
+	}
+	return { values: values.filter((_, i) => i !== k), marks: moved }
+}
+
+/** The array with `value` at index k: values from k on (and their marks) one index up. */
+export function withCell({ values, marks }: ArrayState, k: number, value: string): ArrayState {
+	const moved: Marks = {}
+	for (const [key, color] of Object.entries(marks)) moved[String(Number(key) < k ? Number(key) : Number(key) + 1)] = color
+	return { values: [...values.slice(0, k), value, ...values.slice(k)], marks: moved }
 }
