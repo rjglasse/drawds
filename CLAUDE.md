@@ -98,7 +98,11 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
 - `src/shapes/array/operations.ts` - array algorithms as pure frame generators over `{values, marks}` (marks
   travel): binary / linear search, insertion / selection / bubble sort, Lomuto and Hoare partitions, quicksort
   (range faded with `dim`, open calls as a `call stack` strip), merge sort (a `merged` strip, copy-back as
-  `moves`), insert / delete by shifting. A `recorder` turns what
+  `moves`), insert / delete by shifting. Fixed capacity (`sizing` 'fixed', the Length picker in
+  `src/ui/ArrayPickers.tsx`): cells are the capacity, `used` (shown as "size") counts the values in use, the rest
+  are blank spare slots; `usedCount(props)` everywhere, operations run on the used part (`play` pads frames back)
+  unless `{ whole: true }` (insertFixed / deleteFixed / appendFixed / growFixed / appendMany). A step can show a
+  second row under the array (`props.aux`: newArr), with `moves` keyed `aux:<i>` between the rows. A `recorder` turns what
   each step lights into flash changes and stamps values, pointers, `dim` and `counts` on every frame.
   `rearrange.ts` has the instant orders (sorted, reversed, shuffled). Offered from the context menu
   (`nodeOperations`: Search, Insert / delete step by step; `shapeOperations`: Sort step by step, Array), plus

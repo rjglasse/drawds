@@ -231,6 +231,10 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   (instant: `array-sort`, `array-sort-descending`, `array-shuffle`, `array-reverse`, `array-reroll`,
   `array-indices`). The step's pointers (lo, mid, hi, i, j, min) are drawn in front of the canvas:
   `[data-pointer="lo"]`; running totals are `[data-testid="play-counts"]` ("comparisons 3 · swaps 1").
+  Fixed capacity: `[data-testid="style.array-sizing.fixed"]` with the array selected (the grip then adds
+  blank spare slots; `[data-testid="array-capacity"]` reads "size 3 · capacity 6"); props `sizing`, `used`.
+  `drawds-array-capacity` submenu: `array-append`, `array-grow`, `array-append-many-double`,
+  `array-append-many-plus-one`; a step's new array is `[data-testid="array-aux"]`.
   Set known values first with `eval (editor.updateShape({id: editor.getOnlySelectedShape().id, type: 'array',
   props: {values: ['3','8','15']}}), 1)` (wrap in `(..., 1)`: the update returns something unserialisable).
   Hover controls: `move` onto a cell, then `[data-testid="remove-cell-<k>"]` (x on its top-right corner) or
