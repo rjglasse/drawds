@@ -29,6 +29,8 @@ export interface FlashView {
 /** Values that just swapped between pairs of nodes, animated arcing from one to the other. */
 export interface SwapView {
 	pairs: [string, string][]
+	/** Values copied from one node to another (`[from, to]`): only the copy moves. */
+	moves?: [string, string][]
 	id: number
 }
 
@@ -69,10 +71,13 @@ export function SceneSvg({
 	const routes = routeScene(scene)
 	const byKey = new Map(scene.nodes.map((n) => [n.key, n]))
 
-	// Each value of a swapped pair starts at its partner's node and arcs over: one to each side.
+	// Each value of a swapped pair starts at its partner's node and arcs over: one to each side. A
+	// copied value arcs in from where it was copied from.
 	const swapStyle = (key: string): CSSProperties | undefined => {
-		for (const [i, [a, b]] of (swaps?.pairs ?? []).entries()) {
-			if (key !== a && key !== b) continue
+		const pairs = [...(swaps?.pairs ?? []), ...(swaps?.moves ?? [])]
+		const copies = swaps?.pairs.length ?? 0
+		for (const [i, [a, b]] of pairs.entries()) {
+			if (key !== b && (key !== a || i >= copies)) continue
 			const self = byKey.get(key)
 			const other = byKey.get(key === a ? b : a)
 			if (!self || !other) return undefined

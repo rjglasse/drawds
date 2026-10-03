@@ -13,22 +13,37 @@ import {
 	type TLThemeColors,
 	type VecLike,
 } from 'tldraw'
-import { CellShapeUtil, type PointerDirection } from '../../cells/CellShapeUtil'
-import { pruneMarks } from '../../cells/marks'
+import { CellShapeUtil, type NodeOperation, type PlaybackLayout, type PointerDirection } from '../../cells/CellShapeUtil'
+import { pruneMarks, type Marks } from '../../cells/marks'
 import { GROW_HANDLE_ID, growHandle, grownCount } from '../../controls/grow'
 import { GrowGrip } from '../../controls/GrowGrip'
 import { showsStructureControls } from '../../controls/visibility'
-import { extendValues, fillValues } from '../../data/fill'
+import { extendValues, fillValues, insertValue } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
-import type { PointerAnchor } from '../../pointers/layout'
-import { prunePointers } from '../../pointers/pointers'
+import { mulberry32, newSeed } from '../../data/random'
+import { isBusy, playOperation, playbackFor, type Strip } from '../../nodelink/playback'
+import { stripsHeight } from '../../nodelink/SceneSvg'
+import { placePointers, type PointerAnchor } from '../../pointers/layout'
+import { prunePointers, type Pointer } from '../../pointers/pointers'
 import { ARRAY_SHAPE_TYPE, arrayShapeMigrations, arrayShapeProps, type ArrayShape } from './array-shape-types'
 import { arrayCells } from './cells'
+import {
+	binarySearch,
+	bubbleSort,
+	deleteAt,
+	insertAt,
+	insertionSort,
+	linearSearch,
+	selectionSort,
+	type ArrayOperation,
+	type ArrayState,
+} from './operations'
+import { movesAnything, rearrange, reversedOrder, shuffledOrder, sortedOrder } from './rearrange'
 import { getArrayGrowPoint, getArrayLayout, getArrayMetrics } from './layout'
-import { cellHandleId, cellOfHandle, swapCells, swapState, type LastSwap, type SwapDrag } from './swap'
+import { cellHandleId, cellOfHandle, frameSlides, orderSlides, swapCells, swapState, type Slides, type SwapDrag } from './swap'
 
-/** How long two swapped values take to arc into their new cells. */
-const SWAP_MS = 450
+/** How long values take to arc into their new cells (a swap, a sort, a shift). */
+export const SLIDE_MS = 450
 
 export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refillable {
 	static override type = ARRAY_SHAPE_TYPE
@@ -62,6 +77,8 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	 * for vertical arrays) plus the grow grip past the end.
 	 */
 	override getHandles(shape: ArrayShape): TLHandle[] {
+		// While an operation shows its steps, the handles would sit on a state that isn't shown.
+		if (isBusy(playbackFor(this.editor, shape.id))) return []
 		const { values, direction } = shape.props
 		const metrics = getArrayMetrics(shape.props)
 		const layout = getArrayLayout(values.length, direction, metrics)
@@ -120,18 +137,167 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	/** Dropping a cell on another swaps their values (and marks), with a short animation. */
 	override onHandleDragEnd(shape: ArrayShape): TLShapePartial<ArrayShape> | void {
-		const { drag, last } = swapState(this.editor)
+		const { drag } = swapState(this.editor)
 		const current = drag.get()
 		drag.set(null)
 		if (!current || current.shapeId !== shape.id) return
 		const { from, to } = current
 		if (to === undefined || to === from) return
-		last.set({ shapeId: shape.id, a: from, b: to, id: Date.now() })
+		this.slide(shape, { [from]: to, [to]: from })
 		return { id: shape.id, type: ARRAY_SHAPE_TYPE, props: swapCells(shape.props.values, shape.props.marks, from, to) }
+	}
+
+	/** Animate values into their new cells once (`from`: new index -> old index). */
+	slide(shape: ArrayShape, from: Record<number, number>) {
+		const { last } = swapState(this.editor)
+		const id = Date.now()
+		last.set({ shapeId: shape.id, from, id })
+		// Then forget it, so a later redraw (say, after an operation) doesn't play it again.
+		this.editor.timers.setTimeout(() => last.get()?.id === id && last.set(null), SLIDE_MS + 100)
 	}
 
 	override onHandleDragCancel() {
 		swapState(this.editor).drag.set(null)
+	}
+
+	// Operations, from the context menu. Searching and inserting / deleting start at the cell
+	// right-clicked; sorting step by step and the instant rearrangements act on the whole array.
+
+	override nodeOperations(shape: ArrayShape, key: string): NodeOperation[] {
+		const k = Number(key)
+		const { values } = shape.props
+		if (!Number.isInteger(k) || k < 0 || k >= values.length) return []
+		const v = values[k]
+		const search = { submenu: 'Search', submenuId: 'array-search' }
+		const shift = { submenu: 'Insert / delete step by step', submenuId: 'array-shift' }
+		const find = (id: string, label: string, op: typeof binarySearch): NodeOperation[] => [
+			...(v.trim() ? [{ ...search, id, label: `${label} for ${v}`, run: () => this.play(shape.id, label, (a) => op(a, v)) }] : []),
+			{
+				...search,
+				id: `${id}-value`,
+				label: `${label} for a value`,
+				prompt: 'Value to find',
+				run: (value?: string) => value !== undefined && this.play(shape.id, label, (a) => op(a, value)),
+			},
+		]
+		return [
+			...find('array-binary-search', 'Binary search', binarySearch),
+			...find('array-linear-search', 'Linear search', linearSearch),
+			{ ...shift, id: 'array-insert', label: `Insert at index ${k}`, run: () => this.play(shape.id, 'insert', (a) => this.insertOp(shape.id, a, k)) },
+			...(values.length > 1
+				? [{ ...shift, id: 'array-delete', label: `Delete a[${k}] (${v})`, run: () => this.play(shape.id, 'delete', (a) => deleteAt(a, k)) }]
+				: []),
+		]
+	}
+
+	override shapeOperations(shape: ArrayShape): NodeOperation[] {
+		const sorts = { submenu: 'Sort step by step', submenuId: 'array-sort' }
+		const actions = { submenu: 'Array', submenuId: 'array-actions' }
+		const sort = (id: string, label: string, op: (a: ArrayState) => ArrayOperation): NodeOperation => ({
+			...sorts,
+			id,
+			label,
+			run: () => this.play(shape.id, label.toLowerCase(), op),
+		})
+		const order = (id: string, label: string, make: (values: string[]) => number[]): NodeOperation => ({
+			...actions,
+			id,
+			label,
+			run: () => this.rearrange(shape.id, label.toLowerCase(), make),
+		})
+		return [
+			sort('array-insertion-sort', 'Insertion sort', insertionSort),
+			sort('array-selection-sort', 'Selection sort', selectionSort),
+			sort('array-bubble-sort', 'Bubble sort', bubbleSort),
+			order('array-sort', 'Sort', (values) => sortedOrder(values)),
+			order('array-sort-descending', 'Sort descending', (values) => sortedOrder(values, true)),
+			order('array-shuffle', 'Shuffle', (values) => shuffledOrder(values.length, mulberry32(newSeed()))),
+			order('array-reverse', 'Reverse', (values) => reversedOrder(values.length)),
+			{ ...actions, id: 'array-reroll', label: 'New values', run: () => this.reroll(shape.id) },
+			{
+				...actions,
+				id: 'array-indices',
+				label: shape.props.showIndices ? 'Hide indices' : 'Show indices',
+				run: () => this.update(shape.id, 'toggle indices', (s) => ({ showIndices: !s.props.showIndices })),
+			},
+		]
+	}
+
+	/** Play an operation on the array as it is now; its result (if any) is one undo step. */
+	private play(id: ArrayShape['id'], label: string, operation: (array: ArrayState) => ArrayOperation) {
+		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		if (!shape) return
+		const { values, marks } = shape.props
+		const { frames, result, finalFlash } = operation({ values, marks })
+		const final = result && this.withValues(shape, result)
+		playOperation(this.editor, {
+			shapeId: id,
+			label,
+			frames,
+			final,
+			finalFlash,
+			// Shift: the highlights become marks, on the cells there are afterwards.
+			withMarks: (_update, highlights) => {
+				const after = result ?? { values, marks }
+				const kept = pruneMarks({ ...after.marks, ...highlights }, after.values.map((_, i) => String(i)))
+				return final ? { ...final, props: { ...final.props, marks: kept } } : this.withMarks(shape, kept)
+			},
+		})
+	}
+
+	/** Insert a value that fits the fill mode (as growing does), at index k. */
+	private insertOp(id: ArrayShape['id'], array: ArrayState, k: number) {
+		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		const { fill, seed } = shape?.props ?? this.getDefaultProps()
+		const { values } = array
+		const value = insertValue(values[k - 1], values[k], fill, seed, Date.now() % 100000, values)
+		return insertAt(array, k, value)
+	}
+
+	/** New values and marks (pointers past the new end go); marks are dropped with their cells. */
+	private withValues(shape: ArrayShape, { values, marks }: ArrayState): TLShapePartial<ArrayShape> {
+		const n = values.length
+		return {
+			id: shape.id,
+			type: ARRAY_SHAPE_TYPE,
+			props: {
+				values,
+				marks: pruneMarks(
+					marks,
+					values.map((_, i) => String(i))
+				),
+				pointers: prunePointers(
+					shape.props.pointers,
+					Array.from({ length: n + 2 }, (_, i) => String(i - 1))
+				),
+			},
+		}
+	}
+
+	/** Sort, shuffle or reverse at once: each value arcs to its new cell, marks with it. One undo step. */
+	private rearrange(id: ArrayShape['id'], label: string, make: (values: string[]) => number[]) {
+		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		if (!shape) return
+		const order = make(shape.props.values)
+		if (!movesAnything(order)) return
+		this.editor.markHistoryStoppingPoint(label)
+		this.editor.updateShape(this.withValues(shape, rearrange(shape.props.values, shape.props.marks, order)))
+		this.slide(shape, orderSlides(order))
+	}
+
+	/** New random values from a fresh seed, in the shape's fill mode. */
+	private reroll(id: ArrayShape['id']) {
+		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		if (!shape) return
+		const seed = newSeed()
+		this.update(id, 'new values', (s) => ({ seed, values: fillValues(s.props.fill, seed, s.props.values.length) }))
+	}
+
+	private update(id: ArrayShape['id'], label: string, change: (shape: ArrayShape) => Partial<ArrayShape['props']>) {
+		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		if (!shape) return
+		this.editor.markHistoryStoppingPoint(label)
+		this.editor.updateShape({ id, type: ARRAY_SHAPE_TYPE, props: change(shape) })
 	}
 
 	// Pointers: above the cells (right of a vertical array, whose indices are on the left). They can
@@ -191,7 +357,10 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	getGeometry(shape: ArrayShape) {
 		const metrics = getArrayMetrics(shape.props)
-		const { width, height } = getArrayLayout(shape.props.values.length, shape.props.direction, metrics)
+		// The cells shown: an operation's step may have one more (making room to insert). It only
+		// ever grows past the end, so the origin stays put. Reactive (tldraw caches it in a computed).
+		const count = this.displayShape(shape).props.values.length
+		const { width, height } = getArrayLayout(count, shape.props.direction, metrics)
 		const body = new Rectangle2d({ ...metrics.origin, width, height, isFilled: true })
 		const pointers = this.pointerGeometry(shape)
 		if (!pointers.length) return body
@@ -204,9 +373,53 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	}
 
 	/** Indices just off the array (-1, n) that a pointer is at. */
-	private offEndSlots(shape: ArrayShape) {
+	private offEndSlots(shape: ArrayShape, pointers: readonly Pointer[] = shape.props.pointers) {
 		const n = shape.props.values.length
-		return [-1, n].filter((i) => shape.props.pointers.some((p) => p.at === String(i)))
+		return [-1, n].filter((i) => pointers.some((p) => p.at === String(i)))
+	}
+
+	/**
+	 * The props being shown: while an operation plays, its step's values and marks over the shape's
+	 * own. (Pointers stay the shape's, so the drawing's origin doesn't move.) Reactive.
+	 */
+	displayShape(shape: ArrayShape): ArrayShape {
+		const props = playbackFor(this.editor, shape.id)?.frame?.props as Partial<ArrayShape['props']> | undefined
+		return props ? { ...shape, props: { ...shape.props, ...props, pointers: shape.props.pointers } } : shape
+	}
+
+	/** The step's own pointers (lo, mid, hi...), if it has any: drawn by the play overlay. */
+	private framePointers(shape: ArrayShape): Pointer[] | undefined {
+		return playbackFor(this.editor, shape.id)?.frame?.pointers
+	}
+
+	override playbackLayout(shape: ArrayShape, strips: readonly Strip[] | undefined): PlaybackLayout {
+		const shown = this.displayShape(shape)
+		const metrics = getArrayMetrics(shape.props)
+		const { values, direction } = shown.props
+		const layout = getArrayLayout(values.length, direction, metrics)
+		const framePointers = this.framePointers(shape)
+		const slots = framePointers
+			? this.offEndSlots(shown, framePointers).map((i) => ({ ...layout.cellAt(i), w: metrics.cell, h: metrics.cell }))
+			: []
+		const sceneMetrics = { fontSize: metrics.fontSize, labelFontSize: metrics.indexFontSize, strokeWidth: metrics.strokeWidth }
+		const left = layout.cells.x
+		const right = layout.cells.x + layout.cells.w
+		let bottom = Math.max(metrics.origin.y + layout.height, ...slots.map((b) => b.y + b.h))
+		const gap = metrics.fontSize
+		const strip = { x: left, y: bottom + gap }
+		if (strips?.length) bottom = strip.y + stripsHeight(strips, sceneMetrics)
+		return {
+			strip,
+			bar: { x: (left + right) / 2, y: bottom + gap },
+			metrics: sceneMetrics,
+			color: shape.props.color,
+			fontFamily: this.getFontFamily(shape),
+			pointers: framePointers && {
+				placed: placePointers(framePointers, (key) => this.pointerAnchor(shown, key), this.getPointerFontSize(shape)),
+				fontSize: this.getPointerFontSize(shape),
+				slots,
+			},
+		}
 	}
 
 	component(shape: ArrayShape) {
@@ -215,23 +428,36 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const { drag, last } = swapState(this.editor)
 		const dragging = drag.get()
 		const swapped = last.get()
+		const playing = playbackFor(this.editor, shape.id)
+		const frame = playing?.frame
+		// While a step shows its own pointers they are drawn in front of the canvas (PlaybackOverlay).
+		const framePointers = !!frame?.pointers
+		const slides: Slides | undefined =
+			frame && (frame.swaps?.length || frame.moves?.length)
+				? { from: frameSlides(frame.swaps, frame.moves), id: playing.id }
+				: swapped?.shapeId === shape.id
+					? swapped
+					: undefined
 		return (
 			<>
 				<SVGContainer>
 					<ArraySvg
-						shape={shape}
+						shape={this.displayShape(shape)}
 						colors={colors}
 						fontFamily={this.getFontFamily(shape)}
 						hiddenIndex={editingKey === undefined ? undefined : Number(editingKey)}
 						drag={dragging?.shapeId === shape.id ? dragging : undefined}
-						swap={swapped?.shapeId === shape.id ? swapped : undefined}
-						offEnd={this.offEndSlots(shape)}
+						slides={slides}
+						flash={playing && { marks: playing.flash, fading: playing.fading, id: playing.id }}
+						dim={playing && !playing.fading ? (playing.dim ?? []) : undefined}
+						offEnd={framePointers ? [] : this.offEndSlots(shape)}
 					/>
-					{this.renderPointers(shape, colors)}
-					{showsStructureControls(this.editor, shape) && (
+					{!framePointers && this.renderPointers(shape, colors)}
+					{showsStructureControls(this.editor, shape) && !isBusy(playing) && (
 						<GrowGrip at={this.growPoint(shape)} zoom={this.editor.getZoomLevel()} colors={colors} />
 					)}
 				</SVGContainer>
+				{this.renderOperationPrompt(shape, colors)}
 				{this.renderPointerOverlays(shape, colors)}
 				{this.renderCellEditor(shape)}
 			</>
@@ -249,8 +475,9 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	}
 
 	getIndicatorPath(shape: ArrayShape) {
+		// The values shown, so the outline follows an operation that adds or removes a cell.
 		const { cells } = getArrayLayout(
-			shape.props.values.length,
+			this.displayShape(shape).props.values.length,
 			shape.props.direction,
 			getArrayMetrics(shape.props)
 		)
@@ -278,7 +505,9 @@ function ArraySvg({
 	fontFamily,
 	hiddenIndex,
 	drag,
-	swap,
+	slides,
+	flash,
+	dim,
 	offEnd = [],
 }: {
 	shape: ArrayShape
@@ -290,8 +519,12 @@ function ArraySvg({
 	hiddenIndex?: number
 	/** A cell being dragged onto another (canvas only). */
 	drag?: SwapDrag
-	/** The latest swap, animated once when it happens (canvas only). */
-	swap?: LastSwap
+	/** Values arcing into their new cells: a swap, a sort, a step's swaps or shifts (canvas only). */
+	slides?: Slides
+	/** Canvas only: an operation's highlights, fading out once it is dismissed. */
+	flash?: { marks: Marks; fading: boolean; id: number }
+	/** Canvas only, while an operation is open: cells out of play, drawn faded (in or out). */
+	dim?: readonly string[]
 }) {
 	const { values, direction, showIndices, color, marks } = shape.props
 	const metrics = getArrayMetrics(shape.props)
@@ -301,22 +534,24 @@ function ArraySvg({
 	const stroke = getColorValue(colors, color, 'solid')
 	const textSize = (value: string) => metrics.fontSize * Math.min(1, 3 / Math.max(1, value.length))
 
-	// Two swapped values arc past each other into their new cells: one over, one under.
-	const swapStyle = (i: number): CSSProperties | undefined => {
-		if (!swap || (i !== swap.a && i !== swap.b)) return undefined
-		const other = i === swap.a ? swap.b : swap.a
-		const dx = cellAt(other).x - cellAt(i).x
-		const dy = cellAt(other).y - cellAt(i).y
-		const lift = (i === swap.a ? -1 : 1) * cell * 0.9
+	// A value arcs from its old cell into its new one: those moving towards the end over the array,
+	// those moving back under it, so two that swap or cross pass each other.
+	const slideStyle = (i: number): CSSProperties | undefined => {
+		const from = slides?.from[i]
+		if (from === undefined || from === i) return undefined
+		const dx = cellAt(from).x - cellAt(i).x
+		const dy = cellAt(from).y - cellAt(i).y
+		const lift = (i > from ? -1 : 1) * cell * Math.min(0.9, 0.35 + 0.15 * Math.abs(i - from))
 		const [mx, my] = direction === 'horizontal' ? [dx / 2, dy / 2 + lift] : [dx / 2 + lift, dy / 2]
 		return {
 			'--from-x': `${dx}px`,
 			'--from-y': `${dy}px`,
 			'--mid-x': `${mx}px`,
 			'--mid-y': `${my}px`,
-			animation: `drawds-swap ${SWAP_MS}ms ease-in-out`,
+			animation: `drawds-swap ${SLIDE_MS}ms ease-in-out`,
 		} as CSSProperties
 	}
+	const dimmed = new Set(dim)
 
 	return (
 		<g fontFamily={fontFamily} textAnchor="middle" dominantBaseline="central">
@@ -370,6 +605,43 @@ function ArraySvg({
 					/>
 				)
 			})}
+			{flash &&
+				values.map((_, i) => {
+					const color = flash.marks[String(i)]
+					if (!color) return null
+					const { x, y } = cellAt(i)
+					return (
+						<rect
+							// A new key per step restarts the element, which (once dismissed) starts the fade.
+							key={`flash-${i}-${flash.id}`}
+							className={flash.fading ? 'drawds-flash drawds-flash-fade' : 'drawds-flash'}
+							x={x}
+							y={y}
+							width={cell}
+							height={cell}
+							fill={getColorValue(colors, color, 'semi')}
+							stroke={getColorValue(colors, color, 'solid')}
+							strokeWidth={strokeWidth * 1.6}
+							strokeLinejoin="round"
+						/>
+					)
+				})}
+			{dim &&
+				values.map((_, i) => {
+					const { x, y } = cellAt(i)
+					return (
+						<rect
+							key={`dim-${i}`}
+							x={x}
+							y={y}
+							width={cell}
+							height={cell}
+							fill={colors.background}
+							opacity={dimmed.has(String(i)) ? 0.6 : 0}
+							style={{ transition: 'opacity 300ms ease-in-out' }}
+						/>
+					)
+				})}
 			{drag?.to !== undefined && drag.to !== drag.from && (
 				<rect
 					x={cellAt(drag.to).x + strokeWidth}
@@ -385,17 +657,18 @@ function ArraySvg({
 			{values.map((value, i) => {
 				if (i === hiddenIndex) return null
 				const { x, y } = cellAt(i)
-				const animated = swapStyle(i)
+				const animated = slideStyle(i)
+				const faded = dimmed.has(String(i))
 				return (
 					<text
-						// A new key per swap remounts the two texts, which restarts their animation.
-						key={animated ? `${i}:${swap!.id}` : i}
+						// A new key per move remounts the texts that move, which restarts their animation.
+						key={animated ? `${i}:${slides!.id}` : i}
 						x={x + cell / 2}
 						y={y + cell / 2}
 						fontSize={textSize(value)}
 						fill={colors.text}
-						opacity={drag?.from === i ? 0.25 : 1}
-						style={animated}
+						opacity={drag?.from === i ? 0.25 : faded ? 0.35 : 1}
+						style={{ ...animated, transition: 'opacity 300ms ease-in-out' }}
 					>
 						{value}
 					</text>

@@ -16,17 +16,24 @@ export interface SwapDrag {
 	at: VecLike
 }
 
-/** The latest swap, so the two values can animate into their new cells once. */
-export interface LastSwap {
-	shapeId: TLShapeId
-	a: number
-	b: number
+/**
+ * Values that just moved to other cells (a swap, a sort, a shift), so they can slide there once:
+ * new index -> the index its value came from.
+ */
+export interface Slides {
+	from: Record<number, number>
+	/** Changes with every move, so the animation restarts. */
 	id: number
+}
+
+/** The latest swap (or rearrangement) on a shape, animated once. */
+export interface LastSlides extends Slides {
+	shapeId: TLShapeId
 }
 
 interface SwapState {
 	drag: Atom<SwapDrag | null>
-	last: Atom<LastSwap | null>
+	last: Atom<LastSlides | null>
 }
 
 const states = new WeakMap<Editor, SwapState>()
@@ -45,4 +52,24 @@ export function swapCells(values: readonly string[], marks: Marks, a: number, b:
 	const next = [...values]
 	;[next[a], next[b]] = [next[b], next[a]]
 	return { values: next, marks: swapMarks(marks, String(a), String(b)) }
+}
+
+/** Slides for a frame's swapped pairs and copied values (cell keys are indices). */
+export function frameSlides(swaps: readonly [string, string][] = [], moves: readonly [string, string][] = []) {
+	const from: Record<number, number> = {}
+	for (const [a, b] of swaps) {
+		from[Number(a)] = Number(b)
+		from[Number(b)] = Number(a)
+	}
+	for (const [a, b] of moves) from[Number(b)] = Number(a)
+	return from
+}
+
+/** Slides for a rearrangement: `order[i]` is the old index of the value now at i. */
+export function orderSlides(order: readonly number[]) {
+	const from: Record<number, number> = {}
+	order.forEach((j, i) => {
+		if (j !== i) from[i] = j
+	})
+	return from
 }

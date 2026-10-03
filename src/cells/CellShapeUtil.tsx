@@ -1,7 +1,20 @@
 import { useLayoutEffect, useRef, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
-import { Rectangle2d, ShapeUtil, Vec, type TLShape, type TLShapePartial, type TLThemeColors, type VecLike } from 'tldraw'
+import {
+	Rectangle2d,
+	ShapeUtil,
+	Vec,
+	type TLDefaultColorStyle,
+	type TLShape,
+	type TLShapePartial,
+	type TLThemeColors,
+	type VecLike,
+} from 'tldraw'
+import { KeyPrompt } from '../controls/KeyPrompt'
+import { operationPrompt } from '../controls/prompt'
 import { showsStructureControls } from '../controls/visibility'
-import { playbackFor } from '../nodelink/playback'
+import { playbackFor, type Strip } from '../nodelink/playback'
+import type { Box } from '../nodelink/geometry'
+import type { SceneMetrics } from '../nodelink/scene'
 import { POINTER_FONT_SCALE, placePointers, type PlacedPointer, type PointerAnchor } from '../pointers/layout'
 import { PointerOverlays } from '../pointers/PointerOverlays'
 import type { Pointer } from '../pointers/pointers'
@@ -24,6 +37,35 @@ export interface CellFont {
 
 /** Which way an arrow key steps a picked-up pointer. */
 export type PointerDirection = 'left' | 'right' | 'up' | 'down'
+
+/** An operation offered from a structure's context menu (a graph's BFS from a node, an array's sort). */
+export interface NodeOperation {
+	id: string
+	label: string
+	/** Operations with the same submenu label are grouped under it (e.g. "Traverse from 42"). */
+	submenu?: string
+	/** A stable id for the submenu (else it is numbered in menu order). */
+	submenuId?: string
+	/** Ask for a value first (the prompt's placeholder); `run` gets it. */
+	prompt?: string
+	run(value?: string): void
+}
+
+/** Where an operation's strips (queue / stack) and play bar go, and what the strips are drawn with. */
+export interface PlaybackLayout {
+	/** Top-left corner of the strips, in shape space. */
+	strip: VecLike
+	/** Top centre of the play bar, in shape space. */
+	bar: VecLike
+	metrics: SceneMetrics
+	color: TLDefaultColorStyle
+	fontFamily: string
+	/**
+	 * The step's own pointers (lo, mid, hi...), drawn in front of the canvas like the bar: inside the
+	 * shape they could lie outside its box. `slots`: dashed places just off the structure they are at.
+	 */
+	pointers?: { placed: PlacedPointer[]; fontSize: number; slots: Box[] }
+}
 
 /**
  * Base for data-structure shapes whose cells can be edited in place. Double-click a cell (or
@@ -57,6 +99,34 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 	pointerStep?(shape: S, key: string, direction: PointerDirection): string | undefined
 	/** The structure's usual pointer names, offered in the context menu. */
 	pointerNames?(shape: S): string[]
+
+	/** Operations that start from an element, offered in its context menu (e.g. a graph's BFS from it). */
+	nodeOperations?(shape: S, key: string): NodeOperation[]
+	/** Operations on the whole structure, offered wherever it is right-clicked (e.g. an array's sorts). */
+	shapeOperations?(shape: S): NodeOperation[]
+	/** Where an operation's strips and play bar go; shapes without it can't show operations. */
+	playbackLayout?(shape: S, strips: readonly Strip[] | undefined): PlaybackLayout
+
+	/** The value prompt of an operation started from an element (e.g. "Find a value..."), above it. */
+	protected renderOperationPrompt(shape: S, colors: TLThemeColors): ReactNode {
+		const asked = operationPrompt(this.editor).get()
+		if (!asked || asked.shapeId !== shape.id) return null
+		const box = this.cells.cellBox(shape, asked.at)
+		const close = () => operationPrompt(this.editor).set(null)
+		return (
+			<KeyPrompt
+				editor={this.editor}
+				at={{ x: box.x + box.w / 2, y: box.y - 24 }}
+				label={asked.label}
+				colors={colors}
+				onCancel={close}
+				onSubmit={(value) => {
+					close()
+					asked.run(value)
+				}}
+			/>
+		)
+	}
 
 	/** The element a pointer dragged to `point` (shape space) would land on. */
 	pointerTargetAt(shape: S, point: VecLike): string | undefined {

@@ -1,0 +1,367 @@
+import type { MarkColor, Marks } from '../../cells/marks'
+import { compareKeys } from '../../data/compare'
+import type { Frame } from '../../nodelink/playback'
+import type { Pointer } from '../../pointers/pointers'
+import { swapCells } from './swap'
+
+// Array algorithms, step by step. Each step is a line of the code a teacher writes on the board
+// (mid = (lo + hi) / 2, swap(a[j], a[j + 1]), a[i] = a[i + 1]...), drawn as it happens: pointers
+// slide along the array, the cells being compared light orange, values swap or shift in arcs,
+// cells in their final place turn green and cells out of play fade. Marks travel with values.
+
+const LOOK: MarkColor = 'orange'
+const DONE: MarkColor = 'green'
+const GONE: MarkColor = 'red'
+
+/** The array an operation works on: values and the marks travelling with them. */
+export interface ArrayState {
+	values: string[]
+	marks: Marks
+}
+
+export interface ArrayOperation {
+	frames: Frame[]
+	/** The array afterwards, if the operation changes it. */
+	result?: ArrayState
+	/** Highlights on the result. */
+	finalFlash?: Marks
+}
+
+const ptr = (name: string, at: number): Pointer => ({ id: `#${name}`, name, at: String(at) })
+
+/** Cell keys from..to (inclusive). */
+const span = (from: number, to: number) => Array.from({ length: Math.max(0, to - from + 1) }, (_, k) => String(from + k))
+
+/** The same colour on cells from..to. */
+const lit = (from: number, to: number, color: MarkColor): Marks => Object.fromEntries(span(from, to).map((k) => [k, color]))
+
+export const isSorted = (values: readonly string[]) => values.every((v, i) => i === 0 || compareKeys(values[i - 1], v) <= 0)
+
+interface Step {
+	/** Highlights shown at this step (the recorder works out what changed). */
+	lit?: Marks
+	pointers?: Pointer[]
+	dim?: string[]
+	swaps?: [number, number][]
+	moves?: [number, number][]
+}
+
+/**
+ * Records frames from what each step shows: its highlights (turned into the changes a frame
+ * holds), pointers, faded cells, and the array as it is then, with the counts so far.
+ */
+function recorder(start: ArrayState, counts: Record<string, number>) {
+	const frames: Frame[] = []
+	let shown: Marks = {}
+	let state: ArrayState = { values: [...start.values], marks: { ...start.marks } }
+	return {
+		frames,
+		counts,
+		get state() {
+			return state
+		},
+		/** The array changes (a swap, a copy): later steps show it. */
+		set(next: ArrayState) {
+			state = next
+		},
+		step(caption: string, { lit: next = {}, pointers = [], dim = [], swaps, moves }: Step = {}) {
+			const flash: Record<string, MarkColor | null> = {}
+			for (const key of Object.keys(shown)) if (!next[key]) flash[key] = null
+			for (const [key, color] of Object.entries(next)) if (shown[key] !== color) flash[key] = color
+			shown = { ...next }
+			const keys = (pairs?: [number, number][]) => pairs?.map(([a, b]): [string, string] => [String(a), String(b)])
+			frames.push({
+				caption,
+				props: { values: state.values, marks: state.marks },
+				flash,
+				pointers,
+				dim,
+				swaps: keys(swaps),
+				moves: keys(moves),
+				counts: { ...counts },
+			})
+		},
+	}
+}
+
+const swapped = (state: ArrayState, a: number, b: number): ArrayState => swapCells(state.values, state.marks, a, b)
+
+/** a[to] = a[from]: the value (and its mark) copied, the old one at `to` overwritten. */
+function copied(state: ArrayState, from: number, to: number): ArrayState {
+	const values = [...state.values]
+	values[to] = values[from]
+	const marks = { ...state.marks }
+	if (marks[String(from)]) marks[String(to)] = marks[String(from)]
+	else delete marks[String(to)]
+	return { values, marks }
+}
+
+// Searching.
+
+/**
+ * Binary search for `target`: lo and hi close in on it, each step comparing with the middle value
+ * and discarding (fading) the half it can't be in, until it is found or the pointers cross. On an
+ * unsorted array it runs anyway, after a warning: watching it miss is the lesson.
+ */
+export function binarySearch(start: ArrayState, target: string): ArrayOperation {
+	const { values } = start
+	const n = values.length
+	const r = recorder(start, { comparisons: 0 })
+	const outside = (lo: number, hi: number) => span(0, n - 1).filter((k) => Number(k) < lo || Number(k) > hi)
+	let lo = 0
+	let hi = n - 1
+	const unsorted = values.findIndex((v, i) => i > 0 && compareKeys(values[i - 1], v) > 0)
+	if (unsorted > 0) {
+		const [a, b] = [unsorted - 1, unsorted]
+		r.step(`Careful: a[${a}] = ${values[a]} > a[${b}] = ${values[b]}, so the array isn't sorted and binary search can miss ${target}`, {
+			lit: { [a]: GONE, [b]: GONE },
+		})
+	}
+	r.step(`lo = 0, hi = ${hi}: ${target} could be anywhere in a[0..${hi}]`, { pointers: [ptr('lo', lo), ptr('hi', hi)] })
+	while (lo <= hi) {
+		const mid = Math.floor((lo + hi) / 2)
+		const v = values[mid]
+		const at = { pointers: [ptr('lo', lo), ptr('mid', mid), ptr('hi', hi)], dim: outside(lo, hi) }
+		r.counts.comparisons++
+		r.step(`mid = (${lo} + ${hi}) / 2 = ${mid}. Is a[${mid}] = ${v} equal to ${target}?`, { ...at, lit: { [mid]: LOOK } })
+		const c = compareKeys(v, target)
+		if (c === 0) {
+			r.step(`Yes: found ${target} at index ${mid}, after ${r.counts.comparisons} comparison${r.counts.comparisons === 1 ? '' : 's'}`, {
+				...at,
+				lit: { [mid]: DONE },
+			})
+			return { frames: r.frames, finalFlash: { [mid]: DONE } }
+		}
+		if (c < 0) {
+			lo = mid + 1
+			r.step(`${v} < ${target}, so ${target} can only be right of mid: lo = mid + 1 = ${lo}`, {
+				pointers: [ptr('lo', lo), ptr('mid', mid), ptr('hi', hi)],
+				dim: outside(lo, hi),
+			})
+		} else {
+			hi = mid - 1
+			r.step(`${v} > ${target}, so ${target} can only be left of mid: hi = mid - 1 = ${hi}`, {
+				pointers: [ptr('lo', lo), ptr('mid', mid), ptr('hi', hi)],
+				dim: outside(lo, hi),
+			})
+		}
+	}
+	r.step(`lo = ${lo} > hi = ${hi}: the pointers have crossed, so ${target} is not in the array`, {
+		pointers: [ptr('lo', lo), ptr('hi', hi)],
+		dim: span(0, n - 1),
+	})
+	return { frames: r.frames }
+}
+
+/** Linear search for `target`: i walks from the start, comparing each value, fading the ones it passed. */
+export function linearSearch(start: ArrayState, target: string): ArrayOperation {
+	const { values } = start
+	const n = values.length
+	const r = recorder(start, { comparisons: 0 })
+	for (let i = 0; i < n; i++) {
+		r.counts.comparisons++
+		const step = { pointers: [ptr('i', i)], dim: span(0, i - 1) }
+		if (compareKeys(values[i], target) === 0) {
+			r.step(`i = ${i}: a[${i}] = ${values[i]}. Found ${target} at index ${i}`, { ...step, lit: { [i]: DONE } })
+			return { frames: r.frames, finalFlash: { [i]: DONE } }
+		}
+		r.step(`i = ${i}: a[${i}] = ${values[i]} ≠ ${target}, so on to the next`, { ...step, lit: { [i]: LOOK } })
+	}
+	r.step(`i = ${n}: past the end, so ${target} is not in the array`, { pointers: [ptr('i', n)], dim: span(0, n - 1) })
+	return { frames: r.frames }
+}
+
+// Sorting. Counts of comparisons and swaps run in the play bar, so a class can compare algorithms.
+
+function sortCounts() {
+	return { comparisons: 0, swaps: 0 }
+}
+
+function sorted(r: ReturnType<typeof recorder>, n: number): ArrayOperation {
+	const { comparisons, swaps } = r.counts
+	r.step(`Sorted: ${comparisons} comparisons, ${swaps} swaps`, { lit: lit(0, n - 1, DONE) })
+	return { frames: r.frames, result: r.state }
+}
+
+/**
+ * Insertion sort (by swapping): each new value a[i] moves left, swapping with its neighbour while
+ * that is larger, into the sorted part a[0..i] (green).
+ */
+export function insertionSort(start: ArrayState): ArrayOperation {
+	const n = start.values.length
+	const r = recorder(start, sortCounts())
+	r.step('a[0] on its own is sorted', { lit: lit(0, 0, DONE) })
+	for (let i = 1; i < n; i++) {
+		r.step(`i = ${i}: insert a[${i}] = ${r.state.values[i]} into the sorted part a[0..${i - 1}]`, {
+			lit: { ...lit(0, i - 1, DONE), [i]: LOOK },
+			pointers: [ptr('i', i), ptr('j', i)],
+		})
+		let j = i
+		while (j > 0) {
+			const [x, y] = [r.state.values[j - 1], r.state.values[j]]
+			// The sorted part, the value moving through it, and the neighbour it is compared with.
+			const around = (at: number, also?: number) => ({
+				...lit(0, i, DONE),
+				[at]: LOOK,
+				...(also === undefined ? {} : { [also]: LOOK }),
+			})
+			const pointers = [ptr('i', i), ptr('j', j)]
+			r.counts.comparisons++
+			if (compareKeys(x, y) <= 0) {
+				r.step(`a[${j - 1}] = ${x} ≤ a[${j}] = ${y}: ${y} is in place`, { lit: lit(0, i, DONE), pointers })
+				break
+			}
+			r.step(`a[${j - 1}] = ${x} > a[${j}] = ${y}: swap them`, { lit: around(j, j - 1), pointers })
+			r.set(swapped(r.state, j - 1, j))
+			r.counts.swaps++
+			r.step(`swap(a[${j - 1}], a[${j}]); j = ${j - 1}`, {
+				lit: around(j - 1),
+				pointers: [ptr('i', i), ptr('j', j - 1)],
+				swaps: [[j - 1, j]],
+			})
+			j--
+			if (j === 0) r.step(`j = 0: ${y} is the smallest so far, at the front`, { lit: lit(0, i, DONE), pointers: [ptr('i', i), ptr('j', 0)] })
+		}
+	}
+	return sorted(r, n)
+}
+
+/**
+ * Selection sort: for each i, j scans the rest for the smallest value (min), which then swaps into
+ * a[i], its final place (green).
+ */
+export function selectionSort(start: ArrayState): ArrayOperation {
+	const n = start.values.length
+	const r = recorder(start, sortCounts())
+	for (let i = 0; i < n - 1; i++) {
+		let min = i
+		r.step(`i = ${i}: find the smallest of a[${i}..${n - 1}]. min = ${i} (${r.state.values[i]}) so far`, {
+			lit: { ...lit(0, i - 1, DONE), [i]: LOOK },
+			pointers: [ptr('i', i), ptr('min', min)],
+		})
+		for (let j = i + 1; j < n; j++) {
+			const [x, m] = [r.state.values[j], r.state.values[min]]
+			r.counts.comparisons++
+			if (compareKeys(x, m) < 0) {
+				r.step(`a[${j}] = ${x} < a[min] = ${m}: min = ${j}`, {
+					lit: { ...lit(0, i - 1, DONE), [j]: LOOK },
+					pointers: [ptr('i', i), ptr('j', j), ptr('min', j)],
+				})
+				min = j
+			} else {
+				r.step(`a[${j}] = ${x} ≥ a[min] = ${m}: min stays ${min}`, {
+					lit: { ...lit(0, i - 1, DONE), [j]: LOOK, [min]: LOOK },
+					pointers: [ptr('i', i), ptr('j', j), ptr('min', min)],
+				})
+			}
+		}
+		if (min === i) {
+			r.step(`a[${i}] = ${r.state.values[i]} is already the smallest: no swap`, { lit: lit(0, i, DONE), pointers: [ptr('i', i), ptr('min', min)] })
+			continue
+		}
+		const v = r.state.values[min]
+		r.set(swapped(r.state, i, min))
+		r.counts.swaps++
+		r.step(`swap(a[${i}], a[min]): ${v} goes to index ${i}, its place`, {
+			lit: lit(0, i, DONE),
+			pointers: [ptr('i', i), ptr('min', min)],
+			swaps: [[i, min]],
+		})
+	}
+	return sorted(r, n)
+}
+
+/**
+ * Bubble sort: j walks along, swapping neighbours that are out of order, so the largest value of
+ * the pass bubbles up to the end (green). A pass without swaps means the array is sorted.
+ */
+export function bubbleSort(start: ArrayState): ArrayOperation {
+	const n = start.values.length
+	const r = recorder(start, sortCounts())
+	for (let pass = 1; pass < n; pass++) {
+		const end = n - pass
+		let swaps = 0
+		const settled = lit(end + 1, n - 1, DONE)
+		for (let j = 0; j < end; j++) {
+			const [x, y] = [r.state.values[j], r.state.values[j + 1]]
+			const step = { lit: { ...settled, [j]: LOOK, [j + 1]: LOOK }, pointers: [ptr('j', j)] }
+			r.counts.comparisons++
+			if (compareKeys(x, y) <= 0) {
+				r.step(`Pass ${pass}: a[${j}] = ${x} ≤ a[${j + 1}] = ${y}: leave them`, step)
+				continue
+			}
+			r.step(`Pass ${pass}: a[${j}] = ${x} > a[${j + 1}] = ${y}: swap them`, step)
+			r.set(swapped(r.state, j, j + 1))
+			r.counts.swaps++
+			swaps++
+			r.step(`swap(a[${j}], a[${j + 1}])`, { ...step, swaps: [[j, j + 1]] })
+		}
+		if (!swaps) {
+			r.step(`No swaps in pass ${pass}: every neighbour is in order, so the array is sorted`, { lit: lit(0, n - 1, DONE) })
+			break
+		}
+		r.step(`End of pass ${pass}: ${r.state.values[end]} has bubbled up to index ${end}`, { lit: lit(end, n - 1, DONE) })
+	}
+	return sorted(r, n)
+}
+
+// Inserting and deleting, shifting the values after the index: one copy per value, where a linked
+// list re-points two arrows.
+
+/** Delete a[k]: each later value is copied one cell left, then the last cell is dropped. */
+export function deleteAt(start: ArrayState, k: number): ArrayOperation {
+	const n = start.values.length
+	const r = recorder(start, { moves: 0 })
+	const v = start.values[k]
+	r.step(
+		k === n - 1
+			? `Delete a[${k}] = ${v}, the last value: nothing has to move`
+			: `Delete a[${k}] = ${v}: every value after it moves one cell left`,
+		{ lit: { [k]: GONE }, pointers: [ptr('i', k)] }
+	)
+	for (let i = k; i < n - 1; i++) {
+		r.set(copied(r.state, i + 1, i))
+		r.counts.moves++
+		r.step(`a[${i}] = a[${i + 1}] (${r.state.values[i]})`, { pointers: [ptr('i', i)], moves: [[i + 1, i]] })
+	}
+	const values = start.values.filter((_, i) => i !== k)
+	const marks: Marks = {}
+	for (const [key, color] of Object.entries(start.marks)) {
+		const i = Number(key)
+		if (i < k) marks[key] = color
+		else if (i > k) marks[String(i - 1)] = color
+	}
+	// The last step shows the result, so the array stays as it is once the operation is done.
+	r.set({ values, marks })
+	const moved = r.counts.moves
+	r.step(`n = n - 1: the last cell is no longer used. ${moved} value${moved === 1 ? '' : 's'} moved`)
+	return { frames: r.frames, result: { values, marks } }
+}
+
+/**
+ * Insert `value` at index k: a cell is added at the end, the values from k on are copied one cell
+ * right starting from the end (so nothing is overwritten), then a[k] = value.
+ */
+export function insertAt(start: ArrayState, k: number, value: string): ArrayOperation {
+	const n = start.values.length
+	const r = recorder({ values: [...start.values, ''], marks: start.marks }, { moves: 0 })
+	r.step(
+		k === n
+			? `Insert ${value} at the end: n = n + 1, and nothing has to move`
+			: `Insert ${value} at index ${k}. First make room: n = n + 1`,
+		{ lit: { [n]: LOOK } }
+	)
+	for (let i = n; i > k; i--) {
+		r.set(copied(r.state, i - 1, i))
+		r.counts.moves++
+		const why = i === n ? ': from the end, so nothing is overwritten' : ''
+		r.step(`a[${i}] = a[${i - 1}] (${r.state.values[i]})${why}`, { pointers: [ptr('i', i)], moves: [[i - 1, i]] })
+	}
+	const values = [...start.values.slice(0, k), value, ...start.values.slice(k)]
+	const marks: Marks = {}
+	for (const [key, color] of Object.entries(start.marks)) marks[String(Number(key) < k ? Number(key) : Number(key) + 1)] = color
+	r.set({ values, marks })
+	const moved = r.counts.moves
+	r.step(`a[${k}] = ${value}. ${moved} value${moved === 1 ? '' : 's'} moved to make room`, { lit: { [k]: DONE }, pointers: [ptr('i', k)] })
+	return { frames: r.frames, result: { values, marks }, finalFlash: { [k]: DONE } }
+}

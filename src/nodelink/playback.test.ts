@@ -20,4 +20,15 @@ describe('stateAt', () => {
 		expect(stateAt(frames, 2).strips).toEqual([{ title: 'queue', items: [] }])
 		expect(stateAt([{ caption: 'no strip' }], 0).strips).toBeUndefined()
 	})
+
+	it('keeps the latest dimmed elements and counts until a step replaces them', () => {
+		const steps: Frame[] = [
+			{ counts: { comparisons: 1 } },
+			{ dim: ['0', '1'], caption: 'no counts' },
+			{ dim: [], counts: { comparisons: 2, swaps: 1 } },
+		]
+		expect(stateAt(steps, 0)).toMatchObject({ dim: undefined, counts: { comparisons: 1 } })
+		expect(stateAt(steps, 1)).toMatchObject({ dim: ['0', '1'], counts: { comparisons: 1 } })
+		expect(stateAt(steps, 2)).toMatchObject({ dim: [], counts: { comparisons: 2, swaps: 1 } })
+	})
 })

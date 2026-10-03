@@ -23,7 +23,8 @@ import { useState } from 'react'
 import { clearMarks, markElement, markTargetUnderPointer } from '../cells/marking'
 import { MARK_COLORS, MARK_MEANINGS, type MarkColor } from '../cells/marks'
 import { PlaybackOverlay } from '../controls/PlaybackOverlay'
-import { NodeLinkShapeUtil, type NodeOperation } from '../nodelink/NodeLinkShapeUtil'
+import type { NodeOperation } from '../cells/CellShapeUtil'
+import { NodeLinkShapeUtil } from '../nodelink/NodeLinkShapeUtil'
 import { placePointer, removePointer, type Pointer } from '../pointers/pointers'
 import { operationPrompt } from '../controls/prompt'
 import { pointerState } from '../pointers/state'
@@ -176,16 +177,17 @@ function MarkMenu() {
 }
 
 /**
- * Operations that start from the node under the pointer when the menu opened (a graph's BFS / DFS
- * from it), captured then like the mark target.
+ * Operations that start from the element under the pointer when the menu opened (a graph's BFS /
+ * DFS from it), captured then like the mark target, then those on the whole structure (an array's
+ * sorts).
  */
 function NodeOperationsMenu() {
 	const editor = useEditor()
 	const [target] = useState(() => markTargetUnderPointer(editor))
 	const [operations] = useState(() => {
-		const util = target?.util
-		if (!target || target.key === undefined || !(util instanceof NodeLinkShapeUtil) || !util.nodeOperations) return []
-		return util.nodeOperations(target.shape, target.key)
+		if (!target) return []
+		const { util, shape, key } = target
+		return [...(key !== undefined ? (util.nodeOperations?.(shape, key) ?? []) : []), ...(util.shapeOperations?.(shape) ?? [])]
 	})
 	if (!operations.length) return null
 	const item = (op: NodeOperation) => (
@@ -203,12 +205,16 @@ function NodeOperationsMenu() {
 		/>
 	)
 	const submenus = [...new Set(operations.flatMap((op) => (op.submenu ? [op.submenu] : [])))]
+	const submenuId = (label: string, i: number) => {
+		const named = operations.find((op) => op.submenu === label && op.submenuId)?.submenuId
+		return named ? `drawds-${named}` : `drawds-node-operations-${i}`
+	}
 	return (
 		<TldrawUiMenuGroup id="drawds-node-operations">
 			{operations.filter((op) => !op.submenu).map(item)}
 			{submenus.map((label, i) => (
-				<TldrawUiMenuSubmenu key={label} id={`drawds-node-operations-${i}`} label={label}>
-					<TldrawUiMenuGroup id={`drawds-node-operations-${i}-items`}>
+				<TldrawUiMenuSubmenu key={label} id={submenuId(label, i)} label={label}>
+					<TldrawUiMenuGroup id={`${submenuId(label, i)}-items`}>
 						{operations.filter((op) => op.submenu === label).map(item)}
 					</TldrawUiMenuGroup>
 				</TldrawUiMenuSubmenu>

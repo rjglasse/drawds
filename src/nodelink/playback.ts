@@ -23,6 +23,12 @@ export interface Frame {
 	pointers?: Pointer[]
 	/** Node keys whose values just swapped: their values arc between the two nodes. */
 	swaps?: [string, string][]
+	/** Values just copied from one element to another (`[from, to]`): the value at `to` slides in from `from`. */
+	moves?: [string, string][]
+	/** Elements out of play from this step on, drawn faded (replacing earlier ones): a discarded half. */
+	dim?: string[]
+	/** Running totals shown in the play bar from this step on (replacing earlier ones): comparisons, swaps. */
+	counts?: Record<string, number>
 	/**
 	 * Highlights to set at this step, on nodes or edges (`edge:<key>`). They accumulate across
 	 * steps; null clears one again.
@@ -41,12 +47,16 @@ export interface StepState {
 	flash: Marks
 	badges: Record<string, string>
 	strips?: Strip[]
+	dim?: string[]
+	counts?: Record<string, number>
 }
 
 export function stateAt(frames: readonly Frame[], step: number): StepState {
 	const flash: Marks = {}
 	const badges: Record<string, string> = {}
 	let strips: Strip[] | undefined
+	let dim: string[] | undefined
+	let counts: Record<string, number> | undefined
 	for (const frame of frames.slice(0, step + 1)) {
 		for (const [key, color] of Object.entries(frame.flash ?? {})) {
 			if (color === null) delete flash[key]
@@ -54,8 +64,10 @@ export function stateAt(frames: readonly Frame[], step: number): StepState {
 		}
 		Object.assign(badges, frame.badges)
 		if (frame.strips) strips = frame.strips
+		if (frame.dim) dim = frame.dim
+		if (frame.counts) counts = frame.counts
 	}
-	return { flash, badges, strips }
+	return { flash, badges, strips, dim, counts }
 }
 
 /** What the shape should draw right now. */
@@ -217,11 +229,13 @@ function show(p: Player, { back = false } = {}) {
 	const frame = op.frames[op.step]
 	const last = op.step === op.frames.length - 1
 	const state = stateAt(op.frames, op.step)
-	// Stepping back replays the swaps of the step being undone, so the values arc home again.
+	// Stepping back replays the swaps of the step being undone, so the values arc home again. A
+	// copied value has nowhere to go back to: the old one just reappears.
 	const swaps = back ? op.frames[op.step + 1]?.swaps : frame.swaps
+	const moves = back ? undefined : frame.moves
 	p.view.set({
 		shapeId: op.shapeId,
-		frame: { ...frame, swaps },
+		frame: { ...frame, swaps, moves },
 		...state,
 		flash: op.done && last ? finalHighlights(op) : state.flash,
 		fading: false,

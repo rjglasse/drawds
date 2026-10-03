@@ -15,17 +15,16 @@ import {
 	type TLHandleDragInfo,
 	type TLShape,
 	type TLShapePartial,
-	type TLThemeColors,
 	type VecLike,
 } from 'tldraw'
-import { CellShapeUtil, type CellFont, type PointerDirection } from '../cells/CellShapeUtil'
+import { CellShapeUtil, type CellFont, type PlaybackLayout, type PointerDirection } from '../cells/CellShapeUtil'
 import type { EditableCells } from '../cells/editable-cells'
 import type { Marks } from '../cells/marks'
 import { growHandle, isGrowHandle } from '../controls/grow'
 import { GrowGrip } from '../controls/GrowGrip'
 import { ControlButton } from '../controls/ControlButton'
 import { KeyPrompt } from '../controls/KeyPrompt'
-import { closePrompt, isPromptOpen, openPrompt, operationPrompt } from '../controls/prompt'
+import { closePrompt, isPromptOpen, openPrompt } from '../controls/prompt'
 import { showsStructureControls } from '../controls/visibility'
 import { POINTER_FONT_SCALE, placePointers, type PlacedPointer, type PointerAnchor, type PointerSide } from '../pointers/layout'
 import { boxContains, labelBox, nodeBox, nodeContains, routeScene, spatialNeighbor, type EdgeRoute } from './geometry'
@@ -35,16 +34,7 @@ import { edgeCellKey, translateScene, type Scene, type SceneEdge, type SceneNode
 import { sceneCells } from './scene-cells'
 import { SceneSvg, stripsHeight } from './SceneSvg'
 
-/** An operation offered from a node's context menu. */
-export interface NodeOperation {
-	id: string
-	label: string
-	/** Operations with the same submenu label are grouped under it (e.g. "Traverse from 42"). */
-	submenu?: string
-	/** Ask for a value first (the prompt's placeholder); `run` gets it. */
-	prompt?: string
-	run(value?: string): void
-}
+export type { NodeOperation } from '../cells/CellShapeUtil'
 
 /** Style props every node-link shape has. */
 interface NodeLinkStyle {
@@ -104,8 +94,6 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	insertKey?(shape: S, key: string, keep: boolean): void
 	/** Steady highlights while the pointer is over a node (e.g. a heap's parent and children). */
 	hoverHighlights?(shape: S, key: string): Marks
-	/** Operations that start from a node, offered in its context menu (e.g. a graph's BFS from it). */
-	nodeOperations?(shape: S, key: string): NodeOperation[]
 
 	/**
 	 * Whether edges take marks too (keyed `edge:<key>`, like edge cells). Shapes that opt in prune
@@ -269,7 +257,11 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 								? { marks: playing.flash, badges: playing.badges, fading: playing.fading, id: playing.id }
 								: hover && { marks: hover, fading: false, id: 0 }
 						}
-						swaps={playing?.frame?.swaps && { pairs: playing.frame.swaps, id: playing.id }}
+						swaps={
+							playing?.frame && (playing.frame.swaps || playing.frame.moves)
+								? { pairs: playing.frame.swaps ?? [], moves: playing.frame.moves, id: playing.id }
+								: undefined
+						}
 					/>
 
 					{controls &&
@@ -294,7 +286,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 						onPress={() => openPrompt(this.editor, shape.id)}
 					/>
 				)}
-				{this.renderOperationPrompt(shape, scene, colors)}
+				{this.renderOperationPrompt(shape, colors)}
 				{prompt && promptOpen && (
 					<KeyPrompt
 						editor={this.editor}
@@ -315,32 +307,11 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		)
 	}
 
-	/** The value prompt of a node operation (e.g. "Find a value..."), above its node. */
-	private renderOperationPrompt(shape: S, scene: Scene, colors: TLThemeColors) {
-		const asked = operationPrompt(this.editor).get()
-		const node = asked?.shapeId === shape.id ? scene.nodes.find((n) => n.key === asked.at) : undefined
-		if (!asked || !node) return null
-		const close = () => operationPrompt(this.editor).set(null)
-		return (
-			<KeyPrompt
-				editor={this.editor}
-				at={{ x: node.x, y: node.y - node.h / 2 - 24 }}
-				label={asked.label}
-				colors={colors}
-				onCancel={close}
-				onSubmit={(value) => {
-					close()
-					asked.run(value)
-				}}
-			/>
-		)
-	}
-
 	/**
 	 * Where an operation's strip (queue / stack) and play bar go, in shape space: under the scene, in
 	 * that order. Also what the strip is drawn with.
 	 */
-	playbackLayout(shape: S, strips: readonly Strip[] | undefined) {
+	override playbackLayout(shape: S, strips: readonly Strip[] | undefined): PlaybackLayout {
 		const scene = this.displayScene(shape)
 		// Below any pointers under the structure too (a list's curr and prev).
 		const pointers = this.framePointers(shape, playbackFor(this.editor, shape.id)?.frame, scene) ?? this.placedPointers(shape)

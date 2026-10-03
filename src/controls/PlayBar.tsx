@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useValue, type Editor, type TLThemeColors, type VecLike } from 'tldraw'
+import { getColorValue, useValue, type Editor, type TLThemeColors, type VecLike } from 'tldraw'
 import {
 	cancelPlayback,
 	finishPlayback,
@@ -136,6 +136,22 @@ export function PlayBar({
 			<span data-testid="play-caption" style={{ padding: '2px 8px', width: 'max-content', maxWidth: 400, whiteSpace: 'normal', lineHeight: 1.3 }}>
 				{view.frame?.caption ?? ''}
 			</span>
+			{view.counts && Object.keys(view.counts).length > 0 && (
+				<span
+					data-testid="play-counts"
+					style={{
+						padding: '1px 7px',
+						marginRight: 4,
+						borderRadius: 6,
+						background: getColorValue(colors, 'grey', 'semi'),
+						fontVariantNumeric: 'tabular-nums',
+					}}
+				>
+					{Object.entries(view.counts)
+						.map(([name, n]) => `${name} ${n}`)
+						.join(' · ')}
+				</span>
+			)}
 			<span data-testid="play-counter" style={{ opacity: 0.55, fontVariantNumeric: 'tabular-nums', paddingRight: 4 }}>
 				{view.step + 1}/{view.steps}
 			</span>

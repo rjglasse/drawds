@@ -1,7 +1,8 @@
-import { useEditor, useValue } from 'tldraw'
-import { NodeLinkShapeUtil } from '../nodelink/NodeLinkShapeUtil'
+import { getColorValue, useEditor, useValue } from 'tldraw'
+import { CellShapeUtil } from '../cells/CellShapeUtil'
 import { currentPlayback } from '../nodelink/playback'
 import { StripSvg, stripGap, stripsHeight } from '../nodelink/SceneSvg'
+import { PointersSvg } from '../pointers/PointersSvg'
 import { PlayBar } from './PlayBar'
 
 /**
@@ -18,7 +19,7 @@ export function PlaybackOverlay() {
 			if (!view || view.fading) return null
 			const shape = editor.getShape(view.shapeId)
 			const util = shape && editor.getShapeUtil(shape)
-			if (!shape || !(util instanceof NodeLinkShapeUtil)) return null
+			if (!shape || !(util instanceof CellShapeUtil) || !util.playbackLayout) return null
 			const layout = util.playbackLayout(shape, view.strips)
 			const transform = editor.getShapePageTransform(shape)
 			const toViewport = (p: { x: number; y: number }) => editor.pageToViewport(transform.applyToPoint(p))
@@ -27,6 +28,7 @@ export function PlaybackOverlay() {
 				layout,
 				strip: toViewport(layout.strip),
 				bar: toViewport(layout.bar),
+				origin: toViewport({ x: 0, y: 0 }),
 				zoom: editor.getZoomLevel(),
 				colors: editor.getCurrentTheme().colors[editor.getColorMode()],
 			}
@@ -34,9 +36,42 @@ export function PlaybackOverlay() {
 		[editor]
 	)
 	if (!placed) return null
-	const { view, layout, strip, bar, zoom, colors } = placed
+	const { view, layout, strip, bar, origin, zoom, colors } = placed
+	const { metrics } = layout
 	return (
 		<>
+			{layout.pointers && (
+				<svg
+					style={{ position: 'absolute', left: origin.x, top: origin.y, overflow: 'visible', pointerEvents: 'none' }}
+					width={1}
+					height={1}
+				>
+					<g transform={`scale(${zoom})`}>
+						{layout.pointers.slots.map((box) => (
+							<rect
+								key={`${box.x},${box.y}`}
+								x={box.x}
+								y={box.y}
+								width={box.w}
+								height={box.h}
+								fill="none"
+								stroke={getColorValue(colors, layout.color, 'solid')}
+								strokeWidth={metrics.strokeWidth}
+								strokeDasharray={`${metrics.strokeWidth * 3} ${metrics.strokeWidth * 2.5}`}
+								opacity={0.45}
+							/>
+						))}
+						<PointersSvg
+							placed={layout.pointers.placed}
+							fontSize={layout.pointers.fontSize}
+							fontFamily={layout.fontFamily}
+							colors={colors}
+							animate
+							zoom={zoom}
+						/>
+					</g>
+				</svg>
+			)}
 			{view.strips?.length ? (
 				<svg
 					style={{ position: 'absolute', left: strip.x, top: strip.y, overflow: 'visible', pointerEvents: 'none' }}
