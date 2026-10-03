@@ -270,7 +270,8 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 						this.growGrips(shape).map((grip) => (
 							<GrowGrip key={grip.id} at={grip.at} zoom={zoom} colors={colors} />
 						))}
-					{this.renderPointers(shape, colors, { placed: this.framePointers(shape, playing?.frame, scene) })}
+					{/* A step's own pointers (or the shape's on a step's scene) are drawn by the play overlay. */}
+					{!this.framePointers(shape, playing?.frame, scene) && this.renderPointers(shape, colors)}
 				</SVGContainer>
 				{controls &&
 					!busy &&
@@ -315,12 +316,15 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	override playbackLayout(shape: S, strips: readonly Strip[] | undefined): PlaybackLayout {
 		const scene = this.displayScene(shape)
 		// Below any pointers under the structure too (a list's curr and prev).
-		const pointers = this.framePointers(shape, playbackFor(this.editor, shape.id)?.frame, scene) ?? this.placedPointers(shape)
+		const framePointers = this.framePointers(shape, playbackFor(this.editor, shape.id)?.frame, scene)
+		const pointers = framePointers ?? this.placedPointers(shape)
 		return {
 			...this.belowScene(scene, strips, Math.max(...pointers.map((p) => p.label.y + p.label.h))),
 			metrics: scene.metrics,
 			color: this.style(shape).color,
 			fontFamily: this.getFontFamily(shape),
+			// In front of the canvas: they may lie outside the shape's box (curr above the root).
+			pointers: framePointers && { placed: framePointers, fontSize: this.getPointerFontSize(shape), slots: [] },
 		}
 	}
 
