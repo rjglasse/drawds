@@ -125,9 +125,11 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   node-link shapes get defaults. Added from the context menu's Pointer submenu.
 - `src/shapes/heap/` - heaps stored as their array (`values`, index i's children 2i+1, 2i+2), drawn as the
   implicit complete tree (keys `"i"`) plus the array (keys `"a" + i`); marks keyed by index. `heap.ts` is pure
-  (sift up/down with swaps + path, insert, removeAt, heapify, violations).
+  (sift up/down with swaps + path, insert, removeAt, heapify, violations, `buildHeapSteps`: Floyd as frames, keyed
+  by index; `inBothViews` lights tree and array). Heap menu: build heap step by step, shuffle values.
 - `src/shapes/tree/bst.ts` - BST as a *kind* of binary tree (`drawds:tree-kind` style): in-order key placement,
   insert (path), delete (leaf / one child / two children via successor), violation check with ancestor bounds.
+  `search.ts`: search as frames (curr walks down, each ruled-out subtree fades via `dim`).
 - `src/shapes/tree/` - binary trees: nodes with `children: [left, right]` slots (null = empty), root first;
   `generate.ts` (random shapes by depth + fullness, growth-stable: existence depends only on seed + path, ids
   are `n` + path), `layout.ts` (contour-based tidy layout; a lone child offset `lone`, well under half the
@@ -138,7 +140,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   GRAPH_SPACING along the drag, node k joins its nearest earlier node (connected) plus maybe two more nearby,
   skipping crossings, near misses and narrow angles (planar-ish); growth-stable like trees. `model.ts` pure edits;
   `connect.ts` the connect grip (a 'create' handle `connect:<id>` on each node's right rim; drag state in a
-  per-editor atom; drop on a node = edge, in empty space = new node + edge).
+  per-editor atom; drop on a node = edge, in empty space = new node + edge). `algorithms.ts`: Dijkstra (distance
+  badges, best edge green), Prim, Kruskal, topological sort (Kahn) as frames, reusing traverse.ts's `Recorder`
+  (an edge only looked at flashes, then gets its colour back); unweighted graphs count every edge 1.
 - `src/controls/` - on-canvas controls shown while a structure is the only selected shape
   (`showsStructureControls`): grow grips (tldraw `create` handles `grow` / `grow-start`, drawn only on hover,
   plus our own '+' `GrowGrip`; `grownCount` is pure) and `ControlButton` (HTML insert '+' / remove 'x',

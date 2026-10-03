@@ -214,6 +214,13 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `context-menu.list-find`, `list-find-value` (opens `key-prompt`), `list-insert-after`,
   `list-insert-head`, `list-delete` or `list-reverse`. Step with `key ArrowRight` (they open
   paused); a reversed list is drawn the other way (`direction` flips) with nodes in place.
+- **Graph algorithms**: `rclick` a node, then `context-menu.graph-dijkstra` or (undirected) `graph-prim`; on
+  the whole graph `context-menu-sub.drawds-graph-algorithms-button` then `graph-kruskal` (undirected) or
+  `graph-topological-sort` (directed). Distances / in-degrees are node badges; `play-counts` shows updates or
+  total weight. Weights count only with `style.graph-weights.weighted` (else every edge is 1).
+- **BST search / build heap**: `rclick` a BST node, `context-menu-sub.drawds-bst-search-button`, then
+  `context-menu.bst-search` or `bst-search-value` (opens `key-prompt`). Heaps: `rclick` the heap,
+  `context-menu-sub.drawds-heap-actions-button`, then `heap-build` or `heap-shuffle`.
 - **Array operations**: `rclick` a cell, `clicksel` a submenu (stable ids):
   `[data-testid="context-menu-sub.drawds-array-search-button"]` (items `context-menu.array-binary-search`,
   `array-binary-search-value` (opens `key-prompt`), `array-linear-search`, `array-linear-search-value`),
