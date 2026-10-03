@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { compareKeys } from '../src/data/compare'
 import { bstDelete, bstInsert, bstViolations, inOrder } from '../src/shapes/tree/bst'
 import type { TreeShapeProps } from '../src/shapes/tree/tree-shape-types'
-import { hoverNode, insertKey, open, shapesOfType, sketchTree } from './helpers'
+import { hoverNode, insertKey, nodeScreenPosition, open, shapesOfType, sketchTree } from './helpers'
 
 const tree = async (page: Page) => (await shapesOfType<TreeShapeProps>(page, 'binary-tree'))[0].props
 const pickBst = (page: Page) => page.getByTestId('style.tree-kind.bst').click()
@@ -84,4 +84,33 @@ test('switching a tree to BST keeps its keys and sorts them into in-order positi
 	await hoverNode(page, 'n')
 	await expect(page.getByTestId('add-child-n-left')).toHaveCount(0)
 	await expect(page.getByTestId('insert-key')).toHaveCount(1)
+})
+
+test('search: curr walks down from the root, ruled-out subtrees fade; nothing changes', async ({ page }) => {
+	const before = await sketchBst(page, 3, 1)
+	const leaf = before.nodes.find((n) => n.id === 'nLR')!
+	await page.mouse.click(...(await nodeScreenPosition(page, 'nLR')), { button: 'right' })
+	await page.getByTestId('context-menu-sub.drawds-bst-search-button').click()
+	await page.getByTestId('context-menu.bst-search').click()
+	await expect(page.getByTestId('play-caption')).toHaveText(`curr = root (${before.nodes[0].value}). Is it ${leaf.value}?`)
+	await page.keyboard.press('ArrowRight')
+	await expect(page.getByTestId('play-caption')).toContainText("so it can't be on the right: curr = curr.left")
+	await page.keyboard.press('ArrowRight')
+	await page.keyboard.press('ArrowRight')
+	await expect(page.getByTestId('play-caption')).toHaveText(`Yes: found ${leaf.value}, after 3 comparisons`)
+	await page.keyboard.press('Enter')
+	expect(await tree(page)).toEqual(before)
+})
+
+test('search for a missing key falls off the tree; traversals are still numbered 0', async ({ page }) => {
+	await sketchBst(page, 2, 1)
+	await page.mouse.click(...(await nodeScreenPosition(page, 'n')), { button: 'right' })
+	await expect(page.getByTestId('context-menu-sub.drawds-node-operations-0-button')).toContainText('Traverse from')
+	await page.getByTestId('context-menu-sub.drawds-bst-search-button').click()
+	await page.getByTestId('context-menu.bst-search-value').click()
+	await page.getByTestId('key-prompt').fill('1000')
+	await page.keyboard.press('Enter')
+	await page.keyboard.press('ArrowRight')
+	await page.keyboard.press('ArrowRight')
+	await expect(page.getByTestId('play-caption')).toContainText('curr = null, so 1000 is not in the tree')
 })

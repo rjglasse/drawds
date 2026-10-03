@@ -262,6 +262,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 								? { pairs: playing.frame.swaps ?? [], moves: playing.frame.moves, id: playing.id }
 								: undefined
 						}
+						dim={playing && !playing.fading ? playing.dim : undefined}
 					/>
 
 					{controls &&

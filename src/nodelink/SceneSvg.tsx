@@ -44,6 +44,7 @@ export function SceneSvg({
 	marks = {},
 	flash,
 	swaps,
+	dim,
 }: {
 	scene: Scene
 	colors: TLThemeColors
@@ -57,6 +58,8 @@ export function SceneSvg({
 	flash?: FlashView
 	/** Canvas only: values arcing into their new nodes. */
 	swaps?: SwapView
+	/** Canvas only, while an operation is open: nodes out of play, drawn faded (with edges touching them). */
+	dim?: readonly string[]
 }) {
 	const { strokeWidth, fontSize, labelFontSize } = scene.metrics
 	const paint: Paint = {
@@ -70,6 +73,9 @@ export function SceneSvg({
 	}
 	const routes = routeScene(scene)
 	const byKey = new Map(scene.nodes.map((n) => [n.key, n]))
+	const dimmed = new Set(dim)
+	// Faded elements fade in and out as the steps change.
+	const fade = (out: boolean) => ({ opacity: out ? 0.3 : 1, style: { transition: 'opacity 300ms ease-in-out' } })
 
 	// Each value of a swapped pair starts at its partner's node and arcs over: one to each side. A
 	// copied value arcs in from where it was copied from.
@@ -111,7 +117,7 @@ export function SceneSvg({
 				const flashColor = flash?.marks[labelKey]
 				const flashStroke = flashColor && getColorValue(colors, flashColor, 'solid')
 				return (
-					<g key={edge.key}>
+					<g key={edge.key} {...fade(dimmed.has(edge.from) || dimmed.has(edge.to))}>
 						<path d={route.d} fill="none" stroke={stroke} strokeWidth={width} strokeLinecap="round" />
 						{edge.directed && <polygon points={arrowHead(route.tip, route.angle, width * 3 + 6)} fill={stroke} />}
 						{flash && flashStroke && (
@@ -138,24 +144,27 @@ export function SceneSvg({
 			{scene.nodes.map((node) => {
 				const flashColor = flash?.marks[node.key]
 				return (
-					<NodeShapeSvg
-						key={node.key}
-						node={node}
-						paint={marks[node.key] ? markedPaint(paint, colors, marks[node.key]) : paint}
-						flash={flashColor && flash ? { paint: markedPaint(paint, colors, flashColor), fading: flash.fading, id: flash.id } : undefined}
-					/>
+					<g key={node.key} {...fade(dimmed.has(node.key))}>
+						<NodeShapeSvg
+							node={node}
+							paint={marks[node.key] ? markedPaint(paint, colors, marks[node.key]) : paint}
+							flash={flashColor && flash ? { paint: markedPaint(paint, colors, flashColor), fading: flash.fading, id: flash.id } : undefined}
+						/>
+					</g>
 				)
 			})}
 			{scene.nodes.map((node) => {
 				const swap = swapStyle(node.key)
 				return (
-					<NodeValueSvg
-						key={swap && swaps ? `${node.key}:swap-${swaps.id}` : node.key}
-						node={node}
-						paint={paint}
-						hideValue={node.key === hiddenKey}
-						swapStyle={swap}
-					/>
+					<g key={node.key} {...fade(dimmed.has(node.key))}>
+						<NodeValueSvg
+							key={swap && swaps ? `${node.key}:swap-${swaps.id}` : node.key}
+							node={node}
+							paint={paint}
+							hideValue={node.key === hiddenKey}
+							swapStyle={swap}
+						/>
+					</g>
 				)
 			})}
 			{flash?.badges &&

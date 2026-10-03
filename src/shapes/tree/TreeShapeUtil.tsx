@@ -8,6 +8,7 @@ import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkSh
 import { prunePointers } from '../../pointers/pointers'
 import { playOperation, type Frame } from '../../nodelink/playback'
 import { assignInOrder, bstDelete, bstInsert } from './bst'
+import { bstSearch } from './search'
 import { nullKey, treeBasePosition, treeRootCentre, treeScene } from './layout'
 import { ORDER_NAMES, traverseTree, type TreeOrder } from './traverse'
 import { addChild, levelOrder, parentOf, removeSubtree } from './model'
@@ -147,12 +148,37 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 	nodeOperations(shape: TreeShape, key: string): NodeOperation[] {
 		const node = shape.props.nodes.find((n) => n.id === key)
 		if (!node) return []
-		return (['pre', 'in', 'post', 'level'] as const).map((order) => ({
-			id: `tree-${order}-order`,
-			label: ORDER_NAMES[order],
-			submenu: `Traverse from ${node.value}`,
-			run: () => this.traverse(shape.id, key, order),
-		}))
+		const search = { submenu: 'Search', submenuId: 'bst-search' }
+		return [
+			...(shape.props.kind === 'bst'
+				? [
+						...(node.value.trim()
+							? [{ ...search, id: 'bst-search', label: `Search for ${node.value}`, run: () => this.search(shape.id, node.value) }]
+							: []),
+						{
+							...search,
+							id: 'bst-search-value',
+							label: 'Search for a key',
+							prompt: 'Key to find',
+							run: (value?: string) => value !== undefined && this.search(shape.id, value),
+						},
+					]
+				: []),
+			...(['pre', 'in', 'post', 'level'] as const).map((order) => ({
+				id: `tree-${order}-order`,
+				label: ORDER_NAMES[order],
+				submenu: `Traverse from ${node.value}`,
+				run: () => this.traverse(shape.id, key, order),
+			})),
+		]
+	}
+
+	/** BST search from the root, step by step; nothing changes (Shift at the end keeps the path as marks). */
+	private search(id: TreeShape['id'], key: string) {
+		const shape = this.editor.getShape(id) as TreeShape | undefined
+		if (!shape || !shape.props.nodes.length) return
+		const { frames, found } = bstSearch(shape.props.nodes, key, { nulls: shape.props.nulls === 'show' })
+		this.play(shape, 'search', frames, false, { flash: found ? { [found]: 'green' } : {} })
 	}
 
 	private traverse(id: TreeShape['id'], start: string, order: TreeOrder) {

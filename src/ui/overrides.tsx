@@ -205,16 +205,19 @@ function NodeOperationsMenu() {
 		/>
 	)
 	const submenus = [...new Set(operations.flatMap((op) => (op.submenu ? [op.submenu] : [])))]
-	const submenuId = (label: string, i: number) => {
-		const named = operations.find((op) => op.submenu === label && op.submenuId)?.submenuId
-		return named ? `drawds-${named}` : `drawds-node-operations-${i}`
+	// Submenus without a stable id are numbered among themselves, in menu order.
+	const named = (label: string) => operations.find((op) => op.submenu === label && op.submenuId)?.submenuId
+	const unnamed = submenus.filter((label) => !named(label))
+	const submenuId = (label: string) => {
+		const id = named(label)
+		return id ? `drawds-${id}` : `drawds-node-operations-${unnamed.indexOf(label)}`
 	}
 	return (
 		<TldrawUiMenuGroup id="drawds-node-operations">
 			{operations.filter((op) => !op.submenu).map(item)}
-			{submenus.map((label, i) => (
-				<TldrawUiMenuSubmenu key={label} id={submenuId(label, i)} label={label}>
-					<TldrawUiMenuGroup id={`${submenuId(label, i)}-items`}>
+			{submenus.map((label) => (
+				<TldrawUiMenuSubmenu key={label} id={submenuId(label)} label={label}>
+					<TldrawUiMenuGroup id={`${submenuId(label)}-items`}>
 						{operations.filter((op) => op.submenu === label).map(item)}
 					</TldrawUiMenuGroup>
 				</TldrawUiMenuSubmenu>
