@@ -399,6 +399,157 @@ export function quicksort(start: ArrayState): ArrayOperation {
 	return { frames: r.frames, result: r.state }
 }
 
+/**
+ * Hoare's partition around the first value: i walks in from the left past values smaller than the
+ * pivot, j from the right past larger ones; when both stop, the two values swap, until the
+ * pointers cross. Then a[0..j] ≤ pivot ≤ a[j+1..], but the pivot need not be in its final place.
+ */
+export function hoarePartition(start: ArrayState): ArrayOperation {
+	const n = start.values.length
+	const r = recorder(start, sortCounts())
+	const p = r.state.values[0]
+	let i = -1
+	let j = n
+	let pivotAt = 0
+	const shown = (extra: Marks = {}): Marks => ({ [pivotAt]: PIVOT, ...extra })
+	const at = () => [ptr('i', i), ptr('j', j)]
+	r.step(`pivot = a[0] = ${p}. i starts before the array, j after it`, { lit: shown(), pointers: at() })
+	for (;;) {
+		do {
+			i++
+			r.counts.comparisons++
+			const x = r.state.values[i]
+			const stop = compareKeys(x, p) >= 0
+			r.step(`i = ${i}: a[${i}] = ${x} ${stop ? `≥ ${p}, so i stops` : `< ${p}, so keep going`}`, {
+				lit: shown(stop ? { [i]: LOOK } : {}),
+				pointers: at(),
+			})
+			if (stop) break
+		} while (i < n - 1)
+		do {
+			j--
+			r.counts.comparisons++
+			const x = r.state.values[j]
+			const stop = compareKeys(x, p) <= 0
+			r.step(`j = ${j}: a[${j}] = ${x} ${stop ? `≤ ${p}, so j stops` : `> ${p}, so keep going`}`, {
+				lit: shown(stop ? { [i]: LOOK, [j]: LOOK } : { [i]: LOOK }),
+				pointers: at(),
+			})
+			if (stop) break
+		} while (j > 0)
+		if (i >= j) break
+		r.set(swapped(r.state, i, j))
+		r.counts.swaps++
+		if (pivotAt === i) pivotAt = j
+		else if (pivotAt === j) pivotAt = i
+		r.step(`i < j: swap(a[${i}], a[${j}]), so each goes to its side`, { lit: shown(), pointers: at(), swaps: [[i, j]] })
+	}
+	r.step(
+		`i = ${i} ≥ j = ${j}: the pointers have crossed. a[0..${j}] ≤ ${p} ≤ a[${j + 1}..${n - 1}]; unlike Lomuto's, the pivot isn't necessarily in its final place`,
+		{ lit: { ...lit(0, j, SMALL), [pivotAt]: PIVOT }, pointers: at() }
+	)
+	return { frames: r.frames, result: r.state }
+}
+
+/**
+ * Merge sort: split the range in half, sort each half the same way, then merge them: the smaller
+ * of the two front values goes next into the merged run (a strip; taken values fade), and the run
+ * is copied back, each value arcing into its new cell. Open calls are a stack, as in quicksort.
+ */
+export function mergeSort(start: ArrayState): ArrayOperation {
+	const n = start.values.length
+	const r = recorder(start, { comparisons: 0, copies: 0 })
+	const calls: string[] = []
+	const outside = (lo: number, hi: number) => span(0, n - 1).filter((k) => Number(k) < lo || Number(k) > hi)
+	const strips = (merged: string[] = []) => [
+		{ title: 'call stack', items: [...calls] },
+		{ title: 'merged', items: merged },
+	]
+	const sort = (lo: number, hi: number) => {
+		calls.push(`${lo}..${hi}`)
+		if (lo === hi) {
+			r.step(`mergeSort(${lo}, ${hi}): one value, a[${lo}], is sorted`, { dim: outside(lo, hi), strips: strips(), lit: { [lo]: DONE } })
+			calls.pop()
+			return
+		}
+		const mid = Math.floor((lo + hi) / 2)
+		r.step(`mergeSort(${lo}, ${hi}): sort a[${lo}..${mid}] and a[${mid + 1}..${hi}], then merge them`, {
+			dim: outside(lo, hi),
+			strips: strips(),
+		})
+		sort(lo, mid)
+		sort(mid + 1, hi)
+		// Merge: i and j walk the two sorted halves; the smaller front value goes next.
+		const values = r.state.values
+		const merged: string[] = []
+		const from: number[] = []
+		let i = lo
+		let j = mid + 1
+		const halves = { ...lit(lo, mid, SMALL), ...lit(mid + 1, hi, DONE) }
+		const taken = () => from.map(String)
+		r.step(`Merge a[${lo}..${mid}] (blue) and a[${mid + 1}..${hi}] (green), both sorted`, {
+			dim: outside(lo, hi),
+			strips: strips(),
+			lit: halves,
+			pointers: [ptr('i', i), ptr('j', j)],
+		})
+		while (i <= mid || j <= hi) {
+			// Which half the next value comes from (i and j can be equal once the left half is used up).
+			let left: boolean
+			let why: string
+			if (i > mid) {
+				left = false
+				why = `The left half is used up: take a[${j}] = ${values[j]}`
+			} else if (j > hi) {
+				left = true
+				why = `The right half is used up: take a[${i}] = ${values[i]}`
+			} else {
+				r.counts.comparisons++
+				left = compareKeys(values[i], values[j]) <= 0
+				why = left
+					? `a[${i}] = ${values[i]} ≤ a[${j}] = ${values[j]}: take ${values[i]}`
+					: `a[${j}] = ${values[j]} < a[${i}] = ${values[i]}: take ${values[j]}`
+			}
+			const take = left ? i++ : j++
+			merged.push(values[take])
+			from.push(take)
+			r.counts.copies++
+			r.step(why, {
+				dim: [...outside(lo, hi), ...taken()],
+				strips: strips([...merged]),
+				lit: { ...halves, [take]: LOOK },
+				pointers: [ptr('i', i), ptr('j', j)],
+			})
+		}
+		// Copy the run back: marks travel with their values.
+		const marks: Marks = { ...r.state.marks }
+		for (let k = lo; k <= hi; k++) delete marks[String(k)]
+		from.forEach((old, k) => {
+			const mark = r.state.marks[String(old)]
+			if (mark) marks[String(lo + k)] = mark
+		})
+		r.set({ values: [...values.slice(0, lo), ...merged, ...values.slice(hi + 1)], marks })
+		r.counts.copies += merged.length
+		r.step(`Copy the merged run back into a[${lo}..${hi}]: it is sorted`, {
+			dim: outside(lo, hi),
+			strips: strips(),
+			lit: lit(lo, hi, DONE),
+			moves: from.map((old, k): [number, number] => [old, lo + k]).filter(([a, b]) => a !== b),
+		})
+		calls.pop()
+	}
+	sort(0, n - 1)
+	const { comparisons, copies } = r.counts
+	r.step(`Every call has returned: sorted, with ${comparisons} comparisons and ${copies} copies`, {
+		lit: lit(0, n - 1, DONE),
+		strips: [
+			{ title: 'call stack', items: [] },
+			{ title: 'merged', items: [] },
+		],
+	})
+	return { frames: r.frames, result: r.state }
+}
+
 // Inserting and deleting, shifting the values after the index: one copy per value, where a linked
 // list re-points two arrows.
 

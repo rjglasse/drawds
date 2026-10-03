@@ -5,10 +5,12 @@ import {
 	binarySearch,
 	bubbleSort,
 	deleteAt,
+	hoarePartition,
 	insertAt,
 	insertionSort,
 	isSorted,
 	linearSearch,
+	mergeSort,
 	partitionArray,
 	quicksort,
 	selectionSort,
@@ -215,5 +217,45 @@ describe('quicksort', () => {
 
 	it('marks travel', () => {
 		expect(quicksort({ values: ['3', '1', '2'], marks: { 1: 'red' } }).result).toEqual({ values: ['1', '2', '3'], marks: { 0: 'red' } })
+	})
+})
+
+describe('hoare partition and merge sort', () => {
+	it('hoare: i and j walk in, swap out-of-place pairs, and stop once they cross', () => {
+		const op = hoarePartition(arr(5, 8, 1, 9, 3, 7))
+		// Pivot 5: i stops on 5, j on 3: swap; i stops on 8, j on 1: swap; i on 8 (now at 2)... crossed.
+		const values = op.result!.values.map(Number)
+		const j = Number(last(op).pointers?.find((p) => p.name === 'j')?.at)
+		expect(values.slice(0, j + 1).every((v) => v <= 5)).toBe(true)
+		expect(values.slice(j + 1).every((v) => v >= 5)).toBe(true)
+		expect(last(op).caption).toMatch(/the pointers have crossed\..*isn't necessarily in its final place$/)
+		expect(op.frames[0].pointers?.map((p) => p.at)).toEqual(['-1', '6'])
+		expectConsistent(op, ['5', '8', '1', '9', '3', '7'])
+	})
+
+	it('merge sort sorts; the merged run fills a strip and copies back', () => {
+		const start = arr(5, 2, 4, 6, 1, 3)
+		const op = mergeSort(start)
+		expect(op.result?.values).toEqual(['1', '2', '3', '4', '5', '6'])
+		const merging = op.frames.filter((f) => (f.strips?.[1].items.length ?? 0) > 0)
+		expect(merging.length).toBeGreaterThan(0)
+		expect(last(op).strips).toEqual([
+			{ title: 'call stack', items: [] },
+			{ title: 'merged', items: [] },
+		])
+		expect(op.frames.some((f) => f.caption === 'Copy the merged run back into a[0..5]: it is sorted')).toBe(true)
+		// Every merge copies its values into the run and back: merges of 2, 3, 2, 3 and 6 values.
+		expect(counts(op)).toMatchObject({ comparisons: expect.any(Number), copies: 32 })
+	})
+
+	it('merge sort on sorted input: each left half runs out first (i meets j), nothing lost', () => {
+		const op = mergeSort(arr(1, 2, 3, 4, 5))
+		expect(op.result?.values).toEqual(['1', '2', '3', '4', '5'])
+		expect(op.frames.every((f) => (f.props as { values: string[] }).values.length === 5)).toBe(true)
+	})
+
+	it('merge sort keeps equal values in order and marks travel', () => {
+		const op = mergeSort({ values: ['2', '1', '2'], marks: { 0: 'red', 2: 'blue' } })
+		expect(op.result).toEqual({ values: ['1', '2', '2'], marks: { 1: 'red', 2: 'blue' } })
 	})
 })

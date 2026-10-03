@@ -215,3 +215,23 @@ test('a lone cell has no x; there is no + past the end (the grow grip adds there
 	await expect(page.getByTestId('remove-cell-0')).toHaveCount(0)
 	await expect(page.getByTestId('insert-cell-1')).toHaveCount(0)
 })
+
+test('merge sort: the merged run fills a strip, then the array is sorted', async ({ page }) => {
+	await sketchArray(page, [200, 200], 6)
+	await setValues(page, ['5', '2', '4', '6', '1', '3'])
+	await arrayOp(page, 0, 'array-sort', 'array-merge-sort')
+	await expect(caption(page)).toHaveText('mergeSort(0, 5): sort a[0..2] and a[3..5], then merge them')
+	await expect(page.getByTestId('playback-strip').filter({ hasText: 'merged' })).toHaveCount(1)
+	await stepToEnd(page)
+	await expect(caption(page)).toContainText('Every call has returned: sorted')
+	expect(await values(page)).toEqual(['1', '2', '3', '4', '5', '6'])
+})
+
+test('Hoare partition: i and j start just off either end and cross', async ({ page }) => {
+	await sketchArray(page, [200, 200], 6)
+	await setValues(page, ['5', '8', '1', '9', '3', '7'])
+	await arrayOp(page, 0, 'array-sort', 'array-hoare-partition')
+	await expect(caption(page)).toHaveText('pivot = a[0] = 5. i starts before the array, j after it')
+	await stepToEnd(page)
+	await expect(caption(page)).toContainText('the pointers have crossed')
+})
