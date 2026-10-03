@@ -620,3 +620,23 @@ export function withCell({ values, marks }: ArrayState, k: number, value: string
 	for (const [key, color] of Object.entries(marks)) moved[String(Number(key) < k ? Number(key) : Number(key) + 1)] = color
 	return { values: [...values.slice(0, k), value, ...values.slice(k)], marks: moved }
 }
+
+/**
+ * Fixed capacity: cell k's value goes, the used values after it move down one, and the last used
+ * slot becomes a blank spare one (the capacity stays).
+ */
+export function withoutUsedCell(state: ArrayState, k: number): ArrayState {
+	const { values, marks } = withoutCell(state, k)
+	return { values: [...values, ''], marks }
+}
+
+/**
+ * Fixed capacity, with room (used < capacity): `value` at index k, the used values from k on move
+ * up one into the first spare slot.
+ */
+export function withUsedCell(state: ArrayState, used: number, k: number, value: string): ArrayState {
+	const { values, marks } = withCell(state, k, value)
+	// The spare slot that was at index `used` is now at used + 1, and is taken.
+	values.splice(used + 1, 1)
+	return { values, marks }
+}

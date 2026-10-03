@@ -82,8 +82,14 @@ describe('pointer migrations', () => {
 	const sequences = { arrayShapeMigrations, listShapeMigrations, treeShapeMigrations, heapShapeMigrations, graphShapeMigrations }
 	for (const [name, sequence] of Object.entries(sequences)) {
 		it(`${name}: shapes saved before pointers get none`, () => {
-			const step = sequence.sequence.at(-1)!
-			if (!('up' in step) || typeof step.down !== 'function') throw new Error('expected a props migration')
+			// The step that adds pointers (later steps may follow it).
+			const step = sequence.sequence.find((s) => {
+				if (!('up' in s)) return false
+				const props: Record<string, unknown> = { marks: {}, values: [] }
+				s.up(props)
+				return 'pointers' in props
+			})
+			if (!step || !('up' in step) || typeof step.down !== 'function') throw new Error('expected a props migration')
 			const props: Record<string, unknown> = { marks: {} }
 			step.up(props)
 			expect(props.pointers).toEqual([])

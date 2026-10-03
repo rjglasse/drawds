@@ -231,7 +231,7 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 		return this.cells.cellAt(shape, point)
 	}
 
-	override canEdit() {
+	override canEdit(_shape: S): boolean {
 		return true
 	}
 

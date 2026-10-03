@@ -26,7 +26,7 @@ import { animationMs, isBusy, playOperation, playbackFor, type Strip } from '../
 import { stripsHeight } from '../../nodelink/SceneSvg'
 import { placePointers, type PointerAnchor } from '../../pointers/layout'
 import { prunePointers, type Pointer } from '../../pointers/pointers'
-import { ARRAY_SHAPE_TYPE, arrayShapeMigrations, arrayShapeProps, type ArrayShape } from './array-shape-types'
+import { ARRAY_SHAPE_TYPE, arrayShapeMigrations, arrayShapeProps, usedCount, type ArrayShape } from './array-shape-types'
 import { arrayCells } from './cells'
 import {
 	binarySearch,
@@ -42,6 +42,8 @@ import {
 	selectionSort,
 	withCell,
 	withoutCell,
+	withoutUsedCell,
+	withUsedCell,
 	type ArrayOperation,
 	type ArrayState,
 } from './operations'
@@ -68,15 +70,46 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			seed: 0,
 			marks: {},
 			pointers: [],
+			sizing: 'grows',
+			used: 1,
 			color: 'black',
 			size: 'm',
 			font: 'mono',
 		}
 	}
 
+	/** New values for the cells in use (a fixed array's spare slots stay blank). */
 	refill(shape: ArrayShape): TLShapePartial<ArrayShape> {
 		const { fill, seed, values } = shape.props
-		return { id: shape.id, type: ARRAY_SHAPE_TYPE, props: { values: fillValues(fill, seed, values.length) } }
+		return { id: shape.id, type: ARRAY_SHAPE_TYPE, props: { values: padded(fillValues(fill, seed, usedCount(shape.props)), values.length) } }
+	}
+
+	/**
+	 * Switching to a fixed capacity keeps every value in use (the grow grip then adds spare slots);
+	 * switching back to growing drops the spare slots. Spare slots stay blank.
+	 */
+	override onBeforeUpdate(prev: ArrayShape, next: ArrayShape): ArrayShape | void {
+		let shape = next
+		if (prev.props.sizing !== next.props.sizing) {
+			const props = next.props
+			if (props.sizing === 'fixed') {
+				shape = { ...next, props: { ...props, used: props.values.length } }
+			} else {
+				const n = Math.max(1, Math.min(prev.props.used, props.values.length))
+				const keep = Array.from({ length: n + 2 }, (_, i) => String(i - 1))
+				shape = {
+					...next,
+					props: {
+						...props,
+						used: n,
+						values: props.values.slice(0, n),
+						marks: pruneMarks(props.marks, keep),
+						pointers: prunePointers(props.pointers, keep),
+					},
+				}
+			}
+		}
+		return super.onBeforeUpdate(prev, shape) ?? (shape === next ? undefined : shape)
 	}
 
 	/**
@@ -90,7 +123,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const metrics = getArrayMetrics(shape.props)
 		const layout = getArrayLayout(values.length, direction, metrics)
 		const indices = getIndices(values.length + 1)
-		const handles: TLHandle[] = values.map((value, i) => {
+		const handles: TLHandle[] = values.slice(0, usedCount(shape.props)).map((value, i) => {
 			const { x, y } = layout.cellAt(i)
 			const at =
 				direction === 'horizontal' ? { x: x + metrics.cell / 2, y: y + metrics.cell } : { x: x + metrics.cell, y: y + metrics.cell / 2 }
@@ -120,15 +153,17 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			return
 		}
 		if (handle.id !== GROW_HANDLE_ID) return
-		const { values, direction, fill, seed, marks, pointers } = initial.props
+		const { values, direction, fill, seed, marks, pointers, sizing } = initial.props
 		const axis = direction === 'horizontal' ? { x: 1, y: 0 } : { x: 0, y: 1 }
 		const step = getArrayMetrics(initial.props).cell
-		const count = grownCount(values.length, this.growPoint(initial), handle, axis, step)
+		const fixed = sizing === 'fixed'
+		// A fixed array's grip changes its capacity: blank spare slots, never fewer cells than in use.
+		const count = Math.max(fixed ? Math.max(1, usedCount(initial.props)) : 1, grownCount(values.length, this.growPoint(initial), handle, axis, step))
 		return {
 			id: shape.id,
 			type: ARRAY_SHAPE_TYPE,
 			props: {
-				values: extendValues(values, fill, seed, count),
+				values: fixed ? padded(values.slice(0, count), count) : extendValues(values, fill, seed, count),
 				marks: pruneMarks(
 					marks,
 					Array.from({ length: count }, (_, i) => String(i))
@@ -172,8 +207,9 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	override nodeOperations(shape: ArrayShape, key: string): NodeOperation[] {
 		const k = Number(key)
-		const { values } = shape.props
-		if (!Number.isInteger(k) || k < 0 || k >= values.length) return []
+		const { values, sizing } = shape.props
+		const n = usedCount(shape.props)
+		if (!Number.isInteger(k) || k < 0 || k >= n) return []
 		const v = values[k]
 		const search = { submenu: 'Search', submenuId: 'array-search' }
 		const shift = { submenu: 'Insert / delete step by step', submenuId: 'array-shift' }
@@ -190,10 +226,14 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		return [
 			...find('array-binary-search', 'Binary search', binarySearch),
 			...find('array-linear-search', 'Linear search', linearSearch),
-			{ ...shift, id: 'array-insert', label: `Insert at index ${k}`, run: () => this.play(shape.id, 'insert', (a) => this.insertOp(shape.id, a, k)) },
-			...(values.length > 1
-				? [{ ...shift, id: 'array-delete', label: `Delete a[${k}] (${v})`, run: () => this.play(shape.id, 'delete', (a) => deleteAt(a, k)) }]
-				: []),
+			...(sizing === 'fixed'
+				? []
+				: [
+						{ ...shift, id: 'array-insert', label: `Insert at index ${k}`, run: () => this.play(shape.id, 'insert', (a) => this.insertOp(shape.id, a, k)) },
+						...(values.length > 1
+							? [{ ...shift, id: 'array-delete', label: `Delete a[${k}] (${v})`, run: () => this.play(shape.id, 'delete', (a) => deleteAt(a, k)) }]
+							: []),
+					]),
 		]
 	}
 
@@ -213,13 +253,18 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			run: () => this.rearrange(shape.id, label.toLowerCase(), make),
 		})
 		return [
-			sort('array-insertion-sort', 'Insertion sort', insertionSort),
-			sort('array-selection-sort', 'Selection sort', selectionSort),
-			sort('array-bubble-sort', 'Bubble sort', bubbleSort),
-			sort('array-partition', 'Partition around the last value', partitionArray),
-			sort('array-quicksort', 'Quicksort', quicksort),
-			sort('array-hoare-partition', 'Hoare partition around the first value', hoarePartition),
-			sort('array-merge-sort', 'Merge sort', mergeSort),
+			// Sorting needs two values in use.
+			...(usedCount(shape.props) < 2
+				? []
+				: [
+						sort('array-insertion-sort', 'Insertion sort', insertionSort),
+						sort('array-selection-sort', 'Selection sort', selectionSort),
+						sort('array-bubble-sort', 'Bubble sort', bubbleSort),
+						sort('array-partition', 'Partition around the last value', partitionArray),
+						sort('array-quicksort', 'Quicksort', quicksort),
+						sort('array-hoare-partition', 'Hoare partition around the first value', hoarePartition),
+						sort('array-merge-sort', 'Merge sort', mergeSort),
+					]),
 			order('array-sort', 'Sort', (values) => sortedOrder(values)),
 			order('array-sort-descending', 'Sort descending', (values) => sortedOrder(values, true)),
 			order('array-shuffle', 'Shuffle', (values) => shuffledOrder(values.length, mulberry32(newSeed()))),
@@ -234,12 +279,23 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		]
 	}
 
-	/** Play an operation on the array as it is now; its result (if any) is one undo step. */
+	/**
+	 * Play an operation on the array as it is now; its result (if any) is one undo step. It works on
+	 * the values in use: a fixed array's spare slots are added back to every step, blank.
+	 */
 	private play(id: ArrayShape['id'], label: string, operation: (array: ArrayState) => ArrayOperation) {
 		const shape = this.editor.getShape(id) as ArrayShape | undefined
 		if (!shape) return
-		const { values, marks } = shape.props
-		const { frames, result, finalFlash } = operation({ values, marks })
+		const { values, marks } = inUse(shape.props)
+		// A growing array is as long as the operation makes it.
+		const capacity = shape.props.sizing === 'fixed' ? shape.props.values.length : 0
+		const op = operation({ values, marks })
+		const frames = op.frames.map((f) => {
+			const props = f.props as Partial<ArrayState> | undefined
+			return props?.values ? { ...f, props: { ...props, values: padded(props.values, capacity) } } : f
+		})
+		const { finalFlash } = op
+		const result = op.result && { ...op.result, values: padded(op.result.values, capacity) }
 		const final = result && this.withValues(shape, result)
 		playOperation(this.editor, {
 			shapeId: id,
@@ -273,8 +329,10 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	 * slide over. Touch screens have no hover, so they show every button.
 	 */
 	private renderCellButtons(shape: ArrayShape, colors: TLThemeColors) {
-		const { values, direction } = shape.props
+		const { values, direction, sizing } = shape.props
 		const n = values.length
+		const used = usedCount(shape.props)
+		const fixed = sizing === 'fixed'
 		const metrics = getArrayMetrics(shape.props)
 		const layout = getArrayLayout(n, direction, metrics)
 		const zoom = this.editor.getZoomLevel()
@@ -282,9 +340,12 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const point = this.editor.getPointInShapeSpace(shape, this.editor.inputs.getCurrentPagePoint())
 		const hovered = coarse ? undefined : hoveredCell(point, n, direction, metrics, 16 / zoom)
 		if (!coarse && !hovered) return null
-		const removable = n < 2 ? [] : coarse ? [...values.keys()] : [hovered!.index]
-		// Not past the end: the grow grip adds cells there.
-		const boundaries = (coarse ? [...values.keys()] : [hovered!.boundary]).filter((b) => b < n)
+		const all = [...values.keys(), n]
+		// An x on cells in use (a growing array keeps one); a + between them, not past the end where
+		// the grow grip adds cells. A fixed array takes a + only while it has a spare slot, up to
+		// just after its last value.
+		const removable = (coarse ? all : [hovered!.index]).filter((k) => k < used && (fixed || n > 1))
+		const boundaries = (coarse ? all : [hovered!.boundary]).filter((b) => (fixed ? used < n && b <= used : b < n))
 		const { cell } = metrics
 		const nudge = 5 / zoom
 		return (
@@ -324,36 +385,61 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		)
 	}
 
-	/** Delete cell k at once (one undo step): the values after it slide one cell back. */
+	/**
+	 * Delete cell k at once (one undo step): the values after it slide one cell back. A fixed array
+	 * keeps its capacity: its last used slot becomes a spare one.
+	 */
 	private pressDelete(id: ArrayShape['id'], k: number) {
 		const shape = this.editor.getShape(id) as ArrayShape | undefined
-		if (!shape || shape.props.values.length < 2) return
-		const { values, marks } = shape.props
+		if (!shape) return
+		const { values, marks, sizing } = shape.props
+		const used = usedCount(shape.props)
+		const fixed = sizing === 'fixed'
+		if (!fixed && values.length < 2) return
 		this.editor.markHistoryStoppingPoint('delete cell')
-		this.editor.updateShape(this.withValues(shape, withoutCell({ values, marks }, k)))
-		this.slide(shape, Object.fromEntries(values.slice(k + 1).map((_, j) => [k + j, k + j + 1])))
+		this.editor.updateShape(
+			fixed
+				? this.withValues(shape, withoutUsedCell({ values, marks }, k), used - 1)
+				: this.withValues(shape, withoutCell({ values, marks }, k))
+		)
+		this.slide(shape, Object.fromEntries(values.slice(k + 1, used).map((_, j) => [k + j, k + j + 1])))
 	}
 
-	/** Insert a value at index k (one undo step), sliding the rest along, and open it for typing. */
+	/**
+	 * Insert a value at index k (one undo step), sliding the rest along, and open it for typing. A
+	 * fixed array needs a spare slot, which the last value moves into.
+	 */
 	private pressInsert(id: ArrayShape['id'], k: number) {
 		const shape = this.editor.getShape(id) as ArrayShape | undefined
 		if (!shape) return
-		const { values, marks } = shape.props
+		const { values, marks, sizing } = shape.props
+		const used = usedCount(shape.props)
+		const fixed = sizing === 'fixed'
+		if (fixed && used >= values.length) return
+		const value = this.newValue(shape.props, values.slice(0, used), k)
 		this.editor.markHistoryStoppingPoint('insert cell')
-		this.editor.updateShape(this.withValues(shape, withCell({ values, marks }, k, this.newValue(shape.props, values, k))))
-		this.slide(shape, Object.fromEntries(values.slice(k).map((_, j) => [k + j + 1, k + j])))
+		this.editor.updateShape(
+			fixed
+				? this.withValues(shape, withUsedCell({ values, marks }, used, k, value), used + 1)
+				: this.withValues(shape, withCell({ values, marks }, k, value))
+		)
+		this.slide(shape, Object.fromEntries(values.slice(k, used).map((_, j) => [k + j + 1, k + j])))
 		const updated = this.editor.getShape(id) as ArrayShape | undefined
 		if (updated) this.editCell(updated, String(k))
 	}
 
-	/** New values and marks (pointers past the new end go); marks are dropped with their cells. */
-	private withValues(shape: ArrayShape, { values, marks }: ArrayState): TLShapePartial<ArrayShape> {
+	/**
+	 * New values and marks (pointers past the new end go); marks are dropped with their cells. For a
+	 * fixed array, `used` changes its size.
+	 */
+	private withValues(shape: ArrayShape, { values, marks }: ArrayState, used?: number): TLShapePartial<ArrayShape> {
 		const n = values.length
 		return {
 			id: shape.id,
 			type: ARRAY_SHAPE_TYPE,
 			props: {
 				values,
+				...(used === undefined ? {} : { used }),
 				marks: pruneMarks(
 					marks,
 					values.map((_, i) => String(i))
@@ -370,10 +456,13 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	private rearrange(id: ArrayShape['id'], label: string, make: (values: string[]) => number[]) {
 		const shape = this.editor.getShape(id) as ArrayShape | undefined
 		if (!shape) return
-		const order = make(shape.props.values)
+		// The values in use only: a fixed array's spare slots stay where they are.
+		const { values, marks } = inUse(shape.props)
+		const order = make(values)
 		if (!movesAnything(order)) return
+		const moved = rearrange(values, marks, order)
 		this.editor.markHistoryStoppingPoint(label)
-		this.editor.updateShape(this.withValues(shape, rearrange(shape.props.values, shape.props.marks, order)))
+		this.editor.updateShape(this.withValues(shape, { ...moved, values: padded(moved.values, shape.props.values.length) }))
 		this.slide(shape, orderSlides(order))
 	}
 
@@ -382,7 +471,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const shape = this.editor.getShape(id) as ArrayShape | undefined
 		if (!shape) return
 		const seed = newSeed()
-		this.update(id, 'new values', (s) => ({ seed, values: fillValues(s.props.fill, seed, s.props.values.length) }))
+		this.update(id, 'new values', (s) => ({ seed, values: padded(fillValues(s.props.fill, seed, usedCount(s.props)), s.props.values.length) }))
 	}
 
 	private update(id: ArrayShape['id'], label: string, change: (shape: ArrayShape) => Partial<ArrayShape['props']>) {
@@ -436,6 +525,14 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	private growPoint(shape: ArrayShape) {
 		return getArrayGrowPoint(shape.props.values.length, shape.props.direction, getArrayMetrics(shape.props))
+	}
+
+	/** A fixed array's spare slots hold nothing to edit: a double-click on one starts no edit. */
+	override canEdit(shape: ArrayShape) {
+		const point = this.editor.getPointInShapeSpace(shape, this.editor.inputs.getCurrentPagePoint())
+		const { cells } = getArrayLayout(shape.props.values.length, shape.props.direction, getArrayMetrics(shape.props))
+		const overCells = point.x >= cells.x && point.x <= cells.x + cells.w && point.y >= cells.y && point.y <= cells.y + cells.h
+		return !overCells || this.cells.cellAt(shape, point) !== undefined
 	}
 
 	// Cell size comes from the size style, not from dragging handles.
@@ -595,6 +692,23 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	}
 }
 
+/** Values padded with blank spare slots to `capacity` cells. */
+function padded(values: readonly string[], capacity: number): string[] {
+	return values.length >= capacity ? [...values] : [...values, ...Array<string>(capacity - values.length).fill('')]
+}
+
+/** The values in use and their marks (all of them, unless the capacity is fixed). */
+function inUse(props: ArrayShape['props']): ArrayState {
+	const n = usedCount(props)
+	return {
+		values: props.values.slice(0, n),
+		marks: pruneMarks(
+			props.marks,
+			Array.from({ length: n }, (_, i) => String(i))
+		),
+	}
+}
+
 function ArraySvg({
 	shape,
 	colors,
@@ -622,9 +736,11 @@ function ArraySvg({
 	/** Canvas only, while an operation is open: cells out of play, drawn faded (in or out). */
 	dim?: readonly string[]
 }) {
-	const { values, direction, showIndices, color, marks } = shape.props
+	const { values, direction, showIndices, color, marks, sizing } = shape.props
 	const metrics = getArrayMetrics(shape.props)
 	const layout = getArrayLayout(values.length, direction, metrics)
+	const fixed = sizing === 'fixed'
+	const used = usedCount(shape.props)
 	const { cells, cellAt } = layout
 	const { cell, strokeWidth } = metrics
 	const stroke = getColorValue(colors, color, 'solid')
@@ -678,14 +794,39 @@ function ArraySvg({
 				strokeWidth={strokeWidth}
 				strokeLinejoin="round"
 			/>
+			{fixed && used < values.length && (
+				// Spare slots: blank, so the cells in use stand out.
+				<rect
+					x={cellAt(used).x + strokeWidth / 2}
+					y={cellAt(used).y + strokeWidth / 2}
+					width={direction === 'horizontal' ? (values.length - used) * cell - strokeWidth : cell - strokeWidth}
+					height={direction === 'horizontal' ? cell - strokeWidth : (values.length - used) * cell - strokeWidth}
+					fill={colors.background}
+				/>
+			)}
 			{values.slice(1).map((_, k) => {
 				const { x, y } = cellAt(k + 1)
+				// Where the cells in use end, a heavier line.
+				const width = fixed && k + 1 === used ? strokeWidth * 2.4 : strokeWidth
 				return direction === 'horizontal' ? (
-					<line key={k} x1={x} y1={y} x2={x} y2={y + cell} stroke={stroke} strokeWidth={strokeWidth} />
+					<line key={k} x1={x} y1={y} x2={x} y2={y + cell} stroke={stroke} strokeWidth={width} />
 				) : (
-					<line key={k} x1={x} y1={y} x2={x + cell} y2={y} stroke={stroke} strokeWidth={strokeWidth} />
+					<line key={k} x1={x} y1={y} x2={x + cell} y2={y} stroke={stroke} strokeWidth={width} />
 				)
 			})}
+			{fixed && (
+				<text
+					x={layout.footerAt.x}
+					y={layout.footerAt.y}
+					textAnchor="start"
+					fontSize={metrics.indexFontSize}
+					fill={colors.text}
+					opacity={0.7}
+					data-testid="array-capacity"
+				>
+					size {used} · capacity {values.length}
+				</text>
+			)}
 			{values.map((_, i) => {
 				const mark = marks[String(i)]
 				if (!mark) return null

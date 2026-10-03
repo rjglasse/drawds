@@ -28,6 +28,7 @@ import { NodeLinkShapeUtil } from '../nodelink/NodeLinkShapeUtil'
 import { placePointer, removePointer, type Pointer } from '../pointers/pointers'
 import { operationPrompt } from '../controls/prompt'
 import { pointerState } from '../pointers/state'
+import { ArrayPickers, arrayPickerTranslations } from './ArrayPickers'
 import { FillPicker, fillPickerTranslations } from './FillPicker'
 import { GraphPickers, graphPickerTranslations } from './GraphPickers'
 import { maskIcon } from './icons'
@@ -127,7 +128,13 @@ export const uiOverrides: TLUiOverrides = {
 		return actions
 	},
 	translations: {
-		en: { ...fillPickerTranslations, ...treePickerTranslations, ...heapPickerTranslations, ...graphPickerTranslations },
+		en: {
+			...fillPickerTranslations,
+			...arrayPickerTranslations,
+			...treePickerTranslations,
+			...heapPickerTranslations,
+			...graphPickerTranslations,
+		},
 	},
 }
 
@@ -319,6 +326,7 @@ export const components: TLComponents = {
 		<DefaultStylePanel {...props}>
 			<DefaultStylePanelContent />
 			<FillPicker />
+			<ArrayPickers />
 			<TreePickers />
 			<HeapPickers />
 			<GraphPickers />

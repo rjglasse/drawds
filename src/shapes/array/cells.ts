@@ -1,8 +1,8 @@
 import type { CellDirection, EditableCells } from '../../cells/editable-cells'
-import { ARRAY_SHAPE_TYPE, type ArrayShape } from './array-shape-types'
+import { ARRAY_SHAPE_TYPE, usedCount, type ArrayShape } from './array-shape-types'
 import { getArrayLayout, getArrayMetrics } from './layout'
 
-/** Array cells are keyed by their index. */
+/** Array cells are keyed by their index. Only cells in use count: a fixed array's spare slots don't. */
 export const arrayCells: EditableCells<ArrayShape> = {
 	cellAt(shape, point) {
 		const { values, direction } = shape.props
@@ -12,11 +12,12 @@ export const arrayCells: EditableCells<ArrayShape> = {
 			point.x >= cells.x && point.x <= cells.x + cells.w && point.y >= cells.y && point.y <= cells.y + cells.h
 		if (!inside) return undefined
 		const along = direction === 'horizontal' ? point.x - cells.x : point.y - cells.y
-		return String(Math.min(values.length - 1, Math.floor(along / metrics.cell)))
+		const i = Math.min(values.length - 1, Math.floor(along / metrics.cell))
+		return i < usedCount(shape.props) ? String(i) : undefined
 	},
 
 	firstCell(shape) {
-		return shape.props.values.length > 0 ? '0' : undefined
+		return usedCount(shape.props) > 0 ? '0' : undefined
 	},
 
 	cellBox(shape, key) {
@@ -37,7 +38,7 @@ export const arrayCells: EditableCells<ArrayShape> = {
 
 	neighbor(shape, key, direction) {
 		const j = Number(key) + arrayStep(shape.props.direction, direction)
-		return j !== Number(key) && j >= 0 && j < shape.props.values.length ? String(j) : undefined
+		return j !== Number(key) && j >= 0 && j < usedCount(shape.props) ? String(j) : undefined
 	},
 }
 
