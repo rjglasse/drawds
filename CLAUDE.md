@@ -91,10 +91,21 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `createLineSketchTool` on top of it (`nextSketchState`, pure; arrays, lists). The latest gesture state is always
   kept; `same` only decides whether the shape is redrawn, so gestures can follow the pointer's path (graphs).
 - `src/shapes/array/swap.ts` - drag a cell's handle onto another cell to swap (drag state in a per-editor atom,
-  ghost + target highlight while dragging, CSS `drawds-swap` arc animation keyed per swap).
+  ghost + target highlight while dragging). Values that move are `Slides` (new index -> old index: a swap, an
+  instant sort/shuffle via `orderSlides`, a step's `swaps`/`moves` via `frameSlides`), drawn with the CSS
+  `drawds-swap` keyframes keyed per move: crossing values arc (forward over, back under), a one-way shift slides
+  straight. `ArrayShapeUtil.slide` animates once, then forgets.
+- `src/shapes/array/operations.ts` - array algorithms as pure frame generators over `{values, marks}` (marks
+  travel): binary / linear search, insertion / selection / bubble sort, Lomuto partition and quicksort (range
+  faded with `dim`, open calls as a `call stack` strip), insert / delete by shifting. A `recorder` turns what
+  each step lights into flash changes and stamps values, pointers, `dim` and `counts` on every frame.
+  `rearrange.ts` has the instant orders (sorted, reversed, shuffled). Offered from the context menu
+  (`nodeOperations`: Search, Insert / delete step by step; `shapeOperations`: Sort step by step, Array), plus
+  hover controls (x on the hovered cell's corner, + on the nearest boundary; `hoveredCell` in `layout.ts`).
 - `src/nodelink/playback.ts` - animated operations, stepped through: frames (props override, value swaps
-  between node keys, highlights on nodes and `edge:` keys that accumulate and can be cleared with null, badges,
-  a queue/stack `strip`, a one-line `caption`) shown every STEP_MS, then the final update commits as one undo
+  between node keys and one-way `moves` (copies), highlights on nodes and `edge:` keys that accumulate and can
+  be cleared with null, badges, a queue/stack `strip`, faded elements `dim` and running `counts` (both
+  replacing earlier ones; counts show in the play bar), a one-line `caption`) shown every STEP_MS, then the final update commits as one undo
   step; highlights fade (FADE_MS) or, with Shift, become marks. While an operation is open `PlayBar` sits
   under the structure (drawn by `PlaybackOverlay` in tldraw's InFrontOfTheCanvas, with the queue/stack strip,
   so neither lies outside the shape's box) and keys go to it first (window capture: Space, Left/Right, Enter /
@@ -102,8 +113,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   step back through it or replay it, then Done / Enter / Esc, or select something else / edit the shape;
   `isBusy` says when the shape's own controls should hide. Operations open paused on step 1 so the teacher sets
   the pace; the bar's autoplay toggle (localStorage) plays them straight away instead. `stateAt(frames, step)` is the pure accumulation. `displayScene` (frame or committed)
-  feeds rendering and the selection outline. SceneSvg draws node shapes then values in two passes so a value
-  in flight is never painted over.
+  feeds rendering and the selection outline (arrays: `displayShape`, which also sizes the geometry, so a step
+  with an extra cell stays in the box). SceneSvg draws node shapes then values in two passes so a value
+  in flight is never painted over. Any `CellShapeUtil` with `playbackLayout` can play operations; it may hand
+  the overlay the step's own pointers to draw (arrays do: lo / mid / hi above the cells, -1 / n slots).
 - `src/pointers/` - named pointers (i, curr, root...): `props.pointers` on every cell shape, `{id, name, at}`
   with `at` an element key (arrays allow -1 and n, lists `#null`). Pure model (`pointers.ts`) and layout
   (`layout.ts`: labels side by side or stacked, arrow onto the element); `CellShapeUtil` renders them
@@ -132,7 +145,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   since handles can't be clicked). New values come from `extendValues` in `src/data/fill.ts` (end or start).
 - `src/data/` - seeded RNG (`mulberry32`) and fill generators (`fillValues`); `fill-style.ts` is the
   `drawds:fill` StyleProp plus `refillSelectedShapes`.
-- `src/ui/` - toolbar/shortcuts/context menu (`overrides.tsx`), style panel Fill picker, icons.
+- `src/ui/` - toolbar/shortcuts/context menu (`overrides.tsx`), style panel Fill picker, icons. tldraw's UI
+  inherits the page font: `drawds.css` sets the system sans-serif and 13px menus.
 
 ## Conventions & Patterns
 
@@ -173,8 +187,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
 - Animated operations: implement `removeNodeAnimated` and/or `getInsertPrompt` + `insertKey`, build frames and
   call `playOperation`; compare keys with `compareKeys` (numeric when both are numbers). Give every frame a
   `caption` saying why (the teacher may pause on it), and end with a frame showing why it stopped.
-- Operations from a node (BFS / DFS on graphs, pre/in/post/level-order on trees and heaps): implement
-  `nodeOperations(shape, key)`; they appear in that node's context menu, grouped by `submenu` if given.
+- Operations from a node (BFS / DFS on graphs, pre/in/post/level-order on trees and heaps, an array's searches):
+  implement `nodeOperations(shape, key)` (on `CellShapeUtil`); they appear in that element's context menu,
+  grouped by `submenu` if given (`submenuId` makes its test id stable: `context-menu-sub.drawds-<id>-button`).
+  Whole-structure operations (an array's sorts) go in `shapeOperations(shape)`, shown wherever it is clicked.
   Traversals are pure frame generators (`src/shapes/graph/traverse.ts`, `src/shapes/tree/traverse.ts`) with
   `strips` (several: stack or queue, plus the output). Heaps reuse the tree one and light both views. An
   operation can ask for a value first (`prompt`; e.g. a list's "Find a value...").

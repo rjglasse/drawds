@@ -214,6 +214,19 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `context-menu.list-find`, `list-find-value` (opens `key-prompt`), `list-insert-after`,
   `list-insert-head`, `list-delete` or `list-reverse`. Step with `key ArrowRight` (they open
   paused); a reversed list is drawn the other way (`direction` flips) with nodes in place.
+- **Array operations**: `rclick` a cell, `clicksel` a submenu (stable ids):
+  `[data-testid="context-menu-sub.drawds-array-search-button"]` (items `context-menu.array-binary-search`,
+  `array-binary-search-value` (opens `key-prompt`), `array-linear-search`, `array-linear-search-value`),
+  `drawds-array-shift` (`array-insert`, `array-delete`), `drawds-array-sort` (`array-insertion-sort`,
+  `array-selection-sort`, `array-bubble-sort`, `array-partition`, `array-quicksort`) or `drawds-array-actions`
+  (instant: `array-sort`, `array-sort-descending`, `array-shuffle`, `array-reverse`, `array-reroll`,
+  `array-indices`). The step's pointers (lo, mid, hi, i, j, min) are drawn in front of the canvas:
+  `[data-pointer="lo"]`; running totals are `[data-testid="play-counts"]` ("comparisons 3 · swaps 1").
+  Set known values first with `eval (editor.updateShape({id: editor.getOnlySelectedShape().id, type: 'array',
+  props: {values: ['3','8','15']}}), 1)` (wrap in `(..., 1)`: the update returns something unserialisable).
+  Hover controls: `move` onto a cell, then `[data-testid="remove-cell-<k>"]` (x on its top-right corner) or
+  `insert-cell-<b>` (+ on the nearest boundary b, its lower end; none past the end); an inserted cell opens
+  for typing.
 - **Pointers**: `rclick` an element, `clicksel [data-testid="context-menu-sub.drawds-pointer-button"]`,
   then `[data-testid="context-menu.pointer-i"]` (names depend on the structure; `pointer-custom`
   opens a name prompt, `key-prompt`). **Wait ~400 ms between context menus**: a menu that is
