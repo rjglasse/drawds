@@ -183,3 +183,19 @@ test('print a circular list with a do-while; print a doubly linked one backwards
 	await page.keyboard.press('Enter')
 	expect(await values(page)).toEqual(['10', '20', '30'])
 })
+
+test("Floyd: slow and fast meet in a cycle, then find where it starts; without one fast runs off the end", async ({ page }) => {
+	await sketchList(page, [150, 200], 5)
+	await setValues(page, ['10', '20', '30', '40', '50'])
+	await listOp(page, 'n0', 'list-floyd')
+	await stepToEnd(page)
+	await expect(caption(page)).toHaveText('fast.next is null: fast can\'t take two more steps, so it ran off the end: no cycle')
+	await page.keyboard.press('Enter')
+	await setVariants(page, { cycleTo: 'n1' })
+	await page.waitForTimeout(450) // the first menu may still be closing: it would swallow the right-click
+	await listOp(page, 'n0', 'list-floyd')
+	await stepToEnd(page)
+	await expect(caption(page)).toContainText('They meet at 20: the cycle starts here')
+	await page.keyboard.press('Enter')
+	expect(await values(page)).toEqual(['10', '20', '30', '40', '50'])
+})

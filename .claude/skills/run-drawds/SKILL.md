@@ -214,7 +214,7 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   [data-testid="context-menu-sub.drawds-node-operations-0-button"]` (Step by step), then
   `context-menu.list-find`, `list-find-value` (opens `key-prompt`), `list-insert-after`,
   `list-insert-head`, `list-delete`, `list-reverse`, `list-middle`, `list-insert-sorted` (opens `key-prompt`),
-  `list-append`, `list-print` or (doubly) `list-print-back`. Step with `key ArrowRight` (they open
+  `list-append`, `list-print`, `list-floyd` (cycle detection) or (doubly) `list-print-back`. Step with `key ArrowRight` (they open
   paused); a reversed list is drawn the other way (`direction` flips) with nodes in place.
 - **List variants**: with a list selected, `clicksel [data-testid="style.list-variant.doubly"]` (`tail`,
   `circular`, `sentinel`) toggles each (one undo step each), or set props directly: `eval (() => { const s =

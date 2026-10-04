@@ -7,6 +7,7 @@ import {
 	NULL_BEFORE_KEY,
 	appendToList,
 	deleteFromList,
+	detectCycle,
 	findInList,
 	findMiddle,
 	insertIntoList,
@@ -302,5 +303,41 @@ describe('append, print, print backwards', () => {
 		expect(captions(printBackwards({ ...base, links: 'doubly', sentinel: 'sentinel', tail: 'tail' })).at(-1)).toBe(
 			'print 7; curr = curr.prev: the sentinel, so stop'
 		)
+	})
+})
+
+describe("Floyd's cycle detection", () => {
+	const nodes = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `n${i}`, value: String(10 * (i + 1)), dx: 0, dy: 0 }))
+	const base = { direction: 'right' as const, size: 'm' as const }
+	const where = (op: ReturnType<typeof detectCycle>) => op.frames.map((f) => f.pointers!.map((p) => `${p.name}:${p.at}`).join(' '))
+
+	it('fast runs off the end of a list without a cycle', () => {
+		const op = detectCycle({ ...base, nodes: nodes(4) })
+		expect(where(op)).toEqual(['slow:n0 fast:n0', 'slow:n1 fast:n2', `slow:n2 fast:${NULL_KEY}`, `slow:n2 fast:${NULL_KEY}`])
+		expect(op.frames.at(-1)!.caption).toBe('fast is null, so it ran off the end: no cycle')
+		expect(op.finalFlash).toBeUndefined()
+	})
+
+	it('slow and fast meet in the cycle; from the head and the meeting point they meet at its start', () => {
+		const op = detectCycle({ ...base, nodes: nodes(5), cycleTo: 'n1' })
+		expect(where(op)).toEqual([
+			'slow:n0 fast:n0',
+			'slow:n1 fast:n2',
+			'slow:n2 fast:n4',
+			'slow:n3 fast:n2',
+			'slow:n4 fast:n4',
+			'slow:n0 fast:n4',
+			'slow:n1 fast:n1',
+			'slow:n1 fast:n1',
+		])
+		expect(op.frames[4].caption).toContain('they meet')
+		expect(op.frames.at(-1)!.caption).toMatch(/^They meet at 20: the cycle starts here/)
+		expect(op.finalFlash).toEqual({ n1: 'green' })
+	})
+
+	it('round a circular list the cycle starts at the head', () => {
+		const op = detectCycle({ ...base, nodes: nodes(4), ends: 'circular' })
+		expect(op.finalFlash).toEqual({ n0: 'green' })
+		expect(op.frames.at(-1)!.counts).toEqual({ steps: 4 })
 	})
 })

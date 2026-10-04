@@ -704,3 +704,60 @@ export function printBackwards(props: ListProps): ListOperation {
 	}
 	return { frames }
 }
+
+/**
+ * Floyd's cycle detection: slow takes one step at a time and fast two, until fast runs off the end
+ * (no cycle) or they meet (fast has lapped slow round a cycle). Then slow starts again from the
+ * head and both take single steps: they meet where the cycle starts, as the head and the meeting
+ * point are the same distance from it (going round).
+ */
+export function detectCycle(props: ListProps): ListOperation {
+	const { nodes } = props
+	const { v, chain, end, name } = listOf(props)
+	const nextOf = (key: string) => {
+		const i = chain.indexOf(key)
+		return i < 0 ? NULL_KEY : (chain[i + 1] ?? end)
+	}
+	const first = nodes[0].id
+	const start = v.sentinel ? 'head.next' : 'head'
+	const frames: Frame[] = []
+	let [slow, fast, steps] = [first, first, 0]
+	let lit = first
+	const show = (caption: string, color: MarkColor = LOOK) => {
+		frames.push({
+			pointers: [pointer('slow', slow), pointer('fast', fast)],
+			flash: { ...(lit !== slow ? { [lit]: null } : {}), ...(slow === NULL_KEY ? {} : { [slow]: color }) },
+			counts: { steps },
+			caption,
+		})
+		lit = slow
+	}
+	show(`slow = ${start}, fast = ${start}: slow takes one step at a time, fast two`)
+	for (;;) {
+		if (fast === NULL_KEY || nextOf(fast) === NULL_KEY) {
+			const why = fast === NULL_KEY ? 'fast is null' : "fast.next is null: fast can't take two more steps"
+			frames.push({ pointers: [pointer('slow', slow), pointer('fast', fast)], flash: { [lit]: null }, counts: { steps }, caption: `${why}, so it ran off the end: no cycle` })
+			return { frames }
+		}
+		slow = nextOf(slow)
+		fast = nextOf(nextOf(fast))
+		steps++
+		const met = slow === fast
+		show(
+			`slow = slow.next (${name(slow)}), fast = fast.next.next (${name(fast)})${met ? ': they meet, so fast has lapped slow round a cycle' : ''}`,
+			met ? FOUND : LOOK
+		)
+		if (met) break
+	}
+	const meet = slow
+	slow = first
+	show(`slow = ${start} again; fast stays at ${name(meet)}, where they met. Now both take one step at a time`)
+	while (slow !== fast) {
+		slow = nextOf(slow)
+		fast = nextOf(fast)
+		steps++
+		show(`slow = slow.next (${name(slow)}), fast = fast.next (${name(fast)})`)
+	}
+	show(`They meet at ${name(slow)}: the cycle starts here (the head and the meeting point are as far from it, going round)`, FOUND)
+	return { frames, finalFlash: { [slow]: FOUND } }
+}

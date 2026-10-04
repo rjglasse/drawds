@@ -34,6 +34,7 @@ import { anchorShift, insertListNode, removeListNode, resizeList } from './ops'
 import {
 	appendToList,
 	deleteFromList,
+	detectCycle,
 	findInList,
 	findMiddle,
 	insertIntoList,
@@ -203,6 +204,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 				run: (value) => value !== undefined && this.play(shape.id, 'find', () => findInList(props(), value)),
 			},
 			...(ends ? [{ id: 'list-middle', label: 'Find the middle (slow and fast)', submenu, run: run('find the middle', () => findMiddle(props())) }] : []),
+			{ id: 'list-floyd', label: 'Is there a cycle? (slow and fast)', submenu, run: run('cycle detection', () => detectCycle(props())) },
 			{ id: 'list-insert-after', label: `Insert after ${node.value}`, submenu, run: run('insert', () => this.insertOp(props(), key)) },
 			{
 				id: 'list-insert-sorted',
