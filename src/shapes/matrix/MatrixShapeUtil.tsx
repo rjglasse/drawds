@@ -356,8 +356,12 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 	}
 }
 
-/** The grid: cells, marks and a step's highlights, faded cells, values (swapping ones arc), indices. */
-function MatrixSvg({
+/**
+ * The grid: cells, marks and a step's highlights, faded cells, values (swapping ones arc), and the
+ * row and column headers (indices, or labels such as a graph's node names; marks and highlights
+ * keyed `row:<r>` / `col:<c>` tint them).
+ */
+export function MatrixSvg({
 	values,
 	marks,
 	color,
@@ -368,6 +372,8 @@ function MatrixSvg({
 	flash,
 	dim,
 	swaps,
+	rowLabels,
+	colLabels,
 }: {
 	values: Grid
 	marks: Marks
@@ -379,6 +385,9 @@ function MatrixSvg({
 	flash?: { marks: Marks; fading: boolean; id: number }
 	dim?: readonly string[]
 	swaps?: { pairs: [string, string][]; id: number; ms: number }
+	/** Headers in place of the indices. */
+	rowLabels?: readonly string[]
+	colLabels?: readonly string[]
 }) {
 	const [rows, cols] = [rowsOf(values), colsOf(values)]
 	const layout = getMatrixLayout(rows, cols, metrics)
@@ -473,19 +482,54 @@ function MatrixSvg({
 					</text>
 				)
 			})}
+			{[...Array.from({ length: rows }, (_, r) => ['row', r] as const), ...Array.from({ length: cols }, (_, c) => ['col', c] as const)].map(([side, i]) => {
+				const key = `${side}:${i}`
+				const box = side === 'row' ? layout.rowIndexBox(i) : layout.colIndexBox(i)
+				const tintColor = flash?.marks[key] ?? marks[key]
+				return tintColor ? (
+					<rect
+						key={`tint-${key}-${flash?.id ?? 0}`}
+						className={flash?.marks[key] ? (flash.fading ? 'drawds-flash drawds-flash-fade' : 'drawds-flash') : undefined}
+						x={box.x}
+						y={box.y}
+						width={box.w}
+						height={box.h}
+						rx={box.h / 3}
+						fill={getColorValue(colors, tintColor as never, 'semi')}
+					/>
+				) : null
+			})}
 			{Array.from({ length: rows }, (_, r) => {
 				const at = layout.rowIndexAt(r)
+				const label = rowLabels?.[r]
 				return (
-					<text key={`ri${r}`} data-row-index={r} x={at.x} y={at.y} fontSize={metrics.indexFontSize} fill={colors.text} opacity={0.5}>
-						{r}
+					<text
+						key={`ri${r}`}
+						data-row-index={r}
+						x={at.x}
+						y={at.y}
+						fontSize={label === undefined ? metrics.indexFontSize : metrics.fontSize * 0.8}
+						fill={colors.text}
+						opacity={label === undefined ? 0.5 : 0.9}
+					>
+						{label ?? r}
 					</text>
 				)
 			})}
 			{Array.from({ length: cols }, (_, c) => {
 				const at = layout.colIndexAt(c)
+				const label = colLabels?.[c]
 				return (
-					<text key={`ci${c}`} data-col-index={c} x={at.x} y={at.y} fontSize={metrics.indexFontSize} fill={colors.text} opacity={0.5}>
-						{c}
+					<text
+						key={`ci${c}`}
+						data-col-index={c}
+						x={at.x}
+						y={at.y}
+						fontSize={label === undefined ? metrics.indexFontSize : metrics.fontSize * 0.8}
+						fill={colors.text}
+						opacity={label === undefined ? 0.5 : 0.9}
+					>
+						{label ?? c}
 					</text>
 				)
 			})}

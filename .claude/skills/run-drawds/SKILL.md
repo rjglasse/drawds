@@ -192,6 +192,9 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `matrix-delete-row|col`), `drawds-matrix-steps` (`matrix-row-major`, `matrix-col-major`,
   `matrix-transpose-steps` when square, `matrix-staircase` when sorted: opens `key-prompt`),
   `drawds-matrix-actions` (`matrix-transpose`, `matrix-reroll`).
+- **Graph views**: `rclick` a graph node, `context-menu-sub.drawds-graph-views-button`, then
+  `context-menu.graph-show-matrix` or `graph-show-lists`: a `graph-view` shape appears to the graph's right
+  and follows it (marks and BFS / DFS highlights too). With a view selected, `style.graph-view.matrix|lists`.
 - **Hash table**: `key Shift+B` then `drag x y x y+dy` (a bucket per 48 px, at least 3), filled to a
   load of about 0.6. `style.hash-strategy.chaining|probing`. Insert: `clicksel [data-testid="insert-key"]`,
   `type 22`, `key Enter`. A key's x deletes it (`hover k:22` or `hover s3`, then `remove-node-<key>`); its

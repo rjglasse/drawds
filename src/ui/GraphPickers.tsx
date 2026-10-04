@@ -24,6 +24,7 @@ import {
 	type GraphWeightsMode,
 } from '../shapes/graph/graph-shape-types'
 import type { GraphShapeUtil } from '../shapes/graph/GraphShapeUtil'
+import { GraphViewKindStyle, type GraphViewKind } from '../shapes/graph-view/graph-view-shape-types'
 import { svgIcon } from './icons'
 
 const text = (label: string, size: number) =>
@@ -196,6 +197,32 @@ export function GraphPickers() {
 					}}
 				/>
 			)}
+		</StylePanelSection>
+	)
+}
+
+// A grid; rows of a head cell with a chain.
+const VIEW_ITEMS: StyleValuesForUi<GraphViewKind> = [
+	{ value: 'matrix', icon: svgIcon('<rect x="5" y="5" width="20" height="20"/><path d="M11.7 5v20M18.3 5v20M5 11.7h20M5 18.3h20"/>') },
+	{
+		value: 'lists',
+		icon: svgIcon('<rect x="3" y="5" width="6" height="6"/><rect x="13" y="5" width="6" height="6"/><path d="M9 8h4"/><rect x="3" y="19" width="6" height="6"/><rect x="13" y="19" width="6" height="6"/><rect x="23" y="19" width="5" height="6"/><path d="M9 22h4M19 22h4"/>'),
+	},
+]
+
+export const graphViewPickerTranslations: Record<string, string> = {
+	'graph-view-style.matrix': 'Adjacency matrix',
+	'graph-view-style.lists': 'Adjacency lists',
+}
+
+/** A graph view shows its graph as an adjacency matrix or as adjacency lists. */
+export function GraphViewPickers() {
+	const { styles } = useStylePanelContext()
+	const view = styles.get(GraphViewKindStyle)
+	if (view === undefined) return null
+	return (
+		<StylePanelSection>
+			<StylePanelButtonPicker title="View" uiType="graph-view" style={GraphViewKindStyle} items={VIEW_ITEMS} value={view} />
 		</StylePanelSection>
 	)
 }

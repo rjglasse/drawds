@@ -32,7 +32,7 @@ import { ArrayPickers, arrayPickerTranslations } from './ArrayPickers'
 import { FillPicker, fillPickerTranslations } from './FillPicker'
 import { invariantPickerTranslations } from './InvariantPicker'
 import { ListPickers, listPickerTranslations } from './ListPickers'
-import { GraphPickers, graphPickerTranslations } from './GraphPickers'
+import { GraphPickers, GraphViewPickers, graphPickerTranslations, graphViewPickerTranslations } from './GraphPickers'
 import { maskIcon } from './icons'
 import arrayIconUrl from './icons/array.svg'
 import graphIconUrl from './icons/graph.svg'
@@ -157,6 +157,7 @@ export const uiOverrides: TLUiOverrides = {
 			...heapPickerTranslations,
 			...invariantPickerTranslations,
 			...graphPickerTranslations,
+			...graphViewPickerTranslations,
 		},
 	},
 }
@@ -356,6 +357,7 @@ export const components: TLComponents = {
 			<HeapPickers />
 			<HashPickers />
 			<GraphPickers />
+			<GraphViewPickers />
 		</DefaultStylePanel>
 	),
 	ContextMenu: (props) => (

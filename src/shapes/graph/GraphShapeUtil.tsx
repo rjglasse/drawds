@@ -35,6 +35,7 @@ import {
 	type GraphLabelsMode,
 	type GraphShape,
 } from './graph-shape-types'
+import { showGraphView } from '../graph-view/GraphViewShapeUtil'
 import { generateGraph } from './generate'
 import { getGraphMetrics, graphCorner, graphScene, toUnits } from './layout'
 import { dijkstra, kruskal, prim, topologicalSort } from './algorithms'
@@ -254,6 +255,21 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 
 	/** Algorithms on the whole graph: Kruskal's spanning tree (undirected), topological sort (directed). */
 	override shapeOperations(shape: GraphShape): NodeOperation[] {
+		// Views beside the graph that follow it as it changes.
+		const show = { submenu: 'Show beside it', submenuId: 'graph-views' }
+		const views: NodeOperation[] = [
+			{ ...show, id: 'graph-show-matrix', label: 'Adjacency matrix', run: () => this.showView(shape.id, 'matrix') },
+			{ ...show, id: 'graph-show-lists', label: 'Adjacency lists', run: () => this.showView(shape.id, 'lists') },
+		]
+		return [...views, ...this.algorithmOperations(shape)]
+	}
+
+	private showView(id: GraphShape['id'], view: 'matrix' | 'lists') {
+		const shape = this.editor.getShape(id) as GraphShape | undefined
+		if (shape) showGraphView(this.editor, shape, view)
+	}
+
+	private algorithmOperations(shape: GraphShape): NodeOperation[] {
 		const algorithms = { submenu: 'Graph algorithms', submenuId: 'graph-algorithms' }
 		return shape.props.direction === 'directed'
 			? [
