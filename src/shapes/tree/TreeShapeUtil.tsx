@@ -11,7 +11,7 @@ import { assignInOrder, bstDelete, bstInsert, bstViolations } from './bst'
 import { bstSearch } from './search'
 import { nullKey, treeBasePosition, treeRootCentre, treeScene } from './layout'
 import { ORDER_NAMES, traverseTree, type TreeOrder } from './traverse'
-import { addChild, levelOrder, parentOf, removeSubtree } from './model'
+import { addChild, levelOrder, mirrorSubtree, parentOf, removeSubtree, swapChildren } from './model'
 import {
 	TREE_SHAPE_TYPE,
 	treeShapeMigrations,
@@ -156,7 +156,24 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 		const node = shape.props.nodes.find((n) => n.id === key)
 		if (!node) return []
 		const search = { submenu: 'Search', submenuId: 'bst-search' }
+		// Swapping children or mirroring reorders a plain tree; a BST would lose its order.
+		const parent = shape.props.kind === 'tree' && node.children.some(Boolean)
+		const root = shape.props.nodes[0]?.id === key
 		return [
+			...(parent
+				? [
+						{
+							id: 'tree-swap-children',
+							label: node.value ? `Swap ${node.value}'s children` : 'Swap its children',
+							run: () => this.restructure(shape.id, 'swap children', (nodes) => swapChildren(nodes, key)),
+						},
+						{
+							id: 'tree-mirror',
+							label: root ? 'Mirror the tree' : node.value ? `Mirror ${node.value}'s subtree` : 'Mirror this subtree',
+							run: () => this.restructure(shape.id, 'mirror', (nodes) => mirrorSubtree(nodes, key)),
+						},
+					]
+				: []),
 			...(shape.props.kind === 'bst'
 				? [
 						...(node.value.trim()
@@ -178,6 +195,14 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 				run: () => this.traverse(shape.id, key, order),
 			})),
 		]
+	}
+
+	/** Change the tree's shape in one undo step (ids, values, marks and pointers stay with their nodes). */
+	private restructure(id: TreeShape['id'], label: string, change: (nodes: TreeShape['props']['nodes']) => TreeShape['props']['nodes']) {
+		const shape = this.editor.getShape(id) as TreeShape | undefined
+		if (!shape) return
+		this.editor.markHistoryStoppingPoint(label)
+		this.editor.updateShape<TreeShape>({ id, type: TREE_SHAPE_TYPE, props: { nodes: change(shape.props.nodes) } })
 	}
 
 	/** BST search from the root, step by step; nothing changes (Shift at the end keeps the path as marks). */

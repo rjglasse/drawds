@@ -75,3 +75,21 @@ export function addChild(
 export function parentOf(nodes: readonly TreeNode[], id: string): TreeNode | undefined {
 	return nodes.find((n) => n.children.includes(id))
 }
+
+/** Swap a node's left and right children, and so their subtrees (a lone child changes sides). */
+export function swapChildren(nodes: readonly TreeNode[], id: string): TreeNode[] {
+	return nodes.map((n) => (n.id === id ? { ...n, children: [n.children[RIGHT] ?? null, n.children[LEFT] ?? null] } : n))
+}
+
+/**
+ * Mirror a node's subtree: every node in it swaps its children, so it reads right to left. A
+ * node dragged sideways below it moves to the other side too; the node itself stays where it is.
+ */
+export function mirrorSubtree(nodes: readonly TreeNode[], id: string): TreeNode[] {
+	const inside = subtreeIds(nodes, id)
+	return nodes.map((n) =>
+		inside.has(n.id)
+			? { ...n, children: [n.children[RIGHT] ?? null, n.children[LEFT] ?? null], dx: n.id === id ? n.dx : -n.dx }
+			: n
+	)
+}

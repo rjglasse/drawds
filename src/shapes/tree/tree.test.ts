@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { generateTree, levelIndex, randomTreePaths } from './generate'
 import { getTreeMetrics, nullKey, treeBasePosition, treeRootCentre, treeScene } from './layout'
-import { addChild, childId, levelOrder, removeSubtree } from './model'
+import { addChild, childId, levelOrder, mirrorSubtree, removeSubtree, swapChildren } from './model'
 import type { TreeNode } from './tree-shape-types'
 
 const M = getTreeMetrics('m')
@@ -138,5 +138,27 @@ describe('treeScene', () => {
 	it('finds the root centre', () => {
 		const p = props([node('n', ['nL', 'nR']), node('nL'), node('nR')])
 		expect(treeRootCentre(p)).toEqual({ x: at(treeScene(p), 'n').x, y: at(treeScene(p), 'n').y })
+	})
+})
+
+describe('swap children and mirror', () => {
+	const node = (id: string, children: (string | null)[], dx = 0): TreeNode => ({ id, value: id, children, dx, dy: 0 })
+	// n has L (with LL) and R; R has a right child RR.
+	const tree = [node('n', ['nL', 'nR']), node('nL', ['nLL', null], 5), node('nR', [null, 'nRR']), node('nLL', [null, null]), node('nRR', [null, null], -3)]
+	const kids = (nodes: TreeNode[]) => Object.fromEntries(nodes.map((n) => [n.id, n.children]))
+
+	it('swap: the two subtrees change sides, nothing below them changes', () => {
+		expect(kids(swapChildren(tree, 'n'))).toMatchObject({ n: ['nR', 'nL'], nL: ['nLL', null], nR: [null, 'nRR'] })
+		expect(kids(swapChildren(tree, 'nR')).nR).toEqual(['nRR', null])
+	})
+
+	it('mirror: every node below swaps, so in-order reads backwards; sideways drags flip', () => {
+		const mirrored = mirrorSubtree(tree, 'n')
+		expect(kids(mirrored)).toMatchObject({ n: ['nR', 'nL'], nL: [null, 'nLL'], nR: ['nRR', null] })
+		expect(Object.fromEntries(mirrored.map((n) => [n.id, n.dx]))).toMatchObject({ n: 0, nL: -5, nRR: 3 })
+		// Mirroring twice gives the tree back.
+		expect(mirrorSubtree(mirrored, 'n')).toEqual(tree)
+		// A subtree only: the rest stays.
+		expect(kids(mirrorSubtree(tree, 'nL'))).toMatchObject({ n: ['nL', 'nR'], nL: [null, 'nLL'], nR: [null, 'nRR'] })
 	})
 })
