@@ -235,6 +235,12 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   blank spare slots; `[data-testid="array-capacity"]` reads "size 3 · capacity 6"); props `sizing`, `used`.
   `drawds-array-capacity` submenu: `array-append`, `array-grow`, `array-append-many-double`,
   `array-append-many-plus-one`; a step's new array is `[data-testid="array-aux"]`.
+  Stacks and queues: `key Shift+A`, `clicksel [data-testid="style.array-kind.stack"]` (or `.queue`), then
+  `array x y n up` (a stack grows up from the press point; index 0 at the bottom). Props `kind`, `front` (a
+  fixed queue's circular-buffer front). Markers `[data-pointer="top"]`, `front`, `rear`. Menus
+  `drawds-array-stack` (`array-push`, `array-push-value`, `array-pop`, `array-peek`) and `drawds-array-queue`
+  (`array-enqueue`, `array-enqueue-value`, `array-dequeue`, `array-peek`); buttons `stack-push`, `stack-pop`,
+  `queue-enqueue`, `queue-dequeue` while selected.
   Set known values first with `eval (editor.updateShape({id: editor.getOnlySelectedShape().id, type: 'array',
   props: {values: ['3','8','15']}}), 1)` (wrap in `(..., 1)`: the update returns something unserialisable).
   Hover controls: `move` onto a cell, then `[data-testid="remove-cell-<k>"]` (x on its top-right corner) or

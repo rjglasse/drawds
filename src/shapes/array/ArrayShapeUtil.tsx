@@ -548,6 +548,46 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	}
 
 	/**
+	 * A stack's push (+) and pop (x) on its top cell's corners; a queue's enqueue (+) under its rear
+	 * slot and dequeue (x) under its front cell, nudged apart for when the two meet (full or empty).
+	 * They play the operations, with the fill mode's next value.
+	 */
+	private renderKindButtons(shape: ArrayShape, colors: TLThemeColors) {
+		const { kind } = shape.props
+		if (kind === 'array') return null
+		const metrics = getArrayMetrics(shape.props)
+		const layout = getArrayLayout(shape.props.values.length, metrics)
+		const { cell } = metrics
+		const nudge = 5 / this.editor.getZoomLevel()
+		const used = usedCount(shape.props)
+		const ops = this.stackQueueOperations(shape)
+		const run = (id: string) => () => ops.find((op) => op.id === id)?.run()
+		const button = (testId: string, kindOf: 'insert' | 'remove', at: VecLike, label: string, opId: string) => (
+			<ControlButton key={testId} editor={this.editor} kind={kindOf} at={at} label={label} testId={testId} colors={colors} onPress={run(opId)} />
+		)
+		if (kind === 'stack') {
+			const top = layout.cellAt(Math.max(0, used - 1))
+			// Empty: push goes into cell 0, from its bottom edge.
+			const edge = used ? top.y : layout.boundaryAt(0)
+			return (
+				<>
+					{button('stack-push', 'insert', { x: top.x - nudge, y: edge - nudge }, 'Push (top = top + 1; a[top] = value)', 'array-push')}
+					{used > 0 && button('stack-pop', 'remove', { x: top.x + cell + nudge, y: top.y - nudge }, 'Pop the top value', 'array-pop')}
+				</>
+			)
+		}
+		const markers = arrayMarkers(shape.props)
+		const front = layout.cellAt(Number(markers[0].at))
+		const rear = layout.cellAt(Number(markers[1].at))
+		return (
+			<>
+				{button('queue-enqueue', 'insert', { x: rear.x + cell * 0.3, y: rear.y + cell }, 'Enqueue at the rear', 'array-enqueue')}
+				{used > 0 && button('queue-dequeue', 'remove', { x: front.x + cell * 0.7, y: front.y + cell }, 'Dequeue from the front', 'array-dequeue')}
+			</>
+		)
+	}
+
+	/**
 	 * Delete cell k at once (one undo step): the values after it slide one cell back. A fixed array
 	 * keeps its capacity: its last used slot becomes a spare one.
 	 */
@@ -833,8 +873,12 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 				</SVGContainer>
 				{showsStructureControls(this.editor, shape) &&
 					!isBusy(playing) &&
-					this.editor.isIn('select.idle') &&
-					this.renderCellButtons(shape, colors)}
+					this.editor.isIn('select.idle') && (
+						<>
+							{this.renderCellButtons(shape, colors)}
+							{this.renderKindButtons(shape, colors)}
+						</>
+					)}
 				{this.renderOperationPrompt(shape, colors)}
 				{this.renderPointerOverlays(shape, colors)}
 				{this.renderCellEditor(shape)}

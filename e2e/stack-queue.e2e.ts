@@ -139,3 +139,27 @@ test('a growing queue (a list) shifts every value to dequeue one', async ({ page
 	await page.keyboard.press('Enter')
 	expect((await props(page)).values).toEqual(before.slice(1))
 })
+
+test('on-canvas buttons: push and pop a stack, enqueue and dequeue a queue', async ({ page }) => {
+	await sketchKind(page, 'stack', [300, 450], 3, 'up')
+	const before = (await props(page)).values
+	await page.getByTestId('stack-push').click()
+	await expect(caption(page)).toContainText('top = top + 1 = 3, a new cell on top')
+	await page.keyboard.press('Enter')
+	expect((await props(page)).values).toHaveLength(4)
+	await page.waitForTimeout(300)
+	await page.getByTestId('stack-pop').click()
+	await page.keyboard.press('Enter')
+	expect((await props(page)).values).toEqual(before)
+	await page.keyboard.press('Escape')
+	await sketchKind(page, 'queue', [500, 200], 3, 'right')
+	const queue = (await shapesOfType<ArrayShapeProps>(page, 'array')).find((s) => s.props.kind === 'queue')!.props.values
+	await page.getByTestId('queue-dequeue').click()
+	await page.keyboard.press('Enter')
+	await page.waitForTimeout(300)
+	await page.getByTestId('queue-enqueue').click()
+	await page.keyboard.press('Enter')
+	const after = (await shapesOfType<ArrayShapeProps>(page, 'array')).find((s) => s.props.kind === 'queue')!.props.values
+	expect(after.slice(0, 2)).toEqual(queue.slice(1))
+	expect(after).toHaveLength(3)
+})

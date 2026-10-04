@@ -102,7 +102,15 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `src/ui/ArrayPickers.tsx`): cells are the capacity, `used` (shown as "size") counts the values in use, the rest
   are blank spare slots; `usedCount(props)` everywhere, operations run on the used part (`play` pads frames back)
   unless `{ whole: true }` (insertFixed / deleteFixed / appendFixed / growFixed / appendMany). A step can show a
-  second row under the array (`props.aux`: newArr), with `moves` keyed `aux:<i>` between the rows. A `recorder` turns what
+  second row under the array (`props.aux`: newArr), with `moves` keyed `aux:<i>` between the rows.
+- Stacks and queues are a *kind* of array (`kind`, the Kind picker; `src/shapes/array/kinds.ts`): a stack
+  stands upright (layout axis `'up'` in `getArrayMetrics`: index 0 at the origin, which rises as cells come,
+  so index 0 stays put; use `metrics.axis` and `layout.boundaryAt`, never `props.direction`), a queue lies in a
+  row; with a fixed capacity a queue is a circular buffer (`front`; `isUsed` / `usedIndices`, values may wrap).
+  Built-in markers (top, front, rear: `arrayMarkers`, via `CellShapeUtil.markerPointers`, ids `@...`) are
+  laid out with the pointers but can't be picked up. `stack-queue.ts`: push / pop / peek, enqueue / dequeue /
+  peek as frames (overflow, underflow, wrap-around, a list-queue's shifting); on-canvas buttons
+  (`renderKindButtons`). A `recorder` turns what
   each step lights into flash changes and stamps values, pointers, `dim` and `counts` on every frame.
   `rearrange.ts` has the instant orders (sorted, reversed, shuffled). Offered from the context menu
   (`nodeOperations`: Search, Insert / delete step by step; `shapeOperations`: Sort step by step, Array), plus
