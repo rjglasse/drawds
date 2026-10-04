@@ -83,7 +83,7 @@ const ORDER_ITEMS: StyleValuesForUi<GraphOrder> = [
 ]
 
 export const graphPickerTranslations: Record<string, string> = {
-	'graph-density-style.sparse': 'Sketch sparse graphs: few edges beyond a spanning tree',
+	'graph-density-style.sparse': 'Sketch sparse graphs: just a spanning tree, no cycles',
 	'graph-density-style.medium': 'Sketch graphs of medium density',
 	'graph-density-style.dense': 'Sketch dense graphs: many edges between near nodes',
 	'graph-parts-style.connected': 'Sketch connected graphs: one piece',

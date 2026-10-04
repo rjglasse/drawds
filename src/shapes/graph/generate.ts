@@ -17,9 +17,9 @@ export const EXTRA_EDGE_CHANCE = 0.45
 const CLEARANCE = 0.8
 /** Smallest angle between two edges at a node, so they never look like one. */
 const MIN_ANGLE = (25 * Math.PI) / 180
-/** Extra edges per new node (up to), the chance of each, and how far they reach, by density. */
+/** Extra edges per new node (up to), the chance of each, and how far they reach, by density. Sparse: a tree. */
 const DENSITY: Record<GraphDensity, { extras: number; chance: number; reach: number }> = {
-	sparse: { extras: 1, chance: 0.2, reach: GRAPH_REACH },
+	sparse: { extras: 0, chance: 0, reach: GRAPH_REACH },
 	medium: { extras: 2, chance: EXTRA_EDGE_CHANCE, reach: GRAPH_REACH },
 	dense: { extras: 3, chance: 0.8, reach: GRAPH_REACH * 1.25 },
 }

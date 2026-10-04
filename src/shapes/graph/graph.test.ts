@@ -145,11 +145,12 @@ describe('generateGraph', () => {
 		expect(total).toBeGreaterThan(0)
 	})
 
-	it('density: sparse sketches have fewer edges than dense ones, both still connected', () => {
+	it('density: sparse sketches are trees, with fewer edges than medium and dense ones; all connected', () => {
 		const edges = (density: 'sparse' | 'medium' | 'dense') =>
 			seeds.reduce((sum, seed) => {
 				const g = generateGraph(sketch(scribble(seed, 90)).points, seed, 'letters', { density })
 				expect(isConnected(g)).toBe(true)
+				if (density === 'sparse') expect(g.edges).toHaveLength(g.nodes.length - 1)
 				return sum + g.edges.length
 			}, 0)
 		expect(edges('sparse')).toBeLessThan(edges('medium'))
