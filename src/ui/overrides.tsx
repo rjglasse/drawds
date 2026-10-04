@@ -30,6 +30,7 @@ import { operationPrompt } from '../controls/prompt'
 import { pointerState } from '../pointers/state'
 import { ArrayPickers, arrayPickerTranslations } from './ArrayPickers'
 import { FillPicker, fillPickerTranslations } from './FillPicker'
+import { ListPickers } from './ListPickers'
 import { GraphPickers, graphPickerTranslations } from './GraphPickers'
 import { maskIcon } from './icons'
 import arrayIconUrl from './icons/array.svg'
@@ -328,6 +329,7 @@ export const components: TLComponents = {
 			<DefaultStylePanelContent />
 			<FillPicker />
 			<ArrayPickers />
+			<ListPickers />
 			<TreePickers />
 			<HeapPickers />
 			<GraphPickers />

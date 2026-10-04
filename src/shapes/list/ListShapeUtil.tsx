@@ -13,7 +13,10 @@ import type { PointerAnchor } from '../../pointers/layout'
 import { prunePointers } from '../../pointers/pointers'
 import {
 	NULL_KEY,
+	SENTINEL_KEY,
+	chainKeys,
 	getListMetrics,
+	listVariant,
 	listAxis,
 	listBasePosition,
 	listGrowPoint,
@@ -43,10 +46,26 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 			seed: 0,
 			marks: {},
 			pointers: [],
+			links: 'singly',
+			tail: 'none',
+			ends: 'null',
+			sentinel: 'none',
+			cycleTo: '',
 			color: 'black',
 			size: 'm',
 			font: 'mono',
 		}
+	}
+
+	/** Switching a variant (doubly, tail, circular, sentinel) redraws the list with its head where it was. */
+	override onBeforeUpdate(prev: ListShape, next: ListShape): ListShape | void {
+		const variants = ['links', 'tail', 'ends', 'sentinel', 'cycleTo'] as const
+		let shape = next
+		if (variants.some((k) => prev.props[k] !== next.props[k]) && prev.props.nodes === next.props.nodes) {
+			const shift = Vec.Rot(anchorShift(prev.props, next.props), next.rotation)
+			shape = { ...next, x: next.x + shift.x, y: next.y + shift.y }
+		}
+		return super.onBeforeUpdate(prev, shape) ?? (shape === next ? undefined : shape)
 	}
 
 	buildScene(shape: ListShape) {
@@ -86,7 +105,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		const axis = listAxis(direction)
 		const away = atStart ? { x: -axis.x, y: -axis.y } : axis
 		const from = atStart ? listStartGripPoint(initial.props) : listGrowPoint(initial.props)
-		const count = grownCount(nodes.length, from, to, away, getListMetrics(size).step)
+		const count = grownCount(nodes.length, from, to, away, getListMetrics(size, initial.props.links === 'doubly').step)
 		return this.withNodes(shape, initial, resizeList(initial.props, count, atStart))
 	}
 
@@ -96,7 +115,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 
 	/** A + on every next pointer (including the tail's pointer to null) inserts after its node. */
 	canInsertOnEdge(_shape: ListShape, edge: SceneEdge) {
-		return !!edge.fromPointer
+		return edge.fromPointer === true
 	}
 
 	insertOnEdge(shape: ListShape, edgeKey: string) {
@@ -123,12 +142,16 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 	}
 
 	override pointerStep(shape: ListShape, key: string, direction: PointerDirection): string | undefined {
-		const keys = [...shape.props.nodes.map((n) => n.id), NULL_KEY]
+		const v = listVariant(shape.props, shape.props.nodes)
+		const ends = v.circular || v.cycleTo ? [] : [NULL_KEY]
+		const keys = [...chainKeys(shape.props), ...ends]
 		const i = keys.indexOf(key)
 		const axis = listAxis(shape.props.direction)
 		const d = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[direction]
 		const along = d[0] * axis.x + d[1] * axis.y
-		return i < 0 || !along ? undefined : keys[i + along]
+		if (i < 0 || !along) return undefined
+		// Round and round a circular list.
+		return v.circular ? keys[(i + along + keys.length) % keys.length] : keys[i + along]
 	}
 
 	pointerNames() {
@@ -228,13 +251,15 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 			initial.props.marks,
 			nodes.map((n) => n.id)
 		)
-		const pointers = prunePointers(initial.props.pointers, [...nodes.map((n) => n.id), NULL_KEY])
+		const pointers = prunePointers(initial.props.pointers, [...nodes.map((n) => n.id), NULL_KEY, SENTINEL_KEY])
+		// A cycle into a node that has gone is gone too.
+		const cycleTo = nodes.some((n) => n.id === initial.props.cycleTo) ? initial.props.cycleTo : ''
 		return {
 			id: shape.id,
 			type: LIST_SHAPE_TYPE,
 			x: initial.x + shift.x,
 			y: initial.y + shift.y,
-			props: { nodes, marks, pointers, direction },
+			props: { nodes, marks, pointers, direction, cycleTo },
 		}
 	}
 

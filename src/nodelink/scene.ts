@@ -25,10 +25,15 @@ export interface SceneNode {
 	w: number
 	h: number
 	value: string
-	/** List nodes: which side the pointer compartment is on, and its width. */
-	pointer?: { side: 'left' | 'right'; width: number }
+	/**
+	 * List nodes: which side the next-pointer compartment is on, and its width; `back`: a doubly
+	 * linked node's prev-pointer compartment too, on the other side.
+	 */
+	pointer?: { side: 'left' | 'right'; width: number; back?: boolean }
 	editable: boolean
 	draggable: boolean
+	/** Drawn dashed and unfilled: a list's sentinel (dummy) node. */
+	ghost?: boolean
 }
 
 export interface SceneEdge {
@@ -36,8 +41,18 @@ export interface SceneEdge {
 	from: string
 	to: string
 	directed: boolean
-	/** Start from the centre of the source's pointer compartment (a linked list's next pointer). */
-	fromPointer?: boolean
+	/**
+	 * Start from the centre of the source's pointer compartment: its next pointer (true), or a doubly
+	 * linked node's prev pointer.
+	 */
+	fromPointer?: boolean | 'prev'
+	/**
+	 * Shift a pointer arrow sideways, to the left of its direction, by this fraction of the source
+	 * node's height: a doubly linked list's next and prev arrows run as two parallel lanes.
+	 */
+	lane?: number
+	/** Corners to route through (layout coordinates): an arrow looping round the list back to its head. */
+	via?: { x: number; y: number }[]
 	/** Weight or label, editable as cell `edge:<key>` when the shape supports it. */
 	label?: string
 	/** Curve the edge by this fraction of its length (to the left of its direction; negative: right). */
@@ -56,10 +71,14 @@ export interface Scene {
 	metrics: SceneMetrics
 }
 
-/** The scene moved by `d` (edges follow their nodes). */
+/** The scene moved by `d` (edges follow their nodes, and their corners). */
 export function translateScene(scene: Scene, d: { x: number; y: number }): Scene {
 	if (!d.x && !d.y) return scene
-	return { ...scene, nodes: scene.nodes.map((n) => ({ ...n, x: n.x + d.x, y: n.y + d.y })) }
+	return {
+		...scene,
+		nodes: scene.nodes.map((n) => ({ ...n, x: n.x + d.x, y: n.y + d.y })),
+		edges: scene.edges.map((e) => (e.via ? { ...e, via: e.via.map((p) => ({ x: p.x + d.x, y: p.y + d.y })) } : e)),
+	}
 }
 
 export const EDGE_CELL_PREFIX = 'edge:'

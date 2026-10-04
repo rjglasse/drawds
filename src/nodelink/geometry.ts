@@ -17,18 +17,23 @@ export function nodeBox(node: SceneNode): Box {
 	return { x: node.x - node.w / 2, y: node.y - node.h / 2, w: node.w, h: node.h }
 }
 
-/** The part of a node that shows its value; list nodes exclude their pointer compartment. */
+/** The part of a node that shows its value; list nodes exclude their pointer compartments. */
 export function valueBox(node: SceneNode): Box {
 	const box = nodeBox(node)
 	if (!node.pointer) return box
-	const { side, width } = node.pointer
-	return { x: side === 'left' ? box.x + width : box.x, y: box.y, w: box.w - width, h: box.h }
+	const { side, width, back } = node.pointer
+	const before = side === 'left' || back ? width : 0
+	return { x: box.x + before, y: box.y, w: box.w - width * (back ? 2 : 1), h: box.h }
 }
 
-/** Centre of a list node's pointer compartment, where its next-pointer arrow starts. */
-export function pointerAnchor(node: SceneNode): Point {
+/**
+ * Centre of a list node's pointer compartment, where a pointer arrow starts: its next pointer, or
+ * (`prev`) a doubly linked node's prev pointer, on the other side.
+ */
+export function pointerAnchor(node: SceneNode, prev = false): Point {
 	if (!node.pointer) return { x: node.x, y: node.y }
-	const { side, width } = node.pointer
+	const { width } = node.pointer
+	const side = prev ? (node.pointer.side === 'right' ? 'left' : 'right') : node.pointer.side
 	const x = side === 'right' ? node.x + node.w / 2 - width / 2 : node.x - node.w / 2 + width / 2
 	return { x, y: node.y }
 }
@@ -115,10 +120,22 @@ const sample = (at: (t: number) => Point) => Array.from({ length: SAMPLES + 1 },
 export function routeEdge(
 	from: SceneNode,
 	to: SceneNode,
-	{ bend = 0, fromPointer = false }: { bend?: number; fromPointer?: boolean } = {}
+	{
+		bend = 0,
+		fromPointer = false,
+		lane = 0,
+		via,
+	}: { bend?: number; fromPointer?: boolean | 'prev'; lane?: number; via?: readonly Point[] } = {}
 ): EdgeRoute {
+	if (via?.length) return routeVia(from, to, via, fromPointer)
 	if (from.key === to.key) return selfLoop(from)
-	const anchor = fromPointer ? pointerAnchor(from) : { x: from.x, y: from.y }
+	let anchor = fromPointer ? pointerAnchor(from, fromPointer === 'prev') : { x: from.x, y: from.y }
+	if (lane) {
+		// To the left of the arrow's direction, by a share of the node's height.
+		const len = Math.hypot(to.x - anchor.x, to.y - anchor.y) || 1
+		const shift = lane * from.h
+		anchor = { x: anchor.x + ((to.y - anchor.y) / len) * shift, y: anchor.y - ((to.x - anchor.x) / len) * shift }
+	}
 
 	if (bend === 0) {
 		const start = fromPointer ? anchor : boundaryPoint(from, to)
@@ -146,6 +163,42 @@ export function routeEdge(
 		angle: Math.atan2(end.y - control.y, end.x - control.x),
 		labelAt: quadAt(start, control, end, 0.5),
 		points: sample((t) => quadAt(start, control, end, t)),
+	}
+}
+
+/**
+ * An arrow through corners: out of the source's pointer compartment (or its outline), along the
+ * corners with rounded turns, into the target's outline (a list's arrow looping back to its head).
+ */
+function routeVia(from: SceneNode, to: SceneNode, via: readonly Point[], fromPointer: boolean | 'prev'): EdgeRoute {
+	const first = via[0]
+	const last = via[via.length - 1]
+	// Out of a pointer compartment straight along the first leg (in its lane), from where its dot is.
+	const anchor = pointerAnchor(from, fromPointer === 'prev')
+	const level = Math.abs(first.x - anchor.x) >= Math.abs(first.y - anchor.y)
+	const start = fromPointer ? (level ? { x: anchor.x, y: first.y } : { x: first.x, y: anchor.y }) : boundaryPoint(from, first)
+	const end = nearestOutlinePoint(to, last)
+	const points = [start, ...via, end]
+	const r = 10
+	let d = `M ${start.x} ${start.y}`
+	for (let i = 1; i < points.length - 1; i++) {
+		const [a, b, c] = [points[i - 1], points[i], points[i + 1]]
+		const into = Math.min(r, Math.hypot(b.x - a.x, b.y - a.y) / 2)
+		const out = Math.min(r, Math.hypot(c.x - b.x, c.y - b.y) / 2)
+		const p = lerp(b, a, into / (Math.hypot(b.x - a.x, b.y - a.y) || 1))
+		const q = lerp(b, c, out / (Math.hypot(c.x - b.x, c.y - b.y) || 1))
+		d += ` L ${p.x} ${p.y} Q ${b.x} ${b.y} ${q.x} ${q.y}`
+	}
+	d += ` L ${end.x} ${end.y}`
+	// The label (or + button) goes on the middle of the longest stretch.
+	const lengths = points.slice(1).map((p, i) => Math.hypot(p.x - points[i].x, p.y - points[i].y))
+	const longest = lengths.indexOf(Math.max(...lengths))
+	return {
+		d,
+		tip: end,
+		angle: Math.atan2(end.y - last.y, end.x - last.x),
+		labelAt: lerp(points[longest], points[longest + 1], 0.5),
+		points,
 	}
 }
 
@@ -179,7 +232,10 @@ export function routeScene(scene: Scene): Map<string, EdgeRoute> {
 		const from = nodes.get(edge.from)
 		const to = nodes.get(edge.to)
 		if (!from || !to) continue
-		routes.set(edge.key, routeEdge(from, to, { bend: edge.bend ?? bendFor(edge, scene.edges), fromPointer: edge.fromPointer }))
+		routes.set(
+			edge.key,
+			routeEdge(from, to, { bend: edge.bend ?? bendFor(edge, scene.edges), fromPointer: edge.fromPointer, lane: edge.lane, via: edge.via })
+		)
 	}
 	return routes
 }

@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import { getColorValue, type TLDefaultColorStyle, type TLThemeColors } from 'tldraw'
 import type { MarkColor, Marks } from '../cells/marks'
-import { arrowHead, badgeDirection, boundaryPoint, labelBox, pointerAnchor, routeScene, valueBox } from './geometry'
+import { arrowHead, badgeDirection, boundaryPoint, labelBox, routeScene, valueBox } from './geometry'
 import type { Strip } from './playback'
 import { edgeCellKey, type Scene, type SceneMetrics, type SceneNode } from './scene'
 
@@ -155,6 +155,18 @@ export function SceneSvg({
 					</g>
 				)
 			})}
+			{/* Each pointer arrow starts at a dot in its compartment (where the arrow really starts: a doubly
+			    linked list's two arrows run in lanes), drawn over the node's fill. */}
+			{scene.edges.map((edge) => {
+				const start = edge.fromPointer ? routes.get(edge.key)?.points[0] : undefined
+				if (!start) return null
+				const mark = marks[edgeCellKey(edge.key)]
+				return (
+					<g key={`dot-${edge.key}`} {...fade(dimmed.has(edgeCellKey(edge.key)) || dimmed.has(edge.from))}>
+						<circle cx={start.x} cy={start.y} r={strokeWidth * 1.6} fill={mark ? getColorValue(colors, mark, 'solid') : paint.stroke} />
+					</g>
+				)
+			})}
 			{scene.nodes.map((node) => {
 				const swap = swapStyle(node.key)
 				return (
@@ -234,6 +246,8 @@ function NodeShapeSvg({
 	flash?: { paint: Paint; fading: boolean; id: number }
 }) {
 	if (node.kind === 'null' || node.kind === 'label') return null
+	// A sentinel (dummy) node is dashed and unfilled: it holds no value.
+	const dash = node.ghost ? `${paint.strokeWidth * 3} ${paint.strokeWidth * 2.5}` : undefined
 	const outline = (p: Paint, className?: string) =>
 		node.kind === 'circle' ? (
 			<circle className={className} cx={node.x} cy={node.y} r={node.w / 2} fill={p.fill} stroke={p.stroke} strokeWidth={p.strokeWidth} />
@@ -244,15 +258,20 @@ function NodeShapeSvg({
 				y={node.y - node.h / 2}
 				width={node.w}
 				height={node.h}
-				fill={p.fill}
+				fill={node.ghost ? 'none' : p.fill}
 				stroke={p.stroke}
 				strokeWidth={p.strokeWidth}
 				strokeLinejoin="round"
+				strokeDasharray={dash}
 			/>
 		)
 	const box = valueBox(node)
-	const divider = node.pointer && (node.pointer.side === 'right' ? box.x + box.w : box.x)
-	const anchor = pointerAnchor(node)
+	// The value's edges that border a pointer compartment: next, and a doubly linked node's prev.
+	const dividers = !node.pointer
+		? []
+		: node.pointer.back
+			? [box.x, box.x + box.w]
+			: [node.pointer.side === 'right' ? box.x + box.w : box.x]
 	return (
 		<g>
 			{outline(paint)}
@@ -260,19 +279,18 @@ function NodeShapeSvg({
 				// A new key when the operation commits restarts the element, which starts the fade.
 				<g key={`flash-${flash.id}`}>{outline(flash.paint, flash.fading ? 'drawds-flash drawds-flash-fade' : 'drawds-flash')}</g>
 			)}
-			{divider !== undefined && (
-				<>
-					<line
-						x1={divider}
-						y1={node.y - node.h / 2}
-						x2={divider}
-						y2={node.y + node.h / 2}
-						stroke={paint.stroke}
-						strokeWidth={paint.strokeWidth}
-					/>
-					<circle cx={anchor.x} cy={anchor.y} r={paint.strokeWidth * 1.6} fill={paint.stroke} />
-				</>
-			)}
+			{dividers.map((x) => (
+				<line
+					key={x}
+					x1={x}
+					y1={node.y - node.h / 2}
+					x2={x}
+					y2={node.y + node.h / 2}
+					stroke={paint.stroke}
+					strokeWidth={paint.strokeWidth}
+					strokeDasharray={dash}
+				/>
+			))}
 		</g>
 	)
 }
