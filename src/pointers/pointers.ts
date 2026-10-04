@@ -42,3 +42,10 @@ export function prunePointers(pointers: readonly Pointer[], live: Iterable<strin
 	const keep = new Set(live)
 	return pointers.filter((p) => keep.has(p.at))
 }
+
+/**
+ * Built-in markers that a structure draws like pointers (a stack's top, a queue's front and rear)
+ * have ids starting with this. They aren't stored with the shape's pointers and can't be moved.
+ */
+export const BUILT_IN = '@'
+export const isBuiltIn = (p: Pointer) => p.id.startsWith(BUILT_IN)

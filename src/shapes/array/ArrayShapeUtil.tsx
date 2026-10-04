@@ -53,7 +53,8 @@ import {
 	type AuxRow,
 } from './operations'
 import { movesAnything, rearrange, reversedOrder, shuffledOrder, sortedOrder } from './rearrange'
-import { getArrayGrowPoint, getArrayLayout, getArrayMetrics, getAuxLayout, hoveredCell } from './layout'
+import { arrayMarkers, frontOf, isUsed, usedIndices } from './kinds'
+import { arrayStepVector, getArrayGrowPoint, getArrayLayout, getArrayMetrics, getAuxLayout, hoveredCell, indexAlong, type ArrayMetrics } from './layout'
 import { cellHandleId, cellOfHandle, crossSlides, frameSlides, orderSlides, swapCells, swapState, type Slides, type SwapDrag } from './swap'
 
 /** How long values take to arc into their new cells (a swap, a sort, a shift). */
@@ -77,6 +78,8 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			pointers: [],
 			sizing: 'grows',
 			used: 1,
+			kind: 'array',
+			front: 0,
 			color: 'black',
 			size: 'm',
 			font: 'mono',
@@ -95,15 +98,21 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	 */
 	override onBeforeUpdate(prev: ArrayShape, next: ArrayShape): ArrayShape | void {
 		let shape = next
-		if (prev.props.sizing !== next.props.sizing) {
-			const props = next.props
+		const { kind, sizing } = next.props
+		if (prev.props.sizing !== sizing || prev.props.kind !== kind) {
+			// A circular buffer becoming something else is unwrapped first: its front moves to index 0.
+			const before = { ...next.props, kind: prev.props.kind, sizing: prev.props.sizing }
+			shape = { ...next, props: { ...unwrapped(before), kind, sizing, front: 0 } }
+		}
+		if (prev.props.sizing !== sizing) {
+			const props = shape.props
 			if (props.sizing === 'fixed') {
-				shape = { ...next, props: { ...props, used: props.values.length } }
+				shape = { ...shape, props: { ...props, used: props.values.length } }
 			} else {
 				const n = Math.max(1, Math.min(prev.props.used, props.values.length))
 				const keep = Array.from({ length: n + 2 }, (_, i) => String(i - 1))
 				shape = {
-					...next,
+					...shape,
 					props: {
 						...props,
 						used: n,
@@ -124,14 +133,16 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	override getHandles(shape: ArrayShape): TLHandle[] {
 		// While an operation shows its steps, the handles would sit on a state that isn't shown.
 		if (isBusy(playbackFor(this.editor, shape.id))) return []
-		const { values, direction } = shape.props
+		const { values, kind } = shape.props
 		const metrics = getArrayMetrics(shape.props)
-		const layout = getArrayLayout(values.length, direction, metrics)
+		const layout = getArrayLayout(values.length, metrics)
 		const indices = getIndices(values.length + 1)
-		const handles: TLHandle[] = values.slice(0, usedCount(shape.props)).map((value, i) => {
+		// A stack or queue changes only by its own operations: no swapping cells by hand.
+		const swappable = kind === 'array' ? values.slice(0, usedCount(shape.props)) : []
+		const handles: TLHandle[] = swappable.map((value, i) => {
 			const { x, y } = layout.cellAt(i)
 			const at =
-				direction === 'horizontal' ? { x: x + metrics.cell / 2, y: y + metrics.cell } : { x: x + metrics.cell, y: y + metrics.cell / 2 }
+				metrics.axis === 'horizontal' ? { x: x + metrics.cell / 2, y: y + metrics.cell } : { x: x + metrics.cell, y: y + metrics.cell / 2 }
 			return { id: cellHandleId(i), type: 'vertex', label: `Swap ${value} with another cell`, index: indices[i], ...at }
 		})
 		handles.push(growHandle(this.growPoint(shape), indices[values.length]))
@@ -158,16 +169,20 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			return
 		}
 		if (handle.id !== GROW_HANDLE_ID) return
-		const { values, direction, fill, seed, marks, pointers, sizing } = initial.props
-		const axis = direction === 'horizontal' ? { x: 1, y: 0 } : { x: 0, y: 1 }
-		const step = getArrayMetrics(initial.props).cell
+		// A circular buffer is unwrapped first (front at 0), so its new spare slots come after its rear.
+		const { values, fill, seed, marks, pointers, sizing } = unwrapped(initial.props)
+		const metrics = getArrayMetrics(initial.props)
 		const fixed = sizing === 'fixed'
 		// A fixed array's grip changes its capacity: blank spare slots, never fewer cells than in use.
-		const count = Math.max(fixed ? Math.max(1, usedCount(initial.props)) : 1, grownCount(values.length, this.growPoint(initial), handle, axis, step))
+		const count = Math.max(
+			fixed ? Math.max(1, usedCount(initial.props)) : 1,
+			grownCount(values.length, this.growPoint(initial), handle, arrayStepVector(metrics.axis), metrics.cell)
+		)
 		return {
 			id: shape.id,
 			type: ARRAY_SHAPE_TYPE,
 			props: {
+				front: 0,
 				values: fixed ? padded(values.slice(0, count), count) : extendValues(values, fill, seed, count),
 				marks: pruneMarks(
 					marks,
@@ -390,16 +405,19 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	 * slide over. Touch screens have no hover, so they show every button.
 	 */
 	private renderCellButtons(shape: ArrayShape, colors: TLThemeColors) {
-		const { values, direction, sizing } = shape.props
+		const { values, sizing, kind } = shape.props
+		// Stacks and queues have their own buttons (push / pop, enqueue / dequeue).
+		if (kind !== 'array') return null
 		const n = values.length
 		const used = usedCount(shape.props)
 		const fixed = sizing === 'fixed'
 		const metrics = getArrayMetrics(shape.props)
-		const layout = getArrayLayout(n, direction, metrics)
+		const direction = metrics.axis
+		const layout = getArrayLayout(n, metrics)
 		const zoom = this.editor.getZoomLevel()
 		const coarse = this.editor.getInstanceState().isCoarsePointer
 		const point = this.editor.getPointInShapeSpace(shape, this.editor.inputs.getCurrentPagePoint())
-		const hovered = coarse ? undefined : hoveredCell(point, n, direction, metrics, 16 / zoom)
+		const hovered = coarse ? undefined : hoveredCell(point, n, metrics, 16 / zoom)
 		if (!coarse && !hovered) return null
 		const all = [...values.keys(), n]
 		// An x on cells in use (a growing array keeps one); a + between them, not past the end where
@@ -550,27 +568,34 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const n = shape.props.values.length
 		if (!Number.isInteger(i) || i < -1 || i > n) return undefined
 		const metrics = getArrayMetrics(shape.props)
-		const { x, y } = getArrayLayout(n, shape.props.direction, metrics).cellAt(i)
-		return { box: { x, y, w: metrics.cell, h: metrics.cell }, side: shape.props.direction === 'horizontal' ? 'above' : 'right' }
+		const { x, y } = getArrayLayout(n, metrics).cellAt(i)
+		return { box: { x, y, w: metrics.cell, h: metrics.cell }, side: metrics.axis === 'horizontal' ? 'above' : 'right' }
+	}
+
+	/** A stack's top, a queue's front and rear: drawn with the pointers, but not the user's to move. */
+	markerPointers(shape: ArrayShape) {
+		return arrayMarkers(shape.props)
 	}
 
 	override pointerTargetAt(shape: ArrayShape, point: VecLike): string | undefined {
-		const { values, direction } = shape.props
+		const { values } = shape.props
 		const metrics = getArrayMetrics(shape.props)
-		const { cells } = getArrayLayout(values.length, direction, metrics)
-		const [along, across, extent] =
-			direction === 'horizontal' ? [point.x - cells.x, point.y - cells.y, cells.h] : [point.y - cells.y, point.x - cells.x, cells.w]
+		const { cells } = getArrayLayout(values.length, metrics)
+		const [across, extent] = metrics.axis === 'horizontal' ? [point.y - cells.y, cells.h] : [point.x - cells.x, cells.w]
 		// Generous across the array, so a pointer dropped on its label row still lands on the cell.
 		if (across < -metrics.cell || across > extent + metrics.cell) return undefined
-		const i = Math.floor(along / metrics.cell)
+		const i = indexAlong(point, values.length, metrics)
 		return i >= -1 && i <= values.length ? String(i) : undefined
 	}
 
 	pointerStep(shape: ArrayShape, key: string, direction: PointerDirection): string | undefined {
+		const axis = getArrayMetrics(shape.props).axis
 		const step =
-			shape.props.direction === 'horizontal'
+			axis === 'horizontal'
 				? { left: -1, right: 1, up: 0, down: 0 }[direction]
-				: { up: -1, down: 1, left: 0, right: 0 }[direction]
+				: axis === 'vertical'
+					? { up: -1, down: 1, left: 0, right: 0 }[direction]
+					: { up: 1, down: -1, left: 0, right: 0 }[direction]
 		const next = String(Number(key) + step)
 		return step && this.pointerAnchor(shape, next) ? next : undefined
 	}
@@ -585,13 +610,13 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	}
 
 	private growPoint(shape: ArrayShape) {
-		return getArrayGrowPoint(shape.props.values.length, shape.props.direction, getArrayMetrics(shape.props))
+		return getArrayGrowPoint(shape.props.values.length, getArrayMetrics(shape.props))
 	}
 
 	/** A fixed array's spare slots hold nothing to edit: a double-click on one starts no edit. */
 	override canEdit(shape: ArrayShape) {
 		const point = this.editor.getPointInShapeSpace(shape, this.editor.inputs.getCurrentPagePoint())
-		const { cells } = getArrayLayout(shape.props.values.length, shape.props.direction, getArrayMetrics(shape.props))
+		const { cells } = getArrayLayout(shape.props.values.length, getArrayMetrics(shape.props))
 		const overCells = point.x >= cells.x && point.x <= cells.x + cells.w && point.y >= cells.y && point.y <= cells.y + cells.h
 		return !overCells || this.cells.cellAt(shape, point) !== undefined
 	}
@@ -609,12 +634,14 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const metrics = getArrayMetrics(shape.props)
 		// The cells shown: an operation's step may have one more (making room to insert). It only
 		// ever grows past the end, so the origin stays put. Reactive (tldraw caches it in a computed).
-		const count = this.displayShape(shape).props.values.length
-		const layout = getArrayLayout(count, shape.props.direction, metrics)
-		const body = new Rectangle2d({ ...metrics.origin, width: layout.width, height: layout.height, isFilled: true })
+		// (An upright array's extra cells rise above it for a moment: its own cells count.)
+		const count = metrics.axis === 'up' ? shape.props.values.length : this.displayShape(shape).props.values.length
+		const layout = getArrayLayout(count, metrics)
+		const { box } = layout
+		const body = new Rectangle2d({ x: box.x, y: box.y, width: box.w, height: box.h, isFilled: true })
 		// A second row (a new array being filled) lies under or right of the array: inside the box.
 		const aux = this.displayAux(shape)
-		const auxBounds = aux && getAuxLayout(aux.values.length, shape.props.direction, metrics, layout).bounds
+		const auxBounds = aux && getAuxLayout(aux.values.length, metrics, layout).bounds
 		const extra = auxBounds ? [new Rectangle2d({ x: auxBounds.x, y: auxBounds.y, width: auxBounds.w, height: auxBounds.h, isFilled: true })] : []
 		const pointers = this.pointerGeometry(shape)
 		if (!pointers.length && !extra.length) return body
@@ -627,7 +654,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	}
 
 	/** Indices just off the array (-1, n) that a pointer is at. */
-	private offEndSlots(shape: ArrayShape, pointers: readonly Pointer[] = shape.props.pointers) {
+	private offEndSlots(shape: ArrayShape, pointers: readonly Pointer[] = [...shape.props.pointers, ...arrayMarkers(shape.props)]) {
 		const n = shape.props.values.length
 		return [-1, n].filter((i) => pointers.some((p) => p.at === String(i)))
 	}
@@ -657,18 +684,18 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	override playbackLayout(shape: ArrayShape, frame: Frame | undefined): PlaybackLayout {
 		const shown = this.displayShape(shape, frame)
 		const metrics = getArrayMetrics(shape.props)
-		const { values, direction } = shown.props
-		const layout = getArrayLayout(values.length, direction, metrics)
+		const { values } = shown.props
+		const layout = getArrayLayout(values.length, metrics)
 		const framePointers = this.framePointers(shape, frame)
 		const slots = framePointers
 			? this.offEndSlots(shown, framePointers).map((i) => ({ ...layout.cellAt(i), w: metrics.cell, h: metrics.cell }))
 			: []
 		const sceneMetrics = { fontSize: metrics.fontSize, labelFontSize: metrics.indexFontSize, strokeWidth: metrics.strokeWidth }
 		const aux = this.displayAux(shape, frame)
-		const auxBounds = aux && getAuxLayout(aux.values.length, direction, metrics, layout).bounds
+		const auxBounds = aux && getAuxLayout(aux.values.length, metrics, layout).bounds
 		return {
-			left: Math.min(layout.cells.x, metrics.origin.x),
-			bottom: Math.max(metrics.origin.y + layout.height, ...slots.map((b) => b.y + b.h), auxBounds ? auxBounds.y + auxBounds.h : -Infinity),
+			left: layout.box.x,
+			bottom: Math.max(layout.box.y + layout.box.h, ...slots.map((b) => b.y + b.h), auxBounds ? auxBounds.y + auxBounds.h : -Infinity),
 			metrics: sceneMetrics,
 			color: shape.props.color,
 			fontFamily: this.getFontFamily(shape),
@@ -703,6 +730,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 				<SVGContainer>
 					<ArraySvg
 						shape={this.displayShape(shape)}
+						metrics={getArrayMetrics(shape.props)}
 						colors={colors}
 						fontFamily={this.getFontFamily(shape)}
 						hiddenIndex={editingKey === undefined ? undefined : Number(editingKey)}
@@ -742,11 +770,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	getIndicatorPath(shape: ArrayShape) {
 		// The values shown, so the outline follows an operation that adds or removes a cell.
-		const { cells } = getArrayLayout(
-			this.displayShape(shape).props.values.length,
-			shape.props.direction,
-			getArrayMetrics(shape.props)
-		)
+		const { cells } = getArrayLayout(this.displayShape(shape).props.values.length, getArrayMetrics(shape.props))
 		const path = new Path2D()
 		path.rect(cells.x, cells.y, cells.w, cells.h)
 		return path
@@ -768,6 +792,18 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 /** Values padded with blank spare slots to `capacity` cells. */
 function padded(values: readonly string[], capacity: number): string[] {
 	return values.length >= capacity ? [...values] : [...values, ...Array<string>(capacity - values.length).fill('')]
+}
+
+/** A circular buffer moved round so its front is index 0, marks with its values; anything else as it is. */
+function unwrapped(props: ArrayShape['props']): ArrayShape['props'] {
+	if (!frontOf(props)) return props
+	const order = usedIndices(props)
+	const marks: Marks = {}
+	order.forEach((i, k) => {
+		const mark = props.marks[String(i)]
+		if (mark) marks[String(k)] = mark
+	})
+	return { ...props, front: 0, marks, values: padded(order.map((i) => props.values[i]), props.values.length) }
 }
 
 /** The values in use and their marks (all of them, unless the capacity is fixed). */
@@ -794,8 +830,11 @@ function ArraySvg({
 	offEnd = [],
 	aux,
 	cross,
+	metrics = getArrayMetrics(shape.props),
 }: {
 	shape: ArrayShape
+	/** The shape's own metrics: a step showing more cells mustn't move an upright array's origin. */
+	metrics?: ArrayMetrics
 	colors: TLThemeColors
 	fontFamily: string
 	/** Indices just off the array that a pointer is at: drawn as dashed cells. */
@@ -815,9 +854,9 @@ function ArraySvg({
 	/** Values moving between the array and the second row this step. */
 	cross?: { toAux: Record<number, number>; toMain: Record<number, number>; id: number }
 }) {
-	const { values, direction, showIndices, color, marks, sizing } = shape.props
-	const metrics = getArrayMetrics(shape.props)
-	const layout = getArrayLayout(values.length, direction, metrics)
+	const { values, showIndices, color, marks, sizing, kind } = shape.props
+	const direction = metrics.axis
+	const layout = getArrayLayout(values.length, metrics)
 	const fixed = sizing === 'fixed'
 	const used = usedCount(shape.props)
 	const { cells, cellAt } = layout
@@ -846,10 +885,10 @@ function ArraySvg({
 		} as CSSProperties
 	}
 	const dimmed = new Set(dim)
-	const auxLayout = aux && getAuxLayout(aux.values.length, direction, metrics, layout)
+	const auxLayout = aux && getAuxLayout(aux.values.length, metrics, layout)
 	// Values moving up from a second row the step no longer draws (a = newArr): where it was, as
 	// long as the array now is.
-	const fromBelow = auxLayout ?? (cross && Object.keys(cross.toMain).length ? getAuxLayout(values.length, direction, metrics, layout) : undefined)
+	const fromBelow = auxLayout ?? (cross && Object.keys(cross.toMain).length ? getAuxLayout(values.length, metrics, layout) : undefined)
 	// Between the rows a value moves straight down (or across) to its cell, or back up.
 	const crossStyle = (to: { x: number; y: number }, from: { x: number; y: number }): CSSProperties => {
 		const dx = from.x - to.x
@@ -884,29 +923,37 @@ function ArraySvg({
 				y={cells.y}
 				width={cells.w}
 				height={cells.h}
-				fill={getColorValue(colors, color, 'semi')}
+				fill={values.length ? getColorValue(colors, color, 'semi') : 'none'}
 				stroke={stroke}
 				strokeWidth={strokeWidth}
 				strokeLinejoin="round"
+				// An emptied growing stack or queue: a dashed outline where its first value would go.
+				strokeDasharray={values.length ? undefined : `${strokeWidth * 3} ${strokeWidth * 2.5}`}
+				opacity={values.length ? 1 : 0.5}
 			/>
-			{fixed && used < values.length && (
-				// Spare slots: blank, so the cells in use stand out.
-				<rect
-					x={cellAt(used).x + strokeWidth / 2}
-					y={cellAt(used).y + strokeWidth / 2}
-					width={direction === 'horizontal' ? (values.length - used) * cell - strokeWidth : cell - strokeWidth}
-					height={direction === 'horizontal' ? cell - strokeWidth : (values.length - used) * cell - strokeWidth}
-					fill={colors.background}
-				/>
-			)}
+			{fixed &&
+				// Spare slots: blank, so the cells in use stand out (a circular buffer's may wrap round).
+				values.map((_, i) =>
+					isUsed(shape.props, i) ? null : (
+						<rect
+							key={`spare-${i}`}
+							x={cellAt(i).x + strokeWidth / 2}
+							y={cellAt(i).y + strokeWidth / 2}
+							width={cell - strokeWidth}
+							height={cell - strokeWidth}
+							fill={colors.background}
+						/>
+					)
+				)}
 			{values.slice(1).map((_, k) => {
+				const at = layout.boundaryAt(k + 1)
 				const { x, y } = cellAt(k + 1)
-				// Where the cells in use end, a heavier line.
-				const width = fixed && k + 1 === used ? strokeWidth * 2.4 : strokeWidth
+				// Where the cells in use end, a heavier line (a queue has its front and rear instead).
+				const width = fixed && kind !== 'queue' && k + 1 === used ? strokeWidth * 2.4 : strokeWidth
 				return direction === 'horizontal' ? (
-					<line key={k} x1={x} y1={y} x2={x} y2={y + cell} stroke={stroke} strokeWidth={width} />
+					<line key={k} x1={at} y1={y} x2={at} y2={y + cell} stroke={stroke} strokeWidth={width} />
 				) : (
-					<line key={k} x1={x} y1={y} x2={x + cell} y2={y} stroke={stroke} strokeWidth={width} />
+					<line key={k} x1={x} y1={at} x2={x + cell} y2={at} stroke={stroke} strokeWidth={width} />
 				)
 			})}
 			{fixed && (
@@ -1041,10 +1088,12 @@ function ArraySvg({
 					/>
 					{aux.values.slice(1).map((_, k) => {
 						const { x, y } = auxLayout.cellAt(k + 1)
+						// Upright, the line between cells k and k + 1 is the bottom of cell k + 1.
+						const lineY = direction === 'up' ? y + cell : y
 						return direction === 'horizontal' ? (
 							<line key={k} x1={x} y1={y} x2={x} y2={y + cell} stroke={stroke} strokeWidth={strokeWidth} />
 						) : (
-							<line key={k} x1={x} y1={y} x2={x + cell} y2={y} stroke={stroke} strokeWidth={strokeWidth} />
+							<line key={k} x1={x} y1={lineY} x2={x + cell} y2={lineY} stroke={stroke} strokeWidth={strokeWidth} />
 						)
 					})}
 					{aux.values.map((value, j) => {

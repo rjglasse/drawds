@@ -32,6 +32,13 @@ export const ArraySizingStyle = StyleProp.defineEnum('drawds:array-sizing', {
 })
 export type ArraySizing = T.TypeOf<typeof ArraySizingStyle>
 
+/** A plain array, a stack (upright, with a top) or a queue (front and rear; a circular buffer when fixed). */
+export const ArrayKindStyle = StyleProp.defineEnum('drawds:array-kind', {
+	defaultValue: 'array' as const,
+	values: ['array', 'stack', 'queue'] as const,
+})
+export type ArrayKind = T.TypeOf<typeof ArrayKindStyle>
+
 export interface ArrayShapeProps {
 	/** Cell contents in index order. An empty string is an empty cell. */
 	values: string[]
@@ -47,6 +54,9 @@ export interface ArrayShapeProps {
 	sizing: ArraySizing
 	/** Fixed capacity: how many cells, from the start, are in use, its size (the rest are blank). */
 	used: number
+	kind: ArrayKind
+	/** A queue with a fixed capacity (a circular buffer): the index of its front value. */
+	front: number
 	color: TLDefaultColorStyle
 	/** Drives the cell size, so the style panel's size picker resizes the array. */
 	size: TLDefaultSizeStyle
@@ -71,6 +81,8 @@ export const arrayShapeProps: RecordProps<ArrayShape> = {
 	pointers: pointersValidator,
 	sizing: ArraySizingStyle,
 	used: T.positiveInteger,
+	kind: ArrayKindStyle,
+	front: T.positiveInteger,
 	color: DefaultColorStyle,
 	size: DefaultSizeStyle,
 	font: DefaultFontStyle,
@@ -81,6 +93,7 @@ const versions = createShapePropsMigrationIds(ARRAY_SHAPE_TYPE, {
 	AddMarks: 2,
 	AddPointers: 3,
 	AddSizing: 4,
+	AddKind: 5,
 })
 
 /** Arrays are persisted in the browser, so every props change needs a step here. */
@@ -126,10 +139,21 @@ export const arrayShapeMigrations = createShapePropsMigrationSequence({
 				delete props.used
 			},
 		},
+		{
+			id: versions.AddKind,
+			up(props) {
+				props.kind = 'array'
+				props.front = 0
+			},
+			down(props) {
+				delete props.kind
+				delete props.front
+			},
+		},
 	],
 })
 
 /** How many cells are in use: all of them, unless the capacity is fixed. */
-export function usedCount({ sizing, used, values }: Pick<ArrayShapeProps, 'sizing' | 'used' | 'values'>) {
+export function usedCount({ sizing, used, values }: { sizing: ArraySizing; used: number; values: readonly string[] }) {
 	return sizing === 'fixed' ? Math.min(used, values.length) : values.length
 }

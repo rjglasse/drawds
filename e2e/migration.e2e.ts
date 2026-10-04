@@ -91,3 +91,20 @@ test('arrays saved before fixed capacity existed load as growing arrays, every v
 	})
 	expect(loaded).toEqual([expect.objectContaining({ values: ['3', '1', '4'], sizing: 'grows', used: 3 })])
 })
+
+test('arrays saved before stacks and queues existed load as plain arrays', async ({ page }) => {
+	await open(page)
+	await sketchArray(page, [300, 200], 2)
+	const loaded = await withEditor(page, (editor) => {
+		const doc = structuredClone(editor.getSnapshot().document)
+		;(doc.schema as { sequences: Record<string, number> }).sequences['com.tldraw.shape.array'] = 4
+		for (const record of Object.values(doc.store) as { typeName: string; type?: string; props?: Record<string, unknown> }[]) {
+			if (record.typeName !== 'shape' || record.type !== 'array' || !record.props) continue
+			delete record.props.kind
+			delete record.props.front
+		}
+		editor.loadSnapshot({ document: doc })
+		return editor.getCurrentPageShapes().map((s) => s.props)
+	})
+	expect(loaded).toEqual([expect.objectContaining({ kind: 'array', front: 0 })])
+})

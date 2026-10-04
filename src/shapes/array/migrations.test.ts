@@ -16,7 +16,7 @@ describe('array shape migrations', () => {
 	})
 
 	it('arrays saved before fixed capacity existed grow, every value in use', () => {
-		const addSizing = arrayShapeMigrations.sequence.at(-1)!
+		const addSizing = arrayShapeMigrations.sequence[3]
 		if (!('up' in addSizing) || typeof addSizing.down !== 'function') throw new Error('expected a props migration')
 		const props: Record<string, unknown> = { values: ['1', '2', '3'] }
 		addSizing.up(props)
@@ -24,5 +24,15 @@ describe('array shape migrations', () => {
 		addSizing.down(props)
 		expect(props).not.toHaveProperty('sizing')
 		expect(props).not.toHaveProperty('used')
+	})
+
+	it('arrays saved before stacks and queues existed are plain arrays', () => {
+		const addKind = arrayShapeMigrations.sequence[4]
+		if (!('up' in addKind) || typeof addKind.down !== 'function') throw new Error('expected a props migration')
+		const props: Record<string, unknown> = { values: ['1'] }
+		addKind.up(props)
+		expect(props).toMatchObject({ kind: 'array', front: 0 })
+		addKind.down(props)
+		expect(props).not.toHaveProperty('kind')
 	})
 })

@@ -17,7 +17,7 @@ import type { Box } from '../nodelink/geometry'
 import type { SceneMetrics } from '../nodelink/scene'
 import { POINTER_FONT_SCALE, placePointers, type PlacedPointer, type PointerAnchor } from '../pointers/layout'
 import { PointerOverlays } from '../pointers/PointerOverlays'
-import type { Pointer } from '../pointers/pointers'
+import { isBuiltIn, type Pointer } from '../pointers/pointers'
 import { PointersSvg } from '../pointers/PointersSvg'
 import { pointerState } from '../pointers/state'
 import {
@@ -140,6 +140,9 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 		return (shape.props as { pointers?: Pointer[] }).pointers ?? []
 	}
 
+	/** Markers the structure draws like pointers (a stack's top): not stored, not the user's to move. */
+	markerPointers?(shape: S): Pointer[]
+
 	withPointers(shape: S, pointers: Pointer[]): TLShapePartial<S> {
 		return { id: shape.id, type: shape.type, props: { pointers } } as unknown as TLShapePartial<S>
 	}
@@ -175,9 +178,9 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 	placedPointers(shape: S): PlacedPointer[] {
 		let placed = this.placed.get(shape.props)
 		if (!placed) {
-			placed = this.pointerAnchor
-				? placePointers(this.getPointers(shape), (key) => this.pointerAnchor?.(shape, key), this.getPointerFontSize(shape))
-				: []
+			// The structure's own markers are laid out with the pointers, so the two never overlap.
+			const pointers = [...this.getPointers(shape), ...(this.markerPointers?.(shape) ?? [])]
+			placed = this.pointerAnchor ? placePointers(pointers, (key) => this.pointerAnchor?.(shape, key), this.getPointerFontSize(shape)) : []
 			this.placed.set(shape.props, placed)
 		}
 		return placed
@@ -224,7 +227,13 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 		const interactive =
 			showsStructureControls(this.editor, shape) && this.editor.isIn('select.idle') && !playbackFor(this.editor, shape.id)
 		return (
-			<PointerOverlays util={this} shape={shape} placed={this.placedPointers(shape)} interactive={interactive} colors={colors} />
+			<PointerOverlays
+				util={this}
+				shape={shape}
+				placed={this.placedPointers(shape).filter((p) => !isBuiltIn(p.pointer))}
+				interactive={interactive}
+				colors={colors}
+			/>
 		)
 	}
 
