@@ -48,6 +48,8 @@ export interface NodeOperation {
 	submenuId?: string
 	/** Ask for a value first (the prompt's placeholder); `run` gets it. */
 	prompt?: string
+	/** The element the prompt sits over when the operation isn't started from one (a stack's top). */
+	promptAt?: string
 	run(value?: string): void
 }
 

@@ -63,3 +63,79 @@ test('a fixed queue is a circular buffer: front and rear markers, spare slots bl
 	await page.getByTestId('style.array-sizing.grows').click()
 	expect((await props(page)).values).toEqual(['20', '30', '40', '50'])
 })
+
+const caption = (page: Page) => page.getByTestId('play-caption')
+
+async function stepToEnd(page: Page) {
+	while (!(await page.getByTestId('play-done').count())) await page.keyboard.press('ArrowRight')
+}
+
+async function menu(page: Page, at: [number, number], submenu: string, item: string) {
+	await page.mouse.click(...at, { button: 'right' })
+	await page.getByTestId(`context-menu-sub.drawds-${submenu}-button`).click()
+	await page.getByTestId(`context-menu.${item}`).click()
+}
+
+test('stack: push a typed value, pop it again (last in, first out); overflow when full', async ({ page }) => {
+	await sketchKind(page, 'stack', [300, 450], 2, 'up')
+	await page.getByTestId('style.array-sizing.fixed').click()
+	await menu(page, [300, 450], 'array-stack', 'array-push-value')
+	await page.getByTestId('key-prompt').fill('42')
+	await page.keyboard.press('Enter')
+	// No spare slots: the push overflows and nothing changes.
+	await expect(caption(page)).toContainText('the stack is full. Stack overflow')
+	await page.keyboard.press('Enter')
+	await page.waitForTimeout(400)
+	expect(await props(page)).toMatchObject({ used: 2 })
+	// Make room, push, then pop.
+	await menu(page, [300, 450], 'array-capacity', 'array-grow')
+	await page.keyboard.press('Enter')
+	await page.waitForTimeout(400)
+	await menu(page, [300, 450], 'array-stack', 'array-push-value')
+	await page.getByTestId('key-prompt').fill('42')
+	await page.keyboard.press('Enter')
+	await stepToEnd(page)
+	await page.keyboard.press('Enter')
+	expect(await props(page)).toMatchObject({ used: 3 })
+	expect((await props(page)).values[2]).toBe('42')
+	await page.waitForTimeout(400)
+	await menu(page, [300, 450], 'array-stack', 'array-pop')
+	await stepToEnd(page)
+	await expect(caption(page)).toHaveText('top = top - 1 = 1: a[2] is free again. Popped 42, the last value pushed')
+	await expect(page.getByTestId('playback-strip')).toContainText('42')
+	await page.keyboard.press('Enter')
+	expect(await props(page)).toMatchObject({ used: 2 })
+})
+
+test('circular queue: enqueue wraps rear round to 0; dequeue moves front on, nothing else moves', async ({ page }) => {
+	await sketchKind(page, 'queue', [300, 300], 4, 'right')
+	await page.getByTestId('style.array-sizing.fixed').click()
+	await page.evaluate(() => {
+		const editor = window.editor!
+		const s = editor.getOnlySelectedShape()!
+		editor.updateShape({ id: s.id, type: 'array', props: { values: ['', 'a', 'b', ''], used: 2, front: 1 } } as never)
+	})
+	await menu(page, [300, 300], 'array-queue', 'array-enqueue-value')
+	await page.getByTestId('key-prompt').fill('c')
+	await page.keyboard.press('Enter')
+	await stepToEnd(page)
+	await expect(caption(page)).toHaveText('rear = (rear + 1) % 4 = 0: past the end, it wraps round to 0; size = 3')
+	await page.keyboard.press('Enter')
+	expect(await props(page)).toMatchObject({ values: ['', 'a', 'b', 'c'], used: 3, front: 1 })
+	await page.waitForTimeout(400)
+	await menu(page, [300, 300], 'array-queue', 'array-dequeue')
+	await stepToEnd(page)
+	await expect(page.getByTestId('playback-strip')).toContainText('a')
+	await page.keyboard.press('Enter')
+	expect(await props(page)).toMatchObject({ values: ['', '', 'b', 'c'], used: 2, front: 2 })
+})
+
+test('a growing queue (a list) shifts every value to dequeue one', async ({ page }) => {
+	await sketchKind(page, 'queue', [300, 300], 4, 'right')
+	const before = (await props(page)).values
+	await menu(page, [300, 300], 'array-queue', 'array-dequeue')
+	await stepToEnd(page)
+	await expect(page.getByTestId('play-counts')).toHaveText('moves 3')
+	await page.keyboard.press('Enter')
+	expect((await props(page)).values).toEqual(before.slice(1))
+})

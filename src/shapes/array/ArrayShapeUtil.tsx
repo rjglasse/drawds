@@ -54,6 +54,7 @@ import {
 } from './operations'
 import { movesAnything, rearrange, reversedOrder, shuffledOrder, sortedOrder } from './rearrange'
 import { arrayMarkers, frontOf, isUsed, usedIndices } from './kinds'
+import { dequeue, enqueue, peekQueue, peekStack, pop, push } from './stack-queue'
 import { arrayStepVector, getArrayGrowPoint, getArrayLayout, getArrayMetrics, getAuxLayout, hoveredCell, indexAlong, type ArrayMetrics } from './layout'
 import { cellHandleId, cellOfHandle, crossSlides, frameSlides, orderSlides, swapCells, swapState, type Slides, type SwapDrag } from './swap'
 
@@ -89,7 +90,8 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	/** New values for the cells in use (a fixed array's spare slots stay blank). */
 	refill(shape: ArrayShape): TLShapePartial<ArrayShape> {
 		const { fill, seed, values } = shape.props
-		return { id: shape.id, type: ARRAY_SHAPE_TYPE, props: { values: padded(fillValues(fill, seed, usedCount(shape.props)), values.length) } }
+		// From index 0: a circular buffer's front goes back there.
+		return { id: shape.id, type: ARRAY_SHAPE_TYPE, props: { front: 0, values: padded(fillValues(fill, seed, usedCount(shape.props)), values.length) } }
 	}
 
 	/**
@@ -227,9 +229,10 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	override nodeOperations(shape: ArrayShape, key: string): NodeOperation[] {
 		const k = Number(key)
-		const { values, sizing } = shape.props
+		const { values, sizing, kind } = shape.props
 		const n = usedCount(shape.props)
-		if (!Number.isInteger(k) || k < 0 || k >= n) return []
+		// Stacks and queues work by their own operations, offered on the whole shape.
+		if (kind !== 'array' || !Number.isInteger(k) || k < 0 || k >= n) return []
 		const v = values[k]
 		const search = { submenu: 'Search', submenuId: 'array-search' }
 		const shift = { submenu: 'Insert / delete step by step', submenuId: 'array-shift' }
@@ -286,6 +289,8 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			label,
 			run: () => this.rearrange(shape.id, label.toLowerCase(), make),
 		})
+		const { kind } = shape.props
+		if (kind !== 'array') return [...this.stackQueueOperations(shape), ...this.kindActions(shape)]
 		const fixedOnly: NodeOperation[] =
 			shape.props.sizing === 'fixed'
 				? [
@@ -353,14 +358,14 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const { values, marks } = whole ? shape.props : inUse(shape.props)
 		// A growing array is as long as the operation makes it.
 		const capacity = shape.props.sizing === 'fixed' && !whole ? shape.props.values.length : 0
-		const op = operation({ values, marks, ...(whole ? { used: usedCount(shape.props) } : {}) })
+		const op = operation({ values, marks, ...(whole ? { used: usedCount(shape.props), front: frontOf(shape.props) } : {}) })
 		const frames = op.frames.map((f) => {
 			const props = f.props as Partial<ArrayState> | undefined
 			return props?.values ? { ...f, props: { ...props, values: padded(props.values, capacity) } } : f
 		})
 		const { finalFlash } = op
 		const result = op.result && { ...op.result, values: padded(op.result.values, capacity) }
-		const final = result && this.withValues(shape, result, result.used)
+		const final = result && this.withValues(shape, result, result.used, result.front)
 		playOperation(this.editor, {
 			shapeId: id,
 			label,
@@ -380,6 +385,84 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	private insertOp(id: ArrayShape['id'], array: ArrayState, k: number) {
 		const shape = this.editor.getShape(id) as ArrayShape | undefined
 		return insertAt(array, k, this.newValue(shape?.props ?? this.getDefaultProps(), array.values, k))
+	}
+
+	/**
+	 * A stack's push / pop / peek or a queue's enqueue / dequeue / peek, step by step: the value to
+	 * add is the fill mode's next one, or typed in.
+	 */
+	private stackQueueOperations(shape: ArrayShape): NodeOperation[] {
+		const { kind, sizing } = shape.props
+		const fixed = sizing === 'fixed'
+		const id = shape.id
+		const state = (a: ArrayState) => ({ ...a, used: a.used ?? a.values.length, front: a.front ?? 0, fixed })
+		if (kind === 'stack') {
+			const stack = { submenu: 'Stack', submenuId: 'array-stack' }
+			const pushIt = (value: string) => this.play(id, 'push', (a) => push(state(a), value), { whole: true })
+			return [
+				{ ...stack, id: 'array-push', label: 'Push', run: () => pushIt(this.nextValue(id)) },
+				{
+					...stack,
+					id: 'array-push-value',
+					label: 'Push a value',
+					prompt: 'Value to push',
+					promptAt: String(Math.max(0, usedCount(shape.props) - 1)),
+					run: (value?: string) => value !== undefined && pushIt(value),
+				},
+				{ ...stack, id: 'array-pop', label: 'Pop', run: () => this.play(id, 'pop', (a) => pop(state(a)), { whole: true }) },
+				{ ...stack, id: 'array-peek', label: 'Peek', run: () => this.play(id, 'peek', (a) => peekStack(state(a)), { whole: true }) },
+			]
+		}
+		const queue = { submenu: 'Queue', submenuId: 'array-queue' }
+		const enqueueIt = (value: string) => this.play(id, 'enqueue', (a) => enqueue(state(a), value), { whole: true })
+		const rear = arrayMarkers(shape.props).find((p) => p.name === 'rear')?.at ?? '0'
+		return [
+			{ ...queue, id: 'array-enqueue', label: 'Enqueue', run: () => enqueueIt(this.nextValue(id)) },
+			{
+				...queue,
+				id: 'array-enqueue-value',
+				label: 'Enqueue a value',
+				prompt: 'Value to enqueue',
+				promptAt: rear,
+				run: (value?: string) => value !== undefined && enqueueIt(value),
+			},
+			{ ...queue, id: 'array-dequeue', label: 'Dequeue', run: () => this.play(id, 'dequeue', (a) => dequeue(state(a)), { whole: true }) },
+			{ ...queue, id: 'array-peek', label: 'Peek', run: () => this.play(id, 'peek', (a) => peekQueue(state(a)), { whole: true }) },
+		]
+	}
+
+	/** For a stack or queue: growing a fixed one, new values, indices (no sorting or rearranging). */
+	private kindActions(shape: ArrayShape): NodeOperation[] {
+		const actions = { submenu: 'Array', submenuId: 'array-actions' }
+		return [
+			...(shape.props.sizing === 'fixed'
+				? [
+						{
+							submenu: 'Capacity',
+							submenuId: 'array-capacity',
+							id: 'array-grow',
+							label: 'Grow: double the capacity',
+							run: () => this.play(shape.id, 'grow', (a) => growFixed(a, a.used!), { whole: true }),
+						},
+					]
+				: []),
+			{ ...actions, id: 'array-reroll', label: 'New values', run: () => this.reroll(shape.id) },
+			{
+				...actions,
+				id: 'array-indices',
+				label: shape.props.showIndices ? 'Hide indices' : 'Show indices',
+				run: () => this.update(shape.id, 'toggle indices', (s) => ({ showIndices: !s.props.showIndices })),
+			},
+		]
+	}
+
+	/** The fill mode's next value, not one already in use: for a push or an enqueue. */
+	private nextValue(id: ArrayShape['id']) {
+		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		if (!shape) return ''
+		const { fill, seed, values } = shape.props
+		const inUse = usedIndices(shape.props).map((i) => values[i])
+		return extendValues(inUse, fill, seed, inUse.length + 1)[inUse.length]
 	}
 
 	/** The next value of the fill mode's stream, for appending to the values in use. */
@@ -511,7 +594,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	 * New values and marks (pointers past the new end go); marks are dropped with their cells. For a
 	 * fixed array, `used` changes its size.
 	 */
-	private withValues(shape: ArrayShape, { values, marks }: ArrayState, used?: number): TLShapePartial<ArrayShape> {
+	private withValues(shape: ArrayShape, { values, marks }: ArrayState, used?: number, front?: number): TLShapePartial<ArrayShape> {
 		const n = values.length
 		return {
 			id: shape.id,
@@ -519,6 +602,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			props: {
 				values,
 				...(used === undefined ? {} : { used }),
+				...(front === undefined ? {} : { front }),
 				marks: pruneMarks(
 					marks,
 					values.map((_, i) => String(i))
@@ -550,7 +634,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const shape = this.editor.getShape(id) as ArrayShape | undefined
 		if (!shape) return
 		const seed = newSeed()
-		this.update(id, 'new values', (s) => ({ seed, values: padded(fillValues(s.props.fill, seed, usedCount(s.props)), s.props.values.length) }))
+		this.update(id, 'new values', (s) => ({ seed, front: 0, values: padded(fillValues(s.props.fill, seed, usedCount(s.props)), s.props.values.length) }))
 	}
 
 	private update(id: ArrayShape['id'], label: string, change: (shape: ArrayShape) => Partial<ArrayShape['props']>) {

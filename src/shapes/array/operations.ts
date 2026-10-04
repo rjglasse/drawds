@@ -29,6 +29,8 @@ export interface ArrayState {
 	values: string[]
 	marks: Marks
 	used?: number
+	/** A circular buffer's front. */
+	front?: number
 	aux?: AuxRow
 }
 
@@ -40,7 +42,7 @@ export interface ArrayOperation {
 	finalFlash?: Marks
 }
 
-const ptr = (name: string, at: number): Pointer => ({ id: `#${name}`, name, at: String(at) })
+export const ptr = (name: string, at: number): Pointer => ({ id: `#${name}`, name, at: String(at) })
 
 /** Cell keys from..to (inclusive). */
 const span = (from: number, to: number) => Array.from({ length: Math.max(0, to - from + 1) }, (_, k) => String(from + k))
@@ -65,7 +67,7 @@ interface Step {
  * Records frames from what each step shows: its highlights (turned into the changes a frame
  * holds), pointers, faded cells, and the array as it is then, with the counts so far.
  */
-function recorder(start: ArrayState, counts: Record<string, number>) {
+export function recorder(start: ArrayState, counts: Record<string, number>) {
 	const frames: Frame[] = []
 	let shown: Marks = {}
 	let state: ArrayState = { ...start, values: [...start.values], marks: { ...start.marks } }
@@ -85,10 +87,10 @@ function recorder(start: ArrayState, counts: Record<string, number>) {
 			for (const [key, color] of Object.entries(next)) if (shown[key] !== color) flash[key] = color
 			shown = { ...next }
 			const keys = (pairs?: [number | string, number | string][]) => pairs?.map(([a, b]): [string, string] => [String(a), String(b)])
-			const { values, marks, used, aux } = state
+			const { values, marks, used, front, aux } = state
 			frames.push({
 				caption,
-				props: { values, marks, ...(used === undefined ? {} : { used }), ...(aux ? { aux } : {}) },
+				props: { values, marks, ...(used === undefined ? {} : { used }), ...(front === undefined ? {} : { front }), ...(aux ? { aux } : {}) },
 				flash,
 				pointers,
 				dim,
@@ -325,7 +327,7 @@ export function bubbleSort(start: ArrayState): ArrayOperation {
 // Quicksort (Lomuto's partition): the last value of the range is the pivot (red); i marks the end of
 // the values smaller than it (blue), j walks the rest; then the pivot swaps into its final place.
 
-type Recorder = ReturnType<typeof recorder>
+export type Recorder = ReturnType<typeof recorder>
 
 /** Steps of partitioning a[lo..hi] around a[hi]; returns the pivot's final index. */
 function partition(r: Recorder, lo: number, hi: number, settled: Marks, around: Pick<Step, 'dim' | 'strips'>): number {
@@ -706,29 +708,42 @@ export function deleteFixed(start: ArrayState, used: number, k: number): ArrayOp
 
 /**
  * Steps of growing a fixed array to `capacity` cells: newArr appears under it, the values in use
- * are copied down (one step each, or all in one), then a = newArr takes its place.
+ * are copied down (one step each, or all in one), then a = newArr takes its place. A circular
+ * buffer's values are copied in queue order, from its front, so the new array's front is index 0.
  */
 function growSteps(r: Recorder, capacity: number, { oneByOne }: { oneByOne: boolean }) {
-	const { values, used = values.length } = r.state
+	const { values, used = values.length, front } = r.state
 	const old = values.length
+	const order = Array.from({ length: used }, (_, k) => ((front ?? 0) + k) % Math.max(1, old))
+	const wraps = (front ?? 0) > 0
 	const title = `newArr = new int[${capacity}]`
 	const blank = Array<string>(capacity).fill('')
+	const copied = (k: number) => [...order.slice(0, k).map((i) => values[i]), ...blank.slice(k)]
 	r.set({ ...r.state, aux: { title, values: blank } })
-	r.step(`${title}: a new array with room for ${capacity}. Arrays can't grow, so the values have to move`)
+	r.step(
+		`${title}: a new array with room for ${capacity}. Arrays can't grow, so the values have to move` +
+			(wraps ? ', in queue order from the front' : '')
+	)
 	if (oneByOne) {
-		for (let i = 0; i < used; i++) {
-			r.set({ ...r.state, aux: { title, values: [...values.slice(0, i + 1), ...blank.slice(i + 1)] } })
+		order.forEach((i, k) => {
+			r.set({ ...r.state, aux: { title, values: copied(k + 1) } })
 			r.counts.copies++
-			r.step(`newArr[${i}] = a[${i}] (${values[i]})`, { pointers: [ptr('i', i)], lit: { [i]: LOOK }, moves: [[i, `aux:${i}`]] })
-		}
+			const from = wraps ? `a[(front + ${k}) % ${old}] = a[${i}]` : `a[${i}]`
+			r.step(`newArr[${k}] = ${from} (${values[i]})`, { pointers: [ptr('i', i)], lit: { [i]: LOOK }, moves: [[i, `aux:${k}`]] })
+		})
 	} else {
-		r.set({ ...r.state, aux: { title, values: [...values.slice(0, used), ...blank.slice(used)] } })
+		r.set({ ...r.state, aux: { title, values: copied(used) } })
 		r.counts.copies += used
-		r.step(`Copy all ${plural(used, 'value')} into newArr`, { moves: Array.from({ length: used }, (_, i): [number, string] => [i, `aux:${i}`]) })
+		r.step(`Copy all ${plural(used, 'value')} into newArr`, { moves: order.map((i, k): [number, string] => [i, `aux:${k}`]) })
 	}
-	r.set({ values: [...values.slice(0, used), ...blank.slice(used)], marks: r.state.marks, used })
-	r.step(`a = newArr: capacity ${old} → ${capacity}. The old array is garbage now`, {
-		moves: Array.from({ length: used }, (_, i): [string, number] => [`aux:${i}`, i]),
+	const marks: Marks = {}
+	order.forEach((i, k) => {
+		const mark = r.state.marks[String(i)]
+		if (mark) marks[String(k)] = mark
+	})
+	r.set({ values: copied(used), marks, used, ...(front === undefined ? {} : { front: 0 }) })
+	r.step(`a = newArr: capacity ${old} → ${capacity}${wraps ? ', front = 0' : ''}. The old array is garbage now`, {
+		moves: order.map((_, k): [string, number] => [`aux:${k}`, k]),
 	})
 }
 

@@ -203,8 +203,9 @@ function NodeOperationsMenu() {
 			id={op.id}
 			label={op.prompt ? `${op.label}...` : op.label}
 			onSelect={() => {
-				if (op.prompt && target?.key !== undefined) {
-					operationPrompt(editor).set({ shapeId: target.shape.id, at: target.key, label: op.prompt, run: op.run })
+				const at = target?.key ?? op.promptAt
+				if (op.prompt && target && at !== undefined) {
+					operationPrompt(editor).set({ shapeId: target.shape.id, at, label: op.prompt, run: op.run })
 				} else {
 					op.run()
 				}
