@@ -60,6 +60,27 @@ export const GraphLabelsStyle = StyleProp.defineEnum('drawds:graph-labels', {
 })
 export type GraphLabelsMode = T.TypeOf<typeof GraphLabelsStyle>
 
+// How the sketch gesture builds a graph (and rewires a selected one): how many edges beyond a
+// spanning tree, one piece or several, and whether edges point along the drag (no cycles: a DAG).
+
+export const GraphDensityStyle = StyleProp.defineEnum('drawds:graph-density', {
+	defaultValue: 'medium' as const,
+	values: ['sparse', 'medium', 'dense'] as const,
+})
+export type GraphDensity = T.TypeOf<typeof GraphDensityStyle>
+
+export const GraphPartsStyle = StyleProp.defineEnum('drawds:graph-parts', {
+	defaultValue: 'connected' as const,
+	values: ['connected', 'components'] as const,
+})
+export type GraphParts = T.TypeOf<typeof GraphPartsStyle>
+
+export const GraphOrderStyle = StyleProp.defineEnum('drawds:graph-order', {
+	defaultValue: 'any' as const,
+	values: ['any', 'dag'] as const,
+})
+export type GraphOrder = T.TypeOf<typeof GraphOrderStyle>
+
 export interface GraphShapeProps {
 	/** Nodes in creation order (the order labels follow). */
 	nodes: GraphNode[]
@@ -67,6 +88,9 @@ export interface GraphShapeProps {
 	direction: GraphDirection
 	weights: GraphWeightsMode
 	labels: GraphLabelsMode
+	density: GraphDensity
+	parts: GraphParts
+	order: GraphOrder
 	seed: number
 	/** Highlight colours, keyed by node id or `edge:<edge id>`. */
 	marks: Marks
@@ -91,6 +115,9 @@ export const graphShapeProps: RecordProps<GraphShape> = {
 	direction: GraphDirectionStyle,
 	weights: GraphWeightsStyle,
 	labels: GraphLabelsStyle,
+	density: GraphDensityStyle,
+	parts: GraphPartsStyle,
+	order: GraphOrderStyle,
 	seed: T.number,
 	marks: marksValidator,
 	pointers: pointersValidator,
@@ -101,6 +128,7 @@ export const graphShapeProps: RecordProps<GraphShape> = {
 
 const versions = createShapePropsMigrationIds(GRAPH_SHAPE_TYPE, {
 	AddPointers: 1,
+	AddSketchOptions: 2,
 })
 
 /** Graphs are persisted in the browser, so every props change needs a step here. */
@@ -113,6 +141,17 @@ export const graphShapeMigrations = createShapePropsMigrationSequence({
 			},
 			down(props) {
 				delete props.pointers
+			},
+		},
+		{
+			id: versions.AddSketchOptions,
+			up(props) {
+				props.density = 'medium'
+				props.parts = 'connected'
+				props.order = 'any'
+			},
+			down(props) {
+				for (const key of ['density', 'parts', 'order']) delete props[key]
 			},
 		},
 	],

@@ -10,7 +10,7 @@ import {
 	segmentsCross,
 	type GraphSketch,
 } from './generate'
-import type { GraphEdge } from './graph-shape-types'
+import { graphShapeMigrations, type GraphEdge } from './graph-shape-types'
 import { graphScene } from './layout'
 import {
 	addEdge,
@@ -144,7 +144,47 @@ describe('generateGraph', () => {
 		}, 0)
 		expect(total).toBeGreaterThan(0)
 	})
+
+	it('density: sparse sketches have fewer edges than dense ones, both still connected', () => {
+		const edges = (density: 'sparse' | 'medium' | 'dense') =>
+			seeds.reduce((sum, seed) => {
+				const g = generateGraph(sketch(scribble(seed, 90)).points, seed, 'letters', { density })
+				expect(isConnected(g)).toBe(true)
+				return sum + g.edges.length
+			}, 0)
+		expect(edges('sparse')).toBeLessThan(edges('medium'))
+		expect(edges('medium')).toBeLessThan(edges('dense'))
+	})
+
+	it('several components: some nodes start a new piece, and no edge joins two pieces', () => {
+		let split = 0
+		for (const seed of seeds) {
+			const g = generateGraph(sketch(scribble(seed, 90)).points, seed, 'letters', { parts: 'components' })
+			if (!isConnected(g)) split++
+			// Fewer edges than a spanning tree would need, if in pieces, and each piece is a tree or more.
+			expect(g.edges.length).toBeGreaterThanOrEqual(g.nodes.length - componentCount(g))
+		}
+		expect(split).toBeGreaterThan(seeds.length / 2)
+	})
+
+	it('DAG: the same edges, every one from the earlier node to the later, so no cycle', () => {
+		for (const seed of seeds) {
+			const { points } = sketch(scribble(seed, 90))
+			const any = generateGraph(points, seed, 'letters')
+			const dag = generateGraph(points, seed, 'letters', { order: 'dag' })
+			const index = (id: string) => Number(id.slice(1))
+			for (const e of dag.edges) expect(index(e.from)).toBeLessThan(index(e.to))
+			expect(dag.edges.map((e) => [e.from, e.to].sort())).toEqual(any.edges.map((e) => [e.from, e.to].sort()))
+		}
+	})
 })
+
+function componentCount({ nodes, edges }: GraphModel) {
+	const parent = new Map(nodes.map((n) => [n.id, n.id]))
+	const find = (id: string): string => (parent.get(id) === id ? id : find(parent.get(id)!))
+	for (const e of edges) parent.set(find(e.from), find(e.to))
+	return new Set(nodes.map((n) => find(n.id))).size
+}
 
 describe('graph model', () => {
 	const model: GraphModel = {
@@ -224,5 +264,17 @@ describe('graph model', () => {
 		expect(scene.edges[0]).toMatchObject({ key: 'e0', from: 'v0', to: 'v1', directed: true, label: '4' })
 		const plain = graphScene({ ...model, direction: 'undirected', weights: 'unweighted', size: 'm' })
 		expect(plain.edges[0]).toMatchObject({ directed: false, label: undefined })
+	})
+})
+
+describe('graph migrations', () => {
+	it('graphs saved before the sketch options get the defaults', () => {
+		const step = graphShapeMigrations.sequence.at(-1)!
+		if (!('up' in step) || typeof step.down !== 'function') throw new Error('expected a props migration')
+		const props: Record<string, unknown> = {}
+		step.up(props)
+		expect(props).toEqual({ density: 'medium', parts: 'connected', order: 'any' })
+		step.down(props)
+		expect(props).toEqual({})
 	})
 })

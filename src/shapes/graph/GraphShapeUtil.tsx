@@ -35,6 +35,7 @@ import {
 	type GraphLabelsMode,
 	type GraphShape,
 } from './graph-shape-types'
+import { generateGraph } from './generate'
 import { getGraphMetrics, graphCorner, graphScene, toUnits } from './layout'
 import { dijkstra, kruskal, prim, topologicalSort } from './algorithms'
 import { bfs, dfs } from './traverse'
@@ -71,6 +72,9 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 			direction: 'undirected',
 			weights: 'unweighted',
 			labels: 'letters',
+			density: 'medium',
+			parts: 'connected',
+			order: 'any',
 			seed: 0,
 			marks: {},
 			pointers: [],
@@ -322,6 +326,35 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 	withDirection(shape: GraphShape, direction: GraphDirection): TLShapePartial<GraphShape> {
 		if (direction === 'directed') return { id: shape.id, type: GRAPH_SHAPE_TYPE }
 		return this.withModel(shape, { nodes: shape.props.nodes, edges: mergeTwins(shape.props.edges) })
+	}
+
+	/**
+	 * Rewire a selected graph for a new sketch option: with a new density or pieces its nodes stay
+	 * where they are and, in their order, get new edges as the sketch would have made them; asking
+	 * for a DAG just points every edge from the earlier node to the later.
+	 */
+	withSketchOptions(
+		shape: GraphShape,
+		change: Partial<Pick<GraphShape['props'], 'density' | 'parts' | 'order'>>
+	): TLShapePartial<GraphShape> {
+		const { nodes, seed, labels } = shape.props
+		const options = { density: shape.props.density, parts: shape.props.parts, order: shape.props.order, ...change }
+		const order = new Map(nodes.map((n, i) => [n.id, i]))
+		let edges = shape.props.edges
+		if (change.density || change.parts) {
+			const ids = nodes.map((n) => n.id)
+			edges = generateGraph(nodes, seed, labels, options).edges.map((e) => ({
+				...e,
+				from: ids[Number(e.from.slice(1))],
+				to: ids[Number(e.to.slice(1))],
+			}))
+		} else if (change.order === 'dag') {
+			edges = mergeTwins(edges.map((e) => (order.get(e.from)! > order.get(e.to)! ? { ...e, from: e.to, to: e.from } : e)))
+		} else {
+			return this.update(shape, options)
+		}
+		const update = this.withModel(shape, { nodes, edges })
+		return { ...update, props: { ...update.props, ...options } }
 	}
 
 	withLabels(shape: GraphShape, labels: GraphLabelsMode): TLShapePartial<GraphShape> {

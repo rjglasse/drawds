@@ -203,3 +203,23 @@ test('labels: numbers relabel the selected graph 0, 1, 2...', async ({ page }) =
 	expect((await graph(page)).nodes[4].value).toBe('4')
 	expect(await withEditor(page, (e) => e.getPath())).not.toBe('select.dragging_handle')
 })
+
+test('sketch options rewire the selected graph: sparse is a spanning tree, a DAG points every edge forward', async ({ page }) => {
+	await sketchGraph(page, [200, 150], 9, 3)
+	const props = async () => (await shapesOfType<GraphShapeProps>(page, 'graph'))[0].props
+	await page.getByTestId('style.graph-density.sparse').click()
+	let p = await props()
+	expect(p.density).toBe('sparse')
+	expect(p.edges).toHaveLength(p.nodes.length - 1)
+	await page.getByTestId('style.graph-density.dense').click()
+	expect((await props()).edges.length).toBeGreaterThan(p.edges.length)
+	// The order picker is for directed graphs.
+	await expect(page.getByTestId('style.graph-order.dag')).toHaveCount(0)
+	await page.getByTestId('style.graph-direction.directed').click()
+	await page.getByTestId('style.graph-order.dag').click()
+	p = await props()
+	const index = new Map(p.nodes.map((n, i) => [n.id, i]))
+	for (const e of p.edges) expect(index.get(e.from)!).toBeLessThan(index.get(e.to)!)
+	await page.keyboard.press('ControlOrMeta+z')
+	expect((await props()).order).toBe('any')
+})

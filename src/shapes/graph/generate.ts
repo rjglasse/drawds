@@ -1,6 +1,6 @@
 import { mulberry32 } from '../../data/random'
 import type { Point } from '../../nodelink/geometry'
-import type { GraphEdge, GraphLabelsMode } from './graph-shape-types'
+import type { GraphDensity, GraphEdge, GraphLabelsMode, GraphOrder, GraphParts } from './graph-shape-types'
 import { edgeWeight, nodeLabel, type GraphModel } from './model'
 
 // Sketch geometry, in cell units (a node is one cell across).
@@ -17,6 +17,22 @@ export const EXTRA_EDGE_CHANCE = 0.45
 const CLEARANCE = 0.8
 /** Smallest angle between two edges at a node, so they never look like one. */
 const MIN_ANGLE = (25 * Math.PI) / 180
+/** Extra edges per new node (up to), the chance of each, and how far they reach, by density. */
+const DENSITY: Record<GraphDensity, { extras: number; chance: number; reach: number }> = {
+	sparse: { extras: 1, chance: 0.2, reach: GRAPH_REACH },
+	medium: { extras: 2, chance: EXTRA_EDGE_CHANCE, reach: GRAPH_REACH },
+	dense: { extras: 3, chance: 0.8, reach: GRAPH_REACH * 1.25 },
+}
+/** With several components: the chance that a node starts a new one, once the current has this many. */
+const NEW_PART_CHANCE = 0.3
+const PART_MIN = 3
+
+export interface GraphSketchOptions {
+	density?: GraphDensity
+	parts?: GraphParts
+	order?: GraphOrder
+}
+
 /** Biggest graph the sketch gesture makes. */
 export const MAX_GRAPH_NODES = 40
 
@@ -91,8 +107,22 @@ const nodeRng = (seed: number, k: number) => mulberry32((seed + Math.imul(k + 1,
  * closely and makes no narrow angle with another edge at either end, which keeps sketches
  * planar-ish rather than a hairball. Edges point either way at random. Node k's edges depend only
  * on the seed and points 0..k, so a longer sketch extends a shorter one.
+ *
+ * Options: `density` sets how many extra edges each node may get; with several `parts` the drag
+ * falls into runs, as if the pen were lifted: a node may start a new component (once the current
+ * one has PART_MIN nodes) and edges stay within a run; with `order` 'dag'
+ * every edge points from the earlier node to the later, so there is no cycle (drag order is a
+ * topological order), with the same edges as otherwise.
  */
-export function generateGraph(points: readonly Point[], seed: number, labels: GraphLabelsMode): GraphModel {
+export function generateGraph(
+	points: readonly Point[],
+	seed: number,
+	labels: GraphLabelsMode,
+	{ density = 'medium', parts = 'connected', order = 'any' }: GraphSketchOptions = {}
+): GraphModel {
+	const { extras: most, chance, reach } = DENSITY[density]
+	// Where the current component's run of the drag starts (several parts).
+	let run = 0
 	const nodes = points.map((p, i) => ({ id: `v${i}`, value: nodeLabel(i, labels), x: p.x, y: p.y }))
 	const edges: GraphEdge[] = []
 	const neighbours = points.map((): number[] => [])
@@ -113,7 +143,8 @@ export function generateGraph(points: readonly Point[], seed: number, labels: Gr
 
 	const connect = (k: number, j: number, rng: () => number) => {
 		const id = `e${edges.length}`
-		const [from, to] = rng() < 0.5 ? [j, k] : [k, j]
+		const flip = rng() < 0.5
+		const [from, to] = order === 'dag' ? [Math.min(j, k), Math.max(j, k)] : flip ? [j, k] : [k, j]
 		edges.push({ id, from: `v${from}`, to: `v${to}`, weight: edgeWeight(seed, id) })
 		neighbours[k].push(j)
 		neighbours[j].push(k)
@@ -121,17 +152,25 @@ export function generateGraph(points: readonly Point[], seed: number, labels: Gr
 
 	for (let k = 1; k < points.length; k++) {
 		const rng = nodeRng(seed, k)
-		const earlier = Array.from({ length: k }, (_, j) => j).sort(
+		let earlier = Array.from({ length: k }, (_, j) => j).sort(
 			(a, b) => dist(points[k], points[a]) - dist(points[k], points[b])
 		)
+		if (parts === 'components') {
+			// A new component starts here: no edge back to the nodes before.
+			if (k - run >= PART_MIN && rng() < NEW_PART_CHANCE) {
+				run = k
+				continue
+			}
+			earlier = earlier.filter((j) => j >= run)
+		}
 		const first = earlier.find((j) => clean(k, j)) ?? earlier[0]
 		connect(k, first, rng)
 		let extras = 0
 		for (const j of earlier) {
-			if (extras === 2 || dist(points[k], points[j]) > GRAPH_REACH) break
+			if (extras === most || dist(points[k], points[j]) > reach) break
 			if (j === first) continue
 			extras++
-			if (rng() < EXTRA_EDGE_CHANCE && clean(k, j)) connect(k, j, rng)
+			if (rng() < chance && clean(k, j)) connect(k, j, rng)
 		}
 	}
 	return { nodes, edges }

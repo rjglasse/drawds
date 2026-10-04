@@ -9,11 +9,17 @@ import {
 } from 'tldraw'
 import {
 	GRAPH_SHAPE_TYPE,
+	GraphDensityStyle,
 	GraphDirectionStyle,
 	GraphLabelsStyle,
+	GraphOrderStyle,
+	GraphPartsStyle,
 	GraphWeightsStyle,
+	type GraphDensity,
 	type GraphDirection,
 	type GraphLabelsMode,
+	type GraphOrder,
+	type GraphParts,
 	type GraphShape,
 	type GraphWeightsMode,
 } from '../shapes/graph/graph-shape-types'
@@ -46,7 +52,44 @@ const LABEL_ITEMS: StyleValuesForUi<GraphLabelsMode> = [
 	{ value: 'numbers', icon: text('01', 15) },
 ]
 
+// Four nodes: a path, a path and a diagonal, every pair joined.
+const FOUR = '<circle cx="6" cy="6" r="2.5"/><circle cx="24" cy="6" r="2.5"/><circle cx="6" cy="24" r="2.5"/><circle cx="24" cy="24" r="2.5"/>'
+const DENSITY_ITEMS: StyleValuesForUi<GraphDensity> = [
+	{ value: 'sparse', icon: svgIcon(`${FOUR}<path d="M8.5 6H21.5M24 8.5V21.5M21.5 24H8.5"/>`) },
+	{ value: 'medium', icon: svgIcon(`${FOUR}<path d="M8.5 6H21.5M24 8.5V21.5M21.5 24H8.5M8 22L22 8"/>`) },
+	{ value: 'dense', icon: svgIcon(`${FOUR}<path d="M8.5 6H21.5M24 8.5V21.5M21.5 24H8.5M6 8.5V21.5M8 22L22 8M8 8L22 22"/>`) },
+]
+
+// One piece of four nodes; two pieces of two.
+const PARTS_ITEMS: StyleValuesForUi<GraphParts> = [
+	{ value: 'connected', icon: svgIcon(`${FOUR}<path d="M8.5 6H21.5M24 8.5V21.5M21.5 24H8.5"/>`) },
+	{ value: 'components', icon: svgIcon(`${FOUR}<path d="M8.5 6H21.5M8.5 24H21.5"/>`) },
+]
+
+// Arrows any way round, with a cycle; arrows all left to right.
+const ORDER_ITEMS: StyleValuesForUi<GraphOrder> = [
+	{
+		value: 'any',
+		icon: svgIcon(
+			'<circle cx="5" cy="22" r="2.5"/><circle cx="15" cy="6" r="2.5"/><circle cx="25" cy="22" r="2.5"/><path d="M6.5 19.5L12.5 9M17.5 9L23.5 19.5M22.5 22H7.5"/><path d="M10 22L7.5 22L10 20Z" fill="black"/>'
+		),
+	},
+	{
+		value: 'dag',
+		icon: svgIcon(
+			'<circle cx="5" cy="22" r="2.5"/><circle cx="15" cy="6" r="2.5"/><circle cx="25" cy="22" r="2.5"/><path d="M6.5 19.5L12.5 9M17.5 9L23.5 19.5M7.5 22H22.5"/><path d="M20 22L22.5 22L20 20Z" fill="black"/>'
+		),
+	},
+]
+
 export const graphPickerTranslations: Record<string, string> = {
+	'graph-density-style.sparse': 'Sketch sparse graphs: few edges beyond a spanning tree',
+	'graph-density-style.medium': 'Sketch graphs of medium density',
+	'graph-density-style.dense': 'Sketch dense graphs: many edges between near nodes',
+	'graph-parts-style.connected': 'Sketch connected graphs: one piece',
+	'graph-parts-style.components': 'Sketch graphs in several pieces (components)',
+	'graph-order-style.any': 'Edges point either way (cycles possible)',
+	'graph-order-style.dag': 'Edges point along the drag: no cycles (a DAG, for topological sort)',
 	'graph-direction-style.undirected': 'Undirected',
 	'graph-direction-style.directed': 'Directed',
 	'graph-weights-style.unweighted': 'Unweighted',
@@ -66,7 +109,8 @@ function updateSelectedGraphs(editor: Editor, f: (util: GraphShapeUtil, shape: G
 
 /**
  * Graph options: directed or not (back to undirected merges u->v / v->u twins), weights shown or
- * not, and node labels as letters or numbers (relabels the selected graph).
+ * not, node labels as letters or numbers (relabels the selected graph), and how sketches come out:
+ * density, one piece or several, and (directed) a DAG; those rewire the selected graph.
  */
 export function GraphPickers() {
 	const editor = useEditor()
@@ -74,7 +118,13 @@ export function GraphPickers() {
 	const direction = styles.get(GraphDirectionStyle)
 	const weights = styles.get(GraphWeightsStyle)
 	const labels = styles.get(GraphLabelsStyle)
+	const density = styles.get(GraphDensityStyle)
+	const parts = styles.get(GraphPartsStyle)
+	const order = styles.get(GraphOrderStyle)
 	if (direction === undefined && weights === undefined && labels === undefined) return null
+	// A new sketch option rewires the selected graphs too (as Fill regenerates values).
+	const rewire = (change: Partial<Pick<GraphShape['props'], 'density' | 'parts' | 'order'>>) =>
+		updateSelectedGraphs(editor, (util, shape) => util.withSketchOptions(shape, change))
 	return (
 		<StylePanelSection>
 			{direction !== undefined && (
@@ -103,6 +153,46 @@ export function GraphPickers() {
 					onValueChange={(style, value) => {
 						onValueChange(style, value)
 						updateSelectedGraphs(editor, (util, shape) => util.withLabels(shape, value))
+					}}
+				/>
+			)}
+			{density !== undefined && (
+				<StylePanelButtonPicker
+					title="Density"
+					uiType="graph-density"
+					style={GraphDensityStyle}
+					items={DENSITY_ITEMS}
+					value={density}
+					onValueChange={(style, value) => {
+						onValueChange(style, value)
+						rewire({ density: value })
+					}}
+				/>
+			)}
+			{parts !== undefined && (
+				<StylePanelButtonPicker
+					title="Pieces"
+					uiType="graph-parts"
+					style={GraphPartsStyle}
+					items={PARTS_ITEMS}
+					value={parts}
+					onValueChange={(style, value) => {
+						onValueChange(style, value)
+						rewire({ parts: value })
+					}}
+				/>
+			)}
+			{/* Only directed edges can form a DAG. */}
+			{order !== undefined && direction?.type === 'shared' && direction.value === 'directed' && (
+				<StylePanelButtonPicker
+					title="Order"
+					uiType="graph-order"
+					style={GraphOrderStyle}
+					items={ORDER_ITEMS}
+					value={order}
+					onValueChange={(style, value) => {
+						onValueChange(style, value)
+						rewire({ order: value })
 					}}
 				/>
 			)}
