@@ -1,7 +1,7 @@
 import type { MarkColor } from '../../cells/marks'
 import { compareKeys } from '../../data/compare'
-import type { Frame, Strip } from '../../nodelink/playback'
-import { edgeCellKey, type Scene, type SceneEdge, type SceneNode } from '../../nodelink/scene'
+import { stateAt, type Frame, type Strip } from '../../nodelink/playback'
+import { edgeCellKey, translateScene, type Scene, type SceneEdge, type SceneNode } from '../../nodelink/scene'
 import type { Pointer } from '../../pointers/pointers'
 import {
 	HEAD_KEY,
@@ -18,6 +18,7 @@ import {
 	loopBack,
 } from './layout'
 import type { ListDirection, ListNode, ListShapeProps } from './list-shape-types'
+import { anchorShift } from './ops'
 
 // List operations, step by step: each step is a line of the code a teacher writes on the board
 // (curr = curr.next, node.next = curr.next...), drawn as it happens: temporary pointers curr,
@@ -760,4 +761,35 @@ export function detectCycle(props: ListProps): ListOperation {
 	}
 	show(`They meet at ${name(slow)}: the cycle starts here (the head and the meeting point are as far from it, going round)`, FOUND)
 	return { frames, finalFlash: { [slow]: FOUND } }
+}
+
+/** Whether two scenes draw the same: nodes in the same places, arrows to the same nodes, the same way. */
+function sameDrawing(a: Scene, b: Scene): boolean {
+	const draw = (s: Scene) =>
+		JSON.stringify([
+			s.nodes.map((n) => [n.key, Math.round(n.x), Math.round(n.y)]).sort(),
+			s.edges.map((e) => [e.key, e.to, e.bend ?? 0, (e.via ?? []).map((p) => [Math.round(p.x), Math.round(p.y)])]).sort(),
+		])
+	return draw(a) === draw(b)
+}
+
+/**
+ * An operation that changes the list ends on it drawn in a line as the result will be (shifted so
+ * the first node that stays is where it is now), so nothing moves when the result goes in or the
+ * bar closes, and the node handles sit on their nodes. The arrows' lights go out; the nodes' stay.
+ * A closing remark that changes nothing (append's O(1) or O(n)) moves onto that step, so it stays
+ * the last word. Unchanged when the last step already looks like the result.
+ */
+export function endTidied(before: ListProps, after: ListProps, frames: readonly Frame[]): Frame[] {
+	const scene = translateScene(listScene(after), anchorShift(before, after))
+	const [prev, last] = [frames.at(-2), frames.at(-1)]
+	if (last?.scene && sameDrawing(last.scene, scene)) return [...frames]
+	const remark = last?.scene && prev?.scene && sameDrawing(last.scene, prev.scene) ? last.caption : undefined
+	const lit = Object.keys(stateAt(frames, frames.length - 1).flash).filter((key) => key.startsWith('edge:'))
+	const tidy: Frame = {
+		scene,
+		flash: Object.fromEntries(lit.map((key) => [key, null])),
+		caption: remark ?? 'Tidied up: the same links, drawn in a line',
+	}
+	return remark ? [...frames.slice(0, -1), tidy] : [...frames, tidy]
 }

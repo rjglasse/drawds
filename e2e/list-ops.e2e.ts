@@ -73,8 +73,9 @@ test('reverse: every arrow turned, the list drawn the other way, nodes where the
 	const before = await values(page)
 	const at = await Promise.all(['n0', 'n3'].map((k) => nodeScreenPosition(page, k)))
 	await listOp(page, 'n0', 'list-reverse')
+	while (!(await caption(page).textContent())?.startsWith('head = prev')) await page.keyboard.press('ArrowRight')
 	await stepToEnd(page)
-	await expect(caption(page)).toContainText('head = prev')
+	await expect(caption(page)).toHaveText('Tidied up: the same links, drawn in a line')
 	await page.keyboard.press('Enter')
 	const after = await list(page)
 	expect(after.nodes.map((n) => n.value)).toEqual([...before].reverse())
@@ -116,28 +117,32 @@ test('insert in order: walk to the place, then link the node in; the list stays 
 	expect(await values(page)).toEqual(['10', '20', '25', '30', '40'])
 })
 
-test('insert at the head: the step on screen and the bar hold still when the result goes in', async ({ page }) => {
+test('insert at the head ends on the tidied list: nothing moves when the result goes in or the bar closes', async ({ page }) => {
 	await sketchList(page, [200, 200], 3)
 	await listOp(page, 'n0', 'list-insert-head')
-	// The step shown, as drawn (a frame, not the committed layout): where the old head is on screen.
+	// Where the old head and the new node are on screen, as drawn now (a step, or the committed list).
 	const shown = () =>
 		page.evaluate(() => {
 			const e = window.editor!
 			const shape = e.getOnlySelectedShape()!
 			const util = e.getShapeUtil(shape) as unknown as { displayScene(s: unknown): { nodes: { key: string; x: number; y: number }[] } }
-			const n0 = util.displayScene(shape).nodes.find((n) => n.key === 'n0')!
-			const p = e.pageToScreen(e.getShapePageTransform(shape).applyToPoint(n0))
-			return [p.x, p.y]
+			const nodes = util.displayScene(shape).nodes
+			return ['n0', 'n3'].map((key) => {
+				const p = e.pageToScreen(e.getShapePageTransform(shape).applyToPoint(nodes.find((n) => n.key === key)!))
+				return [Math.round(p.x), Math.round(p.y)]
+			})
 		})
 	const bar = async () => (await page.getByTestId('play-bar').boundingBox())!.x
-	while (!(await caption(page).textContent())?.startsWith('head = node')) await page.keyboard.press('ArrowRight')
+	while ((await caption(page).textContent()) !== 'Tidied up: the same links, drawn in a line') await page.keyboard.press('ArrowRight')
 	const [before, barBefore] = [await shown(), await bar()]
 	await page.keyboard.press('ArrowRight')
 	await expect(page.getByTestId('play-done')).toBeVisible()
 	expect(await values(page)).toHaveLength(4)
-	const after = await shown()
-	after.forEach((v, i) => expect(Math.abs(v - before[i])).toBeLessThan(1))
+	expect(await shown()).toEqual(before)
 	expect(Math.abs((await bar()) - barBefore)).toBeLessThan(1)
+	await page.keyboard.press('Enter')
+	await expect(page.getByTestId('play-bar')).toHaveCount(0)
+	expect(await shown()).toEqual(before)
 })
 
 /** Switch list variants on the selected list. */

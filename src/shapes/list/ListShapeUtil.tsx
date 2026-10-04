@@ -35,6 +35,7 @@ import {
 	appendToList,
 	deleteFromList,
 	detectCycle,
+	endTidied,
 	findInList,
 	findMiddle,
 	insertIntoList,
@@ -282,7 +283,8 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		playOperation(this.editor, {
 			shapeId: id,
 			label,
-			frames,
+			// Ending on the list as the result draws it, so nothing jumps when it goes in.
+			frames: final ? endTidied(shape.props, { ...shape.props, ...final.props }, frames) : frames,
 			final,
 			finalFlash,
 			// Shift: the highlights become marks, on the nodes still in the list.

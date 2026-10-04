@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { stateAt } from '../../nodelink/playback'
 import type { Scene } from '../../nodelink/scene'
-import { HEAD_KEY, NULL_KEY } from './layout'
+import { HEAD_KEY, NULL_KEY, listScene } from './layout'
 import type { ListNode } from './list-shape-types'
 import {
 	NULL_BEFORE_KEY,
 	appendToList,
 	deleteFromList,
 	detectCycle,
+	endTidied,
 	findInList,
 	findMiddle,
 	insertIntoList,
@@ -339,5 +340,48 @@ describe("Floyd's cycle detection", () => {
 		const op = detectCycle({ ...base, nodes: nodes(4), ends: 'circular' })
 		expect(op.finalFlash).toEqual({ n0: 'green' })
 		expect(op.frames.at(-1)!.counts).toEqual({ steps: 4 })
+	})
+})
+
+describe('the tidy last step', () => {
+	const four = ['7', '3', '9', '4'].map((value, i) => ({ id: `n${i}`, value, dx: 0, dy: 0 }))
+	const base = { nodes: four, direction: 'right' as const, size: 'm' as const }
+	const at = (scene: Scene, key: string) => {
+		const n = scene.nodes.find((n) => n.key === key)!
+		return { x: Math.round(n.x), y: Math.round(n.y) }
+	}
+
+	it('draws the result in a line, the nodes that stay where they are now', () => {
+		const op = insertIntoList(base, undefined, 'n9', '1')
+		const frames = endTidied(base, { ...base, nodes: op.nodes! }, op.frames)
+		expect(frames).toHaveLength(op.frames.length + 1)
+		const tidy = frames.at(-1)!
+		const before = listScene(base)
+		for (const key of ['n0', 'n1', 'n2', 'n3']) expect(at(tidy.scene!, key)).toEqual(at(before, key))
+		// The new node in line, a step before the old head.
+		expect(at(tidy.scene!, 'n9').y).toBe(at(before, 'n0').y)
+		expect(at(tidy.scene!, 'n9').x).toBeLessThan(at(before, 'n0').x)
+		expect(tidy.caption).toBe('Tidied up: the same links, drawn in a line')
+	})
+
+	it("puts out the arrows' lights, keeps the nodes'", () => {
+		const op = deleteFromList({ ...base, ends: 'circular' }, 'n2')
+		const tidy = endTidied(base, { ...base, ends: 'circular', nodes: op.nodes! }, op.frames).at(-1)!
+		expect(tidy.scene!.nodes.some((n) => n.key === 'n2')).toBe(false)
+		expect(Object.keys(tidy.flash!).every((k) => k.startsWith('edge:'))).toBe(true)
+		expect(Object.values(tidy.flash!).every((c) => c === null)).toBe(true)
+	})
+
+	it("a closing remark that changes nothing stays the last word, on the tidy step", () => {
+		const op = appendToList({ ...base, tail: 'tail' }, 'n9', '8')
+		const frames = endTidied({ ...base, tail: 'tail' }, { ...base, tail: 'tail', nodes: op.nodes! }, op.frames)
+		expect(frames).toHaveLength(op.frames.length)
+		expect(frames.at(-1)!.caption).toBe('Appended in O(1): 2 assignments and no walk, however long the list')
+		expect(at(frames.at(-1)!.scene!, 'n9').y).toBe(at(listScene(base), 'n3').y)
+	})
+
+	it('is left out when the last step already looks like the result', () => {
+		const frames = [{ scene: listScene(base) }]
+		expect(endTidied(base, base, frames)).toEqual(frames)
 	})
 })
