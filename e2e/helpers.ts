@@ -23,7 +23,7 @@ export function withEditor<T>(page: Page, fn: (editor: Editor) => T): Promise<T>
 	return page.evaluate(`(${fn.toString()})(window.editor)`) as Promise<T>
 }
 
-export function shapesOfType<P>(page: Page, type: string): Promise<(TLShape & { props: P })[]> {
+export function shapesOfType<P>(page: Page, type: string): Promise<(Omit<TLShape, 'props'> & { props: P })[]> {
 	return page.evaluate((type) => window.editor!.getCurrentPageShapes().filter((s) => s.type === type), type) as never
 }
 

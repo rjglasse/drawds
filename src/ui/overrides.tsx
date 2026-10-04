@@ -40,10 +40,11 @@ import listIconUrl from './icons/list.svg'
 import treeIconUrl from './icons/tree.svg'
 import { HeapPickers, heapPickerTranslations } from './HeapPickers'
 import heapIconUrl from './icons/heap.svg'
+import matrixIconUrl from './icons/matrix.svg'
 import { TreePickers, treePickerTranslations } from './TreePickers'
 
 /** Our structure tools, in toolbar order. */
-const STRUCTURE_TOOLS = ['array', 'linked-list', 'binary-tree', 'heap', 'graph'] as const
+const STRUCTURE_TOOLS = ['array', 'matrix', 'linked-list', 'binary-tree', 'heap', 'graph'] as const
 
 const RELAYOUT = 'drawds.relayout'
 
@@ -66,6 +67,13 @@ export const uiOverrides: TLUiOverrides = {
 			// Plain "a" is tldraw's arrow tool.
 			kbd: 'shift+a',
 			onSelect: () => editor.setCurrentTool('array'),
+		}
+		tools.matrix = {
+			id: 'matrix',
+			icon: maskIcon(matrixIconUrl),
+			label: 'Matrix (2D array)',
+			kbd: 'shift+m',
+			onSelect: () => editor.setCurrentTool('matrix'),
 		}
 		tools['linked-list'] = {
 			id: 'linked-list',

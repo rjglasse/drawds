@@ -1,0 +1,93 @@
+import type { TLDefaultSizeStyle, VecLike } from 'tldraw'
+import type { Box } from '../../nodelink/geometry'
+import { CELL_SIZES } from '../sizes'
+
+// A matrix is a grid of cells with its column indices above and its row indices to the left, all
+// inside the shape's box: the cells start at `origin`, past the indices.
+
+export function getMatrixMetrics(size: TLDefaultSizeStyle) {
+	const cell = CELL_SIZES[size]
+	const indexFontSize = Math.max(10, cell * 0.26)
+	return {
+		cell,
+		fontSize: cell * 0.42,
+		indexFontSize,
+		strokeWidth: Math.max(1.5, cell / 24),
+		/** Where cell (0, 0)'s top-left corner is: past the row indices, under the column indices. */
+		origin: { x: Math.round(cell * 0.6), y: Math.round(cell * 0.5) },
+	}
+}
+export type MatrixMetrics = ReturnType<typeof getMatrixMetrics>
+
+export interface MatrixLayout {
+	rows: number
+	cols: number
+	/** All the cells together. */
+	cells: Box
+	/** Everything drawn: the cells and their indices. */
+	box: Box
+	cellBox(r: number, c: number): Box
+	/** Centres of row r's index (left of the row) and column c's (above it). */
+	rowIndexAt(r: number): VecLike
+	colIndexAt(c: number): VecLike
+	/** Small boxes round the indices, for pointers (i at a row, j at a column). */
+	rowIndexBox(r: number): Box
+	colIndexBox(c: number): Box
+	/** The cell under a point, if any. */
+	cellAt(point: VecLike): [number, number] | undefined
+	/** The grips that add columns (right edge) and rows (bottom edge). */
+	growCols: VecLike
+	growRows: VecLike
+}
+
+export function getMatrixLayout(rows: number, cols: number, metrics: MatrixMetrics): MatrixLayout {
+	const { cell, origin, indexFontSize } = metrics
+	const cells = { x: origin.x, y: origin.y, w: cols * cell, h: rows * cell }
+	const indexW = indexFontSize * 1.6
+	return {
+		rows,
+		cols,
+		cells,
+		box: { x: 0, y: 0, w: cells.x + cells.w, h: cells.y + cells.h },
+		cellBox: (r, c) => ({ x: origin.x + c * cell, y: origin.y + r * cell, w: cell, h: cell }),
+		rowIndexAt: (r) => ({ x: origin.x / 2, y: origin.y + (r + 0.5) * cell }),
+		colIndexAt: (c) => ({ x: origin.x + (c + 0.5) * cell, y: origin.y / 2 }),
+		rowIndexBox: (r) => ({ x: origin.x / 2 - indexW / 2, y: origin.y + (r + 0.5) * cell - indexFontSize * 0.7, w: indexW, h: indexFontSize * 1.4 }),
+		colIndexBox: (c) => ({ x: origin.x + (c + 0.5) * cell - indexW / 2, y: origin.y / 2 - indexFontSize * 0.7, w: indexW, h: indexFontSize * 1.4 }),
+		cellAt(point) {
+			const c = Math.floor((point.x - origin.x) / cell)
+			const r = Math.floor((point.y - origin.y) / cell)
+			return r >= 0 && r < rows && c >= 0 && c < cols ? [r, c] : undefined
+		},
+		growCols: { x: cells.x + cells.w + cell * 0.45, y: cells.y + cells.h / 2 },
+		growRows: { x: cells.x + cells.w / 2, y: cells.y + cells.h + cell * 0.45 },
+	}
+}
+
+/** Rows and columns for a sketch: one more for every cell the pointer has travelled each way. */
+export function sketchSize(offset: VecLike, cell: number, max: number) {
+	const count = (d: number) => Math.min(max, 1 + Math.floor(Math.abs(d) / cell))
+	return { rows: count(offset.y), cols: count(offset.x) }
+}
+
+/**
+ * Where a sketched matrix's layout starts (page space), so that the cell the drag started on stays
+ * under the press point, whichever way the drag goes (up or left grows that way).
+ */
+export function sketchPosition(origin: VecLike, offset: VecLike, size: { rows: number; cols: number }, metrics: MatrixMetrics) {
+	const { cell } = metrics
+	const left = offset.x < 0 ? size.cols - 1 : 0
+	const up = offset.y < 0 ? size.rows - 1 : 0
+	return {
+		x: origin.x - cell / 2 - left * cell - metrics.origin.x,
+		y: origin.y - cell / 2 - up * cell - metrics.origin.y,
+	}
+}
+
+export const cellKey = (r: number, c: number) => `${r},${c}`
+
+/** A cell key's row and column, or undefined for anything else. */
+export function parseCellKey(key: string): [number, number] | undefined {
+	const m = /^(\d+),(\d+)$/.exec(key)
+	return m ? [Number(m[1]), Number(m[2])] : undefined
+}

@@ -186,6 +186,12 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `[data-testid="style.nulls.show"]` with a tree selected. A plain tree's node menu has
   `context-menu.tree-swap-children` and `tree-mirror`. BSTs and heaps ring rule-breaking values
   (`[data-warning]` in the DOM); `style.invariant.off` / `.check` toggles it.
+- **Matrix**: `key Shift+M` then `drag x1 y1 x2 y2` (a row / column per 48 px); cell keys `r,c`
+  (`dblclick` a cell to edit). Grips: `dragnode grow-cols dx 0`, `dragnode grow-rows 0 dy`. A cell's
+  menu: `context-menu-sub.drawds-matrix-edit-button` (`matrix-row-above|below`, `matrix-col-left|right`,
+  `matrix-delete-row|col`), `drawds-matrix-steps` (`matrix-row-major`, `matrix-col-major`,
+  `matrix-transpose-steps` when square, `matrix-staircase` when sorted: opens `key-prompt`),
+  `drawds-matrix-actions` (`matrix-transpose`, `matrix-reroll`).
 - **Value range**: `style.fill-range.small` (0-9), `medium`, `large` (0-999), `signed` (-50..50)
   under Fill, for arrays, lists, trees and heaps; redraws the selected values.
 - **Graphs**: `shapes` lists graph edges as `A-B:7` (`A->B:7` when directed; `:7` is the

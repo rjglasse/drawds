@@ -115,6 +115,13 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `rearrange.ts` has the instant orders (sorted, reversed, shuffled). Offered from the context menu
   (`nodeOperations`: Search, Insert / delete step by step; `shapeOperations`: Sort step by step, Array), plus
   hover controls (x on the hovered cell's corner, + on the nearest boundary; `hoveredCell` in `layout.ts`).
+- `src/shapes/matrix/` - matrices (2D arrays): `values: string[][]`, cell keys `r,c`, row indices left and column
+  indices above inside the box (`getMatrixLayout`). Sketch by dragging a rectangle (`MatrixShapeTool`, Shift+M);
+  random fills are stable per cell as it grows (`shellIndex`: each k x k square takes the first k² values), sorted
+  fills run row-major (so rows and columns are sorted). Grips `grow-cols` / `grow-rows`; a cell's menu inserts /
+  deletes rows and columns (`moveMarks` keeps marks on their cells). `operations.ts`: row- vs column-major
+  traversal with a "place in memory" strip, transpose (swaps across the diagonal), staircase search (sorted
+  matrices); step pointers i / j sit at `row:<r>` / `col:<c>` (the index labels).
 - `src/nodelink/playback.ts` - animated operations, stepped through: frames (props override, value swaps
   between node keys and one-way `moves` (copies), highlights on nodes and `edge:` keys that accumulate and can
   be cleared with null, badges, a queue/stack `strip`, faded elements `dim` and running `counts` (both

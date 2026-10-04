@@ -84,3 +84,18 @@ test('list and tree: a head dragged left, a pointer above the root', async ({ pa
 	await expectBoxFitsDrawing(page)
 	expect(await rounded(page, 'n')).toEqual(root)
 })
+
+test('matrix: the box covers the cells and their indices, before and after growing', async ({ page }) => {
+	await page.keyboard.press('Shift+M')
+	await page.mouse.move(300, 300)
+	await page.mouse.down()
+	await page.mouse.move(400, 360, { steps: 10 })
+	await page.mouse.up()
+	await expectBoxFitsDrawing(page)
+	const [x, y] = await handlePosition(page, 'grow-rows')
+	await page.mouse.move(x, y)
+	await page.mouse.down()
+	await page.mouse.move(x, y + 100, { steps: 10 })
+	await page.mouse.up()
+	await expectBoxFitsDrawing(page)
+})
