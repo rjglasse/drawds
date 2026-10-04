@@ -161,8 +161,9 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		const d = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[direction]
 		const along = d[0] * axis.x + d[1] * axis.y
 		if (i < 0 || !along) return undefined
-		// Round and round a circular list.
-		return v.circular ? keys[(i + along + keys.length) % keys.length] : keys[i + along]
+		// Round and round a circular list; on from the last node into a cycle.
+		if (v.circular) return keys[(i + along + keys.length) % keys.length]
+		return v.cycleTo && along > 0 && i === keys.length - 1 ? v.cycleTo : keys[i + along]
 	}
 
 	pointerNames() {
@@ -183,7 +184,16 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		const v = listVariant(shape.props, nodes)
 		// Walks that run off the end (finding the middle, reversing) never end round a circle or a cycle.
 		const ends = !v.circular && !v.cycleTo
+		// The last node's next pointed back into the list: a cycle (rho-shaped), for cycle detection.
+		// Not on a circular list, whose last node already points at the first.
+		const cycle: NodeOperation[] = v.circular
+			? []
+			: [
+					...(v.cycleTo === key ? [] : [{ id: 'list-make-cycle', label: `Make a cycle: last.next = ${node.value}`, run: () => this.setCycle(shape.id, key) }]),
+					...(v.cycleTo ? [{ id: 'list-remove-cycle', label: 'Remove the cycle: last.next = null', run: () => this.setCycle(shape.id, '') }] : []),
+				]
 		return [
+			...cycle,
 			{ id: 'list-find', label: `Find ${node.value}`, submenu, run: run('find', () => findInList(props(), node.value)) },
 			{
 				id: 'list-find-value',
@@ -225,6 +235,12 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 						...(v.doubly ? [{ id: 'list-print-back', label: 'Print backwards', submenu, run: run('print backwards', () => printBackwards(props())) }] : []),
 					]),
 		]
+	}
+
+	/** Point the last node's next at `cycleTo` (a node id), or back at null (''); one undo step. */
+	private setCycle(id: ListShape['id'], cycleTo: string) {
+		this.editor.markHistoryStoppingPoint(cycleTo ? 'make a cycle' : 'remove the cycle')
+		this.editor.updateShape<ListShape>({ id, type: LIST_SHAPE_TYPE, props: { cycleTo } })
 	}
 
 	/** Append a new node with a value that fits the fill mode. */

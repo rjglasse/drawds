@@ -58,3 +58,28 @@ test('new lists take the variants picked with the list tool', async ({ page }) =
 	await sketchList(page, [300, 250], 2)
 	expect((await list(page)).ends).toBe('circular')
 })
+
+test('make a cycle into a node from its menu, then remove it; one undo each', async ({ page }) => {
+	await sketchList(page, [150, 200], 5)
+	const menu = async (key: string, item: string) => {
+		await page.mouse.click(...(await nodeScreenPosition(page, key)), { button: 'right' })
+		await page.getByTestId(`context-menu.${item}`).click()
+	}
+	await menu('n2', 'list-make-cycle')
+	expect((await list(page)).cycleTo).toBe('n2')
+	expect(await sceneKeys(page)).not.toContain('#null')
+	const loop = await withEditor(page, (editor) => {
+		const s = editor.getOnlySelectedShape()!
+		const u = editor.getShapeUtil(s) as unknown as { getScene(x: unknown): { edges: { key: string; to: string; via?: unknown[] }[] } }
+		return u.getScene(s).edges.find((e) => e.key === 'n4->')
+	})
+	expect(loop).toMatchObject({ to: 'n2', via: expect.any(Array) })
+	await page.waitForTimeout(450) // a menu still closing swallows the next right-click
+	await menu('n0', 'list-remove-cycle')
+	expect((await list(page)).cycleTo).toBe('')
+	expect(await sceneKeys(page)).toContain('#null')
+	await page.keyboard.press('ControlOrMeta+z')
+	expect((await list(page)).cycleTo).toBe('n2')
+	await page.keyboard.press('ControlOrMeta+z')
+	expect((await list(page)).cycleTo).toBe('')
+})

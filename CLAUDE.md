@@ -218,8 +218,15 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
 - Steps the props can't express (a list node not linked in yet, an arrow re-pointed or curving back) give the
   frame a whole `scene` (layout coordinates; drawn at the committed offset) and their own `pointers` (curr,
   prev, next: they slide between steps); `SceneEdge.bend` curves an edge. See `src/shapes/list/operations.ts`
-  (find, insert after / at the head, delete, reverse, find the middle with slow / fast, insert in order),
-  narrated as the code a teacher writes.
+  (find, insert after / at the head, delete, reverse, find the middle with slow / fast, insert in order,
+  append, print, print backwards), narrated as the code a teacher writes. Once the result is in, steps are
+  drawn less the move the commit made (`PlaybackView.committed`), so a new head doesn't shift them or the bar.
+- List variants (`src/ui/ListPickers.tsx`, four combinable toggles): `links` singly / doubly (a `pointer.back`
+  prev compartment, `<-` edges with `fromPointer: 'prev'` in parallel `lane`s), `tail` (a `#tail` label),
+  `ends` null / circular, `sentinel` (a dashed `#sentinel` ghost node first in `chainKeys`), plus `cycleTo`
+  (the last node's next points at that node: "Make a cycle" in a node's menu). Arrows back along the list get
+  rounded `via` corners from `loopBack` (operations pass the nodes they float off the line). Every operation
+  narrates the assignments its variant needs; `listOf(props)` and `retarget(scene, {edgeKey: to})` help.
 - Pointers: when elements go, prune pointers with `prunePointers` wherever marks are pruned. Atoms read inside
   a separate React component (not the shape's `component()`) need `useValue`, or it won't re-render.
 - Removable edges: implement `removeEdge` (+ optional `canRemoveEdge`); the base draws an x mid-edge (beside the

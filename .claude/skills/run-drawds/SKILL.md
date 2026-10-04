@@ -213,8 +213,15 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
 - **List operations**: `rclick` a list node, `clicksel
   [data-testid="context-menu-sub.drawds-node-operations-0-button"]` (Step by step), then
   `context-menu.list-find`, `list-find-value` (opens `key-prompt`), `list-insert-after`,
-  `list-insert-head`, `list-delete`, `list-reverse`, `list-middle` or `list-insert-sorted` (opens `key-prompt`). Step with `key ArrowRight` (they open
+  `list-insert-head`, `list-delete`, `list-reverse`, `list-middle`, `list-insert-sorted` (opens `key-prompt`),
+  `list-append`, `list-print` or (doubly) `list-print-back`. Step with `key ArrowRight` (they open
   paused); a reversed list is drawn the other way (`direction` flips) with nodes in place.
+- **List variants**: with a list selected, `clicksel [data-testid="style.list-variant.doubly"]` (`tail`,
+  `circular`, `sentinel`) toggles each (one undo step each), or set props directly: `eval (() => { const s =
+  editor.getOnlySelectedShape(); editor.updateShape({ id: s.id, type: s.type, props: { links: 'doubly', tail:
+  'tail', ends: 'circular', sentinel: 'sentinel' } }); return 1 })()` (wrap calls that return the editor, or
+  `eval` fails on circular JSON). A node's menu has `context-menu.list-make-cycle` (top level, not under Step
+  by step) and, with a cycle, `list-remove-cycle`. Edge keys: `n1->` next, `n1<-` prev, `#head->`, `#tail->`.
 - **Graph algorithms**: `rclick` a node, then `context-menu.graph-dijkstra` or (undirected) `graph-prim`; on
   the whole graph `context-menu-sub.drawds-graph-algorithms-button` then `graph-kruskal` (undirected) or
   `graph-topological-sort` (directed). Distances / in-degrees are node badges; `play-counts` shows updates or
