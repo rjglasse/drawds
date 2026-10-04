@@ -115,3 +115,27 @@ test('insert in order: walk to the place, then link the node in; the list stays 
 	await stepToEnd(page)
 	expect(await values(page)).toEqual(['10', '20', '25', '30', '40'])
 })
+
+test('insert at the head: the step on screen and the bar hold still when the result goes in', async ({ page }) => {
+	await sketchList(page, [200, 200], 3)
+	await listOp(page, 'n0', 'list-insert-head')
+	// The step shown, as drawn (a frame, not the committed layout): where the old head is on screen.
+	const shown = () =>
+		page.evaluate(() => {
+			const e = window.editor!
+			const shape = e.getOnlySelectedShape()!
+			const util = e.getShapeUtil(shape) as unknown as { displayScene(s: unknown): { nodes: { key: string; x: number; y: number }[] } }
+			const n0 = util.displayScene(shape).nodes.find((n) => n.key === 'n0')!
+			const p = e.pageToScreen(e.getShapePageTransform(shape).applyToPoint(n0))
+			return [p.x, p.y]
+		})
+	const bar = async () => (await page.getByTestId('play-bar').boundingBox())!.x
+	while (!(await caption(page).textContent())?.startsWith('head = node')) await page.keyboard.press('ArrowRight')
+	const [before, barBefore] = [await shown(), await bar()]
+	await page.keyboard.press('ArrowRight')
+	await expect(page.getByTestId('play-done')).toBeVisible()
+	expect(await values(page)).toHaveLength(4)
+	const after = await shown()
+	after.forEach((v, i) => expect(Math.abs(v - before[i])).toBeLessThan(1))
+	expect(Math.abs((await bar()) - barBefore)).toBeLessThan(1)
+})

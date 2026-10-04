@@ -65,6 +65,15 @@ export function chainKeys(props: ListLayoutProps): string[] {
 	return [...(listVariant(props).sentinel ? [SENTINEL_KEY] : []), ...props.nodes.map((n) => n.id)]
 }
 
+/**
+ * How a list's pointer arrows are drawn: a doubly linked list's next and prev arrows in two lanes
+ * (a vertical list's compartments already sit side by side), never curved apart as twins.
+ */
+export function arrowStyle(props: Pick<ListShapeProps, 'direction'> & Variants): Partial<SceneEdge> {
+	if (!listVariant(props).doubly) return {}
+	return { lane: UNIT[props.direction][1] === 0 ? LANE : 0, bend: 0 }
+}
+
 /** Every node at its automatic position (drag offsets ignored), with the scene's top-left at (0, 0). */
 function baseScene(props: ListLayoutProps): Scene {
 	const { nodes, direction, size } = props
@@ -126,8 +135,7 @@ function baseScene(props: ListLayoutProps): Scene {
 
 	// Next arrows, then a doubly linked list's prev arrows, in their own lanes; the last node's next
 	// goes back to the first (circular) or to the cycle's node, else to null.
-	// (A vertical list's compartments already sit side by side, so its arrows need no lanes.)
-	const lanes = v.doubly ? { lane: horizontal ? LANE : 0, bend: 0 } : {}
+	const lanes = arrowStyle(props)
 	const end = v.circular ? first.key : (v.cycleTo ?? NULL_KEY)
 	const edges: SceneEdge[] = listNodes.map((node, i) => ({
 		key: `${node.key}->`,
@@ -167,33 +175,40 @@ function baseScene(props: ListLayoutProps): Scene {
  * node, across (under a horizontal list, right of a vertical one, clear of the pointers there), back
  * along, and in before the target. A doubly linked circular list's first prev arrow loops the other
  * way round, over the head label. The corners are worked out on the positioned nodes.
+ *
+ * Operations pass the nodes they draw off the list's line (a new node, one dropping out) as
+ * `floating`, each with its place in the chain (a new node after the third: 2.5); loops clear them.
  */
-function loopBack(scene: Scene, props: ListLayoutProps): Scene {
+export function loopBack(scene: Scene, props: ListLayoutProps, floating: Record<string, number> = {}): Scene {
 	const v = listVariant(props, props.nodes)
 	const m = getListMetrics(props.size, v.doubly)
 	const [ux, uy] = UNIT[props.direction]
 	const horizontal = uy === 0
 	const across = horizontal ? { x: 0, y: 1 } : { x: 1, y: 0 }
 	const keys = chainKeys(props)
+	const order = new Map([...keys.map((k, i) => [k, i] as const), ...Object.entries(floating)])
 	const byKey = new Map(scene.nodes.map((n) => [n.key, n]))
-	const chain = keys.map((k) => byKey.get(k)!).filter(Boolean)
+	const chain = keys.filter((k) => !(k in floating)).map((k) => byKey.get(k)!).filter(Boolean)
 	const at = (n: { x: number; y: number }) => ({ a: n.x * ux + n.y * uy, c: n.x * across.x + n.y * across.y })
 	const point = (a: number, c: number) => ({ x: ux * a + across.x * c, y: uy * a + across.y * c })
 	const half = (horizontal ? m.nodeW : m.nodeH) / 2
 	const thick = (horizontal ? m.nodeH : m.nodeW) / 2
 	const laneShift = v.doubly && horizontal ? LANE * m.nodeH : 0
 	const reach = pointerReach(m.fontSize * POINTER_FONT_SCALE)
-	const below = Math.max(...chain.map((n) => at(n).c)) + thick + reach + m.gap * 0.35
 	// Clear of the head and tail labels: above a horizontal list, left of a vertical one (as wide as a label).
 	const labels = horizontal ? m.labelFontSize * 1.6 : 4 * m.labelFontSize * 0.62 + m.labelFontSize
-	const above = Math.min(...chain.map((n) => at(n).c)) - thick - m.gap * 0.8 - labels - m.gap * 0.4
 	const loop = (from: string, to: string, out: number, side: 'below' | 'above', shift: number) => {
 		const source = byKey.get(from)!
+		const target = byKey.get(to)!
 		// Along the list from the source's centre; across from its pointer compartment (beside the value
 		// in a vertical list), where the arrow leaves.
 		const f = { a: at(source).a, c: at(pointerAnchor(source, side === 'above')).c }
-		const t = at(byKey.get(to)!)
-		const depth = side === 'below' ? below : above
+		const t = at(target)
+		const cs = [...chain, source, target].map((n) => at(n).c)
+		const depth =
+			side === 'below'
+				? Math.max(...cs) + thick + reach + m.gap * 0.35
+				: Math.min(...cs) - thick - m.gap * 0.8 - labels - m.gap * 0.4
 		// Out of the source on its far side, back in on the target's near side (or the other way round).
 		const [fa, ta] = side === 'below' ? [f.a + half + out, t.a - half - out] : [f.a - half - out, t.a + half + out]
 		return [point(fa, f.c + shift), point(fa, depth), point(ta, depth), point(ta, t.c + shift)]
@@ -201,9 +216,11 @@ function loopBack(scene: Scene, props: ListLayoutProps): Scene {
 	return {
 		...scene,
 		edges: scene.edges.map((e) => {
-			const back = e.fromPointer === true && keys.indexOf(e.to) >= 0 && keys.indexOf(e.to) <= keys.indexOf(e.from)
+			const [from, to] = [order.get(e.from), order.get(e.to)]
+			if (from === undefined || to === undefined) return e
+			const back = e.fromPointer === true && to <= from
 			if (back) return { ...e, via: loop(e.from, e.to, m.gap * 0.45, 'below', laneShift), lane: undefined }
-			const prevBack = e.fromPointer === 'prev' && keys.indexOf(e.to) > keys.indexOf(e.from)
+			const prevBack = e.fromPointer === 'prev' && to > from
 			if (prevBack) return { ...e, via: loop(e.from, e.to, m.gap * 0.7, 'above', -laneShift), lane: undefined }
 			return e
 		}),

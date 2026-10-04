@@ -1,6 +1,6 @@
 import { getColorValue, useEditor, useValue, type TLShape } from 'tldraw'
 import { CellShapeUtil } from '../cells/CellShapeUtil'
-import { currentPlayback, type Frame, type Strip } from '../nodelink/playback'
+import { currentPlayback, type Frame, type PlaybackView, type Strip } from '../nodelink/playback'
 import { StripSvg, stripGap, stripsHeight } from '../nodelink/SceneSvg'
 import { PointersSvg } from '../pointers/PointersSvg'
 import { PlayBar } from './PlayBar'
@@ -11,16 +11,18 @@ interface Placement {
 	bar: { x: number; y: number }
 }
 
-const placements = new WeakMap<readonly Frame[], { props: object; placement: Placement }>()
+const placements = new WeakMap<readonly Frame[], { props: object; committed: object | undefined; placement: Placement }>()
 
 /**
  * The strips and the bar, placed once for the whole operation, so they hold still while it plays:
  * from the leftmost edge any step reaches, under the lowest point any step reaches (and under the
- * tallest strips). Worked out once per operation and shape props.
+ * tallest strips). Worked out once per operation and shape props (and again once the result is in,
+ * which can move the shape: the steps, and so the bar, stay where they were on the page).
  */
-function placementFor(util: CellShapeUtil<TLShape>, shape: TLShape, frames: readonly Frame[]): Placement {
+function placementFor(util: CellShapeUtil<TLShape>, shape: TLShape, view: PlaybackView): Placement {
+	const { frames, committed } = view
 	const cached = placements.get(frames)
-	if (cached?.props === shape.props) return cached.placement
+	if (cached?.props === shape.props && cached.committed === committed) return cached.placement
 	let left = Infinity
 	let bottom = -Infinity
 	let tallest = 0
@@ -36,7 +38,7 @@ function placementFor(util: CellShapeUtil<TLShape>, shape: TLShape, frames: read
 	}
 	const strip = { x: left, y: bottom + gap }
 	const placement = { strip, bar: { x: left, y: tallest ? strip.y + tallest + gap : strip.y } }
-	placements.set(frames, { props: shape.props, placement })
+	placements.set(frames, { props: shape.props, committed, placement })
 	return placement
 }
 
@@ -57,7 +59,7 @@ export function PlaybackOverlay() {
 			const util = shape && editor.getShapeUtil(shape)
 			if (!shape || !(util instanceof CellShapeUtil) || !util.playbackLayout) return null
 			const layout = util.playbackLayout(shape, view.frame)
-			const placement = placementFor(util as CellShapeUtil<TLShape>, shape, view.frames)
+			const placement = placementFor(util as CellShapeUtil<TLShape>, shape, view)
 			const transform = editor.getShapePageTransform(shape)
 			const toViewport = (p: { x: number; y: number }) => editor.pageToViewport(transform.applyToPoint(p))
 			return {

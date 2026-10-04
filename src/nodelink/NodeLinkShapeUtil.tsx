@@ -539,9 +539,14 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	 */
 	displayScene(shape: S, frame: Frame | undefined = playbackFor(this.editor, shape.id)?.frame): Scene {
 		if (!frame?.scene && !frame?.props) return this.getScene(shape)
-		// At the committed layout's offset, so whatever the step doesn't change stays put.
+		// At the committed layout's offset, so whatever the step doesn't change stays put; once the
+		// result is in, less the move it made (its origin and its offset), so the steps hold still.
 		const raw = frame.scene ?? this.buildScene({ ...shape, props: { ...shape.props, ...frame.props } })
-		return translateScene(raw, this.layoutOffset(shape))
+		const committed = playbackFor(this.editor, shape.id)?.committed
+		if (!committed) return translateScene(raw, this.layoutOffset(shape))
+		const [before, after] = [committed.before as S, committed.after as S]
+		const moved = Vec.Add(Vec.Sub(this.layoutOffset(after), this.layoutOffset(before)), Vec.Rot(Vec.Sub(after, before), -after.rotation))
+		return translateScene(raw, Vec.Sub(this.layoutOffset(shape), moved))
 	}
 
 	/** Pointers as an operation's step shows them (its own, e.g. curr and prev), on its scene. */

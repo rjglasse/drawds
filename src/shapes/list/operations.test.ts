@@ -140,3 +140,82 @@ describe('insertSorted', () => {
 		expect(insertSorted(props, 'n9', '5').frames[0].caption).toBe("Careful: 7 > 3, so the list isn't sorted and 5 may land out of order")
 	})
 })
+
+describe('operations on list variants', () => {
+	const four = ['7', '3', '9', '4'].map((value, i) => ({ id: `n${i}`, value, dx: 0, dy: 0 }))
+	const base = { nodes: four, direction: 'right' as const, size: 'm' as const }
+	const ends = (scene: Scene | undefined) => Object.fromEntries((scene?.edges ?? []).map((e) => [e.key, e.to]))
+	const captions = (op: { frames: { caption?: string }[] }) => op.frames.map((f) => f.caption)
+
+	it('doubly linked insert: four assignments, in an order that keeps the list', () => {
+		const op = insertIntoList({ ...base, links: 'doubly' }, 'n1', 'n9', '5')
+		expect(captions(op).slice(2)).toEqual([
+			'node.next = curr.next: the new node points at 9 too',
+			'node.prev = curr: it points back at 3',
+			'curr.next.prev = node: 9 points back at 5 now',
+			'curr.next = node: 3 now points at 5. (The other way round, the rest of the list would be lost)',
+		])
+		expect(ends(op.frames.at(-1)!.scene)).toMatchObject({ 'n9->': 'n2', 'n9<-': 'n1', 'n2<-': 'n9', 'n1->': 'n9' })
+	})
+
+	it('a tail moves when a node goes in after the last one, or the last one goes', () => {
+		const added = insertIntoList({ ...base, tail: 'tail' }, 'n3', 'n9', '8')
+		expect(captions(added).at(-1)).toBe('tail = node: 8 is the last node now')
+		expect(ends(added.frames.at(-1)!.scene)['#tail->']).toBe('n9')
+		const removed = deleteFromList({ ...base, tail: 'tail' }, 'n3')
+		expect(captions(removed)).toContain('tail = prev: 9 is the last node now')
+	})
+
+	it('circular: a new head means the last node points at it; deleting the head too', () => {
+		const added = insertIntoList({ ...base, ends: 'circular' }, undefined, 'n9', '1')
+		expect(captions(added)).toContain('last.next = node: the last node, 4, points at the new head')
+		expect(ends(added.frames.at(-1)!.scene)).toMatchObject({ 'n3->': 'n9', '#head->': 'n9' })
+		const removed = deleteFromList({ ...base, ends: 'circular' }, 'n0')
+		expect(captions(removed)).toContain('last.next = head: the last node, 4, points at 3 now')
+	})
+
+	it('circular: arrows back to the front loop round the list in every step, clear of a new node', () => {
+		const removed = deleteFromList({ ...base, ends: 'circular' }, 'n0')
+		const last = removed.frames.at(-1)!.scene!
+		expect(last.edges.find((e) => e.key === 'n3->')).toMatchObject({ to: 'n1', via: expect.any(Array) })
+		const added = insertIntoList({ ...base, ends: 'circular' }, 'n3', 'n9', '8')
+		const scene = added.frames.at(-1)!.scene!
+		const [n3, n9] = ['n3', 'n9'].map((k) => scene.nodes.find((n) => n.key === k)!)
+		// Just past the last node, not half-way back to the first.
+		expect(n9.x).toBeGreaterThan(n3.x)
+		expect(scene.edges.find((e) => e.key === 'n9->')).toMatchObject({ to: 'n0', via: expect.any(Array) })
+		expect(scene.edges.find((e) => e.key === 'n3->')?.via).toBeUndefined()
+		const below = Math.max(...scene.edges.find((e) => e.key === 'n9->')!.via!.map((p) => p.y))
+		expect(below).toBeGreaterThan(n9.y + n9.h)
+	})
+
+	it('sentinel: inserting at the front and deleting the first value are no special case', () => {
+		const added = insertIntoList({ ...base, sentinel: 'sentinel' }, undefined, 'n9', '1')
+		expect(captions(added)[0]).toBe('curr = the sentinel: inserting at the front needs no special case')
+		expect(ends(added.frames.at(-1)!.scene)).toMatchObject({ '#sentinel->': 'n9', 'n9->': 'n0', '#head->': '#sentinel' })
+		expect(added.nodes!.map((n) => n.value)).toEqual(['1', '7', '3', '9', '4'])
+		const removed = deleteFromList({ ...base, sentinel: 'sentinel' }, 'n0')
+		expect(captions(removed)[0]).toBe('prev = the sentinel, curr = head.next (7): found 7')
+		expect(removed.nodes!.map((n) => n.value)).toEqual(['3', '9', '4'])
+	})
+
+	it('doubly linked delete fixes the next node\'s prev too', () => {
+		const op = deleteFromList({ ...base, links: 'doubly' }, 'n1')
+		expect(captions(op)).toContain('curr.next.prev = prev: 9 now points back past 3, at 7')
+	})
+
+	it('find round a circle, or into a cycle, stops when it comes back', () => {
+		expect(captions(findInList({ ...base, ends: 'circular' }, '5')).at(-1)).toBe('4 ≠ 5, so curr = curr.next: back at the head. 5 is not in the list')
+		expect(captions(findInList({ ...base, cycleTo: 'n1' }, '5')).at(-1)).toBe(
+			'4 ≠ 5, so curr = curr.next: 3 again, a node already seen: the list has a cycle. 5 is not in the list'
+		)
+	})
+
+	it('reverse a doubly linked list by swapping each node\'s pointers; a tail ends on the old head', () => {
+		const op = reverseList({ ...base, links: 'doubly', tail: 'tail' })
+		expect(op.nodes!.map((n) => n.value)).toEqual(['4', '9', '3', '7'])
+		expect(captions(op)[1]).toBe('swap curr.next and curr.prev: 7 now points forward at null, back at 3')
+		expect(captions(op).at(-1)).toBe('head = the old last node, 4; tail = the old first, 7')
+		expect(captions(reverseList({ ...base, sentinel: 'sentinel' })).at(-1)).toBe('sentinel.next = prev: the values start at 4, reversed')
+	})
+})

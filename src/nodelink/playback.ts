@@ -1,4 +1,4 @@
-import { atom, react, type Atom, type Editor, type TLShapeId, type TLShapePartial } from 'tldraw'
+import { atom, react, type Atom, type Editor, type TLShape, type TLShapeId, type TLShapePartial } from 'tldraw'
 import type { MarkColor, Marks } from '../cells/marks'
 import type { Pointer } from '../pointers/pointers'
 import type { Scene } from './scene'
@@ -87,6 +87,11 @@ export interface PlaybackView extends StepState {
 	paused: boolean
 	/** The result has been committed; the bar stays up to review or replay until dismissed. */
 	done: boolean
+	/**
+	 * The shape just before and after the result went in. Steps shown afterwards undo the move it
+	 * made (a list's new head moves the shape's origin back), so they stay where they were.
+	 */
+	committed?: { before: TLShape; after: TLShape }
 }
 
 /** Time per frame when playing, and how long highlights take to fade after an operation. */
@@ -105,6 +110,7 @@ interface Operation {
 	paused: boolean
 	/** Set once the result is committed. */
 	done: boolean
+	committed?: { before: TLShape; after: TLShape }
 }
 
 interface Player {
@@ -286,6 +292,7 @@ function show(p: Player, { back = false } = {}) {
 		steps: op.frames.length,
 		paused: op.paused,
 		done: op.done,
+		committed: op.committed,
 	})
 }
 
@@ -374,8 +381,11 @@ function commit(editor: Editor, keepNow: boolean) {
 	op.keep = op.keep || keepNow
 	const update = op.keep && op.withMarks ? op.withMarks(op.final, finalHighlights(op)) : op.final
 	if (update) {
+		const before = editor.getShape(op.shapeId)
 		editor.markHistoryStoppingPoint(op.label)
 		editor.updateShape(update)
+		const after = editor.getShape(op.shapeId)
+		if (before && after) op.committed = { before, after }
 	}
 	op.done = true
 	op.paused = true

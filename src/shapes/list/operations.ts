@@ -3,14 +3,31 @@ import { compareKeys } from '../../data/compare'
 import type { Frame } from '../../nodelink/playback'
 import { edgeCellKey, type Scene, type SceneEdge, type SceneNode } from '../../nodelink/scene'
 import type { Pointer } from '../../pointers/pointers'
-import { HEAD_KEY, NULL_KEY, getListMetrics, listAxis, listScene } from './layout'
+import {
+	HEAD_KEY,
+	NULL_KEY,
+	NULL_PREV_KEY,
+	SENTINEL_KEY,
+	TAIL_KEY,
+	arrowStyle,
+	chainKeys,
+	getListMetrics,
+	listAxis,
+	listScene,
+	listVariant,
+	loopBack,
+} from './layout'
 import type { ListDirection, ListNode, ListShapeProps } from './list-shape-types'
 
 // List operations, step by step: each step is a line of the code a teacher writes on the board
 // (curr = curr.next, node.next = curr.next...), drawn as it happens: temporary pointers curr,
 // prev and next slide along, arrows re-point (lit orange), new nodes appear beside the list.
+// Each variant adds its own lines: a doubly linked list's prev links, a tail that moves, a
+// circular list's last node that must keep pointing at the first, a sentinel that removes the
+// special cases at the head.
 
-type ListProps = Pick<ListShapeProps, 'nodes' | 'direction' | 'size'>
+type ListProps = Pick<ListShapeProps, 'nodes' | 'direction' | 'size'> &
+	Partial<Pick<ListShapeProps, 'links' | 'tail' | 'ends' | 'sentinel' | 'cycleTo'>>
 
 const LOOK: MarkColor = 'orange'
 const FOUND: MarkColor = 'green'
@@ -20,20 +37,35 @@ const CHANGED: MarkColor = 'orange'
 /** A null marker before the head, for pointers that start out null (reverse's prev). */
 export const NULL_BEFORE_KEY = '#null-before'
 
-const nextEdgeKey = (id: string) => `${id}->`
+const next = (id: string) => `${id}->`
+const prevOf = (id: string) => `${id}<-`
 const HEAD_EDGE = `${HEAD_KEY}->`
+const TAIL_EDGE = `${TAIL_KEY}->`
 const pointer = (name: string, at: string): Pointer => ({ id: `#${name}`, name, at })
 const edgeMark = (key: string) => edgeCellKey(key)
 
-/** The list's scene with its arrows re-pointed by `targets` (node id -> what its next is now). */
-function withTargets(scene: Scene, targets: Record<string, string>, bends: Record<string, number> = {}): Scene {
+/** What every operation needs to know about the list: its variant, its nodes in link order, names. */
+function listOf(props: ListProps) {
+	const v = listVariant(props, props.nodes)
+	const chain = chainKeys(props)
+	const values = new Map(props.nodes.map((n) => [n.id, n.value]))
+	const lastId = props.nodes[props.nodes.length - 1].id
+	return {
+		v,
+		chain,
+		lastId,
+		/** Where the last node's next points: the first node (circular), the cycle's node, or null. */
+		end: v.circular ? chain[0] : (v.cycleTo ?? NULL_KEY),
+		name: (key: string) => (key === NULL_KEY || key === NULL_PREV_KEY ? 'null' : key === SENTINEL_KEY ? 'the sentinel' : values.get(key) ?? key),
+		arrows: arrowStyle(props),
+	}
+}
+
+/** The scene with arrows re-pointed, by edge key (`n3->`, `n3<-`, `#head->`...); `bends` curve them. */
+function retarget(scene: Scene, to: Record<string, string>, bends: Record<string, number> = {}): Scene {
 	return {
 		...scene,
-		edges: scene.edges.map((e) => {
-			const owner = e.key === HEAD_EDGE ? HEAD_KEY : e.from
-			const to = targets[owner]
-			return to === undefined ? e : { ...e, to, bend: bends[owner] }
-		}),
+		edges: scene.edges.map((e) => (to[e.key] === undefined ? e : { ...e, to: to[e.key], via: undefined, bend: bends[e.key] ?? e.bend })),
 	}
 }
 
@@ -41,11 +73,38 @@ function nodeOf(scene: Scene, key: string) {
 	return scene.nodes.find((n) => n.key === key)!
 }
 
-/** A list node drawn `away` steps off the list's line, beside `at` (a new node, or one dropping out). */
+/** Off the list's line: below it, right of a vertical one (with the pointers; the labels are on the other side). */
+const offLine = (direction: ListDirection) => (listAxis(direction).y === 0 ? { x: 0, y: 1 } : { x: 1, y: 0 })
+
+/** A list node drawn `away` off the list's line, beside `at` (a new node, or one dropping out). */
 function besideList(template: SceneNode, key: string, value: string, at: { x: number; y: number }, props: ListProps): SceneNode {
+	const side = offLine(props.direction)
+	const away = getListMetrics(props.size, listVariant(props).doubly).step * 0.8
+	return { ...template, key, value, x: at.x + side.x * away, y: at.y + side.y * away, editable: false, draggable: false, ghost: undefined }
+}
+
+/**
+ * The bend that takes the head label's arrow round the first node (the label is on one side of it)
+ * to a new node on the other side, curving back along the list where there is room.
+ */
+function roundTheHead(scene: Scene, props: ListProps, first: string, to: string): number {
+	const [label, node, target] = [HEAD_KEY, first, to].map((k) => nodeOf(scene, k))
 	const axis = listAxis(props.direction)
-	const away = getListMetrics(props.size).step * 0.8
-	return { ...template, key, value, x: at.x - axis.y * away, y: at.y + axis.x * away, editable: false, draggable: false }
+	const side = offLine(props.direction)
+	const clear = (axis.y === 0 ? node.w : node.h) / 2 + getListMetrics(props.size).gap * 0.3
+	// The curve's peak is half its bend, as a share of its length, off the straight line.
+	const bend = (2 * clear) / (Math.hypot(target.x - label.x, target.y - label.y) || 1)
+	return side.y * axis.x - side.x * axis.y > 0 ? -bend : bend
+}
+
+/**
+ * Circular lists and lists with a cycle: in every step, arrows back along the list loop round it,
+ * clear of the nodes drawn off the line (`floating`, with their place in the chain).
+ */
+function withLoops(frames: Frame[], props: ListProps, floating: Record<string, number>): Frame[] {
+	const v = listVariant(props, props.nodes)
+	if (!v.circular && !v.cycleTo) return frames
+	return frames.map((f) => (f.scene ? { ...f, scene: loopBack(f.scene, props, floating) } : f))
 }
 
 /** Arrows that point back against the list's direction curve round, clear of the nodes they pass. */
@@ -60,12 +119,17 @@ export interface ListOperation {
 	finalFlash?: Record<string, MarkColor>
 }
 
-/** Find `target`: curr walks from the head comparing, until it finds it or reaches null. */
+/**
+ * Find `target`: curr walks from the first value (after the sentinel, if any) comparing, until it
+ * finds it, or reaches null, or (circular, or a cycle) comes back round to a node it has seen.
+ */
 export function findInList(props: ListProps, target: string): ListOperation {
 	const { nodes } = props
+	const { v, name } = listOf(props)
 	const frames: Frame[] = []
+	const start = v.sentinel ? 'curr = head.next (past the sentinel)' : 'curr = head'
 	for (const [i, node] of nodes.entries()) {
-		const how = i === 0 ? `curr = head (${node.value})` : `${nodes[i - 1].value} ≠ ${target}, so curr = curr.next (${node.value})`
+		const how = i === 0 ? `${start} (${node.value})` : `${nodes[i - 1].value} ≠ ${target}, so curr = curr.next (${node.value})`
 		frames.push({
 			pointers: [pointer('curr', node.id)],
 			flash: { [node.id]: LOOK, ...(i ? { [nodes[i - 1].id]: null } : {}) },
@@ -81,207 +145,329 @@ export function findInList(props: ListProps, target: string): ListOperation {
 		}
 	}
 	const last = nodes[nodes.length - 1]
+	const after = `${last.value} ≠ ${target}, so curr = curr.next: `
+	if (v.circular || v.cycleTo) {
+		const back = v.circular ? (v.sentinel ? SENTINEL_KEY : nodes[0].id) : v.cycleTo!
+		const why = v.circular ? `back at ${v.sentinel ? 'the sentinel' : 'the head'}` : `${name(back)} again, a node already seen: the list has a cycle`
+		frames.push({ pointers: [pointer('curr', back)], flash: { [last.id]: null }, caption: `${after}${why}. ${target} is not in the list` })
+		return { frames }
+	}
 	frames.push({
 		pointers: [pointer('curr', NULL_KEY)],
-		flash: last ? { [last.id]: null } : {},
-		caption: `${last ? `${last.value} ≠ ${target}, so curr = curr.next: ` : 'curr = head: '}null. ${target} is not in the list`,
+		flash: { [last.id]: null },
+		caption: `${after}null. ${target} is not in the list`,
 	})
 	return { frames }
 }
 
 /**
- * Insert `value` after node `afterId` (or, with no `afterId`, at the head): the new node appears
- * beside the list, then the two assignments, in the order that keeps the rest of the list.
+ * Insert `value` after node `afterId` (or, with no `afterId`, at the front): the new node appears
+ * beside the list, then the assignments, in the order that keeps the rest of the list. A doubly
+ * linked list also sets the two prev links; a tail moves to a new last node; a circular list's
+ * last node points at a new head; with a sentinel, the front is just "after the sentinel".
  */
 export function insertIntoList(props: ListProps, afterId: string | undefined, id: string, value: string): ListOperation {
 	const { nodes } = props
+	const { v, chain, lastId, end, name, arrows } = listOf(props)
+	// With a sentinel there is always a node before: inserting at the front is inserting after it.
+	const after = afterId ?? (v.sentinel ? SENTINEL_KEY : undefined)
 	const base = listScene(props)
 	const template = nodeOf(base, nodes[0].id)
-	const i = afterId === undefined ? -1 : nodes.findIndex((n) => n.id === afterId)
-	const after = nodes[i]
-	const next = nodes[i + 1]?.id ?? NULL_KEY
-	const at = after
-		? { x: (nodeOf(base, after.id).x + nodeOf(base, next).x) / 2, y: (nodeOf(base, after.id).y + nodeOf(base, next).y) / 2 }
-		: nodeOf(base, nodes[0].id)
+	const i = after === undefined ? -1 : chain.indexOf(after)
+	const nextKey = after === undefined ? chain[0] : (chain[i + 1] ?? end)
+	// Between curr and curr.next; after the last node of a circular list (or one with a cycle), curr.next
+	// is back along the list, so just past curr.
+	const axis = listAxis(props.direction)
+	const half = getListMetrics(props.size, v.doubly).step / 2
+	const at =
+		after === undefined
+			? nodeOf(base, chain[0])
+			: nextKey === NULL_KEY || chain.indexOf(nextKey) > i
+				? { x: (nodeOf(base, after).x + nodeOf(base, nextKey).x) / 2, y: (nodeOf(base, after).y + nodeOf(base, nextKey).y) / 2 }
+				: { x: nodeOf(base, after).x + axis.x * half, y: nodeOf(base, after).y + axis.y * half }
 	const fresh = besideList(template, id, value, at, props)
-	const withNew = (s: Scene, edges: SceneEdge[] = []): Scene => ({ ...s, nodes: [...s.nodes, fresh], edges: [...s.edges, ...edges] })
-	// After a node: to that node's next. At the head (i = -1), `next` is the head.
-	const newEdge: SceneEdge = { key: nextEdgeKey(id), from: id, to: next, directed: true, fromPointer: true }
-	const curr = after ? [pointer('curr', after.id)] : []
-	const frames: Frame[] = []
-
-	if (after) {
-		frames.push({ pointers: curr, flash: { [after.id]: LOOK }, caption: `curr is at ${after.value}: insert ${value} after it` })
+	const edges: SceneEdge[] = []
+	let scene = { ...base, nodes: [...base.nodes, fresh] }
+	const add = (edge: SceneEdge) => {
+		edges.push(edge)
+		scene = { ...scene, edges: [...scene.edges, edge] }
 	}
-	frames.push({
-		scene: withNew(base),
-		pointers: [...curr, pointer('node', id)],
-		flash: { [id]: FOUND },
-		caption: `node = new Node(${value}): its next is null for now`,
-	})
-	if (after) {
-		frames.push({
-			scene: withNew(base, [newEdge]),
-			pointers: [...curr, pointer('node', id)],
-			flash: { [edgeMark(newEdge.key)]: CHANGED },
-			caption: `node.next = curr.next: the new node points at ${next === NULL_KEY ? 'null' : nodes[i + 1].value} too`,
-		})
-		frames.push({
-			scene: withTargets(withNew(base, [newEdge]), { [after.id]: id }),
-			pointers: [...curr, pointer('node', id)],
-			flash: { [edgeMark(newEdge.key)]: null, [edgeMark(nextEdgeKey(after.id))]: CHANGED },
-			caption: `curr.next = node: ${after.value} now points at ${value}. (The other way round, the rest of the list would be lost)`,
-		})
+	const point = (to: Record<string, string>, bends?: Record<string, number>) => {
+		scene = retarget(scene, to, bends)
+	}
+	const curr = after !== undefined ? [pointer('curr', after)] : []
+	const frames: Frame[] = []
+	const step = (caption: string, flash: Record<string, MarkColor | null>) =>
+		frames.push({ scene, pointers: [...curr, pointer('node', id)], flash, caption })
+	let lit: string | undefined
+	const light = (key: string) => {
+		const flash: Record<string, MarkColor | null> = { ...(lit ? { [lit]: null } : {}), [key]: CHANGED }
+		lit = key
+		return flash
+	}
+
+	if (after !== undefined) {
+		const where = after === SENTINEL_KEY ? 'curr = the sentinel: inserting at the front needs no special case' : `curr is at ${name(after)}: insert ${value} after it`
+		frames.push({ pointers: curr, flash: { [after]: LOOK }, caption: where })
+	}
+	step(`node = new Node(${value}): its next is null for now${v.doubly ? ', and its prev' : ''}`, { [id]: FOUND })
+
+	if (after !== undefined) {
+		add({ key: next(id), from: id, to: nextKey, directed: true, fromPointer: true, ...arrows })
+		const onto = nextKey === NULL_KEY ? 'null' : name(nextKey)
+		step(`node.next = curr.next: the new node points at ${onto} too`, light(edgeMark(next(id))))
+		if (v.doubly) {
+			add({ key: prevOf(id), from: id, to: after, directed: true, fromPointer: 'prev', ...arrows })
+			step(`node.prev = curr: it points back at ${name(after)}`, light(edgeMark(prevOf(id))))
+			if (nextKey !== NULL_KEY) {
+				point({ [prevOf(nextKey)]: id })
+				step(`curr.next.prev = node: ${name(nextKey)} points back at ${value} now`, light(edgeMark(prevOf(nextKey))))
+			}
+		}
+		point({ [next(after)]: id })
+		step(
+			`curr.next = node: ${name(after)} now points at ${value}. (The other way round, the rest of the list would be lost)`,
+			light(edgeMark(next(after)))
+		)
+		if (v.tail && after === lastId) {
+			point({ [TAIL_EDGE]: id })
+			step(`tail = node: ${value} is the last node now`, light(edgeMark(TAIL_EDGE)))
+		}
 	} else {
-		frames.push({
-			scene: withNew(base, [newEdge]),
-			pointers: [pointer('node', id)],
-			flash: { [edgeMark(newEdge.key)]: CHANGED },
-			caption: `node.next = head: the new node points at ${nodes[0].value}`,
-		})
-		frames.push({
-			scene: withTargets(withNew(base, [newEdge]), { [HEAD_KEY]: id }),
-			pointers: [pointer('node', id)],
-			flash: { [edgeMark(newEdge.key)]: null, [edgeMark(HEAD_EDGE)]: CHANGED },
-			caption: `head = node: ${value} is the first node now`,
-		})
+		const head = chain[0]
+		add({ key: next(id), from: id, to: head, directed: true, fromPointer: true, ...arrows })
+		step(`node.next = head: the new node points at ${name(head)}`, light(edgeMark(next(id))))
+		if (v.doubly) {
+			point({ [prevOf(head)]: id })
+			step(`head.prev = node: ${name(head)} points back at ${value}`, light(edgeMark(prevOf(head))))
+		}
+		if (v.circular) {
+			point({ [next(lastId)]: id })
+			step(`last.next = node: the last node, ${name(lastId)}, points at the new head`, light(edgeMark(next(lastId))))
+			if (v.doubly) {
+				add({ key: prevOf(id), from: id, to: lastId, directed: true, fromPointer: 'prev', ...arrows })
+				step(`node.prev = last: round the circle, it points back at ${name(lastId)}`, light(edgeMark(prevOf(id))))
+			}
+		}
+		point({ [HEAD_EDGE]: id }, { [HEAD_EDGE]: roundTheHead(scene, props, head, id) })
+		step(`head = node: ${value} is the first node now`, light(edgeMark(HEAD_EDGE)))
 	}
 	const node: ListNode = { id, value, dx: 0, dy: 0 }
-	return { frames, nodes: [...nodes.slice(0, i + 1), node, ...nodes.slice(i + 1)], finalFlash: { [id]: FOUND } }
+	const k = after === undefined || after === SENTINEL_KEY ? -1 : nodes.findIndex((n) => n.id === after)
+	return {
+		frames: withLoops(frames, props, { [id]: i + 0.5 }),
+		nodes: [...nodes.slice(0, k + 1), node, ...nodes.slice(k + 1)],
+		finalFlash: { [id]: FOUND },
+	}
 }
 
 /**
- * Delete node `id`: prev and curr walk from the head to it, then prev.next = curr.next takes the
- * arrow round it and it drops out of the list; for the head, head = head.next.
+ * Delete node `id`: prev and curr walk to it, then prev.next = curr.next takes the arrow round it
+ * and it drops out of the list; at the head, head = head.next (a circular list's last node then
+ * points at the new head). A doubly linked list fixes the next node's prev too; a tail on the
+ * deleted node moves back; with a sentinel even the first value has a prev, so no special case.
  */
 export function deleteFromList(props: ListProps, id: string): ListOperation {
 	const { nodes } = props
+	const { v, chain, lastId, end, name } = listOf(props)
 	const base = listScene(props)
-	const k = nodes.findIndex((n) => n.id === id)
-	const target = nodes[k]
-	const next = nodes[k + 1]?.id ?? NULL_KEY
-	const nextName = next === NULL_KEY ? 'null' : nodes[k + 1].value
+	const c = chain.indexOf(id)
+	const target = nodes.find((n) => n.id === id)!
+	const nextKey = chain[c + 1] ?? end
+	const nextName = name(nextKey)
+	let scene = base
+	const point = (to: Record<string, string>, bends?: Record<string, number>) => {
+		scene = retarget(scene, to, bends)
+	}
 	const dropped = (s: Scene): Scene => {
 		const t = nodeOf(s, id)
 		const out = besideList(t, id, t.value, t, props)
 		return { ...s, nodes: s.nodes.map((n) => (n.key === id ? { ...out, editable: false } : n)) }
 	}
 	const frames: Frame[] = []
+	const gone = { scene: undefined as Scene | undefined }
 
-	if (k === 0) {
+	if (c === 0) {
+		// The head, and no sentinel in front of it.
 		frames.push({ pointers: [pointer('curr', id)], flash: { [id]: GONE }, caption: `Delete the head, ${target.value}` })
-		const moved = withTargets(base, { [HEAD_KEY]: next })
-		frames.push({
-			scene: moved,
-			pointers: [pointer('curr', id)],
-			flash: { [edgeMark(HEAD_EDGE)]: CHANGED },
-			caption: `head = head.next: the list starts at ${nextName} now`,
-		})
-		frames.push({
-			scene: dropped(moved),
-			flash: { [edgeMark(HEAD_EDGE)]: null },
-			caption: `Nothing points at ${target.value} any more: it is out of the list`,
-		})
-		return { frames, nodes: nodes.slice(1) }
+		point({ [HEAD_EDGE]: nextKey })
+		frames.push({ scene, pointers: [pointer('curr', id)], flash: { [edgeMark(HEAD_EDGE)]: CHANGED }, caption: `head = head.next: the list starts at ${nextName} now` })
+		let lit = edgeMark(HEAD_EDGE)
+		const step = (caption: string, key: string) => {
+			frames.push({ scene, pointers: [pointer('curr', id)], flash: { [lit]: null, [edgeMark(key)]: CHANGED }, caption })
+			lit = edgeMark(key)
+		}
+		if (v.doubly) {
+			point({ [prevOf(nextKey)]: v.circular ? lastId : NULL_PREV_KEY })
+			step(v.circular ? `head.prev = last: ${nextName} points back round at ${name(lastId)}` : `head.prev = null: nothing comes before ${nextName}`, prevOf(nextKey))
+		}
+		if (v.circular) {
+			point({ [next(lastId)]: nextKey })
+			step(`last.next = head: the last node, ${name(lastId)}, points at ${nextName} now`, next(lastId))
+		}
+		gone.scene = dropped(scene)
+		frames.push({ scene: gone.scene, flash: { [lit]: null }, caption: `Nothing points at ${target.value} any more: it is out of the list` })
+		return { frames: withLoops(frames, props, { [id]: c }), nodes: nodes.slice(1) }
 	}
 
-	for (let j = 0; j <= k; j++) {
-		const prev = j > 0 ? [pointer('prev', nodes[j - 1].id)] : []
-		const how = j === 0 ? `curr = head (${nodes[0].value})` : `prev = curr, curr = curr.next (${nodes[j].value})`
+	// Walk prev and curr from the head (or from the sentinel: prev starts there).
+	const first = v.sentinel ? 1 : 0
+	for (let j = first; j <= c; j++) {
+		const prev = j > 0 ? [pointer('prev', chain[j - 1])] : []
+		const how =
+			j === first
+				? v.sentinel
+					? `prev = the sentinel, curr = head.next (${name(chain[j])})`
+					: `curr = head (${name(chain[j])})`
+				: `prev = curr, curr = curr.next (${name(chain[j])})`
 		frames.push({
-			pointers: [...prev, pointer('curr', nodes[j].id)],
-			flash: { [nodes[j].id]: j === k ? GONE : LOOK, ...(j ? { [nodes[j - 1].id]: null } : {}) },
-			caption: j === k ? `${how}: found ${target.value}` : `${how}. Is it ${target.value}?`,
+			pointers: [...prev, pointer('curr', chain[j])],
+			flash: { [chain[j]]: j === c ? GONE : LOOK, ...(j > first ? { [chain[j - 1]]: null } : {}) },
+			caption: j === c ? `${how}: found ${target.value}` : `${how}. Is it ${target.value}?`,
 		})
 	}
-	const prevId = nodes[k - 1].id
-	const pointers = [pointer('prev', prevId), pointer('curr', id)]
-	const bypass = withTargets(base, { [prevId]: next }, { [prevId]: 0.3 })
-	frames.push({
-		scene: bypass,
-		pointers,
-		flash: { [edgeMark(nextEdgeKey(prevId))]: CHANGED },
-		caption: `prev.next = curr.next: ${nodes[k - 1].value} now points past ${target.value}, at ${nextName}`,
-	})
-	frames.push({
-		scene: dropped(bypass),
-		pointers,
-		flash: { [edgeMark(nextEdgeKey(prevId))]: null },
-		caption: `Nothing points at ${target.value} any more: it is out of the list`,
-	})
-	return { frames, nodes: nodes.filter((n) => n.id !== id) }
+	const prevKey = chain[c - 1]
+	const pointers = [pointer('prev', prevKey), pointer('curr', id)]
+	point({ [next(prevKey)]: nextKey }, { [next(prevKey)]: 0.3 })
+	const changes = [`prev.next = curr.next: ${name(prevKey)} now points past ${target.value}, at ${nextName}`]
+	frames.push({ scene, pointers, flash: { [edgeMark(next(prevKey))]: CHANGED }, caption: changes[0] })
+	let lit = edgeMark(next(prevKey))
+	const step = (caption: string, key: string) => {
+		frames.push({ scene, pointers, flash: { [lit]: null, [edgeMark(key)]: CHANGED }, caption })
+		lit = edgeMark(key)
+	}
+	if (v.doubly && nextKey !== NULL_KEY) {
+		point({ [prevOf(nextKey)]: prevKey })
+		step(`curr.next.prev = prev: ${nextName} now points back past ${target.value}, at ${name(prevKey)}`, prevOf(nextKey))
+	}
+	if (v.tail && id === lastId) {
+		point({ [TAIL_EDGE]: prevKey })
+		step(`tail = prev: ${name(prevKey)} is the last node now`, TAIL_EDGE)
+	}
+	frames.push({ scene: dropped(scene), pointers, flash: { [lit]: null }, caption: `Nothing points at ${target.value} any more: it is out of the list` })
+	return { frames: withLoops(frames, props, { [id]: c }), nodes: nodes.filter((n) => n.id !== id) }
 }
 
 const FLIPPED: Record<ListDirection, ListDirection> = { right: 'left', left: 'right', down: 'up', up: 'down' }
 
 /**
  * Reverse the list in place: prev = null, curr = head; then for each node next = curr.next,
- * curr.next = prev (its arrow turns round), prev = curr, curr = next; finally head = prev. The
- * reversed list is drawn the other way, so every node stays where it is.
+ * curr.next = prev (its arrow turns round), prev = curr, curr = next; finally head = prev (or,
+ * with a sentinel, sentinel.next = prev). A doubly linked list instead swaps each node's next and
+ * prev. A tail ends on the old first node. The reversed list is drawn the other way, so every node
+ * stays where it is. (Not offered for circular lists or ones with a cycle.)
  */
 export function reverseList(props: ListProps): ListOperation {
 	const { nodes } = props
+	const { v, lastId, name } = listOf(props)
 	const base = listScene(props)
-	const head = nodeOf(base, nodes[0].id)
+	const firstId = nodes[0].id
+	const result = { nodes: [...nodes].reverse(), direction: FLIPPED[props.direction] }
+	const frames: Frame[] = []
+	const fromEdge = v.sentinel ? next(SENTINEL_KEY) : HEAD_EDGE
+	const start = v.sentinel ? 'head.next' : 'head'
+	if (v.doubly) {
+		let scene = base
+		frames.push({ scene, pointers: [pointer('curr', firstId)], caption: `curr = ${start}` })
+		for (const [i, node] of nodes.entries()) {
+			const after = nodes[i + 1]?.id ?? NULL_KEY
+			const before = nodes[i - 1]?.id ?? (v.sentinel ? SENTINEL_KEY : NULL_PREV_KEY)
+			scene = retarget(scene, { [next(node.id)]: before, [prevOf(node.id)]: after }, { [next(node.id)]: BACK_BEND, [prevOf(node.id)]: -BACK_BEND })
+			frames.push({
+				scene,
+				pointers: [pointer('curr', node.id)],
+				flash: { [node.id]: LOOK, ...(i ? { [nodes[i - 1].id]: null } : {}), [edgeMark(next(node.id))]: CHANGED },
+				caption: `swap curr.next and curr.prev: ${node.value} now points forward at ${name(before)}, back at ${name(after)}`,
+			})
+			frames.push({
+				scene,
+				pointers: [pointer('curr', after)],
+				flash: { [edgeMark(next(node.id))]: null },
+				caption: `curr = curr.prev (the old next: ${name(after)})${after === NULL_KEY ? ': every node is turned' : ''}`,
+			})
+		}
+		scene = retarget(scene, { [fromEdge]: lastId, ...(v.tail ? { [TAIL_EDGE]: firstId } : {}) })
+		frames.push({
+			scene,
+			flash: { [edgeMark(fromEdge)]: CHANGED, [nodes[nodes.length - 1].id]: null },
+			caption: `${v.sentinel ? 'sentinel.next' : 'head'} = the old last node, ${name(lastId)}${v.tail ? `; tail = the old first, ${name(firstId)}` : ''}`,
+		})
+		return { frames, ...result }
+	}
+	const head = nodeOf(base, firstId)
 	const axis = listAxis(props.direction)
 	const step = getListMetrics(props.size).step
-	const nullTemplate = nodeOf(base, NULL_KEY)
-	const nullBefore: SceneNode = { ...nullTemplate, key: NULL_BEFORE_KEY, x: head.x - axis.x * step * 0.8, y: head.y - axis.y * step * 0.8 }
+	const nullTemplate = base.nodes.find((n) => n.kind === 'null') ?? { ...head, kind: 'null' as const, w: head.w / 2, h: head.h / 2, value: 'null' }
+	const firstNode = nodeOf(base, firstId)
+	// Before the first node, in line; off the line when a sentinel sits there.
+	const off = v.sentinel ? step * 0.6 : 0
+	const nullBefore: SceneNode = {
+		...nullTemplate,
+		key: NULL_BEFORE_KEY,
+		value: 'null',
+		x: firstNode.x - axis.x * step * 0.8 - axis.y * off,
+		y: firstNode.y - axis.y * step * 0.8 + axis.x * off,
+	}
 	const targets: Record<string, string> = {}
 	const bends: Record<string, number> = {}
 	const scene = () => {
-		const s = withTargets(base, targets, bends)
+		const s = retarget(base, targets, bends)
 		return { ...s, nodes: [...s.nodes, nullBefore] }
 	}
-	const name = (key: string) => (key === NULL_KEY || key === NULL_BEFORE_KEY ? 'null' : nodes.find((n) => n.id === key)!.value)
-	const frames: Frame[] = []
 	let prev = NULL_BEFORE_KEY
-	frames.push({ scene: scene(), pointers: [pointer('prev', prev), pointer('curr', nodes[0].id)], caption: 'prev = null, curr = head' })
+	const label = (key: string) => (key === NULL_BEFORE_KEY ? 'null' : name(key))
+	frames.push({ scene: scene(), pointers: [pointer('prev', prev), pointer('curr', firstId)], caption: `prev = null, curr = ${start}` })
 	for (const [i, node] of nodes.entries()) {
-		const next = nodes[i + 1]?.id ?? NULL_KEY
+		const after = nodes[i + 1]?.id ?? NULL_KEY
 		const ptrs = (curr: string, nxt?: string) => [pointer('prev', prev), pointer('curr', curr), ...(nxt ? [pointer('next', nxt)] : [])]
-		frames.push({ scene: scene(), pointers: ptrs(node.id, next), flash: { [node.id]: LOOK }, caption: `next = curr.next (${name(next)})` })
-		targets[node.id] = prev
-		bends[node.id] = BACK_BEND
+		frames.push({ scene: scene(), pointers: ptrs(node.id, after), flash: { [node.id]: LOOK }, caption: `next = curr.next (${label(after)})` })
+		targets[next(node.id)] = prev
+		bends[next(node.id)] = BACK_BEND
 		frames.push({
 			scene: scene(),
-			pointers: ptrs(node.id, next),
-			flash: { [edgeMark(nextEdgeKey(node.id))]: CHANGED },
-			caption: `curr.next = prev: ${node.value} now points back, at ${name(prev)}`,
+			pointers: ptrs(node.id, after),
+			flash: { [edgeMark(next(node.id))]: CHANGED },
+			caption: `curr.next = prev: ${node.value} now points back, at ${label(prev)}`,
 		})
 		prev = node.id
 		frames.push({
 			scene: scene(),
-			pointers: ptrs(next, next),
-			flash: { [node.id]: null, [edgeMark(nextEdgeKey(node.id))]: null },
-			caption: `prev = curr, curr = next${next === NULL_KEY ? ': curr is null, every arrow is turned' : ''}`,
+			pointers: ptrs(after, after),
+			flash: { [node.id]: null, [edgeMark(next(node.id))]: null },
+			caption: `prev = curr, curr = next${after === NULL_KEY ? ': curr is null, every arrow is turned' : ''}`,
 		})
 	}
-	targets[HEAD_KEY] = prev
+	targets[fromEdge] = prev
+	if (v.tail) targets[TAIL_EDGE] = firstId
 	frames.push({
 		scene: scene(),
 		pointers: [pointer('prev', prev)],
-		flash: { [edgeMark(HEAD_EDGE)]: CHANGED },
-		caption: `head = prev: the list starts at ${name(prev)}, reversed`,
+		flash: { [edgeMark(fromEdge)]: CHANGED },
+		caption: v.sentinel
+			? `sentinel.next = prev: the values start at ${label(prev)}, reversed${v.tail ? `; tail = the old first, ${name(firstId)}` : ''}`
+			: `head = prev: the list starts at ${label(prev)}, reversed${v.tail ? `; tail = the old first, ${name(firstId)}` : ''}`,
 	})
-	return { frames, nodes: [...nodes].reverse(), direction: FLIPPED[props.direction] }
+	return { frames, ...result }
 }
 
 /**
  * Find the middle with two pointers: slow takes one step while fast takes two, so when fast runs
  * out of list, slow is half-way. (With an even count, slow ends on the second of the two middles.)
+ * Not offered for circular lists or ones with a cycle: fast would never run out.
  */
 export function findMiddle(props: ListProps): ListOperation {
 	const { nodes } = props
+	const { v } = listOf(props)
 	const at = (i: number) => nodes[i]?.id ?? NULL_KEY
 	const name = (i: number) => nodes[i]?.value ?? 'null'
 	const frames: Frame[] = []
 	let slow = 0
 	let fast = 0
+	const start = v.sentinel ? 'head.next' : 'head'
 	frames.push({
 		pointers: [pointer('slow', at(slow)), pointer('fast', at(fast))],
 		flash: { [at(slow)]: LOOK },
-		caption: 'slow = head, fast = head',
+		caption: `slow = ${start}, fast = ${start}`,
 	})
 	let steps = 0
 	while (fast < nodes.length && fast + 1 < nodes.length) {
@@ -306,11 +492,12 @@ export function findMiddle(props: ListProps): ListOperation {
 
 /**
  * Insert `value` into a sorted list, keeping it sorted: prev and curr walk until curr's value is
- * not smaller (or curr is null), then the new node goes between them with the usual two
- * assignments (at the head if it belongs first).
+ * not smaller (or curr is null), then the new node goes between them with the usual assignments
+ * (at the front if it belongs first: after the sentinel, if there is one).
  */
 export function insertSorted(props: ListProps, id: string, value: string): ListOperation {
 	const { nodes } = props
+	const { v, end } = listOf(props)
 	const frames: Frame[] = []
 	const unsorted = nodes.findIndex((n, i) => i > 0 && compareKeys(nodes[i - 1].value, n.value) > 0)
 	if (unsorted > 0) {
@@ -321,31 +508,34 @@ export function insertSorted(props: ListProps, id: string, value: string): ListO
 		})
 		frames.push({ flash: { [a.id]: null, [b.id]: null }, caption: 'Insert in order anyway' })
 	}
+	const start = v.sentinel ? 'curr = head.next' : 'curr = head'
 	let k = 0
 	while (k < nodes.length && compareKeys(nodes[k].value, value) < 0) {
-		const prev = k > 0 ? [pointer('prev', nodes[k - 1].id)] : []
+		const prev = k > 0 ? [pointer('prev', nodes[k - 1].id)] : v.sentinel ? [pointer('prev', SENTINEL_KEY)] : []
 		frames.push({
 			pointers: [...prev, pointer('curr', nodes[k].id)],
 			flash: { [nodes[k].id]: LOOK, ...(k ? { [nodes[k - 1].id]: null } : {}) },
-			caption: `${k === 0 ? 'curr = head' : 'prev = curr, curr = curr.next'}: ${nodes[k].value} < ${value}, so keep going`,
+			caption: `${k === 0 ? start : 'prev = curr, curr = curr.next'}: ${nodes[k].value} < ${value}, so keep going`,
 		})
 		k++
 	}
 	const stop = nodes[k]
+	const stopKey = stop?.id ?? end
+	const before = k > 0 ? nodes[k - 1].id : v.sentinel ? SENTINEL_KEY : undefined
 	frames.push({
-		pointers: [...(k > 0 ? [pointer('prev', nodes[k - 1].id)] : []), pointer('curr', stop?.id ?? NULL_KEY)],
+		pointers: [...(before ? [pointer('prev', before)] : []), pointer('curr', stopKey)],
 		flash: k > 0 ? { [nodes[k - 1].id]: null } : {},
 		caption: stop
-			? `${k === 0 ? 'curr = head' : 'prev = curr, curr = curr.next'}: ${stop.value} ≥ ${value}, so ${value} goes ${k === 0 ? 'first, at the head' : `between ${nodes[k - 1].value} and ${stop.value}`}`
-			: `curr = null: ${value} is the largest, so it goes at the end, after ${nodes[k - 1].value}`,
+			? `${k === 0 ? start : 'prev = curr, curr = curr.next'}: ${stop.value} ≥ ${value}, so ${value} goes ${k === 0 ? 'first, at the head' : `between ${nodes[k - 1].value} and ${stop.value}`}`
+			: `curr = ${end === NULL_KEY ? 'null' : 'back round'}: ${value} is the largest, so it goes at the end, after ${nodes[k - 1].value}`,
 	})
-	const insert = insertIntoList(props, nodes[k - 1]?.id, id, value)
-	if (k === 0) return { ...insert, frames: [...frames, ...insert.frames] }
+	const insert = insertIntoList(props, k > 0 ? nodes[k - 1].id : undefined, id, value)
+	if (!before) return { ...insert, frames: [...frames, ...insert.frames] }
 	// The walk replaces insertIntoList's opening step ("curr is at ..."), and what it calls curr (the
 	// node before) is prev here, with curr staying on the node after.
 	const linking = insert.frames.slice(1).map((f) => ({
 		...f,
-		pointers: [...(f.pointers ?? []).map((p) => (p.name === 'curr' ? pointer('prev', p.at) : p)), pointer('curr', stop?.id ?? NULL_KEY)],
+		pointers: [...(f.pointers ?? []).map((p) => (p.name === 'curr' ? pointer('prev', p.at) : p)), pointer('curr', stopKey)],
 		caption: f.caption?.replace(/\bcurr\b/g, 'prev'),
 	}))
 	return { ...insert, frames: [...frames, ...linking] }

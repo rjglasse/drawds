@@ -169,6 +169,9 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		const submenu = 'Step by step'
 		const run = (label: string, op: () => ListOperation) => () => this.play(shape.id, label, op)
 		const props = () => (this.editor.getShape(shape.id) as ListShape | undefined)?.props ?? shape.props
+		const v = listVariant(shape.props, nodes)
+		// Walks that run off the end (finding the middle, reversing) never end round a circle or a cycle.
+		const ends = !v.circular && !v.cycleTo
 		return [
 			{ id: 'list-find', label: `Find ${node.value}`, submenu, run: run('find', () => findInList(props(), node.value)) },
 			{
@@ -178,7 +181,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 				submenu,
 				run: (value) => value !== undefined && this.play(shape.id, 'find', () => findInList(props(), value)),
 			},
-			{ id: 'list-middle', label: 'Find the middle (slow and fast)', submenu, run: run('find the middle', () => findMiddle(props())) },
+			...(ends ? [{ id: 'list-middle', label: 'Find the middle (slow and fast)', submenu, run: run('find the middle', () => findMiddle(props())) }] : []),
 			{ id: 'list-insert-after', label: `Insert after ${node.value}`, submenu, run: run('insert', () => this.insertOp(props(), key)) },
 			{
 				id: 'list-insert-sorted',
@@ -187,11 +190,16 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 				submenu,
 				run: (value) => value !== undefined && this.play(shape.id, 'insert', () => insertSorted(props(), this.newId(props()), value)),
 			},
-			{ id: 'list-insert-head', label: 'Insert at the head', submenu, run: run('insert', () => this.insertOp(props(), undefined)) },
+			{
+				id: 'list-insert-head',
+				label: v.sentinel ? 'Insert at the front (after the sentinel)' : 'Insert at the head',
+				submenu,
+				run: run('insert', () => this.insertOp(props(), undefined)),
+			},
 			...(nodes.length > 1
 				? [{ id: 'list-delete', label: `Delete ${node.value}`, submenu, run: run('delete', () => deleteFromList(props(), key)) }]
 				: []),
-			...(nodes.length > 1 ? [{ id: 'list-reverse', label: 'Reverse the list', submenu, run: run('reverse', () => reverseList(props())) }] : []),
+			...(nodes.length > 1 && ends ? [{ id: 'list-reverse', label: 'Reverse the list', submenu, run: run('reverse', () => reverseList(props())) }] : []),
 		]
 	}
 
