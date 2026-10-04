@@ -122,6 +122,11 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   deletes rows and columns (`moveMarks` keeps marks on their cells). `operations.ts`: row- vs column-major
   traversal with a "place in memory" strip, transpose (swaps across the diagonal), staircase search (sorted
   matrices); step pointers i / j sit at `row:<r>` / `col:<c>` (the index labels).
+- `src/shapes/hash/` - hash tables (node-link): `buckets: string[][]` (a chain per bucket, or one entry per slot with
+  `TOMBSTONE` for deleted), strategy style `drawds:hash-strategy` chaining / probing (switching re-inserts the
+  keys). `hash.ts` is pure: `hashOf` (k mod m, or character codes added; with how, for captions), `buildTable`,
+  `misplaced` (keys a find wouldn't reach: the red ring), insert / find / delete / rehash as frames. Entries are
+  keys or `key:value`; scene keys `b<i>` buckets, `k:<entry>` chained entries, `s<i>` slots, `#load`. Shift+B.
 - `src/nodelink/playback.ts` - animated operations, stepped through: frames (props override, value swaps
   between node keys and one-way `moves` (copies), highlights on nodes and `edge:` keys that accumulate and can
   be cleared with null, badges, a queue/stack `strip`, faded elements `dim` and running `counts` (both

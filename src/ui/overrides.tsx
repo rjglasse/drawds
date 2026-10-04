@@ -41,10 +41,12 @@ import treeIconUrl from './icons/tree.svg'
 import { HeapPickers, heapPickerTranslations } from './HeapPickers'
 import heapIconUrl from './icons/heap.svg'
 import matrixIconUrl from './icons/matrix.svg'
+import hashIconUrl from './icons/hash.svg'
+import { HashPickers, hashPickerTranslations } from './HashPickers'
 import { TreePickers, treePickerTranslations } from './TreePickers'
 
 /** Our structure tools, in toolbar order. */
-const STRUCTURE_TOOLS = ['array', 'matrix', 'linked-list', 'binary-tree', 'heap', 'graph'] as const
+const STRUCTURE_TOOLS = ['array', 'matrix', 'linked-list', 'binary-tree', 'heap', 'hash-table', 'graph'] as const
 
 const RELAYOUT = 'drawds.relayout'
 
@@ -98,6 +100,14 @@ export const uiOverrides: TLUiOverrides = {
 			kbd: 'shift+p',
 			onSelect: () => editor.setCurrentTool('heap'),
 		}
+		tools['hash-table'] = {
+			id: 'hash-table',
+			icon: maskIcon(hashIconUrl),
+			label: 'Hash table',
+			// "b" for buckets; shift+h is tldraw's flip horizontal.
+			kbd: 'shift+b',
+			onSelect: () => editor.setCurrentTool('hash-table'),
+		}
 		tools.graph = {
 			id: 'graph',
 			icon: maskIcon(graphIconUrl),
@@ -142,6 +152,7 @@ export const uiOverrides: TLUiOverrides = {
 			...fillPickerTranslations,
 			...arrayPickerTranslations,
 			...listPickerTranslations,
+			...hashPickerTranslations,
 			...treePickerTranslations,
 			...heapPickerTranslations,
 			...invariantPickerTranslations,
@@ -343,6 +354,7 @@ export const components: TLComponents = {
 			<ListPickers />
 			<TreePickers />
 			<HeapPickers />
+			<HashPickers />
 			<GraphPickers />
 		</DefaultStylePanel>
 	),

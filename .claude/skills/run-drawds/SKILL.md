@@ -192,6 +192,11 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `matrix-delete-row|col`), `drawds-matrix-steps` (`matrix-row-major`, `matrix-col-major`,
   `matrix-transpose-steps` when square, `matrix-staircase` when sorted: opens `key-prompt`),
   `drawds-matrix-actions` (`matrix-transpose`, `matrix-reroll`).
+- **Hash table**: `key Shift+B` then `drag x y x y+dy` (a bucket per 48 px, at least 3), filled to a
+  load of about 0.6. `style.hash-strategy.chaining|probing`. Insert: `clicksel [data-testid="insert-key"]`,
+  `type 22`, `key Enter`. A key's x deletes it (`hover k:22` or `hover s3`, then `remove-node-<key>`); its
+  menu `context-menu-sub.drawds-hash-steps-button` has `hash-find`, `hash-delete`; anywhere,
+  `drawds-hash-actions` has `hash-find-key` (prompt), `hash-rehash`, `hash-reroll`.
 - **Value range**: `style.fill-range.small` (0-9), `medium`, `large` (0-999), `signed` (-50..50)
   under Fill, for arrays, lists, trees and heaps; redraws the selected values.
 - **Graphs**: `shapes` lists graph edges as `A-B:7` (`A->B:7` when directed; `:7` is the
