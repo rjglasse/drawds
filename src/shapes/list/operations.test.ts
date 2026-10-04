@@ -3,7 +3,18 @@ import { stateAt } from '../../nodelink/playback'
 import type { Scene } from '../../nodelink/scene'
 import { HEAD_KEY, NULL_KEY } from './layout'
 import type { ListNode } from './list-shape-types'
-import { NULL_BEFORE_KEY, deleteFromList, findInList, findMiddle, insertIntoList, insertSorted, reverseList } from './operations'
+import {
+	NULL_BEFORE_KEY,
+	appendToList,
+	deleteFromList,
+	findInList,
+	findMiddle,
+	insertIntoList,
+	insertSorted,
+	printBackwards,
+	printList,
+	reverseList,
+} from './operations'
 
 const nodes: ListNode[] = ['7', '3', '9', '4'].map((value, i) => ({ id: `n${i}`, value, dx: 0, dy: 0 }))
 const props = { nodes, direction: 'right' as const, size: 'm' as const }
@@ -217,5 +228,79 @@ describe('operations on list variants', () => {
 		expect(captions(op)[1]).toBe('swap curr.next and curr.prev: 7 now points forward at null, back at 3')
 		expect(captions(op).at(-1)).toBe('head = the old last node, 4; tail = the old first, 7')
 		expect(captions(reverseList({ ...base, sentinel: 'sentinel' })).at(-1)).toBe('sentinel.next = prev: the values start at 4, reversed')
+	})
+})
+
+describe('append, print, print backwards', () => {
+	const four = ['7', '3', '9', '4'].map((value, i) => ({ id: `n${i}`, value, dx: 0, dy: 0 }))
+	const base = { nodes: four, direction: 'right' as const, size: 'm' as const }
+	const captions = (op: { frames: { caption?: string }[] }) => op.frames.map((f) => f.caption)
+	const ends = (scene: Scene | undefined) => Object.fromEntries((scene?.edges ?? []).map((e) => [e.key, e.to]))
+
+	it('append without a tail walks to the end, counting the steps: O(n)', () => {
+		const op = appendToList(base, 'n9', '8')
+		expect(captions(op).slice(0, 4)).toEqual([
+			'curr = head (7)',
+			'curr.next != null, so curr = curr.next (3)',
+			'curr.next != null, so curr = curr.next (9)',
+			'curr.next != null, so curr = curr.next (4): its next is null, so it is the last node',
+		])
+		expect(op.frames[3].counts).toEqual({ steps: 3 })
+		expect(captions(op).slice(4)).toEqual([
+			'node = new Node(8): its next is null',
+			'curr.next = node: 4 points at 8',
+			'Appended, but finding the end took 3 steps, one per node: O(n). A tail pointer makes it O(1)',
+		])
+		expect(op.nodes!.map((n) => n.value)).toEqual(['7', '3', '9', '4', '8'])
+		expect(ends(op.frames.at(-1)!.scene)).toMatchObject({ 'n3->': 'n9', 'n9->': NULL_KEY })
+	})
+
+	it('append with a tail: no walk, two assignments', () => {
+		const op = appendToList({ ...base, tail: 'tail' }, 'n9', '8')
+		expect(captions(op)).toEqual([
+			'tail is at the last node, 4: no walk needed',
+			'node = new Node(8): its next is null',
+			'tail.next = node: 4 points at 8',
+			'tail = node: 8 is the last node now',
+			'Appended in O(1): 2 assignments and no walk, however long the list',
+		])
+		expect(ends(op.frames.at(-1)!.scene)['#tail->']).toBe('n9')
+	})
+
+	it('append to a doubly linked circular list links both ways round', () => {
+		const op = appendToList({ ...base, links: 'doubly', ends: 'circular', tail: 'tail' }, 'n9', '8')
+		expect(captions(op).slice(2, 6)).toEqual([
+			'node.next = tail.next: the new last node points round to 7, as the old one does',
+			'node.prev = tail: it points back at 4',
+			'tail.next = node: 4 points at 8',
+			'head.prev = node: round the circle, 7 points back at 8',
+		])
+		const scene = op.frames.at(-1)!.scene!
+		expect(ends(scene)).toMatchObject({ 'n9->': 'n0', 'n9<-': 'n3', 'n3->': 'n9', 'n0<-': 'n9', '#tail->': 'n9' })
+		expect(scene.edges.find((e) => e.key === 'n9->')?.via).toBeDefined()
+	})
+
+	it('print: while curr != null; round a circle a do-while; with a sentinel, stop at it', () => {
+		const plain = printList(base)
+		expect(plain.frames.at(-1)).toMatchObject({ caption: 'print 4; curr = curr.next: null, so stop', strips: [{ items: ['7', '3', '9', '4'] }] })
+		const circle = printList({ ...base, ends: 'circular' })
+		expect(circle.frames[0].caption).toContain('do { print; curr = curr.next } while (curr != head)')
+		expect(circle.frames.at(-1)!.caption).toBe('print 4; curr = curr.next: the head again, so stop')
+		expect(circle.frames.at(-1)!.pointers).toEqual([expect.objectContaining({ at: 'n0' })])
+		const guarded = printList({ ...base, ends: 'circular', sentinel: 'sentinel' })
+		expect(guarded.frames[0].caption).toBe('curr = head.next (past the sentinel): 7. while (curr != sentinel)')
+		expect(guarded.frames.at(-1)!.caption).toBe('print 4; curr = curr.next: the sentinel, so stop')
+	})
+
+	it('print backwards from the tail, or head.prev round a circle, or after walking to the end', () => {
+		const tail = printBackwards({ ...base, links: 'doubly', tail: 'tail' })
+		expect(captions(tail)[0]).toBe('curr = tail (4)')
+		expect(tail.frames.at(-1)).toMatchObject({ caption: 'print 7; curr = curr.prev: null, so stop', strips: [{ items: ['4', '9', '3', '7'] }] })
+		expect(captions(printBackwards({ ...base, links: 'doubly', ends: 'circular' }))[0]).toContain('curr = head.prev (4)')
+		const walk = printBackwards({ ...base, links: 'doubly' })
+		expect(captions(walk).slice(0, 4).at(-1)).toBe('curr = curr.next (4): the last node. Now back')
+		expect(captions(printBackwards({ ...base, links: 'doubly', sentinel: 'sentinel', tail: 'tail' })).at(-1)).toBe(
+			'print 7; curr = curr.prev: the sentinel, so stop'
+		)
 	})
 })

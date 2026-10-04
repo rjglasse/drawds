@@ -31,7 +31,18 @@ import {
 	type ListShape,
 } from './list-shape-types'
 import { anchorShift, insertListNode, removeListNode, resizeList } from './ops'
-import { deleteFromList, findInList, findMiddle, insertIntoList, insertSorted, reverseList, type ListOperation } from './operations'
+import {
+	appendToList,
+	deleteFromList,
+	findInList,
+	findMiddle,
+	insertIntoList,
+	insertSorted,
+	printBackwards,
+	printList,
+	reverseList,
+	type ListOperation,
+} from './operations'
 
 export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refillable {
 	static override type = LIST_SHAPE_TYPE
@@ -200,7 +211,28 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 				? [{ id: 'list-delete', label: `Delete ${node.value}`, submenu, run: run('delete', () => deleteFromList(props(), key)) }]
 				: []),
 			...(nodes.length > 1 && ends ? [{ id: 'list-reverse', label: 'Reverse the list', submenu, run: run('reverse', () => reverseList(props())) }] : []),
+			// A list with a cycle has no end to append at or print to.
+			...(v.cycleTo
+				? []
+				: [
+						{
+							id: 'list-append',
+							label: v.tail ? 'Append at the end (with the tail)' : 'Append at the end (walk there)',
+							submenu,
+							run: run('append', () => this.appendOp(props())),
+						},
+						{ id: 'list-print', label: 'Print the list', submenu, run: run('print', () => printList(props())) },
+						...(v.doubly ? [{ id: 'list-print-back', label: 'Print backwards', submenu, run: run('print backwards', () => printBackwards(props())) }] : []),
+					]),
 		]
+	}
+
+	/** Append a new node with a value that fits the fill mode. */
+	private appendOp(props: ListShape['props']): ListOperation {
+		const { nodes, fill, seed } = props
+		const index = Number(this.newId(props).slice(1))
+		const value = insertValue(nodes[nodes.length - 1]?.value, undefined, fill, seed, index, nodes.map((n) => n.value))
+		return appendToList(props, `n${index}`, value)
 	}
 
 	/** An id no node has: one past the highest. */

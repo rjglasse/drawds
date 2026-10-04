@@ -1,6 +1,6 @@
 import type { MarkColor } from '../../cells/marks'
 import { compareKeys } from '../../data/compare'
-import type { Frame } from '../../nodelink/playback'
+import type { Frame, Strip } from '../../nodelink/playback'
 import { edgeCellKey, type Scene, type SceneEdge, type SceneNode } from '../../nodelink/scene'
 import type { Pointer } from '../../pointers/pointers'
 import {
@@ -33,6 +33,7 @@ const LOOK: MarkColor = 'orange'
 const FOUND: MarkColor = 'green'
 const GONE: MarkColor = 'red'
 const CHANGED: MarkColor = 'orange'
+const VISITED: MarkColor = 'blue'
 
 /** A null marker before the head, for pointers that start out null (reverse's prev). */
 export const NULL_BEFORE_KEY = '#null-before'
@@ -539,4 +540,167 @@ export function insertSorted(props: ListProps, id: string, value: string): ListO
 		caption: f.caption?.replace(/\bcurr\b/g, 'prev'),
 	}))
 	return { ...insert, frames: [...frames, ...linking] }
+}
+
+/**
+ * Append `value` at the end. With a tail pointer: tail.next = node, tail = node, however long the
+ * list (O(1)). Without one, curr walks from the head to the last node first, each step counted
+ * (O(n)). A doubly linked list sets node.prev too; in a circular one the new last node points round
+ * to the front (and, doubly, the front back at it). Not for a list with a cycle: it has no end.
+ */
+export function appendToList(props: ListProps, id: string, value: string): ListOperation {
+	const { nodes } = props
+	const { v, chain, lastId, end, name, arrows } = listOf(props)
+	const base = listScene(props)
+	const last = nodeOf(base, lastId)
+	const axis = listAxis(props.direction)
+	const half = getListMetrics(props.size, v.doubly).step / 2
+	const fresh = besideList(nodeOf(base, nodes[0].id), id, value, { x: last.x + axis.x * half, y: last.y + axis.y * half }, props)
+	const endName = end === NULL_KEY ? 'null' : v.sentinel ? 'the sentinel' : 'head'
+	const frames: Frame[] = []
+	let steps = 0
+	if (v.tail) {
+		frames.push({ flash: { [lastId]: LOOK }, counts: { steps }, caption: `tail is at the last node, ${name(lastId)}: no walk needed` })
+	} else {
+		for (const [j, key] of chain.entries()) {
+			steps = j
+			const how = j === 0 ? `curr = head (${name(key)})` : `curr.next != ${endName}, so curr = curr.next (${name(key)})`
+			frames.push({
+				pointers: [pointer('curr', key)],
+				flash: { [key]: LOOK, ...(j ? { [chain[j - 1]]: null } : {}) },
+				counts: { steps },
+				caption: key === lastId ? `${how}: its next is ${endName}, so it is the last node` : how,
+			})
+		}
+	}
+	const at = v.tail ? 'tail' : 'curr'
+	const curr = v.tail ? [] : [pointer('curr', lastId)]
+	let scene: Scene = { ...base, nodes: [...base.nodes, fresh] }
+	let lit: string | undefined = lastId
+	const step = (caption: string, key?: string) => {
+		const flash: Record<string, MarkColor | null> = { ...(lit ? { [lit]: null } : {}), ...(key ? { [key]: key === id ? FOUND : CHANGED } : {}) }
+		lit = key === id ? undefined : key
+		frames.push({ scene, pointers: [...curr, pointer('node', id)], flash, caption })
+	}
+	const add = (edge: SceneEdge) => {
+		scene = { ...scene, edges: [...scene.edges, edge] }
+	}
+	const point = (to: Record<string, string>) => {
+		scene = retarget(scene, to)
+	}
+	if (end === NULL_KEY) add({ key: next(id), from: id, to: NULL_KEY, directed: true, fromPointer: true, ...arrows })
+	step(`node = new Node(${value})${end === NULL_KEY ? ': its next is null' : ''}`, id)
+	let assignments = 0
+	if (end !== NULL_KEY) {
+		add({ key: next(id), from: id, to: end, directed: true, fromPointer: true, ...arrows })
+		step(`node.next = ${at}.next: the new last node points round to ${name(end)}, as the old one does`, edgeMark(next(id)))
+		assignments++
+	}
+	if (v.doubly) {
+		add({ key: prevOf(id), from: id, to: lastId, directed: true, fromPointer: 'prev', ...arrows })
+		step(`node.prev = ${at}: it points back at ${name(lastId)}`, edgeMark(prevOf(id)))
+		assignments++
+	}
+	point({ [next(lastId)]: id })
+	step(`${at}.next = node: ${name(lastId)} points at ${value}`, edgeMark(next(lastId)))
+	assignments++
+	if (v.doubly && v.circular) {
+		point({ [prevOf(chain[0])]: id })
+		step(`head.prev = node: round the circle, ${name(chain[0])} points back at ${value}`, edgeMark(prevOf(chain[0])))
+		assignments++
+	}
+	if (v.tail) {
+		point({ [TAIL_EDGE]: id })
+		step(`tail = node: ${value} is the last node now`, edgeMark(TAIL_EDGE))
+		assignments++
+	}
+	frames.push({
+		scene,
+		pointers: [...curr, pointer('node', id)],
+		flash: lit ? { [lit]: null } : {},
+		caption: v.tail
+			? `Appended in O(1): ${assignments} assignments and no walk, however long the list`
+			: `Appended, but finding the end took ${steps} step${steps === 1 ? '' : 's'}, one per node: O(n). A tail pointer makes it O(1)`,
+	})
+	return { frames: withLoops(frames, props, { [id]: chain.length - 0.5 }), nodes: [...nodes, { id, value, dx: 0, dy: 0 }], finalFlash: { [id]: FOUND } }
+}
+
+/**
+ * Print the values, front to back: while (curr != null), curr = curr.next. Round a circular list a
+ * do-while, so the test (curr != head) comes after the first node; with a sentinel a plain while
+ * loop does, stopping at the sentinel. Not for a list with a cycle: it never ends.
+ */
+export function printList(props: ListProps): ListOperation {
+	const { nodes } = props
+	const { v, end, name } = listOf(props)
+	const frames: Frame[] = []
+	const printed: string[] = []
+	const strips = (): Strip[] => [{ title: 'printed', items: [...printed] }]
+	const stop = end === NULL_KEY ? 'null' : v.sentinel ? 'the sentinel' : 'the head'
+	const loop =
+		v.circular && !v.sentinel
+			? 'do { print; curr = curr.next } while (curr != head): the test comes after the body, or it would stop before it started'
+			: `while (curr != ${end === NULL_KEY ? 'null' : 'sentinel'})`
+	const first = v.sentinel ? `curr = head.next (past the sentinel): ${name(nodes[0].id)}` : `curr = head (${name(nodes[0].id)})`
+	frames.push({ pointers: [pointer('curr', nodes[0].id)], flash: { [nodes[0].id]: LOOK }, strips: strips(), caption: `${first}. ${loop}` })
+	for (const [i, node] of nodes.entries()) {
+		printed.push(node.value)
+		const to = nodes[i + 1]?.id ?? end
+		const last = i === nodes.length - 1
+		frames.push({
+			pointers: [pointer('curr', to)],
+			flash: { [node.id]: VISITED, ...(last ? {} : { [to]: LOOK }) },
+			strips: strips(),
+			caption: `print ${node.value}; curr = curr.next${last ? `: ${stop}${v.circular && !v.sentinel ? ' again' : ''}, so stop` : ` (${name(to)})`}`,
+		})
+	}
+	return { frames }
+}
+
+/**
+ * Print the values back to front, in a doubly linked list: from the tail (or, with none, the last
+ * node, found by walking; in a circular list it is head.prev), curr = curr.prev until null, the
+ * sentinel, or (circular) back at the last node.
+ */
+export function printBackwards(props: ListProps): ListOperation {
+	const { nodes } = props
+	const { v, lastId, name } = listOf(props)
+	const frames: Frame[] = []
+	const printed: string[] = []
+	const strips = (): Strip[] => [{ title: 'printed backwards', items: [...printed] }]
+	if (v.tail) {
+		frames.push({ pointers: [pointer('curr', lastId)], flash: { [lastId]: LOOK }, strips: strips(), caption: `curr = tail (${name(lastId)})` })
+	} else if (v.circular) {
+		frames.push({
+			pointers: [pointer('curr', lastId)],
+			flash: { [lastId]: LOOK },
+			strips: strips(),
+			caption: `curr = head.prev (${name(lastId)}): round a circle the last node is one step back from the head`,
+		})
+	} else {
+		// No tail: walk forward to the last node first.
+		for (const [i, node] of nodes.entries()) {
+			const how = i === 0 ? (v.sentinel ? `curr = head.next (${node.value})` : `curr = head (${node.value})`) : `curr = curr.next (${node.value})`
+			frames.push({
+				pointers: [pointer('curr', node.id)],
+				flash: { [node.id]: LOOK, ...(i ? { [nodes[i - 1].id]: null } : {}) },
+				strips: strips(),
+				caption: node.id === lastId ? `${how}: the last node. Now back` : `${how}: no tail, so walk to the end first`,
+			})
+		}
+	}
+	const stop = v.sentinel ? 'the sentinel' : v.circular ? `${name(lastId)} again` : 'null'
+	const back = v.sentinel ? SENTINEL_KEY : v.circular ? lastId : NULL_PREV_KEY
+	for (let i = nodes.length - 1; i >= 0; i--) {
+		const node = nodes[i]
+		printed.push(node.value)
+		const to = i > 0 ? nodes[i - 1].id : back
+		frames.push({
+			pointers: [pointer('curr', to)],
+			flash: { [node.id]: VISITED, ...(i > 0 ? { [to]: LOOK } : {}) },
+			strips: strips(),
+			caption: `print ${node.value}; curr = curr.prev${i > 0 ? ` (${name(to)})` : `: ${stop}, so stop`}`,
+		})
+	}
+	return { frames }
 }

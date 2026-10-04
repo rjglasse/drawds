@@ -139,3 +139,47 @@ test('insert at the head: the step on screen and the bar hold still when the res
 	after.forEach((v, i) => expect(Math.abs(v - before[i])).toBeLessThan(1))
 	expect(Math.abs((await bar()) - barBefore)).toBeLessThan(1)
 })
+
+/** Switch list variants on the selected list. */
+async function setVariants(page: Page, variants: Partial<ListShapeProps>) {
+	await page.evaluate((variants) => {
+		const editor = window.editor!
+		const shape = editor.getCurrentPageShapes().find((s) => s.type === 'linked-list')!
+		editor.updateShape({ id: shape.id, type: 'linked-list', props: variants } as never)
+	}, variants)
+}
+
+test('append: without a tail curr walks to the end, counted; with one, no walk', async ({ page }) => {
+	await sketchList(page, [200, 200], 3)
+	await setValues(page, ['10', '20', '30'])
+	await listOp(page, 'n0', 'list-append')
+	await stepToEnd(page)
+	await expect(page.getByTestId('play-counts')).toHaveText('steps 2')
+	await expect(caption(page)).toContainText('O(n)')
+	await page.keyboard.press('Enter')
+	expect(await values(page)).toHaveLength(4)
+	await setVariants(page, { tail: 'tail' })
+	await listOp(page, 'n0', 'list-append')
+	await expect(caption(page)).toHaveText('tail is at the last node, ' + (await values(page))[3] + ': no walk needed')
+	await stepToEnd(page)
+	await expect(page.getByTestId('play-counts')).toHaveText('steps 0')
+	await expect(caption(page)).toContainText('O(1)')
+	await page.keyboard.press('Enter')
+	expect(await values(page)).toHaveLength(5)
+})
+
+test('print a circular list with a do-while; print a doubly linked one backwards', async ({ page }) => {
+	await sketchList(page, [200, 200], 3)
+	await setValues(page, ['10', '20', '30'])
+	await setVariants(page, { ends: 'circular', links: 'doubly' })
+	await listOp(page, 'n0', 'list-print')
+	await expect(caption(page)).toContainText('do {')
+	await stepToEnd(page)
+	await expect(caption(page)).toHaveText('print 30; curr = curr.next: the head again, so stop')
+	await page.keyboard.press('Enter')
+	await listOp(page, 'n0', 'list-print-back')
+	await stepToEnd(page)
+	await expect(caption(page)).toHaveText('print 10; curr = curr.prev: 30 again, so stop')
+	await page.keyboard.press('Enter')
+	expect(await values(page)).toEqual(['10', '20', '30'])
+})
