@@ -183,11 +183,17 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
 - **Tree controls**: `hover <id>` then `[data-testid="add-child-<id>-left|right"]`
   (only for empty slots) or `[data-testid="remove-node-<id>"]` (never on the
   root `n`). Node ids are paths: `n`, `nL`, `nR`, `nLR`... Null children:
-  `[data-testid="style.nulls.show"]` with a tree selected.
+  `[data-testid="style.nulls.show"]` with a tree selected. A plain tree's node menu has
+  `context-menu.tree-swap-children` and `tree-mirror`. BSTs and heaps ring rule-breaking values
+  (`[data-warning]` in the DOM); `style.invariant.off` / `.check` toggles it.
+- **Value range**: `style.fill-range.small` (0-9), `medium`, `large` (0-999), `signed` (-50..50)
+  under Fill, for arrays, lists, trees and heaps; redraws the selected values.
 - **Graphs**: `shapes` lists graph edges as `A-B:7` (`A->B:7` when directed; `:7` is the
   weight, stored even when unweighted). Options with the graph tool or a graph selected:
   `[data-testid="style.graph-direction.directed"]`, `style.graph-weights.weighted`,
-  `style.graph-labels.numbers`. Edge x: `hover <from> <to>` then
+  `style.graph-labels.numbers`, sketch options `style.graph-density.sparse|medium|dense`,
+  `style.graph-parts.connected|components` and (directed) `style.graph-order.any|dag`, which also
+  rewire a selected graph. Edge x: `hover <from> <to>` then
   `[data-testid="remove-edge-<edge id>"]` (no edge buttons while a node is hovered).
   Marking an edge: `hover <from> <to>`, `key 3`; marks are keyed `edge:<edge id>`. The + grip
   (`dragnode grow dx dy`) places a lone node. After `connect` to empty space (or to a node on a

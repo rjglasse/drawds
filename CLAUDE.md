@@ -146,16 +146,21 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   by index; `inBothViews` lights tree and array). Heap menu: build heap step by step, shuffle values.
 - `src/shapes/tree/bst.ts` - BST as a *kind* of binary tree (`drawds:tree-kind` style): in-order key placement,
   insert (path), delete (leaf / one child / two children via successor), violation check with ancestor bounds.
-  `search.ts`: search as frames (curr walks down, each ruled-out subtree fades via `dim`).
+  `search.ts`: search as frames (curr walks down, each ruled-out subtree fades via `dim`). Invariant checks:
+  BSTs and heaps ring offending elements in dashed red (`sceneWarnings` -> SceneSvg `warnings`, toggled by the
+  `drawds:invariant` style, `src/cells/invariant-style.ts`; hidden while an operation is open).
 - `src/shapes/tree/` - binary trees: nodes with `children: [left, right]` slots (null = empty), root first;
   `generate.ts` (random shapes by depth + fullness, growth-stable: existence depends only on seed + path, ids
   are `n` + path), `layout.ts` (contour-based tidy layout; a lone child offset `lone`, well under half the
-  sibling spacing, so parentage stays unambiguous), `model.ts` (add child, remove subtree).
+  sibling spacing, so parentage stays unambiguous), `model.ts` (add child, remove subtree, swap children,
+  mirror a subtree: plain trees' node menu, one undo step each).
 - `src/shapes/graph/` - graphs: nodes at free positions in cell units (so the size style scales the drawing), edges
   `{from, to, weight}` (weights always stored; shown when the `drawds:graph-weights` style says so; direction and
   A/0 labels are styles too, see `src/ui/GraphPickers.tsx`). `generate.ts` is the sketch: a node drops every
   GRAPH_SPACING along the drag, node k joins its nearest earlier node (connected) plus maybe two more nearby,
-  skipping crossings, near misses and narrow angles (planar-ish); growth-stable like trees. `model.ts` pure edits;
+  skipping crossings, near misses and narrow angles (planar-ish); growth-stable like trees. Sketch options
+  (styles `drawds:graph-density` sparse = a tree / medium / dense, `-parts` one piece or runs of the drag, `-order`
+  any or DAG along the drag) feed `generateGraph`, and `withSketchOptions` rewires a selected graph. `model.ts` pure edits;
   `connect.ts` the connect grip (a 'create' handle `connect:<id>` on each node's right rim; drag state in a
   per-editor atom; drop on a node = edge, in empty space = new node + edge). `algorithms.ts`: Dijkstra (distance
   badges, best edge green), Prim, Kruskal, topological sort (Kahn) as frames, reusing traverse.ts's `Recorder`
@@ -164,8 +169,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   (`showsStructureControls`): grow grips (tldraw `create` handles `grow` / `grow-start`, drawn only on hover,
   plus our own '+' `GrowGrip`; `grownCount` is pure) and `ControlButton` (HTML insert '+' / remove 'x',
   since handles can't be clicked). New values come from `extendValues` in `src/data/fill.ts` (end or start).
-- `src/data/` - seeded RNG (`mulberry32`) and fill generators (`fillValues`); `fill-style.ts` is the
-  `drawds:fill` StyleProp plus `refillSelectedShapes`.
+- `src/data/` - seeded RNG (`mulberry32`) and fill generators (`fillValues`, `extendValues`, `insertValue`, each
+  taking a `range`: 0-9, 0-99, 0-999, -50..50); `fill-style.ts` has the `drawds:fill` and `drawds:fill-range`
+  StyleProps (every filled shape stores `range`) plus `refillSelectedShapes`.
 - `src/ui/` - toolbar/shortcuts/context menu (`overrides.tsx`), style panel Fill picker, icons. tldraw's UI
   inherits the page font: `drawds.css` sets the system sans-serif and 13px menus.
 
