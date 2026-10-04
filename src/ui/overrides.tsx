@@ -30,6 +30,7 @@ import { operationPrompt } from '../controls/prompt'
 import { pointerState } from '../pointers/state'
 import { ArrayPickers, arrayPickerTranslations } from './ArrayPickers'
 import { FillPicker, fillPickerTranslations } from './FillPicker'
+import { invariantPickerTranslations } from './InvariantPicker'
 import { ListPickers, listPickerTranslations } from './ListPickers'
 import { GraphPickers, graphPickerTranslations } from './GraphPickers'
 import { maskIcon } from './icons'
@@ -135,6 +136,7 @@ export const uiOverrides: TLUiOverrides = {
 			...listPickerTranslations,
 			...treePickerTranslations,
 			...heapPickerTranslations,
+			...invariantPickerTranslations,
 			...graphPickerTranslations,
 		},
 	},

@@ -47,6 +47,7 @@ export function SceneSvg({
 	flash,
 	swaps,
 	dim,
+	warnings,
 }: {
 	scene: Scene
 	colors: TLThemeColors
@@ -62,6 +63,8 @@ export function SceneSvg({
 	swaps?: SwapView
 	/** Canvas only, while an operation is open: nodes (with the edges touching them) and edges (`edge:<key>`) out of play, drawn faded. */
 	dim?: readonly string[]
+	/** Nodes that break the structure's invariant (a BST's order, a heap's property): a dashed red ring round each. */
+	warnings?: readonly string[]
 }) {
 	const { strokeWidth, fontSize, labelFontSize } = scene.metrics
 	const paint: Paint = {
@@ -153,6 +156,31 @@ export function SceneSvg({
 							flash={flashColor && flash ? { paint: markedPaint(paint, colors, flashColor), fading: flash.fading, id: flash.id } : undefined}
 						/>
 					</g>
+				)
+			})}
+			{warnings?.map((key) => {
+				const node = byKey.get(key)
+				if (!node) return null
+				const pad = strokeWidth * 2
+				const ring = {
+					fill: 'none',
+					stroke: getColorValue(colors, 'red', 'solid'),
+					strokeWidth: strokeWidth * 1.2,
+					strokeDasharray: `${strokeWidth * 3} ${strokeWidth * 2}`,
+				}
+				return node.kind === 'circle' ? (
+					<circle key={`warn-${key}`} data-warning={key} cx={node.x} cy={node.y} r={node.w / 2 + pad} {...ring} />
+				) : (
+					<rect
+						key={`warn-${key}`}
+						data-warning={key}
+						x={node.x - node.w / 2 - pad}
+						y={node.y - node.h / 2 - pad}
+						width={node.w + 2 * pad}
+						height={node.h + 2 * pad}
+						rx={pad}
+						{...ring}
+					/>
 				)
 			})}
 			{/* Each pointer arrow starts at a dot in its compartment (where the arrow really starts: a doubly

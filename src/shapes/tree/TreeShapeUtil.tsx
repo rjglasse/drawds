@@ -7,7 +7,7 @@ import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import { prunePointers } from '../../pointers/pointers'
 import { playOperation, type Frame } from '../../nodelink/playback'
-import { assignInOrder, bstDelete, bstInsert } from './bst'
+import { assignInOrder, bstDelete, bstInsert, bstViolations } from './bst'
 import { bstSearch } from './search'
 import { nullKey, treeBasePosition, treeRootCentre, treeScene } from './layout'
 import { ORDER_NAMES, traverseTree, type TreeOrder } from './traverse'
@@ -29,6 +29,7 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 		return {
 			nodes: [{ id: 'n', value: '', children: [null, null], dx: 0, dy: 0 }],
 			kind: 'tree',
+			invariant: 'check',
 			nulls: 'hide',
 			fill: 'random',
 			seed: 0,
@@ -38,6 +39,12 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 			size: 'm',
 			font: 'mono',
 		}
+	}
+
+	/** A BST's nodes that break its ordering (each must lie between the bounds its ancestors set). */
+	override sceneWarnings(shape: TreeShape) {
+		const { kind, invariant, nodes } = shape.props
+		return kind === 'bst' && invariant === 'check' ? [...bstViolations(nodes)] : []
 	}
 
 	buildScene(shape: TreeShape) {

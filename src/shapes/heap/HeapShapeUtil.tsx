@@ -18,6 +18,7 @@ import {
 	childIndices,
 	heapInsert,
 	heapRemoveAt,
+	heapViolations,
 	heapify,
 	parentIndex,
 	type HeapType,
@@ -63,6 +64,7 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 		return {
 			values: [''],
 			heapType: 'min',
+			invariant: 'check',
 			fill: 'random',
 			seed: 0,
 			marks: {},
@@ -78,6 +80,13 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 	}
 
 	/** Marks are kept per index; draw them on both views. */
+	/** Values that break the heap property against their parent, in both views. */
+	override sceneWarnings(shape: HeapShape) {
+		const { invariant, values, heapType } = shape.props
+		if (invariant !== 'check') return []
+		return [...heapViolations(values, heapType)].flatMap((i) => [String(i), `a${i}`])
+	}
+
 	override sceneMarks(shape: HeapShape): Marks {
 		const marks: Marks = {}
 		for (const [key, color] of Object.entries(shape.props.marks)) Object.assign(marks, both(Number(key), color))

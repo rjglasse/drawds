@@ -16,6 +16,7 @@ import { marksValidator, type Marks } from '../../cells/marks'
 import { pointersValidator, type Pointer } from '../../pointers/pointers'
 import type { FillMode } from '../../data/fill'
 import { FillStyle } from '../../data/fill-style'
+import { InvariantStyle, type InvariantMode } from '../../cells/invariant-style'
 import type { HeapType } from './heap'
 
 export const HEAP_SHAPE_TYPE = 'heap'
@@ -30,6 +31,8 @@ export interface HeapShapeProps {
 	/** The heap in array order: index i's children are 2i+1 and 2i+2. */
 	values: string[]
 	heapType: HeapType
+	/** Flag values that break the heap property (dashed red rings). */
+	invariant: InvariantMode
 	fill: FillMode
 	seed: number
 	/** Highlight colours keyed by index; they travel with values as they sift. */
@@ -52,6 +55,7 @@ export type HeapShape = TLShape<typeof HEAP_SHAPE_TYPE>
 export const heapShapeProps: RecordProps<HeapShape> = {
 	values: T.arrayOf(T.string),
 	heapType: HeapTypeStyle,
+	invariant: InvariantStyle,
 	fill: FillStyle,
 	seed: T.number,
 	marks: marksValidator,
@@ -63,6 +67,7 @@ export const heapShapeProps: RecordProps<HeapShape> = {
 
 const versions = createShapePropsMigrationIds(HEAP_SHAPE_TYPE, {
 	AddPointers: 1,
+	AddInvariant: 2,
 })
 
 /** Heaps are persisted in the browser, so every props change needs a step here. */
@@ -75,6 +80,15 @@ export const heapShapeMigrations = createShapePropsMigrationSequence({
 			},
 			down(props) {
 				delete props.pointers
+			},
+		},
+		{
+			id: versions.AddInvariant,
+			up(props) {
+				props.invariant = 'check'
+			},
+			down(props) {
+				delete props.invariant
 			},
 		},
 	],

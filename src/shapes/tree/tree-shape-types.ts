@@ -16,6 +16,7 @@ import { marksValidator, type Marks } from '../../cells/marks'
 import { pointersValidator, type Pointer } from '../../pointers/pointers'
 import type { FillMode } from '../../data/fill'
 import { FillStyle } from '../../data/fill-style'
+import { InvariantStyle, type InvariantMode } from '../../cells/invariant-style'
 
 export const TREE_SHAPE_TYPE = 'binary-tree'
 
@@ -51,6 +52,8 @@ export interface TreeShapeProps {
 	/** All nodes; the first is the root. */
 	nodes: TreeNode[]
 	kind: TreeKind
+	/** A BST flags nodes that break its ordering (dashed red rings). */
+	invariant: InvariantMode
 	nulls: NullsMode
 	fill: FillMode
 	seed: number
@@ -82,6 +85,7 @@ export const treeShapeProps: RecordProps<TreeShape> = {
 		})
 	),
 	kind: TreeKindStyle,
+	invariant: InvariantStyle,
 	nulls: NullsStyle,
 	fill: FillStyle,
 	seed: T.number,
@@ -96,6 +100,7 @@ const versions = createShapePropsMigrationIds(TREE_SHAPE_TYPE, {
 	AddMarks: 1,
 	AddKind: 2,
 	AddPointers: 3,
+	AddInvariant: 4,
 })
 
 /** Trees are persisted in the browser, so every props change needs a step here. */
@@ -126,6 +131,15 @@ export const treeShapeMigrations = createShapePropsMigrationSequence({
 			},
 			down(props) {
 				delete props.pointers
+			},
+		},
+		{
+			id: versions.AddInvariant,
+			up(props) {
+				props.invariant = 'check'
+			},
+			down(props) {
+				delete props.invariant
 			},
 		},
 	],

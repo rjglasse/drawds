@@ -226,6 +226,9 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		return children.length ? new Group2d({ children }) : new Rectangle2d({ width: 1, height: 1, isFilled: false })
 	}
 
+	/** Elements that break the structure's invariant (scene node keys), ringed in red. */
+	sceneWarnings?(shape: S): readonly string[]
+
 	/** Marks to draw, keyed by scene node key (structures with two views of one value map both). */
 	sceneMarks(shape: S) {
 		return this.getMarks(shape)
@@ -264,6 +267,8 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 								: undefined
 						}
 						dim={playing && !playing.fading ? playing.dim : undefined}
+						// Not while an operation is open: its steps break the invariant on the way to restoring it.
+						warnings={playing && !playing.fading ? undefined : this.sceneWarnings?.(shape)}
 					/>
 
 					{controls &&
@@ -533,6 +538,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 					color={this.style(shape).color}
 					fontFamily={this.getFontFamily(shape)}
 					marks={this.sceneMarks(shape)}
+					warnings={this.sceneWarnings?.(shape)}
 				/>
 				{this.renderPointers(shape, colors, { exporting: true })}
 			</>

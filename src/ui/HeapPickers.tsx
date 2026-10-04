@@ -9,6 +9,7 @@ import type { HeapType } from '../shapes/heap/heap'
 import { HEAP_SHAPE_TYPE, HeapTypeStyle } from '../shapes/heap/heap-shape-types'
 import type { HeapShapeUtil } from '../shapes/heap/HeapShapeUtil'
 import { svgIcon } from './icons'
+import { InvariantPicker } from './InvariantPicker'
 
 const label = (text: string) =>
 	svgIcon(
@@ -48,6 +49,7 @@ export function HeapPickers() {
 					if (updates.length) editor.updateShapes(updates)
 				}}
 			/>
+			<InvariantPicker />
 		</StylePanelSection>
 	)
 }

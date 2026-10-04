@@ -14,6 +14,7 @@ import {
 } from '../shapes/tree/tree-shape-types'
 import type { TreeShapeUtil } from '../shapes/tree/TreeShapeUtil'
 import { svgIcon } from './icons'
+import { InvariantPicker } from './InvariantPicker'
 
 const NODE = '<circle cx="15" cy="7" r="4"/><path d="M12.5 10.5L8 18M17.5 10.5L22 18"/>'
 const TREE = `${NODE}<circle cx="7" cy="21" r="3"/><circle cx="23" cy="21" r="3"/>`
@@ -71,6 +72,8 @@ export function TreePickers() {
 			{nulls !== undefined && (
 				<StylePanelButtonPicker title="Null children" uiType="nulls" style={NullsStyle} items={NULLS_ITEMS} value={nulls} />
 			)}
+			{/* Only a BST has an order to check. */}
+			{kind?.type === 'shared' && kind.value === 'bst' && <InvariantPicker />}
 		</StylePanelSection>
 	)
 }
