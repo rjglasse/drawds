@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import {
 	Circle2d,
 	Group2d,
@@ -273,10 +274,12 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 					{/* A step's own pointers (or the shape's on a step's scene) are drawn by the play overlay. */}
 					{!this.framePointers(shape, playing?.frame, scene) && this.renderPointers(shape, colors)}
 				</SVGContainer>
-				{controls &&
-					!busy &&
-					!this.editor.isIn('select.dragging_handle') &&
-					this.renderNodeAndEdgeButtons(shape, colors)}
+				{controls && !busy && !this.editor.isIn('select.dragging_handle') && (
+					<>
+						{this.renderNodeAndEdgeButtons(shape, colors)}
+						{this.renderStructureControls?.(shape, colors)}
+					</>
+				)}
 				{controls && prompt && !promptOpen && !busy && (
 					<ControlButton
 						editor={this.editor}
@@ -341,6 +344,9 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	 * on each removable edge. With a mouse, only the node or else the edge near the pointer shows
 	 * its buttons, so big structures stay readable; touch screens have no hover, so they show all.
 	 */
+	/** More on-canvas buttons while the structure is the only selected shape (a linked stack's push and pop). */
+	protected renderStructureControls?(shape: S, colors: Parameters<typeof ControlButton>[0]['colors']): ReactNode
+
 	private renderNodeAndEdgeButtons(shape: S, colors: Parameters<typeof ControlButton>[0]['colors']) {
 		const scene = this.getScene(shape)
 		const routes = routeScene(scene)

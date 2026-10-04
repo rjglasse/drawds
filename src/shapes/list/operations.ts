@@ -27,31 +27,32 @@ import { anchorShift } from './ops'
 // circular list's last node that must keep pointing at the first, a sentinel that removes the
 // special cases at the head.
 
-type ListProps = Pick<ListShapeProps, 'nodes' | 'direction' | 'size'> &
-	Partial<Pick<ListShapeProps, 'links' | 'tail' | 'ends' | 'sentinel' | 'cycleTo'>>
+export type ListProps = Pick<ListShapeProps, 'nodes' | 'direction' | 'size'> &
+	Partial<Pick<ListShapeProps, 'links' | 'tail' | 'ends' | 'sentinel' | 'cycleTo' | 'kind'>>
 
-const LOOK: MarkColor = 'orange'
-const FOUND: MarkColor = 'green'
-const GONE: MarkColor = 'red'
-const CHANGED: MarkColor = 'orange'
+export const LOOK: MarkColor = 'orange'
+export const FOUND: MarkColor = 'green'
+export const GONE: MarkColor = 'red'
+export const CHANGED: MarkColor = 'orange'
 const VISITED: MarkColor = 'blue'
 
 /** A null marker before the head, for pointers that start out null (reverse's prev). */
 export const NULL_BEFORE_KEY = '#null-before'
 
-const next = (id: string) => `${id}->`
-const prevOf = (id: string) => `${id}<-`
-const HEAD_EDGE = `${HEAD_KEY}->`
-const TAIL_EDGE = `${TAIL_KEY}->`
-const pointer = (name: string, at: string): Pointer => ({ id: `#${name}`, name, at })
-const edgeMark = (key: string) => edgeCellKey(key)
+export const next = (id: string) => `${id}->`
+export const prevOf = (id: string) => `${id}<-`
+export const HEAD_EDGE = `${HEAD_KEY}->`
+export const TAIL_EDGE = `${TAIL_KEY}->`
+export const pointer = (name: string, at: string): Pointer => ({ id: `#${name}`, name, at })
+export const edgeMark = (key: string) => edgeCellKey(key)
 
 /** What every operation needs to know about the list: its variant, its nodes in link order, names. */
-function listOf(props: ListProps) {
+export function listOf(props: ListProps) {
 	const v = listVariant(props, props.nodes)
 	const chain = chainKeys(props)
 	const values = new Map(props.nodes.map((n) => [n.id, n.value]))
-	const lastId = props.nodes[props.nodes.length - 1].id
+	// ('' for an empty stack or queue, which the list operations never get.)
+	const lastId = props.nodes.at(-1)?.id ?? ''
 	return {
 		v,
 		chain,
@@ -64,14 +65,14 @@ function listOf(props: ListProps) {
 }
 
 /** The scene with arrows re-pointed, by edge key (`n3->`, `n3<-`, `#head->`...); `bends` curve them. */
-function retarget(scene: Scene, to: Record<string, string>, bends: Record<string, number> = {}): Scene {
+export function retarget(scene: Scene, to: Record<string, string>, bends: Record<string, number> = {}): Scene {
 	return {
 		...scene,
 		edges: scene.edges.map((e) => (to[e.key] === undefined ? e : { ...e, to: to[e.key], via: undefined, bend: bends[e.key] ?? e.bend })),
 	}
 }
 
-function nodeOf(scene: Scene, key: string) {
+export function nodeOf(scene: Scene, key: string) {
 	return scene.nodes.find((n) => n.key === key)!
 }
 
@@ -79,24 +80,35 @@ function nodeOf(scene: Scene, key: string) {
 const offLine = (direction: ListDirection) => (listAxis(direction).y === 0 ? { x: 0, y: 1 } : { x: 1, y: 0 })
 
 /** A list node drawn `away` off the list's line, beside `at` (a new node, or one dropping out). */
-function besideList(template: SceneNode, key: string, value: string, at: { x: number; y: number }, props: ListProps): SceneNode {
+export function besideList(template: SceneNode, key: string, value: string, at: { x: number; y: number }, props: ListProps): SceneNode {
 	const side = offLine(props.direction)
 	const away = getListMetrics(props.size, listVariant(props).doubly).step * 0.8
 	return { ...template, key, value, x: at.x + side.x * away, y: at.y + side.y * away, editable: false, draggable: false, ghost: undefined }
 }
 
 /**
- * The bend that takes the head label's arrow round the first node (the label is on one side of it)
- * to a new node on the other side, curving back along the list where there is room.
+ * The bend that takes a label's arrow round the node under it (`around`) to a new node off the line,
+ * just clear of it: the head's arrow curves back along the list, the tail's on along it, where
+ * there is room.
  */
-function roundTheHead(scene: Scene, props: ListProps, first: string, to: string): number {
-	const [label, node, target] = [HEAD_KEY, first, to].map((k) => nodeOf(scene, k))
+export function roundLabel(scene: Scene, props: ListProps, labelKey: string, around: string, to: string): number {
+	const [label, node, target] = [labelKey, around, to].map((k) => nodeOf(scene, k))
 	const axis = listAxis(props.direction)
-	const side = offLine(props.direction)
-	const clear = (axis.y === 0 ? node.w : node.h) / 2 + getListMetrics(props.size).gap * 0.3
-	// The curve's peak is half its bend, as a share of its length, off the straight line.
-	const bend = (2 * clear) / (Math.hypot(target.x - label.x, target.y - label.y) || 1)
-	return side.y * axis.x - side.x * axis.y > 0 ? -bend : bend
+	const d = { x: target.x - label.x, y: target.y - label.y }
+	const len = Math.hypot(d.x, d.y) || 1
+	// A positive bend curves the arrow to its left.
+	const left = { x: d.y / len, y: -d.x / len }
+	const way = labelKey === TAIL_KEY ? axis : { x: -axis.x, y: -axis.y }
+	const sign = left.x * way.x + left.y * way.y >= 0 ? 1 : -1
+	const n = { x: left.x * sign, y: left.y * sign }
+	// Where the straight arrow passes nearest the node, and how far it must move to clear its box.
+	const t = Math.min(0.9, Math.max(0.1, ((node.x - label.x) * d.x + (node.y - label.y) * d.y) / (len * len)))
+	const p = { x: label.x + d.x * t, y: label.y + d.y * t }
+	const corners = [-1, 1].flatMap((sx) => [-1, 1].map((sy) => ({ x: node.x + (sx * node.w) / 2, y: node.y + (sy * node.h) / 2 })))
+	const need = Math.max(...corners.map((c) => (c.x - p.x) * n.x + (c.y - p.y) * n.y)) + getListMetrics(props.size).gap * 0.3
+	if (need <= 0) return 0
+	// A quadratic curve is 2t(1 - t) of its bend (a share of its length) off the straight line at t.
+	return (sign * need) / (2 * t * (1 - t) * len)
 }
 
 /**
@@ -232,7 +244,7 @@ export function insertIntoList(props: ListProps, afterId: string | undefined, id
 			light(edgeMark(next(after)))
 		)
 		if (v.tail && after === lastId) {
-			point({ [TAIL_EDGE]: id })
+			point({ [TAIL_EDGE]: id }, { [TAIL_EDGE]: roundLabel(scene, props, TAIL_KEY, after, id) })
 			step(`tail = node: ${value} is the last node now`, light(edgeMark(TAIL_EDGE)))
 		}
 	} else {
@@ -251,7 +263,7 @@ export function insertIntoList(props: ListProps, afterId: string | undefined, id
 				step(`node.prev = last: round the circle, it points back at ${name(lastId)}`, light(edgeMark(prevOf(id))))
 			}
 		}
-		point({ [HEAD_EDGE]: id }, { [HEAD_EDGE]: roundTheHead(scene, props, head, id) })
+		point({ [HEAD_EDGE]: id }, { [HEAD_EDGE]: roundLabel(scene, props, HEAD_KEY, head, id) })
 		step(`head = node: ${value} is the first node now`, light(edgeMark(HEAD_EDGE)))
 	}
 	const node: ListNode = { id, value, dx: 0, dy: 0 }
@@ -586,8 +598,8 @@ export function appendToList(props: ListProps, id: string, value: string): ListO
 	const add = (edge: SceneEdge) => {
 		scene = { ...scene, edges: [...scene.edges, edge] }
 	}
-	const point = (to: Record<string, string>) => {
-		scene = retarget(scene, to)
+	const point = (to: Record<string, string>, bends?: Record<string, number>) => {
+		scene = retarget(scene, to, bends)
 	}
 	if (end === NULL_KEY) add({ key: next(id), from: id, to: NULL_KEY, directed: true, fromPointer: true, ...arrows })
 	step(`node = new Node(${value})${end === NULL_KEY ? ': its next is null' : ''}`, id)
@@ -611,7 +623,7 @@ export function appendToList(props: ListProps, id: string, value: string): ListO
 		assignments++
 	}
 	if (v.tail) {
-		point({ [TAIL_EDGE]: id })
+		point({ [TAIL_EDGE]: id }, { [TAIL_EDGE]: roundLabel(scene, props, TAIL_KEY, lastId, id) })
 		step(`tail = node: ${value} is the last node now`, edgeMark(TAIL_EDGE))
 		assignments++
 	}

@@ -45,18 +45,25 @@ export function sketchDirection({ direction, sign }: SketchState): ListDirection
 	return sign > 0 ? 'down' : 'up'
 }
 
-type Variants = Partial<Pick<ListShapeProps, 'links' | 'tail' | 'ends' | 'sentinel' | 'cycleTo'>>
+type Variants = Partial<Pick<ListShapeProps, 'links' | 'tail' | 'ends' | 'sentinel' | 'cycleTo' | 'kind'>>
 type ListLayoutProps = Pick<ListShapeProps, 'nodes' | 'direction' | 'size'> & Variants
 
-/** The list's variant as flags: doubly linked, a tail pointer, circular, a sentinel; and a cycle. */
-export function listVariant({ links, tail, ends, sentinel, cycleTo }: Variants, nodes?: readonly { id: string }[]) {
+/**
+ * The list's variant as flags: doubly linked, a tail pointer, circular, a sentinel; a cycle; and
+ * what its head and tail pointers are called. A stack's head is its top; a queue always has a rear
+ * (its tail) and its head is the front. Circular, sentinel and cycles are for plain lists.
+ */
+export function listVariant({ links, tail, ends, sentinel, cycleTo, kind = 'list' }: Variants, nodes?: readonly { id: string }[]) {
+	const plain = kind === 'list'
 	return {
+		kind,
 		doubly: links === 'doubly',
-		tail: tail === 'tail',
-		circular: ends === 'circular',
-		sentinel: sentinel === 'sentinel',
+		tail: tail === 'tail' || kind === 'queue',
+		circular: plain && ends === 'circular',
+		sentinel: plain && sentinel === 'sentinel',
 		// Only to a node that is there.
-		cycleTo: cycleTo && (!nodes || nodes.some((n) => n.id === cycleTo)) ? cycleTo : undefined,
+		cycleTo: plain && cycleTo && (!nodes || nodes.some((n) => n.id === cycleTo)) ? cycleTo : undefined,
+		names: { head: kind === 'stack' ? 'top' : kind === 'queue' ? 'front' : 'head', tail: kind === 'queue' ? 'rear' : 'tail' },
 	}
 }
 
@@ -98,13 +105,17 @@ function baseScene(props: ListLayoutProps): Scene {
 		...(key === SENTINEL_KEY ? { ghost: true } : {}),
 	}))
 
-	const first = listNodes[0]
-	const last = listNodes[listNodes.length - 1]
 	const nullText = text(4)
+	// An empty list (a stack or queue): its head (and tail) point at null, where the first node goes.
+	const empty: SceneNode | undefined = listNodes.length
+		? undefined
+		: { key: NULL_KEY, kind: 'null', x: 0, y: 0, ...nullText, value: 'null', editable: false, draggable: false }
+	const first = listNodes[0] ?? empty!
+	const last = listNodes[listNodes.length - 1] ?? empty!
 	const nullAlong = (horizontal ? m.nodeW / 2 + nullText.w / 2 : m.nodeH / 2 + nullText.h / 2) + m.gap
-	const labelText = text(4)
+	const labelText = text(Math.max(4, v.names.head.length, v.tail ? v.names.tail.length : 0))
 	// Labels sit above a horizontal list and left of a vertical one; head and tail on a lone node side by side.
-	const lone = v.tail && listNodes.length === 1
+	const lone = v.tail && listNodes.length <= 1
 	const shift = lone ? labelText.w / 2 + m.gap * 0.15 : 0
 	const label = (key: string, node: SceneNode, value: string, along: number): SceneNode => ({
 		key,
@@ -127,10 +138,10 @@ function baseScene(props: ListLayoutProps): Scene {
 		draggable: false,
 	})
 	const annotations: SceneNode[] = [
-		...(v.circular || v.cycleTo ? [] : [nul(NULL_KEY, last, 1)]),
-		...(v.doubly && !v.circular ? [nul(NULL_PREV_KEY, first, -1)] : []),
-		label(HEAD_KEY, first, 'head', -shift),
-		...(v.tail ? [label(TAIL_KEY, last, 'tail', shift)] : []),
+		...(empty ? [empty] : v.circular || v.cycleTo ? [] : [nul(NULL_KEY, last, 1)]),
+		...(v.doubly && !v.circular && !empty ? [nul(NULL_PREV_KEY, first, -1)] : []),
+		label(HEAD_KEY, first, v.names.head, -shift),
+		...(v.tail ? [label(TAIL_KEY, last, v.names.tail, shift)] : []),
 	]
 
 	// Next arrows, then a doubly linked list's prev arrows, in their own lanes; the last node's next
@@ -267,7 +278,9 @@ export function listStartGripPoint(props: ListLayoutProps): Point {
 	const { gap } = getListMetrics(props.size)
 	const axis = listAxis(props.direction)
 	const scene = listScene(props)
-	const before = scene.nodes.find((n) => n.key === NULL_PREV_KEY) ?? scene.nodes.find((n) => n.key === chainKeys(props)[0])!
+	const before =
+		scene.nodes.find((n) => n.key === NULL_PREV_KEY) ??
+		scene.nodes.find((n) => n.key === (chainKeys(props)[0] ?? NULL_KEY))!
 	// Beyond an arrow looping back into the first node.
 	const v = listVariant(props, props.nodes)
 	const d = (axis.y === 0 ? before.w / 2 : before.h / 2) + gap * (v.circular ? 1.3 : 0.5)

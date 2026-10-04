@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ListDirection, ListNode } from './list-shape-types'
+import { listShapeMigrations, type ListDirection, type ListNode } from './list-shape-types'
 import { HEAD_KEY, NULL_KEY, NULL_PREV_KEY, SENTINEL_KEY, TAIL_KEY, getListMetrics, listBasePosition, listHeadCentre, listScene } from './layout'
 
 const M = getListMetrics('m')
@@ -124,5 +124,43 @@ describe('list variants', () => {
 		const prev = edge(scene, 'n0<-')!
 		expect(prev.to).toBe('n2')
 		expect(prev.via![1].y).toBeLessThan(at(scene, HEAD_KEY).y)
+	})
+})
+
+describe('linked stacks and queues', () => {
+	const ends = (scene: ReturnType<typeof listScene>) => Object.fromEntries(scene.edges.map((e) => [e.key, e.to]))
+	const label = (scene: ReturnType<typeof listScene>, key: string) => at(scene, key).value
+
+	it("a stack's head is its top; empty, the top points at null where the first node goes", () => {
+		expect(label(listScene({ ...props(2), kind: 'stack' }), HEAD_KEY)).toBe('top')
+		const empty = listScene({ ...props(0), kind: 'stack' })
+		expect(empty.nodes.map((n) => n.key).sort()).toEqual([HEAD_KEY, NULL_KEY])
+		expect(ends(empty)).toEqual({ [`${HEAD_KEY}->`]: NULL_KEY })
+		// The label above the null, as it would be above a first node.
+		expect(at(empty, HEAD_KEY).y).toBeLessThan(at(empty, NULL_KEY).y)
+	})
+
+	it('a queue always has a rear; front and rear share a lone node, or point at null when empty', () => {
+		const one = listScene({ ...props(1), kind: 'queue' })
+		expect([label(one, HEAD_KEY), label(one, TAIL_KEY)]).toEqual(['front', 'rear'])
+		expect(ends(one)).toMatchObject({ [`${HEAD_KEY}->`]: 'n0', [`${TAIL_KEY}->`]: 'n0' })
+		expect(at(one, HEAD_KEY).x).toBeLessThan(at(one, TAIL_KEY).x)
+		expect(ends(listScene({ ...props(0), kind: 'queue' }))).toEqual({ [`${HEAD_KEY}->`]: NULL_KEY, [`${TAIL_KEY}->`]: NULL_KEY })
+	})
+
+	it('circular, sentinel and cycles are for plain lists', () => {
+		const scene = listScene({ ...props(3), kind: 'stack', ends: 'circular', sentinel: 'sentinel', cycleTo: 'n1' })
+		expect(scene.nodes.some((n) => n.key === SENTINEL_KEY)).toBe(false)
+		expect(ends(scene)['n2->']).toBe(NULL_KEY)
+	})
+
+	it('lists saved before kinds existed load as plain lists', () => {
+		const step = listShapeMigrations.sequence.at(-1)!
+		if (!('up' in step) || typeof step.down !== 'function') throw new Error('expected a props migration')
+		const old: Record<string, unknown> = {}
+		step.up(old)
+		expect(old.kind).toBe('list')
+		step.down(old)
+		expect(old).not.toHaveProperty('kind')
 	})
 })

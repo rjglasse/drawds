@@ -42,6 +42,17 @@ export const ListSentinelStyle = StyleProp.defineEnum('drawds:list-sentinel', {
 	values: ['none', 'sentinel'] as const,
 })
 
+/**
+ * What the list is used as: a plain list, a stack (push and pop at the head, named top) or a queue
+ * (enqueue at a rear pointer, dequeue at the front). Stacks and queues may be empty; circular,
+ * sentinel and cycles are for plain lists.
+ */
+export const ListKindStyle = StyleProp.defineEnum('drawds:list-kind', {
+	defaultValue: 'list' as const,
+	values: ['list', 'stack', 'queue'] as const,
+})
+export type ListKind = T.TypeOf<typeof ListKindStyle>
+
 export interface ListNode {
 	/** Stable id: the node's cell key and handle id. */
 	id: string
@@ -52,7 +63,7 @@ export interface ListNode {
 }
 
 export interface ListShapeProps {
-	/** Nodes in list order, head first. */
+	/** Nodes in list order, head first (none: an empty stack or queue). */
 	nodes: ListNode[]
 	direction: ListDirection
 	fill: FillMode
@@ -67,6 +78,7 @@ export interface ListShapeProps {
 	sentinel: T.TypeOf<typeof ListSentinelStyle>
 	/** A cycle: the last node's next points at this node instead of null ('' for none). */
 	cycleTo: string
+	kind: ListKind
 	color: TLDefaultColorStyle
 	size: TLDefaultSizeStyle
 	font: TLDefaultFontStyle
@@ -92,6 +104,7 @@ export const listShapeProps: RecordProps<ListShape> = {
 	ends: ListEndsStyle,
 	sentinel: ListSentinelStyle,
 	cycleTo: T.string,
+	kind: ListKindStyle,
 	color: DefaultColorStyle,
 	size: DefaultSizeStyle,
 	font: DefaultFontStyle,
@@ -101,6 +114,7 @@ const versions = createShapePropsMigrationIds(LIST_SHAPE_TYPE, {
 	AddMarks: 1,
 	AddPointers: 2,
 	AddVariants: 3,
+	AddKind: 4,
 })
 
 /** Lists are persisted in the browser, so every props change needs a step here. */
@@ -135,6 +149,15 @@ export const listShapeMigrations = createShapePropsMigrationSequence({
 			},
 			down(props) {
 				for (const key of ['links', 'tail', 'ends', 'sentinel', 'cycleTo']) delete props[key]
+			},
+		},
+		{
+			id: versions.AddKind,
+			up(props) {
+				props.kind = 'list'
+			},
+			down(props) {
+				delete props.kind
 			},
 		},
 	],

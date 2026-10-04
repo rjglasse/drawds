@@ -4,7 +4,8 @@ import { fillValues } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
 import { GROW_HANDLE_ID, GROW_START_HANDLE_ID, grownCount } from '../../controls/grow'
 import type { PointerDirection } from '../../cells/CellShapeUtil'
-import { valueBox } from '../../nodelink/geometry'
+import { ControlButton } from '../../controls/ControlButton'
+import { routeScene, valueBox } from '../../nodelink/geometry'
 import { insertValue } from '../../data/fill'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import { playOperation } from '../../nodelink/playback'
@@ -31,6 +32,7 @@ import {
 	type ListShape,
 } from './list-shape-types'
 import { anchorShift, insertListNode, removeListNode, resizeList } from './ops'
+import { dequeueFrom, enqueueOnto, peekAt, popFrom, pushOnto } from './stack-queue'
 import {
 	appendToList,
 	deleteFromList,
@@ -64,15 +66,16 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 			ends: 'null',
 			sentinel: 'none',
 			cycleTo: '',
+			kind: 'list',
 			color: 'black',
 			size: 'm',
 			font: 'mono',
 		}
 	}
 
-	/** Switching a variant (doubly, tail, circular, sentinel) redraws the list with its head where it was. */
+	/** Switching a variant (doubly, tail, circular, sentinel, kind) redraws the list with its head where it was. */
 	override onBeforeUpdate(prev: ListShape, next: ListShape): ListShape | void {
-		const variants = ['links', 'tail', 'ends', 'sentinel', 'cycleTo'] as const
+		const variants = ['links', 'tail', 'ends', 'sentinel', 'cycleTo', 'kind'] as const
 		let shape = next
 		if (variants.some((k) => prev.props[k] !== next.props[k]) && prev.props.nodes === next.props.nodes) {
 			const shift = Vec.Rot(anchorShift(prev.props, next.props), next.rotation)
@@ -126,9 +129,12 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		return this.withNodes(shape, shape, removeListNode(shape.props.nodes, key))
 	}
 
-	/** A + on every next pointer (including the tail's pointer to null) inserts after its node. */
-	canInsertOnEdge(_shape: ListShape, edge: SceneEdge) {
-		return edge.fromPointer === true
+	/**
+	 * A + on every next pointer (including the tail's pointer to null) inserts after its node. Not on
+	 * a stack or queue, which only change at their ends (push and pop, enqueue and dequeue).
+	 */
+	canInsertOnEdge(shape: ListShape, edge: SceneEdge) {
+		return shape.props.kind === 'list' && edge.fromPointer === true
 	}
 
 	insertOnEdge(shape: ListShape, edgeKey: string) {
@@ -138,9 +144,9 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		return { update: this.withNodes(shape, shape, nodes), key: id }
 	}
 
-	/** A list keeps at least one node; delete the shape to remove it entirely. */
+	/** A list keeps at least one node; delete the shape to remove it entirely. A stack or queue pops or dequeues. */
 	canRemoveNode(shape: ListShape) {
-		return shape.props.nodes.length > 1
+		return shape.props.kind === 'list' && shape.props.nodes.length > 1
 	}
 
 	// Pointers (curr, prev...) sit below the list (right of a vertical one), clear of the head label,
@@ -177,9 +183,10 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 	// as the quick edits.) Shift at the end keeps the highlights as marks.
 
 	nodeOperations(shape: ListShape, key: string): NodeOperation[] {
-		const { nodes } = shape.props
+		const { nodes, kind } = shape.props
 		const node = nodes.find((n) => n.id === key)
-		if (!node) return []
+		// A stack or queue offers only its own operations (shapeOperations), wherever it is clicked.
+		if (!node || kind !== 'list') return []
 		const submenu = 'Step by step'
 		const run = (label: string, op: () => ListOperation) => () => this.play(shape.id, label, op)
 		const props = () => (this.editor.getShape(shape.id) as ListShape | undefined)?.props ?? shape.props
@@ -238,6 +245,94 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 						...(v.doubly ? [{ id: 'list-print-back', label: 'Print backwards', submenu, run: run('print backwards', () => printBackwards(props())) }] : []),
 					]),
 		]
+	}
+
+	// A stack pushes and pops at its top (the head); a queue enqueues at its rear (a tail pointer) and
+	// dequeues at its front. Offered wherever the shape is right-clicked, even when it is empty, and
+	// as the + and x beside the top, or the rear and front (renderStructureControls).
+
+	override shapeOperations(shape: ListShape): NodeOperation[] {
+		const { kind, nodes } = shape.props
+		if (kind === 'list') return []
+		const id = shape.id
+		const props = () => (this.editor.getShape(id) as ListShape | undefined)?.props ?? shape.props
+		const run = (label: string, op: () => ListOperation) => () => this.play(id, label, op)
+		const promptAt = nodes[0]?.id ?? NULL_KEY
+		if (kind === 'stack') {
+			const stack = { submenu: 'Stack', submenuId: 'list-stack' }
+			const push = (value: string) => this.play(id, 'push', () => pushOnto(props(), this.newId(props()), value))
+			return [
+				{ ...stack, id: 'list-push', label: 'Push', run: () => push(this.endValue(props(), 'front')) },
+				{ ...stack, id: 'list-push-value', label: 'Push a value', prompt: 'Value to push', promptAt, run: (value) => value !== undefined && push(value) },
+				{ ...stack, id: 'list-pop', label: 'Pop', run: run('pop', () => popFrom(props())) },
+				{ ...stack, id: 'list-peek', label: 'Peek', run: run('peek', () => peekAt(props())) },
+			]
+		}
+		const queue = { submenu: 'Queue', submenuId: 'list-queue' }
+		const enqueue = (value: string) => this.play(id, 'enqueue', () => enqueueOnto(props(), this.newId(props()), value))
+		return [
+			{ ...queue, id: 'list-enqueue', label: 'Enqueue', run: () => enqueue(this.endValue(props(), 'end')) },
+			{
+				...queue,
+				id: 'list-enqueue-value',
+				label: 'Enqueue a value',
+				prompt: 'Value to enqueue',
+				promptAt: nodes.at(-1)?.id ?? NULL_KEY,
+				run: (value) => value !== undefined && enqueue(value),
+			},
+			{ ...queue, id: 'list-dequeue', label: 'Dequeue', run: run('dequeue', () => dequeueFrom(props())) },
+			{ ...queue, id: 'list-peek', label: 'Peek', run: run('peek', () => peekAt(props())) },
+		]
+	}
+
+	/** A stack's + (push) and x (pop) at its top; a queue's + on the rear's next arrow and x on its front. */
+	protected override renderStructureControls(shape: ListShape, colors: Parameters<typeof ControlButton>[0]['colors']) {
+		const { kind, nodes } = shape.props
+		if (kind === 'list') return null
+		const scene = this.getScene(shape)
+		const nudge = 5 / this.editor.getZoomLevel()
+		// The first node, or the null an empty stack or queue points at.
+		const first = scene.nodes.find((n) => n.key === (nodes[0]?.id ?? NULL_KEY))
+		if (!first) return null
+		const corner = (side: -1 | 1) => ({ x: first.x + side * (first.w / 2 + nudge), y: first.y - first.h / 2 - nudge })
+		const ops = this.shapeOperations(shape)
+		const button = (testId: string, type: 'insert' | 'remove', at: VecLike, label: string, opId: string) => (
+			<ControlButton
+				key={testId}
+				editor={this.editor}
+				kind={type}
+				at={at}
+				label={label}
+				testId={testId}
+				colors={colors}
+				onPress={() => ops.find((op) => op.id === opId)?.run()}
+			/>
+		)
+		if (kind === 'stack') {
+			return (
+				<>
+					{button('stack-push', 'insert', corner(-1), 'Push (node.next = top; top = node)', 'list-push')}
+					{nodes.length > 0 && button('stack-pop', 'remove', corner(1), 'Pop the top value', 'list-pop')}
+				</>
+			)
+		}
+		const rearArrow = nodes.length ? routeScene(scene).get(`${nodes[nodes.length - 1].id}->`) : undefined
+		return (
+			<>
+				{button('queue-enqueue', 'insert', rearArrow?.labelAt ?? corner(-1), 'Enqueue at the rear (rear.next = node; rear = node)', 'list-enqueue')}
+				{nodes.length > 0 && button('queue-dequeue', 'remove', corner(1), 'Dequeue from the front', 'list-dequeue')}
+			</>
+		)
+	}
+
+	/** A new value that fits the fill mode, for the front (push) or the end (enqueue). */
+	private endValue(props: ListShape['props'], at: 'front' | 'end') {
+		const { nodes, fill, seed } = props
+		const values = nodes.map((n) => n.value)
+		const index = Number(this.newId(props).slice(1))
+		return at === 'front'
+			? insertValue(undefined, nodes[0]?.value, fill, seed, index, values)
+			: insertValue(nodes.at(-1)?.value, undefined, fill, seed, index, values)
 	}
 
 	/** Point the last node's next at `cycleTo` (a node id), or back at null (''); one undo step. */

@@ -227,6 +227,13 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   (the last node's next points at that node: "Make a cycle" in a node's menu). Arrows back along the list get
   rounded `via` corners from `loopBack` (operations pass the nodes they float off the line). Every operation
   narrates the assignments its variant needs; `listOf(props)` and `retarget(scene, {edgeKey: to})` help.
+  Operations that change the list end on it tidied (`endTidied`: the result's layout shifted by `anchorShift`),
+  so nothing moves on commit or Done; a closing remark that changes nothing moves onto that step.
+- Linked stacks and queues are a *kind* of list (`kind`, the Kind picker): a stack's head label reads top, a
+  queue always has a tail (rear) and its head is the front (`listVariant(...).names`); circular, sentinel and
+  cycles are for plain lists. They may be empty (the labels point at a `#null` where the first node goes).
+  `stack-queue.ts`: push / pop / peek, enqueue / dequeue / peek as frames (`shapeOperations`, so they work on an
+  empty one), plus on-canvas buttons via the `renderStructureControls` hook; no x / + on their nodes or arrows.
 - Pointers: when elements go, prune pointers with `prunePointers` wherever marks are pruned. Atoms read inside
   a separate React component (not the shape's `component()`) need `useValue`, or it won't re-render.
 - Removable edges: implement `removeEdge` (+ optional `canRemoveEdge`); the base draws an x mid-edge (beside the

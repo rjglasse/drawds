@@ -222,6 +222,10 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   'tail', ends: 'circular', sentinel: 'sentinel' } }); return 1 })()` (wrap calls that return the editor, or
   `eval` fails on circular JSON). A node's menu has `context-menu.list-make-cycle` (top level, not under Step
   by step) and, with a cycle, `list-remove-cycle`. Edge keys: `n1->` next, `n1<-` prev, `#head->`, `#tail->`.
+- **Linked stack / queue**: `clicksel [data-testid="style.list-kind.stack"]` (`queue`, `list`). Buttons while it
+  is selected: `stack-push`, `stack-pop`, `queue-enqueue`, `queue-dequeue` (each opens a play bar); or `rclick`,
+  `context-menu-sub.drawds-list-stack-button` (`list-queue`), then `context-menu.list-push` (`list-push-value`,
+  `list-pop`, `list-peek`, `list-enqueue`, `list-enqueue-value`, `list-dequeue`). They can be popped to empty.
 - **Graph algorithms**: `rclick` a node, then `context-menu.graph-dijkstra` or (undirected) `graph-prim`; on
   the whole graph `context-menu-sub.drawds-graph-algorithms-button` then `graph-kruskal` (undirected) or
   `graph-topological-sort` (directed). Distances / in-degrees are node badges; `play-counts` shows updates or

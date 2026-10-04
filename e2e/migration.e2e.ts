@@ -124,3 +124,18 @@ test('lists saved before variants existed load singly linked, null-ended', async
 	})
 	expect(loaded).toEqual([expect.objectContaining({ links: 'singly', tail: 'none', ends: 'null', sentinel: 'none', cycleTo: '' })])
 })
+
+test('lists saved before kinds existed load as plain lists', async ({ page }) => {
+	await open(page)
+	await sketchList(page, [300, 200], 2)
+	const loaded = await withEditor(page, (editor) => {
+		const doc = structuredClone(editor.getSnapshot().document)
+		;(doc.schema as { sequences: Record<string, number> }).sequences['com.tldraw.shape.linked-list'] = 3
+		for (const record of Object.values(doc.store) as { typeName: string; type?: string; props?: Record<string, unknown> }[]) {
+			if (record.typeName === 'shape' && record.type === 'linked-list' && record.props) delete record.props.kind
+		}
+		editor.loadSnapshot({ document: doc })
+		return editor.getCurrentPageShapes().map((s) => s.props)
+	})
+	expect(loaded).toEqual([expect.objectContaining({ kind: 'list' })])
+})
