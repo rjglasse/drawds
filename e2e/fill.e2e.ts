@@ -39,3 +39,17 @@ test('new shapes use the last picked fill mode', async ({ page }) => {
 	expect(lettered.props.values.every((v) => /^[A-Z]$/.test(v))).toBe(true)
 	expect(await withEditor(page, (e) => e.getSelectedShapeIds().length)).toBe(1)
 })
+
+test('the Range picker redraws the selected values from 0-9, 0-999 or -50..50; letters have no range', async ({ page }) => {
+	await sketchArray(page, [200, 200], 8)
+	const values = async () => (await shapesOfType<{ values: string[] }>(page, 'array'))[0].props.values.map(Number)
+	await page.getByTestId('style.fill-range.small').click()
+	expect((await values()).every((v) => v >= 0 && v <= 9)).toBe(true)
+	await page.getByTestId('style.fill-range.signed').click()
+	expect((await values()).every((v) => v >= -50 && v <= 50)).toBe(true)
+	await page.getByTestId('style.fill-range.large').click()
+	expect((await values()).every((v) => v >= 0 && v <= 999)).toBe(true)
+	await page.getByTestId('style.fill-mode').click()
+	await page.getByTestId('style.fill-mode.letters').click()
+	await expect(page.getByTestId('style.fill-range.small')).toHaveCount(0)
+})

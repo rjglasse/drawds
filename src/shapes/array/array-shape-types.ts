@@ -13,8 +13,8 @@ import {
 	type TLShape,
 } from 'tldraw'
 import { marksValidator, type Marks } from '../../cells/marks'
-import type { FillMode } from '../../data/fill'
-import { FillStyle } from '../../data/fill-style'
+import type { FillMode, FillRange } from '../../data/fill'
+import { FillRangeStyle, FillStyle } from '../../data/fill-style'
 import { pointersValidator, type Pointer } from '../../pointers/pointers'
 
 export const ARRAY_SHAPE_TYPE = 'array'
@@ -45,6 +45,8 @@ export interface ArrayShapeProps {
 	direction: ArrayDirection
 	showIndices: boolean
 	fill: FillMode
+	/** The numbers random fills draw from. */
+	range: FillRange
 	/** Seed the values were generated from; changing the fill mode regenerates from it. */
 	seed: number
 	/** Highlight colours on cells, keyed by index; they travel with values that move. */
@@ -76,6 +78,7 @@ export const arrayShapeProps: RecordProps<ArrayShape> = {
 	direction: T.literalEnum('horizontal', 'vertical'),
 	showIndices: T.boolean,
 	fill: FillStyle,
+	range: FillRangeStyle,
 	seed: T.number,
 	marks: marksValidator,
 	pointers: pointersValidator,
@@ -94,6 +97,7 @@ const versions = createShapePropsMigrationIds(ARRAY_SHAPE_TYPE, {
 	AddPointers: 3,
 	AddSizing: 4,
 	AddKind: 5,
+	AddRange: 6,
 })
 
 /** Arrays are persisted in the browser, so every props change needs a step here. */
@@ -148,6 +152,15 @@ export const arrayShapeMigrations = createShapePropsMigrationSequence({
 			down(props) {
 				delete props.kind
 				delete props.front
+			},
+		},
+		{
+			id: versions.AddRange,
+			up(props) {
+				props.range = 'medium'
+			},
+			down(props) {
+				delete props.range
 			},
 		},
 	],

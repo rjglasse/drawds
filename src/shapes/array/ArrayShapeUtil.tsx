@@ -74,6 +74,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			direction: 'horizontal',
 			showIndices: true,
 			fill: 'random',
+			range: 'medium',
 			seed: 0,
 			marks: {},
 			pointers: [],
@@ -89,9 +90,13 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	/** New values for the cells in use (a fixed array's spare slots stay blank). */
 	refill(shape: ArrayShape): TLShapePartial<ArrayShape> {
-		const { fill, seed, values } = shape.props
+		const { fill, seed, values, range } = shape.props
 		// From index 0: a circular buffer's front goes back there.
-		return { id: shape.id, type: ARRAY_SHAPE_TYPE, props: { front: 0, values: padded(fillValues(fill, seed, usedCount(shape.props)), values.length) } }
+		return {
+			id: shape.id,
+			type: ARRAY_SHAPE_TYPE,
+			props: { front: 0, values: padded(fillValues(fill, seed, usedCount(shape.props), { range }), values.length) },
+		}
 	}
 
 	/**
@@ -185,7 +190,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			type: ARRAY_SHAPE_TYPE,
 			props: {
 				front: 0,
-				values: fixed ? padded(values.slice(0, count), count) : extendValues(values, fill, seed, count),
+				values: fixed ? padded(values.slice(0, count), count) : extendValues(values, fill, seed, count, { range: shape.props.range }),
 				marks: pruneMarks(
 					marks,
 					Array.from({ length: count }, (_, i) => String(i))
@@ -460,9 +465,9 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	private nextValue(id: ArrayShape['id']) {
 		const shape = this.editor.getShape(id) as ArrayShape | undefined
 		if (!shape) return ''
-		const { fill, seed, values } = shape.props
+		const { fill, seed, values, range } = shape.props
 		const inUse = usedIndices(shape.props).map((i) => values[i])
-		return extendValues(inUse, fill, seed, inUse.length + 1)[inUse.length]
+		return extendValues(inUse, fill, seed, inUse.length + 1, { range })[inUse.length]
 	}
 
 	/** The next value of the fill mode's stream, for appending to the values in use. */
@@ -473,13 +478,13 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	/** The next `count` values of the fill mode's stream. */
 	private appendValues(id: ArrayShape['id'], { values, used = values.length }: ArrayState, count: number) {
 		const shape = this.editor.getShape(id) as ArrayShape | undefined
-		const { fill, seed } = shape?.props ?? this.getDefaultProps()
-		return extendValues(values.slice(0, used), fill, seed, used + count).slice(used)
+		const { fill, seed, range } = shape?.props ?? this.getDefaultProps()
+		return extendValues(values.slice(0, used), fill, seed, used + count, { range }).slice(used)
 	}
 
 	/** A value for a cell inserted at index k: between its neighbours if sorted, else not there yet. */
-	private newValue({ fill, seed }: Pick<ArrayShape['props'], 'fill' | 'seed'>, values: readonly string[], k: number) {
-		return insertValue(values[k - 1], values[k], fill, seed, Date.now() % 100000, values)
+	private newValue({ fill, seed, range }: Pick<ArrayShape['props'], 'fill' | 'seed' | 'range'>, values: readonly string[], k: number) {
+		return insertValue(values[k - 1], values[k], fill, seed, Date.now() % 100000, values, range)
 	}
 
 	/**
@@ -674,7 +679,11 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const shape = this.editor.getShape(id) as ArrayShape | undefined
 		if (!shape) return
 		const seed = newSeed()
-		this.update(id, 'new values', (s) => ({ seed, front: 0, values: padded(fillValues(s.props.fill, seed, usedCount(s.props)), s.props.values.length) }))
+		this.update(id, 'new values', (s) => ({
+			seed,
+			front: 0,
+			values: padded(fillValues(s.props.fill, seed, usedCount(s.props), { range: s.props.range }), s.props.values.length),
+		}))
 	}
 
 	private update(id: ArrayShape['id'], label: string, change: (shape: ArrayShape) => Partial<ArrayShape['props']>) {
@@ -990,7 +999,7 @@ function ArraySvg({
 	const { cells, cellAt } = layout
 	const { cell, strokeWidth } = metrics
 	const stroke = getColorValue(colors, color, 'solid')
-	const textSize = (value: string) => metrics.fontSize * Math.min(1, 3 / Math.max(1, value.length))
+	const textSize = (value: string) => metrics.fontSize * Math.min(1, 2.5 / Math.max(1, value.length))
 
 	// A value arcs from its old cell into its new one: those moving towards the end over the array,
 	// those moving back under it, so two that swap or cross pass each other. When every value moves

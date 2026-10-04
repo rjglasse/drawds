@@ -155,8 +155,13 @@ describe('linked stacks and queues', () => {
 	})
 
 	it('lists saved before kinds existed load as plain lists', () => {
-		const step = listShapeMigrations.sequence.at(-1)!
-		if (!('up' in step) || typeof step.down !== 'function') throw new Error('expected a props migration')
+		const step = listShapeMigrations.sequence.find((s) => {
+			if (!('up' in s)) return false
+			const props: Record<string, unknown> = {}
+			s.up(props)
+			return 'kind' in props
+		})
+		if (!step || !('up' in step) || typeof step.down !== 'function') throw new Error('expected a props migration')
 		const old: Record<string, unknown> = {}
 		step.up(old)
 		expect(old.kind).toBe('list')

@@ -17,7 +17,7 @@ export const ArrayShapeTool = createLineSketchTool<ArrayShape>({
 				direction: along.direction,
 				// Index 0 is the left/top cell, so a sketch drawn leftwards or upwards is reversed (a
 				// stack's index 0 is at the bottom, where the drag starts).
-				values: fillValues(fill, seed, along.count, { reversed: along.sign < 0 && kind !== 'stack' }),
+				values: fillValues(fill, seed, along.count, { reversed: along.sign < 0 && kind !== 'stack', range: shape.props.range }),
 				// Every sketched cell is in use (fixed capacity: the grow grip adds spare slots).
 				used: sketch.count,
 			},

@@ -58,6 +58,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 			nodes: [{ id: 'n0', value: '', dx: 0, dy: 0 }],
 			direction: 'right',
 			fill: 'random',
+			range: 'medium',
 			seed: 0,
 			marks: {},
 			pointers: [],
@@ -327,12 +328,12 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 
 	/** A new value that fits the fill mode, for the front (push) or the end (enqueue). */
 	private endValue(props: ListShape['props'], at: 'front' | 'end') {
-		const { nodes, fill, seed } = props
+		const { nodes, fill, seed, range } = props
 		const values = nodes.map((n) => n.value)
 		const index = Number(this.newId(props).slice(1))
 		return at === 'front'
-			? insertValue(undefined, nodes[0]?.value, fill, seed, index, values)
-			: insertValue(nodes.at(-1)?.value, undefined, fill, seed, index, values)
+			? insertValue(undefined, nodes[0]?.value, fill, seed, index, values, range)
+			: insertValue(nodes.at(-1)?.value, undefined, fill, seed, index, values, range)
 	}
 
 	/** Point the last node's next at `cycleTo` (a node id), or back at null (''); one undo step. */
@@ -343,9 +344,9 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 
 	/** Append a new node with a value that fits the fill mode. */
 	private appendOp(props: ListShape['props']): ListOperation {
-		const { nodes, fill, seed } = props
+		const { nodes, fill, seed, range } = props
 		const index = Number(this.newId(props).slice(1))
-		const value = insertValue(nodes[nodes.length - 1]?.value, undefined, fill, seed, index, nodes.map((n) => n.value))
+		const value = insertValue(nodes[nodes.length - 1]?.value, undefined, fill, seed, index, nodes.map((n) => n.value), range)
 		return appendToList(props, `n${index}`, value)
 	}
 
@@ -356,7 +357,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 
 	/** Insert a new node with a value that fits the fill mode (as the + on an arrow does). */
 	private insertOp(props: ListShape['props'], afterId: string | undefined): ListOperation {
-		const { nodes, fill, seed } = props
+		const { nodes, fill, seed, range } = props
 		const i = afterId === undefined ? -1 : nodes.findIndex((n) => n.id === afterId)
 		const index = Number(this.newId(props).slice(1))
 		const value = insertValue(
@@ -365,7 +366,8 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 			fill,
 			seed,
 			index,
-			nodes.map((n) => n.value)
+			nodes.map((n) => n.value),
+			range
 		)
 		return insertIntoList(props, afterId, `n${index}`, value)
 	}
@@ -419,8 +421,8 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 	}
 
 	refill(shape: ListShape) {
-		const { fill, seed, nodes } = shape.props
-		const values = fillValues(fill, seed, nodes.length)
+		const { fill, seed, nodes, range } = shape.props
+		const values = fillValues(fill, seed, nodes.length, { range })
 		return this.updateNodes(shape, (n, i) => ({ ...n, value: values[i] }))
 	}
 

@@ -21,9 +21,9 @@ export const HeapShapeTool = createDragTool<HeapShape, { count: number }>({
 	},
 	same: (a, b) => a.count === b.count,
 	layout(shape, origin, { count }) {
-		const { fill, seed, heapType, size } = shape.props
+		const { fill, seed, heapType, size, range } = shape.props
 		// Inserting one value at a time keeps the heap steady while it grows under the pointer.
-		const values = buildByInsertion(fillValues(fill, seed, count), heapType)
+		const values = buildByInsertion(fillValues(fill, seed, count, { range }), heapType)
 		const root = heapRootCentre({ values, size })
 		return { x: origin.x - root.x, y: origin.y - root.y, props: { values } }
 	},

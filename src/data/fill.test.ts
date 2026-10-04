@@ -176,3 +176,27 @@ describe('distinct values', () => {
 		}
 	})
 })
+
+describe('fill ranges', () => {
+	const within = (values: string[], lo: number, hi: number) => values.every((v) => Number(v) >= lo && Number(v) <= hi)
+
+	it('draws from the range: 0-9, 0-999, -50..50; 0-99 by default', () => {
+		const small = fillValues('random', 3, 10, { range: 'small' })
+		expect(within(small, 0, 9)).toBe(true)
+		expect(new Set(small).size).toBe(10)
+		expect(within(fillValues('random', 3, 30, { range: 'large' }), 0, 999)).toBe(true)
+		const signed = fillValues('random', 3, 40, { range: 'signed' })
+		expect(within(signed, -50, 50)).toBe(true)
+		expect(signed.some((v) => Number(v) < 0)).toBe(true)
+		expect(fillValues('random', 3, 20)).toEqual(fillValues('random', 3, 20, { range: 'medium' }))
+		expect(within(fillValues('ascending', 5, 8, { range: 'small' }), 0, 9)).toBe(true)
+	})
+
+	it('growth and insertion stay in the range', () => {
+		const grown = extendValues(fillValues('random', 4, 3, { range: 'small' }), 'random', 4, 8, { range: 'small' })
+		expect(within(grown, 0, 9)).toBe(true)
+		expect(new Set(grown).size).toBe(8)
+		expect(within([insertValue(undefined, undefined, 'repeats', 4, 1, [], 'signed')], -50, 50)).toBe(true)
+		expect(within([insertValue(undefined, undefined, 'random', 4, 1, ['1', '2'], 'small')], 0, 9)).toBe(true)
+	})
+})

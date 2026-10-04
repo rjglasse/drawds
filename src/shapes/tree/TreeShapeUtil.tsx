@@ -32,6 +32,7 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 			invariant: 'check',
 			nulls: 'hide',
 			fill: 'random',
+			range: 'medium',
 			seed: 0,
 			marks: {},
 			pointers: [],
@@ -74,9 +75,9 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 
 	/** Regenerate values: in level order for a plain tree, sorted in in-order for a BST. */
 	refill(shape: TreeShape) {
-		const { fill, seed, nodes, kind } = shape.props
+		const { fill, seed, nodes, kind, range } = shape.props
 		const order = levelOrder(nodes)
-		const fresh = fillValues(fill, seed, order.length)
+		const fresh = fillValues(fill, seed, order.length, { range })
 		if (kind === 'bst') return this.update(shape, assignInOrder(nodes, fresh))
 		const values = new Map(fresh.map((v, i) => [order[i].id, v]))
 		return this.update(shape, nodes.map((n) => ({ ...n, value: values.get(n.id) ?? n.value })))
@@ -115,7 +116,7 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 	}
 
 	addChildAt(shape: TreeShape, key: string, slot: number) {
-		const { nodes, fill, seed } = shape.props
+		const { nodes, fill, seed, range } = shape.props
 		const parent = nodes.find((n) => n.id === key)
 		if (!parent || parent.children[slot]) return undefined
 		const value = insertValue(
@@ -124,7 +125,8 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 			fill,
 			seed,
 			nodes.length,
-			nodes.map((n) => n.value)
+			nodes.map((n) => n.value),
+			range
 		)
 		const added = addChild(nodes, key, slot, value)
 		return { update: this.withNodes(shape, added.nodes), key: added.id }

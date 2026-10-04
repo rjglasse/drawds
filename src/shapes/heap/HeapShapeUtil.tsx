@@ -66,6 +66,7 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 			heapType: 'min',
 			invariant: 'check',
 			fill: 'random',
+			range: 'medium',
 			seed: 0,
 			marks: {},
 			pointers: [],
@@ -131,8 +132,8 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 	}
 
 	refill(shape: HeapShape) {
-		const { fill, seed, values, heapType } = shape.props
-		return this.update(shape, buildByInsertion(fillValues(fill, seed, values.length), heapType))
+		const { fill, seed, values, heapType, range } = shape.props
+		return this.update(shape, buildByInsertion(fillValues(fill, seed, values.length, { range }), heapType))
 	}
 
 	/** Rebuild the heap property (Floyd), e.g. after switching between min and max. */

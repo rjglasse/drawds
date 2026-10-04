@@ -1,12 +1,13 @@
 import {
+	StylePanelButtonPicker,
 	StylePanelDropdownPicker,
 	StylePanelSection,
 	useEditor,
 	useStylePanelContext,
 	type StyleValuesForUi,
 } from 'tldraw'
-import type { FillMode } from '../data/fill'
-import { FillStyle, refillSelectedShapes } from '../data/fill-style'
+import type { FillMode, FillRange } from '../data/fill'
+import { FillRangeStyle, FillStyle, refillSelectedShapes } from '../data/fill-style'
 import { svgIcon } from './icons'
 
 const bars = (heights: number[]) =>
@@ -39,6 +40,18 @@ const FILL_ITEMS: StyleValuesForUi<FillMode> = [
 	},
 ]
 
+const label = (text: string, size: number) =>
+	svgIcon(
+		`<text x="15" y="19.5" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="${size}" fill="black" stroke="none">${text}</text>`
+	)
+
+const RANGE_ITEMS: StyleValuesForUi<FillRange> = [
+	{ value: 'small', icon: label('0-9', 11) },
+	{ value: 'medium', icon: label('0-99', 10) },
+	{ value: 'large', icon: label('999', 11) },
+	{ value: 'signed', icon: label('±50', 11) },
+]
+
 /** UI strings for the picker, merged into tldraw's translations. */
 export const fillPickerTranslations: Record<string, string> = {
 	'style-panel.fill-mode': 'Fill',
@@ -49,17 +62,25 @@ export const fillPickerTranslations: Record<string, string> = {
 	'fill-mode-style.descending': 'Descending',
 	'fill-mode-style.nearly-sorted': 'Nearly sorted',
 	'fill-mode-style.letters': 'Letters',
+	'fill-range-style.small': 'Numbers 0 to 9',
+	'fill-range-style.medium': 'Numbers 0 to 99',
+	'fill-range-style.large': 'Numbers 0 to 999',
+	'fill-range-style.signed': 'Numbers -50 to 50 (negatives too)',
 }
 
 /**
- * Fill mode in the style panel. Picking a mode sets it for the next shape and, for selected
- * shapes, regenerates their values from their seed (so "ascending" sorts the same numbers).
+ * Fill mode in the style panel, and the range its numbers come from. Picking either sets it for
+ * the next shape and, for selected shapes, regenerates their values from their seed (so
+ * "ascending" sorts the same numbers).
  */
 export function FillPicker() {
 	const editor = useEditor()
 	const { styles, onValueChange } = useStylePanelContext()
 	const fill = styles.get(FillStyle)
+	const range = styles.get(FillRangeStyle)
 	if (fill === undefined) return null
+	// Letters and empty cells have no numbers to range over.
+	const numbers = !(fill.type === 'shared' && (fill.value === 'letters' || fill.value === 'empty'))
 	return (
 		<StylePanelSection>
 			<StylePanelDropdownPicker
@@ -77,6 +98,19 @@ export function FillPicker() {
 					refillSelectedShapes(editor)
 				}}
 			/>
+			{range !== undefined && numbers && (
+				<StylePanelButtonPicker
+					title="Range"
+					uiType="fill-range"
+					style={FillRangeStyle}
+					items={RANGE_ITEMS}
+					value={range}
+					onValueChange={(style, value) => {
+						onValueChange(style, value)
+						refillSelectedShapes(editor)
+					}}
+				/>
+			)}
 		</StylePanelSection>
 	)
 }

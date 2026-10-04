@@ -1,4 +1,4 @@
-import { fillValues, type FillMode } from '../../data/fill'
+import { fillValues, type FillMode, type FillRange } from '../../data/fill'
 import { mulberry32 } from '../../data/random'
 import type { TreeNode } from './tree-shape-types'
 
@@ -54,16 +54,16 @@ const ROOT = 'n'
  * fills give each node the value for its place in a perfect tree, so values are stable too; sorted
  * fills run in level order.
  */
-export function generateTree(seed: number, depth: number, fullness: number, fill: FillMode): TreeNode[] {
+export function generateTree(seed: number, depth: number, fullness: number, fill: FillMode, range: FillRange = 'medium'): TreeNode[] {
 	const paths = randomTreePaths(seed, depth, fullness)
 	const exists = new Set(paths)
 	const stablePerNode = fill === 'random' || fill === 'repeats' || fill === 'letters' || fill === 'empty'
 	const values = stablePerNode
 		? (() => {
-				const all = fillValues(fill, seed, Math.max(...paths.map(levelIndex)) + 1)
+				const all = fillValues(fill, seed, Math.max(...paths.map(levelIndex)) + 1, { range })
 				return paths.map((p) => all[levelIndex(p)])
 			})()
-		: fillValues(fill, seed, paths.length)
+		: fillValues(fill, seed, paths.length, { range })
 	return paths.map((path, i) => ({
 		id: ROOT + path,
 		value: values[i],

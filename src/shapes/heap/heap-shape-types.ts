@@ -14,8 +14,8 @@ import {
 } from 'tldraw'
 import { marksValidator, type Marks } from '../../cells/marks'
 import { pointersValidator, type Pointer } from '../../pointers/pointers'
-import type { FillMode } from '../../data/fill'
-import { FillStyle } from '../../data/fill-style'
+import type { FillMode, FillRange } from '../../data/fill'
+import { FillRangeStyle, FillStyle } from '../../data/fill-style'
 import { InvariantStyle, type InvariantMode } from '../../cells/invariant-style'
 import type { HeapType } from './heap'
 
@@ -34,6 +34,8 @@ export interface HeapShapeProps {
 	/** Flag values that break the heap property (dashed red rings). */
 	invariant: InvariantMode
 	fill: FillMode
+	/** The numbers random fills draw from. */
+	range: FillRange
 	seed: number
 	/** Highlight colours keyed by index; they travel with values as they sift. */
 	marks: Marks
@@ -57,6 +59,7 @@ export const heapShapeProps: RecordProps<HeapShape> = {
 	heapType: HeapTypeStyle,
 	invariant: InvariantStyle,
 	fill: FillStyle,
+	range: FillRangeStyle,
 	seed: T.number,
 	marks: marksValidator,
 	pointers: pointersValidator,
@@ -68,6 +71,7 @@ export const heapShapeProps: RecordProps<HeapShape> = {
 const versions = createShapePropsMigrationIds(HEAP_SHAPE_TYPE, {
 	AddPointers: 1,
 	AddInvariant: 2,
+	AddRange: 3,
 })
 
 /** Heaps are persisted in the browser, so every props change needs a step here. */
@@ -89,6 +93,15 @@ export const heapShapeMigrations = createShapePropsMigrationSequence({
 			},
 			down(props) {
 				delete props.invariant
+			},
+		},
+		{
+			id: versions.AddRange,
+			up(props) {
+				props.range = 'medium'
+			},
+			down(props) {
+				delete props.range
 			},
 		},
 	],

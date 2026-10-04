@@ -348,7 +348,7 @@ function NodeValueSvg({
 		<text
 			x={box.x + box.w / 2}
 			y={box.y + box.h / 2}
-			fontSize={paint.fontSize * Math.min(1, 3 / Math.max(1, node.value.length))}
+			fontSize={paint.fontSize * Math.min(1, 2.5 / Math.max(1, node.value.length))}
 			fill={paint.text}
 			style={swapStyle}
 		>

@@ -14,8 +14,8 @@ import {
 } from 'tldraw'
 import { marksValidator, type Marks } from '../../cells/marks'
 import { pointersValidator, type Pointer } from '../../pointers/pointers'
-import type { FillMode } from '../../data/fill'
-import { FillStyle } from '../../data/fill-style'
+import type { FillMode, FillRange } from '../../data/fill'
+import { FillRangeStyle, FillStyle } from '../../data/fill-style'
 
 export const LIST_SHAPE_TYPE = 'linked-list'
 
@@ -67,6 +67,8 @@ export interface ListShapeProps {
 	nodes: ListNode[]
 	direction: ListDirection
 	fill: FillMode
+	/** The numbers random fills draw from. */
+	range: FillRange
 	seed: number
 	/** Highlight colours on nodes, keyed by node id. */
 	marks: Marks
@@ -96,6 +98,7 @@ export const listShapeProps: RecordProps<ListShape> = {
 	nodes: T.arrayOf(T.object({ id: T.string, value: T.string, dx: T.number, dy: T.number })),
 	direction: T.literalEnum('right', 'left', 'down', 'up'),
 	fill: FillStyle,
+	range: FillRangeStyle,
 	seed: T.number,
 	marks: marksValidator,
 	pointers: pointersValidator,
@@ -115,6 +118,7 @@ const versions = createShapePropsMigrationIds(LIST_SHAPE_TYPE, {
 	AddPointers: 2,
 	AddVariants: 3,
 	AddKind: 4,
+	AddRange: 5,
 })
 
 /** Lists are persisted in the browser, so every props change needs a step here. */
@@ -158,6 +162,15 @@ export const listShapeMigrations = createShapePropsMigrationSequence({
 			},
 			down(props) {
 				delete props.kind
+			},
+		},
+		{
+			id: versions.AddRange,
+			up(props) {
+				props.range = 'medium'
+			},
+			down(props) {
+				delete props.range
 			},
 		},
 	],

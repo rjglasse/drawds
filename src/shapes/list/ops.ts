@@ -3,7 +3,7 @@ import type { Point } from '../../nodelink/geometry'
 import { listBasePosition } from './layout'
 import type { ListNode, ListShapeProps } from './list-shape-types'
 
-type ListProps = Pick<ListShapeProps, 'nodes' | 'direction' | 'size' | 'fill' | 'seed'>
+type ListProps = Pick<ListShapeProps, 'nodes' | 'direction' | 'size' | 'fill' | 'seed'> & Partial<Pick<ListShapeProps, 'range'>>
 type LayoutProps = Pick<ListShapeProps, 'nodes' | 'direction' | 'size'>
 
 /** Next unused numeric node id suffix (node ids are `n0`, `n1`, ...). */
@@ -15,14 +15,14 @@ function nextNodeIndex(nodes: readonly ListNode[]) {
  * The list resized to `count` nodes by adding or removing at the head (`atStart`) or the tail.
  * Existing nodes keep their ids, values and drag offsets; new values follow the fill mode.
  */
-export function resizeList({ nodes, fill, seed }: ListProps, count: number, atStart: boolean): ListNode[] {
+export function resizeList({ nodes, fill, seed, range }: ListProps, count: number, atStart: boolean): ListNode[] {
 	if (count <= nodes.length) return atStart ? nodes.slice(nodes.length - count) : nodes.slice(0, count)
 	const values = extendValues(
 		nodes.map((n) => n.value),
 		fill,
 		seed,
 		count,
-		{ atStart }
+		{ atStart, range }
 	)
 	const next = nextNodeIndex(nodes)
 	const added = count - nodes.length
@@ -33,7 +33,7 @@ export function resizeList({ nodes, fill, seed }: ListProps, count: number, atSt
 }
 
 /** Insert a node after `afterId`; its value sits between its neighbours per the fill mode. */
-export function insertListNode({ nodes, fill, seed }: ListProps, afterId: string): { nodes: ListNode[]; id: string } {
+export function insertListNode({ nodes, fill, seed, range }: ListProps, afterId: string): { nodes: ListNode[]; id: string } {
 	const i = nodes.findIndex((n) => n.id === afterId)
 	if (i < 0) return { nodes: [...nodes], id: '' }
 	const index = nextNodeIndex(nodes)
@@ -43,7 +43,8 @@ export function insertListNode({ nodes, fill, seed }: ListProps, afterId: string
 		fill,
 		seed,
 		index,
-		nodes.map((n) => n.value)
+		nodes.map((n) => n.value),
+		range
 	)
 	const node: ListNode = { id: `n${index}`, value, dx: 0, dy: 0 }
 	return { nodes: [...nodes.slice(0, i + 1), node, ...nodes.slice(i + 1)], id: node.id }

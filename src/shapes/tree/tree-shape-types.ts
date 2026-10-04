@@ -14,8 +14,8 @@ import {
 } from 'tldraw'
 import { marksValidator, type Marks } from '../../cells/marks'
 import { pointersValidator, type Pointer } from '../../pointers/pointers'
-import type { FillMode } from '../../data/fill'
-import { FillStyle } from '../../data/fill-style'
+import type { FillMode, FillRange } from '../../data/fill'
+import { FillRangeStyle, FillStyle } from '../../data/fill-style'
 import { InvariantStyle, type InvariantMode } from '../../cells/invariant-style'
 
 export const TREE_SHAPE_TYPE = 'binary-tree'
@@ -56,6 +56,8 @@ export interface TreeShapeProps {
 	invariant: InvariantMode
 	nulls: NullsMode
 	fill: FillMode
+	/** The numbers random fills draw from. */
+	range: FillRange
 	seed: number
 	/** Highlight colours on nodes, keyed by node id. */
 	marks: Marks
@@ -88,6 +90,7 @@ export const treeShapeProps: RecordProps<TreeShape> = {
 	invariant: InvariantStyle,
 	nulls: NullsStyle,
 	fill: FillStyle,
+	range: FillRangeStyle,
 	seed: T.number,
 	marks: marksValidator,
 	pointers: pointersValidator,
@@ -101,6 +104,7 @@ const versions = createShapePropsMigrationIds(TREE_SHAPE_TYPE, {
 	AddKind: 2,
 	AddPointers: 3,
 	AddInvariant: 4,
+	AddRange: 5,
 })
 
 /** Trees are persisted in the browser, so every props change needs a step here. */
@@ -140,6 +144,15 @@ export const treeShapeMigrations = createShapePropsMigrationSequence({
 			},
 			down(props) {
 				delete props.invariant
+			},
+		},
+		{
+			id: versions.AddRange,
+			up(props) {
+				props.range = 'medium'
+			},
+			down(props) {
+				delete props.range
 			},
 		},
 	],

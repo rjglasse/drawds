@@ -12,21 +12,26 @@ export const FILL_MODES = [
 ] as const
 export type FillMode = (typeof FILL_MODES)[number]
 
-const MAX_VALUE = 99
+/** The numbers random fills draw from (letters are always A..Z). */
+export const FILL_RANGES = ['small', 'medium', 'large', 'signed'] as const
+export type FillRange = (typeof FILL_RANGES)[number]
+const RANGE: Record<FillRange, [number, number]> = { small: [0, 9], medium: [0, 99], large: [0, 999], signed: [-50, 50] }
+
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
 type Kind = 'number' | 'letter'
-const POOL: Record<Kind, number> = { number: MAX_VALUE + 1, letter: LETTERS.length }
-const show = (kind: Kind, k: number) => (kind === 'number' ? String(k) : LETTERS[k])
+const lowest = (kind: Kind, range: FillRange) => (kind === 'number' ? RANGE[range][0] : 0)
+const poolSize = (kind: Kind, range: FillRange) => (kind === 'number' ? RANGE[range][1] - RANGE[range][0] + 1 : LETTERS.length)
+const show = (kind: Kind, k: number, range: FillRange) => (kind === 'number' ? String(lowest(kind, range) + k) : LETTERS[k])
 
 /**
- * `count` draws from 0..99 (or A..Z). Distinct draws come without replacement until the pool runs
- * out, then repeat; each draw only depends on the ones before it, so a longer list of draws
- * extends a shorter one.
+ * `count` draws from the range (0..99 by default) or A..Z. Distinct draws come without replacement
+ * until the pool runs out, then repeat; each draw only depends on the ones before it, so a longer
+ * list of draws extends a shorter one.
  */
-function draws(kind: Kind, seed: number, count: number, distinct: boolean): string[] {
+function draws(kind: Kind, seed: number, count: number, distinct: boolean, range: FillRange = 'medium'): string[] {
 	const rng = mulberry32(seed)
-	const pool = POOL[kind]
+	const pool = poolSize(kind, range)
 	const seen = new Set<number>()
 	const out: string[] = []
 	for (let i = 0; i < count; i++) {
@@ -35,48 +40,54 @@ function draws(kind: Kind, seed: number, count: number, distinct: boolean): stri
 			while (seen.has(k)) k = randomInt(0, pool - 1, rng)
 			seen.add(k)
 		}
-		out.push(show(kind, k))
+		out.push(show(kind, k, range))
 	}
 	return out
 }
 
 /** The first value of the seed's distinct ordering of the pool that isn't already `present`. */
-function firstAbsent(kind: Kind, seed: number, present: ReadonlySet<string>): string {
-	const order = draws(kind, seed, POOL[kind], true)
+function firstAbsent(kind: Kind, seed: number, present: ReadonlySet<string>, range: FillRange = 'medium'): string {
+	const order = draws(kind, seed, poolSize(kind, range), true, range)
 	return order.find((v) => !present.has(v)) ?? order[present.size % order.length]
 }
 
-const sortedInts = (seed: number, count: number) =>
-	draws('number', seed, count, true)
+const sortedInts = (seed: number, count: number, range: FillRange) =>
+	draws('number', seed, count, true, range)
 		.map(Number)
 		.sort((a, b) => a - b)
 
 /**
  * `count` values for a structure, deterministic in `seed`.
  *
- * `random` and `letters` are distinct (until the 100 numbers or 26 letters run out); `repeats` may
+ * Numbers come from `range` (0..99 by default). `random` and `letters` are distinct (until the
+ * range's numbers or the 26 letters run out); `repeats` may
  * repeat. Random modes draw values in the order items were sketched, so growing a sketch keeps
  * the values already shown; `reversed` flips them for structures whose index order runs against
  * the drag (an array drawn leftwards). Sorted modes are sorted in index order, so their values
  * re-sort as the sketch grows.
  */
-export function fillValues(mode: FillMode, seed: number, count: number, { reversed = false } = {}): string[] {
+export function fillValues(
+	mode: FillMode,
+	seed: number,
+	count: number,
+	{ reversed = false, range = 'medium' as FillRange } = {}
+): string[] {
 	const inDrawOrder = (values: string[]) => (reversed ? values.reverse() : values)
 	switch (mode) {
 		case 'empty':
 			return Array.from({ length: count }, () => '')
 		case 'random':
-			return inDrawOrder(draws('number', seed, count, true))
+			return inDrawOrder(draws('number', seed, count, true, range))
 		case 'repeats':
-			return inDrawOrder(draws('number', seed, count, false))
+			return inDrawOrder(draws('number', seed, count, false, range))
 		case 'letters':
 			return inDrawOrder(draws('letter', seed, count, true))
 		case 'ascending':
-			return sortedInts(seed, count).map(String)
+			return sortedInts(seed, count, range).map(String)
 		case 'descending':
-			return sortedInts(seed, count).reverse().map(String)
+			return sortedInts(seed, count, range).reverse().map(String)
 		case 'nearly-sorted': {
-			const values = sortedInts(seed, count)
+			const values = sortedInts(seed, count, range)
 			// A separate stream, so the underlying values match 'ascending' for the same seed.
 			nudge(values, mulberry32(seed ^ 0x9e3779b9))
 			return values.map(String)
@@ -96,20 +107,20 @@ export function extendValues(
 	mode: FillMode,
 	seed: number,
 	count: number,
-	{ atStart = false } = {}
+	{ atStart = false, range = 'medium' as FillRange } = {}
 ): string[] {
 	const added = count - values.length
 	if (added <= 0) return atStart ? values.slice(values.length - count) : values.slice(0, count)
 	if (!atStart) {
 		const out = [...values]
-		for (let i = values.length; i < count; i++) out.push(nextValue(out, out[i - 1], mode, seed, i, 1))
+		for (let i = values.length; i < count; i++) out.push(nextValue(out, out[i - 1], mode, seed, i, 1, range))
 		return out
 	}
 	// Build outwards from the old first value: front[0] is next to it.
 	const front: string[] = []
 	for (let j = 1; j <= added; j++) {
 		const present = [...front, ...values]
-		front.push(nextValue(present, front[j - 2] ?? values[0], mode, seed ^ 0x2545f491, j - 1, -1))
+		front.push(nextValue(present, front[j - 2] ?? values[0], mode, seed ^ 0x2545f491, j - 1, -1, range))
 	}
 	return [...front.reverse(), ...values]
 }
@@ -126,7 +137,8 @@ export function insertValue(
 	mode: FillMode,
 	seed: number,
 	salt: number,
-	existing: readonly string[] = []
+	existing: readonly string[] = [],
+	range: FillRange = 'medium'
 ): string {
 	const saltedSeed = (seed ^ Math.imul(salt + 1, 0x85ebca6b)) >>> 0
 	const rng = mulberry32(saltedSeed)
@@ -139,9 +151,9 @@ export function insertValue(
 		case 'letters':
 			return firstAbsent('letter', saltedSeed, new Set(existing))
 		case 'random':
-			return firstAbsent('number', saltedSeed, new Set(existing))
+			return firstAbsent('number', saltedSeed, new Set(existing), range)
 		case 'repeats':
-			return String(randomInt(0, MAX_VALUE, rng))
+			return String(randomInt(RANGE[range][0], RANGE[range][1], rng))
 		case 'ascending':
 		case 'descending':
 		case 'nearly-sorted': {
@@ -152,7 +164,7 @@ export function insertValue(
 			}
 			if (a !== undefined) return String(a + up * randomInt(1, 9, rng))
 			if (b !== undefined) return String(b - up * randomInt(1, 9, rng))
-			return firstAbsent('number', saltedSeed, new Set(existing))
+			return firstAbsent('number', saltedSeed, new Set(existing), range)
 		}
 	}
 }
@@ -168,7 +180,8 @@ function nextValue(
 	mode: FillMode,
 	seed: number,
 	index: number,
-	dir: 1 | -1
+	dir: 1 | -1,
+	range: FillRange
 ): string {
 	// One stream per index, so a value doesn't depend on how the shape grew to reach it.
 	const rng = mulberry32((seed + Math.imul(index + 1, 0x9e3779b1)) >>> 0)
@@ -178,11 +191,11 @@ function nextValue(
 		case 'empty':
 			return ''
 		case 'random':
-			return firstAbsent('number', seed, new Set(present))
+			return firstAbsent('number', seed, new Set(present), range)
 		case 'letters':
 			return firstAbsent('letter', seed, new Set(present))
 		case 'repeats':
-			return draws('number', seed, index + 1, false)[index]
+			return draws('number', seed, index + 1, false, range)[index]
 		case 'ascending':
 		case 'nearly-sorted':
 			return String(base + dir * randomInt(1, 9, rng))

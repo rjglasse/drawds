@@ -26,8 +26,8 @@ export const TreeShapeTool = createDragTool<TreeShape, TreeGesture>({
 	},
 	same: (a, b) => a.depth === b.depth && a.fullness === b.fullness,
 	layout(shape, origin, { depth, fullness }) {
-		const { seed, fill, nulls, size, kind } = shape.props
-		const generated = generateTree(seed, depth, fullness, fill)
+		const { seed, fill, nulls, size, kind, range } = shape.props
+		const generated = generateTree(seed, depth, fullness, fill, range)
 		// A BST takes the same shape with its keys sorted in in-order, so it is valid whatever the shape.
 		const nodes = kind === 'bst' ? assignInOrder(generated, generated.map((n) => n.value)) : generated
 		const root = treeRootCentre({ nodes, nulls, size })
