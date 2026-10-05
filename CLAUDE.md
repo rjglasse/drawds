@@ -191,6 +191,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
 - `src/data/` - seeded RNG (`mulberry32`) and fill generators (`fillValues`, `extendValues`, `insertValue`, each
   taking a `range`: 0-9, 0-99, 0-999, -50..50); `fill-style.ts` has the `drawds:fill` and `drawds:fill-range`
   StyleProps (every filled shape stores `range`) plus `refillSelectedShapes`.
+- `src/files/` - boards as files: Open board... / Save board / Save board as... first in the main menu (Ctrl+O / Ctrl+S /
+  Ctrl+Shift+S), tldraw's `.tldr` JSON (`serializeTldrawJsonBlob` / `parseTldrawJsonFile`, so our shape migrations
+  run on open). Chrome's File System Access pickers where present (Save then writes back to the picked file: handles
+  are keyed by `document.meta.drawdsFile`, so undoing an Open never saves the old board over the file just opened),
+  else a download and a file input. Opening is one undo step (its toast offers Undo); the board takes its file's
+  name (`names.ts`, pure) and the tab title follows it. e2e stubs the pickers (`e2e/board-files.e2e.ts`).
 - `src/ui/` - toolbar/shortcuts/context menu (`overrides.tsx`), style panel Fill picker, icons. tldraw's UI
   inherits the page font: `drawds.css` sets the system sans-serif and 13px menus.
 

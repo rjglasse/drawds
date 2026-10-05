@@ -3,10 +3,13 @@ import {
 	DefaultContextMenuContent,
 	DefaultKeyboardShortcutsDialog,
 	DefaultKeyboardShortcutsDialogContent,
+	DefaultMainMenu,
+	DefaultMainMenuContent,
 	DefaultStylePanel,
 	DefaultStylePanelContent,
 	DefaultToolbar,
 	DefaultToolbarContent,
+	TldrawUiMenuActionItem,
 	TldrawUiMenuGroup,
 	TldrawUiMenuItem,
 	TldrawUiMenuSubmenu,
@@ -23,6 +26,7 @@ import { useState } from 'react'
 import { clearMarks, markElement, markTargetUnderPointer } from '../cells/marking'
 import { MARK_COLORS, MARK_MEANINGS, type MarkColor } from '../cells/marks'
 import { PlaybackOverlay } from '../controls/PlaybackOverlay'
+import { openBoard, saveBoard } from '../files/board'
 import type { NodeOperation } from '../cells/CellShapeUtil'
 import { NodeLinkShapeUtil } from '../nodelink/NodeLinkShapeUtil'
 import { placePointer, removePointer, type Pointer } from '../pointers/pointers'
@@ -49,6 +53,9 @@ import { TreePickers, treePickerTranslations } from './TreePickers'
 const STRUCTURE_TOOLS = ['array', 'matrix', 'linked-list', 'binary-tree', 'heap', 'hash-table', 'graph'] as const
 
 const RELAYOUT = 'drawds.relayout'
+
+/** Board files, first in the main menu. */
+const BOARD_ACTIONS = ['drawds.open-board', 'drawds.save-board', 'drawds.save-board-as'] as const
 
 const markLabel = (color: MarkColor) => `${color[0].toUpperCase()}${color.slice(1)} (${MARK_MEANINGS[color]})`
 
@@ -118,7 +125,25 @@ export const uiOverrides: TLUiOverrides = {
 		}
 		return tools
 	},
-	actions(editor, actions) {
+	actions(editor, actions, helpers) {
+		actions['drawds.open-board'] = {
+			id: 'drawds.open-board',
+			label: 'Open board…',
+			kbd: 'cmd+o,ctrl+o',
+			onSelect: () => openBoard(editor, helpers),
+		}
+		actions['drawds.save-board'] = {
+			id: 'drawds.save-board',
+			label: 'Save board',
+			kbd: 'cmd+s,ctrl+s',
+			onSelect: () => saveBoard(editor, helpers),
+		}
+		actions['drawds.save-board-as'] = {
+			id: 'drawds.save-board-as',
+			label: 'Save board as…',
+			kbd: 'cmd+shift+s,ctrl+shift+s',
+			onSelect: () => saveBoard(editor, helpers, { as: true }),
+		}
 		actions[RELAYOUT] = {
 			id: RELAYOUT,
 			label: 'Re-layout',
@@ -328,6 +353,16 @@ function RelayoutMenuItem() {
 
 export const components: TLComponents = {
 	InFrontOfTheCanvas: PlaybackOverlay,
+	MainMenu: (props) => (
+		<DefaultMainMenu {...props}>
+			<TldrawUiMenuGroup id="drawds-board">
+				{BOARD_ACTIONS.map((id) => (
+					<TldrawUiMenuActionItem key={id} actionId={id} />
+				))}
+			</TldrawUiMenuGroup>
+			<DefaultMainMenuContent />
+		</DefaultMainMenu>
+	),
 	Toolbar: (props) => (
 		<DefaultToolbar {...props}>
 			{STRUCTURE_TOOLS.map((id) => (
@@ -344,6 +379,11 @@ export const components: TLComponents = {
 				{STRUCTURE_TOOLS.map((id) => (
 					<TldrawUiMenuItem key={id} {...tools[id]} />
 				))}
+				<TldrawUiMenuGroup label="shortcuts-dialog.file" id="drawds-board">
+					{BOARD_ACTIONS.map((id) => (
+						<TldrawUiMenuActionItem key={id} actionId={id} />
+					))}
+				</TldrawUiMenuGroup>
 			</DefaultKeyboardShortcutsDialog>
 		)
 	},
