@@ -124,7 +124,7 @@ export function PlayBar({
 			}}
 		>
 			<div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 26, flex: 'none' }}>
-				{button('play-back', 'Step back (Left)', 'back', () => stepBack(editor), { disabled: view.step === 0 })}
+				{button('play-back', 'Step back (Left or PageUp)', 'back', () => stepBack(editor), { disabled: view.step === 0 })}
 				{replay
 					? button('play-toggle', 'Replay (Space)', 'replay', () => togglePlayback(editor))
 					: view.paused
@@ -132,7 +132,7 @@ export function PlayBar({
 						: button('play-toggle', 'Pause (Space)', 'pause', () => togglePlayback(editor))}
 				{button(
 					'play-forward',
-					last && !view.done ? 'Show the result (Right)' : 'Step forward (Right)',
+					last && !view.done ? 'Show the result (Right or PageDown)' : 'Step forward (Right or PageDown)',
 					'forward',
 					(shift) => stepForward(editor, shift),
 					{ disabled: last && view.done }

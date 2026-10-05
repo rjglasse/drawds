@@ -436,17 +436,22 @@ function dismiss(editor: Editor, keep: boolean) {
 
 /**
  * While an operation is open: Space plays / pauses, Left / Right step, Enter finishes (Shift keeps
- * the highlights as marks), Esc cancels. Listened for on the window in the capture phase, ahead of
+ * the highlights as marks), Esc cancels. PageUp / PageDown step too: what a presentation clicker
+ * sends, so the teacher can walk the room. Listened for on the window in the capture phase, ahead of
  * tldraw (whose arrows would nudge the selection, Space pan and Esc deselect).
  */
 function attachKeys(editor: Editor) {
 	const win = editor.getContainer().ownerDocument.defaultView ?? window
 	const onKeyDown = (e: KeyboardEvent) => {
 		if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return
+		const forward = () => stepForward(editor, e.shiftKey)
+		const back = () => stepBack(editor)
 		const actions: Record<string, () => void> = {
 			' ': () => togglePlayback(editor),
-			ArrowRight: () => stepForward(editor, e.shiftKey),
-			ArrowLeft: () => stepBack(editor),
+			ArrowRight: forward,
+			ArrowLeft: back,
+			PageDown: forward,
+			PageUp: back,
 			Enter: () => finishPlayback(editor, e.shiftKey),
 			Escape: () => cancelPlayback(editor),
 		}
@@ -455,7 +460,8 @@ function attachKeys(editor: Editor) {
 		e.preventDefault()
 		e.stopPropagation()
 		swallowKeyUp(win, e.key)
-		if (!e.repeat || e.key.startsWith('Arrow')) action()
+		// Stepping keys repeat while held; the others act once.
+		if (!e.repeat || action === forward || action === back) action()
 	}
 	win.addEventListener('keydown', onKeyDown, true)
 	return () => win.removeEventListener('keydown', onKeyDown, true)

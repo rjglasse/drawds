@@ -39,6 +39,30 @@ test('an operation opens paused on step 1: step back and forward, then cancel: n
 	expect(await page.evaluate(() => window.editor!.getSelectedShapeIds().length)).toBe(1)
 })
 
+test('a presentation clicker steps too: PageDown forward (the result at the end), PageUp back', async ({ page }) => {
+	const before = await sketchBst(page)
+	await insertKey(page, '200')
+	const camera = await page.evaluate(() => window.editor!.getCamera())
+	await expect(page.getByTestId('play-forward')).toHaveAttribute('title', 'Step forward (Right or PageDown)')
+	await expect(page.getByTestId('play-back')).toHaveAttribute('title', 'Step back (Left or PageUp)')
+	await page.keyboard.press('PageDown')
+	await page.keyboard.press('PageDown')
+	await expect(counter(page)).toHaveText('3/3')
+	await page.keyboard.press('PageUp')
+	await expect(counter(page)).toHaveText('2/3')
+	await page.keyboard.press('PageDown')
+	await expect(page.getByTestId('play-forward')).toHaveAttribute('title', 'Show the result (Right or PageDown)')
+	await page.keyboard.press('PageDown')
+	// Like Right, forward from the last step commits the result and the bar stays for review.
+	await expect(page.getByTestId('play-done')).toBeVisible()
+	expect((await tree(page)).nodes).toHaveLength(before.nodes.length + 1)
+	await page.keyboard.press('PageUp')
+	await expect(counter(page)).toHaveText('2/3')
+	// The keys went to the operation only: the tree is still selected and the page didn't move.
+	expect(await page.evaluate(() => window.editor!.getSelectedShapeIds().length)).toBe(1)
+	expect(await page.evaluate(() => window.editor!.getCamera())).toEqual(camera)
+})
+
 test('Enter finishes at once, as one undo step', async ({ page }) => {
 	const before = await sketchBst(page)
 	await insertKey(page, '200')
