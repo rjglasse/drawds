@@ -40,6 +40,42 @@ export interface Frame {
 	strips?: Strip[]
 	/** One line saying what this step does, shown in the play bar. */
 	caption?: string
+	/**
+	 * In predict mode, the question put to the class before this step is shown, worded so it doesn't
+	 * give the answer away (default: DEFAULT_QUESTION).
+	 */
+	ask?: string
+	/** Elements the question is about (nodes, `edge:<key>`), pulsing while it is asked. */
+	askFocus?: string[]
+}
+
+/** What predict mode asks before a step that has no question of its own. */
+export const DEFAULT_QUESTION = 'What happens next?'
+
+/**
+ * Where an operation stands: on step `step` (from 0), or, in predict mode, asking the class about
+ * it first, with the step before it still on screen.
+ */
+export interface Position {
+	step: number
+	asking: boolean
+}
+
+/** The frame on screen at a position: while asking about a step, the one before it (-1: none yet). */
+export const shownFrame = (at: Position) => (at.asking ? at.step - 1 : at.step)
+
+/**
+ * Where one press forward (`dir` 1) or back (-1) goes. With `asks` (predict mode, stepping by hand,
+ * result not in yet) every step takes two presses forward, the question then the reveal, and back
+ * undoes them one at a time. Undefined: past the last step (forward: the result) or at the start.
+ */
+export function stepFrom(at: Position, dir: 1 | -1, { steps, asks }: { steps: number; asks: boolean }): Position | undefined {
+	if (dir > 0) {
+		if (at.asking) return { step: at.step, asking: false }
+		return at.step < steps - 1 ? { step: at.step + 1, asking: asks } : undefined
+	}
+	if (!at.asking && asks) return { step: at.step, asking: true }
+	return at.step > 0 ? { step: at.step - 1, asking: false } : undefined
 }
 
 /** What step `step` shows once the steps before it have had their say. */
@@ -87,6 +123,10 @@ export interface PlaybackView extends StepState {
 	paused: boolean
 	/** The result has been committed; the bar stays up to review or replay until dismissed. */
 	done: boolean
+	/** Predict mode: the question about step `step`, asked while the step before it is on screen. */
+	question?: string
+	/** Elements the question is about, pulsing. */
+	pulse?: string[]
 	/**
 	 * The shape just before and after the result went in. Steps shown afterwards undo the move it
 	 * made (a list's new head moves the shape's origin back), so they stay where they were.
@@ -107,6 +147,8 @@ interface Operation {
 	keep: boolean
 	withMarks?(update: TLShapePartial | undefined, marks: Marks): TLShapePartial
 	step: number
+	/** Predict mode: asking about `step` before showing it. */
+	asking: boolean
 	paused: boolean
 	/** Set once the result is committed. */
 	done: boolean
@@ -167,6 +209,39 @@ function readSpeed() {
 }
 
 const speedAtom = atom('playback speed', readSpeed())
+
+// Predict mode, a per-browser preference too: before each step, the bar asks the class what it will
+// do, and only the next press shows it. Playing (Space, autoplay) goes straight through.
+
+const PREDICT_KEY = 'drawds:predict'
+
+function readPredict() {
+	try {
+		return typeof window !== 'undefined' && window.localStorage.getItem(PREDICT_KEY) === 'on'
+	} catch {
+		return false
+	}
+}
+
+const predictAtom = atom('predict', readPredict())
+
+/** Whether steps are asked about before they are shown. Reactive. */
+export const isPredicting = () => predictAtom.get()
+
+export function setPredict(editor: Editor, on: boolean) {
+	predictAtom.set(on)
+	try {
+		window.localStorage.setItem(PREDICT_KEY, on ? 'on' : 'off')
+	} catch {
+		// Storage can be unavailable (private windows); the setting then lasts for this page.
+	}
+	// Switched off mid-question: show the answer. Switched on: the next step asks.
+	const p = player(editor)
+	if (p.op?.asking && !on) go(editor, { step: p.op.step, asking: false })
+}
+
+/** Whether the next step should be asked about first: predict mode, stepping by hand, result not in. */
+const asks = (op: Operation) => predictAtom.get() && op.paused && !op.done
 
 /** The playing speed (1 = STEP_MS a step). Reactive. */
 export const playbackSpeed = () => speedAtom.get()
@@ -256,7 +331,8 @@ export function playOperation(
 	const p = player(editor)
 	if (p.op) finishPlayback(editor)
 	clearTimeout(p.timer)
-	p.op = { shapeId, label, frames, final, finalFlash, keep, withMarks, step: 0, paused: !autoplayAtom.get(), done: false }
+	const paused = !autoplayAtom.get()
+	p.op = { shapeId, label, frames, final, finalFlash, keep, withMarks, step: 0, asking: paused && predictAtom.get(), paused, done: false }
 	if (!frames.length) {
 		commit(editor, false)
 		return dismiss(editor, false)
@@ -271,29 +347,49 @@ function finalHighlights(op: Operation) {
 	return { ...stateAt(op.frames, op.frames.length - 1).flash, ...op.finalFlash }
 }
 
-function show(p: Player, { back = false } = {}) {
+/**
+ * Put the operation's position on screen. `back`: a step was undone; `still`: the same frame stays
+ * (a question asked or put away), so nothing animates again.
+ */
+function show(p: Player, { back = false, still = false } = {}) {
 	const op = p.op!
-	const frame = op.frames[op.step]
-	const last = op.step === op.frames.length - 1
-	const state = stateAt(op.frames, op.step)
+	const shown = shownFrame(op)
+	// Asking about the first step: the structure as it was, nothing lit yet.
+	const frame: Frame | undefined = op.frames[shown]
+	const last = op.step === op.frames.length - 1 && !op.asking
+	const state = stateAt(op.frames, shown)
 	// Stepping back replays the swaps of the step being undone, so the values arc home again. A
 	// copied value has nowhere to go back to: the old one just reappears.
-	const swaps = back ? op.frames[op.step + 1]?.swaps : frame.swaps
-	const moves = back ? undefined : frame.moves
+	const swaps = still ? undefined : back ? op.frames[shown + 1]?.swaps : frame?.swaps
+	const moves = still || back ? undefined : frame?.moves
+	const asked = op.asking ? op.frames[op.step] : undefined
 	p.view.set({
 		shapeId: op.shapeId,
-		frame: { ...frame, swaps, moves },
+		frame: frame && { ...frame, swaps, moves },
 		frames: op.frames,
 		...state,
 		flash: op.done && last ? finalHighlights(op) : state.flash,
 		fading: false,
-		id: nextViewId++,
+		id: still ? (p.view.get()?.id ?? nextViewId++) : nextViewId++,
 		step: op.step,
 		steps: op.frames.length,
 		paused: op.paused,
 		done: op.done,
 		committed: op.committed,
+		question: asked && (asked.ask ?? DEFAULT_QUESTION),
+		pulse: asked?.askFocus,
 	})
+}
+
+/** Move to `to` and show it, animating as the frame on screen changes. */
+function go(editor: Editor, to: Position) {
+	const p = player(editor)
+	const op = p.op!
+	const before = shownFrame(op)
+	op.step = to.step
+	op.asking = to.asking
+	const now = shownFrame(op)
+	show(p, now === before ? { still: true } : { back: now < before })
 }
 
 function schedule(editor: Editor) {
@@ -310,9 +406,9 @@ export function stepForward(editor: Editor, keep = false) {
 	const p = player(editor)
 	const op = p.op
 	if (!op) return
-	if (op.step < op.frames.length - 1) {
-		op.step++
-		show(p)
+	const next = stepFrom(op, 1, { steps: op.frames.length, asks: asks(op) })
+	if (next) {
+		go(editor, next)
 		return schedule(editor)
 	}
 	clearTimeout(p.timer)
@@ -321,29 +417,35 @@ export function stepForward(editor: Editor, keep = false) {
 	else show(p)
 }
 
-/** Show the previous step, and pause there. */
+/** Show the previous step (in predict mode: ask about this one again), and pause there. */
 export function stepBack(editor: Editor) {
 	const p = player(editor)
 	const op = p.op
 	if (!op) return
 	clearTimeout(p.timer)
 	op.paused = true
-	if (op.step > 0) {
-		op.step--
-		show(p, { back: true })
-	} else {
-		show(p)
-	}
+	const previous = stepFrom(op, -1, { steps: op.frames.length, asks: asks(op) })
+	if (previous) go(editor, previous)
+	else show(p)
 }
 
-/** Pause, or carry on playing from here; a finished operation at its end replays from the start. */
+/**
+ * Pause, or carry on playing from here (a question being asked is answered first); a finished
+ * operation at its end replays from the start.
+ */
 export function togglePlayback(editor: Editor) {
 	const p = player(editor)
 	const op = p.op
 	if (!op) return
-	if (op.done && op.paused && op.step === op.frames.length - 1) op.step = 0
+	const replay = op.done && op.paused && op.step === op.frames.length - 1
+	if (replay) op.step = 0
 	op.paused = !op.paused
-	show(p)
+	if (replay || (!op.paused && op.asking)) {
+		op.asking = false
+		show(p)
+	} else {
+		show(p, { still: true })
+	}
 	schedule(editor)
 }
 
@@ -390,6 +492,7 @@ function commit(editor: Editor, keepNow: boolean) {
 	op.done = true
 	op.paused = true
 	op.step = op.frames.length - 1
+	op.asking = false
 	show(p)
 	// The bar goes when the teacher moves on: another shape selected, or this one changed.
 	const committed = editor.getShape(op.shapeId)?.props
@@ -435,10 +538,11 @@ function dismiss(editor: Editor, keep: boolean) {
 }
 
 /**
- * While an operation is open: Space plays / pauses, Left / Right step, Enter finishes (Shift keeps
- * the highlights as marks), Esc cancels. PageUp / PageDown step too: what a presentation clicker
- * sends, so the teacher can walk the room. Listened for on the window in the capture phase, ahead of
- * tldraw (whose arrows would nudge the selection, Space pan and Esc deselect).
+ * While an operation is open: Space plays / pauses, Left / Right step (in predict mode: ask, then
+ * reveal), Enter finishes (Shift keeps the highlights as marks), Esc cancels. PageUp / PageDown
+ * step too: what a presentation clicker sends, so the teacher can walk the room. Listened for on
+ * the window in the capture phase, ahead of tldraw (whose arrows would nudge the selection, Space
+ * pan and Esc deselect).
  */
 function attachKeys(editor: Editor) {
 	const win = editor.getContainer().ownerDocument.defaultView ?? window

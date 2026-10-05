@@ -258,18 +258,23 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 	insertKey(shape: TreeShape, key: string, keep: boolean) {
 		const result = bstInsert(shape.props.nodes, key)
 		const valueOf = new Map(shape.props.nodes.map((n) => [n.id, n.value]))
-		// Each comparison on the way down; the last one says where the new key goes.
-		const frames = result.path.map((id, i) => {
+		// Each comparison on the way down; the last one says where the new key goes. In predict mode the
+		// class is asked each way first, the node to compare with pulsing.
+		const frames = result.path.map((id, i): Frame => {
 			const v = valueOf.get(id)!
 			const cmp = compareKeys(key, v)
-			if (cmp === 0) return TreeShapeUtil.highlight(id, 'orange', `${key} = ${v}: already in the tree`)
+			const ask = { ask: i === 0 ? `Insert ${key}, starting at the root: ${key} vs ${v}, which way?` : `${key} vs ${v}: which way?`, askFocus: [id] }
+			if (cmp === 0) return { ...TreeShapeUtil.highlight(id, 'orange', `${key} = ${v}: already in the tree`), ...ask }
 			const [sign, side] = cmp < 0 ? ['<', 'left'] : ['>', 'right']
 			const last = i === result.path.length - 1
-			return TreeShapeUtil.highlight(
-				id,
-				'orange',
-				last ? `${key} ${sign} ${v}, which has no ${side} child: ${key} goes there` : `${key} ${sign} ${v}: go ${side}`
-			)
+			return {
+				...TreeShapeUtil.highlight(
+					id,
+					'orange',
+					last ? `${key} ${sign} ${v}, which has no ${side} child: ${key} goes there` : `${key} ${sign} ${v}: go ${side}`
+				),
+				...ask,
+			}
 		})
 		this.play(shape, 'insert key', frames, keep, {
 			nodes: result.found ? undefined : result.nodes,

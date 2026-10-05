@@ -5,8 +5,10 @@ import {
 	cycleSpeed,
 	finishPlayback,
 	isAutoplay,
+	isPredicting,
 	playbackSpeed,
 	setAutoplay,
+	setPredict,
 	stepBack,
 	stepForward,
 	togglePlayback,
@@ -23,6 +25,8 @@ const ICONS = {
 	cancel: 'M4 4L12 12M12 4L4 12',
 	// Fast-forward: play by itself.
 	autoplay: 'M2 4L7.5 8L2 12Z M8.5 4L14 8L8.5 12Z',
+	// A question mark: predict mode.
+	predict: 'M5.2 5.6A2.8 2.8 0 1 1 9.4 8C8.5 8.6 8 9.2 8 10.2 M8 13.2V13.3',
 }
 
 /**
@@ -31,7 +35,8 @@ const ICONS = {
  * the running counts and the step's narration, the only part that grows. So nothing under the
  * pointer moves while it plays. Operations open paused on their first step (unless autoplay is
  * on). Once the result is in the bar stays: step back through it or replay it, then Done (Shift
- * keeps the highlights as marks). Keys do the same (see `playback.ts`).
+ * keeps the highlights as marks). Keys do the same (see `playback.ts`). In predict mode (the ? toggle)
+ * each step is first a question in the narration's place, and the next press shows the answer.
  */
 export function PlayBar({
 	editor,
@@ -48,6 +53,11 @@ export function PlayBar({
 	const last = view.step >= view.steps - 1
 	const replay = view.done && view.paused && last
 	const autoplay = useValue('autoplay', isAutoplay, [])
+	const predict = useValue('predict', isPredicting, [])
+	const asking = view.question !== undefined
+	// At the start: the first step on screen and no question to go back to.
+	const atStart = view.step === 0 && (asking || !(predict && view.paused && !view.done))
+	const violet = getColorValue(colors, 'violet', 'solid')
 	const speed = useValue('playback speed', playbackSpeed, [])
 	const button = (
 		testId: string,
@@ -124,7 +134,7 @@ export function PlayBar({
 			}}
 		>
 			<div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 26, flex: 'none' }}>
-				{button('play-back', 'Step back (Left or PageUp)', 'back', () => stepBack(editor), { disabled: view.step === 0 })}
+				{button('play-back', 'Step back (Left or PageUp)', 'back', () => stepBack(editor), { disabled: atStart })}
 				{replay
 					? button('play-toggle', 'Replay (Space)', 'replay', () => togglePlayback(editor))
 					: view.paused
@@ -132,7 +142,11 @@ export function PlayBar({
 						: button('play-toggle', 'Pause (Space)', 'pause', () => togglePlayback(editor))}
 				{button(
 					'play-forward',
-					last && !view.done ? 'Show the result (Right or PageDown)' : 'Step forward (Right or PageDown)',
+					asking
+						? 'Show the answer (Right or PageDown)'
+						: last && !view.done
+							? 'Show the result (Right or PageDown)'
+							: 'Step forward (Right or PageDown)',
 					'forward',
 					(shift) => stepForward(editor, shift),
 					{ disabled: last && view.done }
@@ -181,6 +195,9 @@ export function PlayBar({
 				{button('play-autoplay', 'Play operations as soon as they start', 'autoplay', () => setAutoplay(editor, !autoplay), {
 					pressed: autoplay,
 				})}
+				{button('play-predict', 'Predict: ask the class about each step before showing it', 'predict', () => setPredict(editor, !predict), {
+					pressed: predict,
+				})}
 				{view.done
 					? button('play-done', 'Done (Enter; Shift keeps the highlights as marks)', 'finish', (shift) =>
 							finishPlayback(editor, shift)
@@ -204,8 +221,26 @@ export function PlayBar({
 					</span>
 				)}
 			</div>
-			<span data-testid="play-caption" style={{ padding: '4px 8px 4px 6px', width: 'max-content', maxWidth: 400, whiteSpace: 'normal', lineHeight: 1.3 }}>
-				{view.frame?.caption ?? ''}
+			<span
+				data-testid="play-caption"
+				data-asking={asking || undefined}
+				style={{
+					padding: '4px 8px 4px 6px',
+					width: 'max-content',
+					maxWidth: 400,
+					whiteSpace: 'normal',
+					lineHeight: 1.3,
+					fontWeight: asking ? 600 : undefined,
+				}}
+			>
+				{asking && (
+					// Drawn, not typed, so the caption's text is the question alone.
+					<svg viewBox="0 0 16 16" width={16} height={16} aria-hidden="true" style={{ verticalAlign: '-3px', marginRight: 6 }}>
+						<circle cx={8} cy={8} r={8} fill={violet} />
+						<path d={ICONS.predict} fill="none" stroke={colors.background} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+					</svg>
+				)}
+				{asking ? view.question : (view.frame?.caption ?? '')}
 			</span>
 		</div>
 	)

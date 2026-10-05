@@ -148,7 +148,11 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   step back through it or replay it, then Done / Enter / Esc, or select something else / edit the shape;
   `isBusy` says when the shape's own controls should hide. Operations open paused on step 1 so the teacher sets
   the pace; the bar's autoplay toggle (localStorage) plays them straight away instead, at the bar's speed
-  (`SPEEDS` ½x-4x, localStorage; animations within a step use `animationMs` to fit while playing). `stateAt(frames, step)` is the pure accumulation. `displayScene` (frame or committed)
+  (`SPEEDS` ½x-4x, localStorage; animations within a step use `animationMs` to fit while playing). Predict mode (the
+  bar's ? toggle, localStorage `drawds:predict`): stepping by hand, each step is first a question in the caption's place
+  (`Frame.ask`, else `DEFAULT_QUESTION`; `askFocus` elements pulse violet, SceneSvg `pulse`) over the step before, and
+  the next press reveals it; back undoes one press at a time; playing goes straight through, and once the result is in
+  nothing is asked. `stepFrom` / `shownFrame` are the pure position logic. `stateAt(frames, step)` is the pure accumulation. `displayScene` (frame or committed)
   feeds rendering and the selection outline (arrays: `displayShape`, which also sizes the geometry, so a step
   with an extra cell stays in the box). SceneSvg draws node shapes then values in two passes so a value
   in flight is never painted over. Any `CellShapeUtil` with `playbackLayout` can play operations; it may hand
@@ -238,7 +242,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   lower-right corner per empty slot and opens the new child for editing.
 - Animated operations: implement `removeNodeAnimated` and/or `getInsertPrompt` + `insertKey`, build frames and
   call `playOperation`; compare keys with `compareKeys` (numeric when both are numbers). Give every frame a
-  `caption` saying why (the teacher may pause on it), and end with a frame showing why it stopped.
+  `caption` saying why (the teacher may pause on it), and end with a frame showing why it stopped. Where predict
+  mode's default question is weak, give a frame an `ask` worded so it doesn't give the answer away (BFS / DFS "A–B: is
+  B new?", BST "30 vs 21: which way?", hashing "which bucket does h(22) give?").
 - Operations from a node (BFS / DFS on graphs, pre/in/post/level-order on trees and heaps, an array's searches):
   implement `nodeOperations(shape, key)` (on `CellShapeUtil`); they appear in that element's context menu,
   grouped by `submenu` if given (`submenuId` makes its test id stable: `context-menu-sub.drawds-<id>-button`).

@@ -146,14 +146,16 @@ function walk(buckets: string[][], strategy: HashStrategy, key: string, verb: st
 	const { index: b, how } = hashOf(key, m)
 	const frames: Frame[] = []
 	const hashed = `${verb} ${key}: h(${key}) = ${how}`
+	// Predict mode: the class works out the hash first.
+	const where = `${verb} ${key}: with m = ${m}, which ${strategy === 'chaining' ? 'bucket' : 'slot'} does h(${key}) give?`
 	if (strategy === 'chaining') {
 		const chain = buckets[b]
 		const keys = chainNodeKeys(buckets)[b]
 		if (!chain.length) {
-			frames.push({ flash: { [bucketKey(b)]: LOOK }, counts: { compared: 0 }, caption: `${hashed}: bucket ${b}, which is empty` })
+			frames.push({ flash: { [bucketKey(b)]: LOOK }, counts: { compared: 0 }, caption: `${hashed}: bucket ${b}, which is empty`, ask: where })
 			return { frames, b, found: undefined as number | undefined, compared: 0 }
 		}
-		frames.push({ flash: { [bucketKey(b)]: LOOK }, counts: { compared: 0 }, caption: `${hashed}: walk bucket ${b}'s chain` })
+		frames.push({ flash: { [bucketKey(b)]: LOOK }, counts: { compared: 0 }, caption: `${hashed}: walk bucket ${b}'s chain`, ask: where })
 		for (const [j, entry] of chain.entries()) {
 			const same = keyOf(entry) === key
 			frames.push({
@@ -183,6 +185,7 @@ function walk(buckets: string[][], strategy: HashStrategy, key: string, verb: st
 			flash: { ...(previous ? { [previous]: null } : {}), [slotKey(i)]: entry !== undefined && keyOf(entry) === key ? FOUND : LOOK },
 			counts: { probes: k + 1 },
 			caption: `${step}: ${what}`,
+			ask: k === 0 ? where : `Slot ${p.path[k - 1]} didn't settle it: which slot next?`,
 		})
 		previous = slotKey(i)
 	}
@@ -207,6 +210,8 @@ export function insertEntry(buckets: string[][], strategy: HashStrategy, entry: 
 			props: { buckets: after },
 			flash: { [node]: FOUND },
 			caption: `${buckets[w.b].length ? 'Add it at the end of the chain' : `It starts bucket ${w.b}'s chain`}. ${loadLine(n + 1, after.length)}`,
+			ask: `${key} isn't in bucket ${w.b}: where does it go?`,
+			askFocus: [bucketKey(w.b)],
 		})
 		return { frames, buckets: after, finalFlash: { [node]: FOUND } }
 	}

@@ -100,10 +100,13 @@ export function bfs(model: GraphModel, start: string, directed: boolean): Traver
 			flash: { [u]: CURRENT, ...(previous ? { [previous]: DONE } : {}) },
 			strips: strips(),
 			caption: `Dequeue ${name(u)} and look at its ${directed ? 'out-' : ''}edges`,
+			ask: 'Which node comes off the queue next?',
 		})
 		for (const { node: v, edge } of adjacent.get(u) ?? []) {
+			// The same question whatever the answer: is the node at the far end of this edge new?
+			const ask = { ask: `${name(u)}${link}${name(v)}: is ${name(v)} new?`, askFocus: [edgeCellKey(edge)] }
 			if (order.includes(v)) {
-				rec.look(edge, { caption: `${name(u)}${link}${name(v)}: ${name(v)} was already discovered` })
+				rec.look(edge, { caption: `${name(u)}${link}${name(v)}: ${name(v)} was already discovered`, ...ask })
 				continue
 			}
 			order.push(v)
@@ -114,6 +117,7 @@ export function bfs(model: GraphModel, start: string, directed: boolean): Traver
 				badges: { [v]: String(order.length) },
 				strips: strips(),
 				caption: `${name(u)}${link}${name(v)}: ${name(v)} is new: discover it (${order.length}) and queue it`,
+				...ask,
 			})
 		}
 		previous = u
@@ -145,6 +149,7 @@ export function dfs(model: GraphModel, start: string, directed: boolean): Traver
 	]
 	const link = directed ? '→' : '–'
 
+	const isNew = (u: string, v: string, edge: string) => ({ ask: `${name(u)}${link}${name(v)}: is ${name(v)} new?`, askFocus: [edgeCellKey(edge)] })
 	const visit = (u: string, via?: { from: string; edge: string }) => {
 		order.push(u)
 		stack.push(u)
@@ -156,10 +161,11 @@ export function dfs(model: GraphModel, start: string, directed: boolean): Traver
 			caption: via
 				? `${name(via.from)}${link}${name(u)}: ${name(u)} is new: go deeper and visit it (${order.length})`
 				: `Visit ${name(start)} (1)`,
+			...(via && isNew(via.from, u, via.edge)),
 		})
 		for (const { node: v, edge } of adjacent.get(u) ?? []) {
 			if (order.includes(v)) {
-				rec.look(edge, { caption: `${name(u)}${link}${name(v)}: ${name(v)} was already visited` })
+				rec.look(edge, { caption: `${name(u)}${link}${name(v)}: ${name(v)} was already visited`, ...isNew(u, v, edge) })
 				continue
 			}
 			visit(v, { from: u, edge })
@@ -172,6 +178,8 @@ export function dfs(model: GraphModel, start: string, directed: boolean): Traver
 			caption: back
 				? `${name(u)} has no unvisited neighbours left: back to ${name(back)}`
 				: `${name(u)} is done: finished, ${ending(order.length, model.nodes.length)}`,
+			ask: `Every edge from ${name(u)} tried: where does DFS go now?`,
+			askFocus: [u],
 		})
 	}
 	visit(start)

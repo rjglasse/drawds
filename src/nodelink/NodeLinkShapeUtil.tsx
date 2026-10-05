@@ -267,6 +267,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 								: undefined
 						}
 						dim={playing && !playing.fading ? playing.dim : undefined}
+						pulse={playing && !playing.fading ? playing.pulse : undefined}
 						// Not while an operation is open: its steps break the invariant on the way to restoring it.
 						warnings={playing && !playing.fading ? undefined : this.sceneWarnings?.(shape)}
 					/>

@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, SVGProps } from 'react'
 import { getColorValue, type TLDefaultColorStyle, type TLThemeColors } from 'tldraw'
 import type { MarkColor, Marks } from '../cells/marks'
 import { arrowHead, badgeDirection, boundaryPoint, labelBox, routeScene, valueBox } from './geometry'
@@ -48,6 +48,7 @@ export function SceneSvg({
 	swaps,
 	dim,
 	warnings,
+	pulse,
 }: {
 	scene: Scene
 	colors: TLThemeColors
@@ -65,6 +66,8 @@ export function SceneSvg({
 	dim?: readonly string[]
 	/** Nodes that break the structure's invariant (a BST's order, a heap's property): a dashed red ring round each. */
 	warnings?: readonly string[]
+	/** Canvas only, in predict mode: what the play bar's question is about (nodes, `edge:<key>`), pulsing violet. */
+	pulse?: readonly string[]
 }) {
 	const { strokeWidth, fontSize, labelFontSize } = scene.metrics
 	const paint: Paint = {
@@ -79,6 +82,8 @@ export function SceneSvg({
 	const routes = routeScene(scene)
 	const byKey = new Map(scene.nodes.map((n) => [n.key, n]))
 	const dimmed = new Set(dim)
+	const pulsing = new Set(pulse)
+	const violet = getColorValue(colors, 'violet', 'solid')
 	// Faded elements fade in and out as the steps change.
 	const fade = (out: boolean) => ({ opacity: out ? 0.3 : 1, style: { transition: 'opacity 300ms ease-in-out' } })
 
@@ -123,6 +128,18 @@ export function SceneSvg({
 				const flashStroke = flashColor && getColorValue(colors, flashColor, 'solid')
 				return (
 					<g key={edge.key} {...fade(dimmed.has(labelKey) || dimmed.has(edge.from) || dimmed.has(edge.to))}>
+						{pulsing.has(labelKey) && (
+							<path
+								className="drawds-pulse"
+								data-pulse={labelKey}
+								d={route.d}
+								fill="none"
+								stroke={violet}
+								strokeOpacity={0.75}
+								strokeWidth={strokeWidth * 5}
+								strokeLinecap="round"
+							/>
+						)}
 						<path d={route.d} fill="none" stroke={stroke} strokeWidth={width} strokeLinecap="round" />
 						{edge.directed && <polygon points={arrowHead(route.tip, route.angle, width * 3 + 6)} fill={stroke} />}
 						{flash && flashStroke && (
@@ -160,27 +177,34 @@ export function SceneSvg({
 			})}
 			{warnings?.map((key) => {
 				const node = byKey.get(key)
-				if (!node) return null
-				const pad = strokeWidth * 2
-				const ring = {
-					fill: 'none',
-					stroke: getColorValue(colors, 'red', 'solid'),
-					strokeWidth: strokeWidth * 1.2,
-					strokeDasharray: `${strokeWidth * 3} ${strokeWidth * 2}`,
-				}
-				return node.kind === 'circle' ? (
-					<circle key={`warn-${key}`} data-warning={key} cx={node.x} cy={node.y} r={node.w / 2 + pad} {...ring} />
-				) : (
-					<rect
-						key={`warn-${key}`}
-						data-warning={key}
-						x={node.x - node.w / 2 - pad}
-						y={node.y - node.h / 2 - pad}
-						width={node.w + 2 * pad}
-						height={node.h + 2 * pad}
-						rx={pad}
-						{...ring}
-					/>
+				return (
+					node && (
+						<NodeRing
+							key={`warn-${key}`}
+							node={node}
+							pad={strokeWidth * 2}
+							data-warning={key}
+							stroke={getColorValue(colors, 'red', 'solid')}
+							strokeWidth={strokeWidth * 1.2}
+							strokeDasharray={`${strokeWidth * 3} ${strokeWidth * 2}`}
+						/>
+					)
+				)
+			})}
+			{pulse?.map((key) => {
+				const node = byKey.get(key)
+				return (
+					node && (
+						<NodeRing
+							key={`pulse-${key}`}
+							node={node}
+							pad={strokeWidth * 2.5}
+							className="drawds-pulse"
+							data-pulse={key}
+							stroke={violet}
+							strokeWidth={strokeWidth * 2}
+						/>
+					)
 				)
 			})}
 			{/* Each pointer arrow starts at a dot in its compartment (where the arrow really starts: a doubly
@@ -223,6 +247,23 @@ export function SceneSvg({
 					) : null
 				)}
 		</g>
+	)
+}
+
+/** A ring just outside a node (round or boxed, as the node is), `pad` off its outline. */
+function NodeRing({ node, pad, ...rest }: { node: SceneNode; pad: number } & SVGProps<SVGCircleElement & SVGRectElement>) {
+	return node.kind === 'circle' ? (
+		<circle cx={node.x} cy={node.y} r={node.w / 2 + pad} fill="none" {...rest} />
+	) : (
+		<rect
+			x={node.x - node.w / 2 - pad}
+			y={node.y - node.h / 2 - pad}
+			width={node.w + 2 * pad}
+			height={node.h + 2 * pad}
+			rx={pad}
+			fill="none"
+			{...rest}
+		/>
 	)
 }
 

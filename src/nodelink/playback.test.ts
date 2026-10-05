@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { stateAt, type Frame } from './playback'
+import { shownFrame, stateAt, stepFrom, type Frame, type Position } from './playback'
 
 describe('stateAt', () => {
 	const frames: Frame[] = [
@@ -30,5 +30,53 @@ describe('stateAt', () => {
 		expect(stateAt(steps, 0)).toMatchObject({ dim: undefined, counts: { comparisons: 1 } })
 		expect(stateAt(steps, 1)).toMatchObject({ dim: ['0', '1'], counts: { comparisons: 1 } })
 		expect(stateAt(steps, 2)).toMatchObject({ dim: [], counts: { comparisons: 2, swaps: 1 } })
+	})
+})
+
+describe('stepFrom', () => {
+	const walk = (from: Position, dir: 1 | -1, presses: number, asks: boolean) => {
+		const seen: (Position | undefined)[] = []
+		let at: Position | undefined = from
+		for (let i = 0; i < presses && at; i++) seen.push((at = stepFrom(at, dir, { steps: 3, asks })))
+		return seen
+	}
+
+	it('steps one press a step when not asking, and stops at either end', () => {
+		expect(walk({ step: 0, asking: false }, 1, 3, false)).toEqual([{ step: 1, asking: false }, { step: 2, asking: false }, undefined])
+		expect(walk({ step: 2, asking: false }, -1, 3, false)).toEqual([{ step: 1, asking: false }, { step: 0, asking: false }, undefined])
+	})
+
+	it('in predict mode takes two presses a step: the question, then the reveal', () => {
+		expect(walk({ step: 0, asking: true }, 1, 6, true)).toEqual([
+			{ step: 0, asking: false },
+			{ step: 1, asking: true },
+			{ step: 1, asking: false },
+			{ step: 2, asking: true },
+			{ step: 2, asking: false },
+			// Past the last step: the result.
+			undefined,
+		])
+	})
+
+	it('steps back one press at a time, asking each question again', () => {
+		expect(walk({ step: 2, asking: false }, -1, 6, true)).toEqual([
+			{ step: 2, asking: true },
+			{ step: 1, asking: false },
+			{ step: 1, asking: true },
+			{ step: 0, asking: false },
+			{ step: 0, asking: true },
+			undefined,
+		])
+	})
+
+	it('answers a question being asked even when no longer asking (played on, or predict switched off)', () => {
+		expect(stepFrom({ step: 1, asking: true }, 1, { steps: 3, asks: false })).toEqual({ step: 1, asking: false })
+		expect(stepFrom({ step: 1, asking: true }, -1, { steps: 3, asks: false })).toEqual({ step: 0, asking: false })
+	})
+
+	it('shows the step before while asking about one (-1: nothing yet)', () => {
+		expect(shownFrame({ step: 2, asking: false })).toBe(2)
+		expect(shownFrame({ step: 2, asking: true })).toBe(1)
+		expect(shownFrame({ step: 0, asking: true })).toBe(-1)
 	})
 })

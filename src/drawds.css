@@ -50,3 +50,20 @@
 		opacity: 0;
 	}
 }
+
+/* Predict mode: what the play bar's question is about pulses (SceneSvg's pulse). */
+.drawds-pulse {
+	animation: drawds-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes drawds-pulse {
+	50% {
+		opacity: 0.25;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.drawds-pulse {
+		animation: none;
+	}
+}

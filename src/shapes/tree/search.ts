@@ -28,6 +28,8 @@ export function bstSearch(nodes: readonly TreeNode[], key: string, { nulls = fal
 	let comparisons = 1
 	let how = `curr = root (${node.value})`
 	let prev: string | undefined
+	// Predict mode: after the start, every step answers the same question about the node curr is on.
+	let ask: Pick<Frame, 'ask' | 'askFocus'> = { ask: `Search for ${key}: where does curr start?` }
 	for (;;) {
 		frames.push({
 			pointers: curr(node.id),
@@ -35,13 +37,16 @@ export function bstSearch(nodes: readonly TreeNode[], key: string, { nulls = fal
 			dim: [...dim],
 			counts: { comparisons },
 			caption: `${how}. Is it ${key}?`,
+			...ask,
 		})
+		ask = { ask: `${key} vs ${node.value}: what next?`, askFocus: [node.id] }
 		const cmp = compareKeys(key, node.value)
 		if (cmp === 0) {
 			frames.push({
 				pointers: curr(node.id),
 				flash: { [node.id]: 'green' },
 				caption: `Yes: found ${key}, after ${comparisons} comparison${comparisons === 1 ? '' : 's'}`,
+				...ask,
 			})
 			return { frames, found: node.id }
 		}
@@ -56,6 +61,7 @@ export function bstSearch(nodes: readonly TreeNode[], key: string, { nulls = fal
 				flash: { [node.id]: null },
 				dim: [...subtree(index, nodes[0].id)],
 				caption: `${key} ${sign} ${node.value}, but ${node.value} has no ${side} child: curr = null, so ${key} is not in the tree`,
+				...ask,
 			})
 			return { frames }
 		}
