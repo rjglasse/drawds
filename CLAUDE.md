@@ -173,7 +173,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `search.ts`: search as frames (curr walks down, each ruled-out subtree fades via `dim`). Invariant checks:
   BSTs and heaps ring offending elements in dashed red (`sceneWarnings` -> SceneSvg `warnings`, toggled by the
   `drawds:invariant` style, `src/cells/invariant-style.ts`; hidden while an operation is open).
-- `src/shapes/tree/` - binary trees: nodes with `children: [left, right]` slots (null = empty), root first;
+- `src/shapes/tree/` - binary trees: nodes with `children: [left, right]` slots (null = empty), root first; layouts
+  (trees and heaps) put the root at x = 0, so a tree that widens grows both ways and its root holds still on the page
+  (the layout offset moves the shape), during an operation's steps too;
   `generate.ts` (random shapes by depth + fullness, growth-stable: existence depends only on seed + path, ids
   are `n` + path), `layout.ts` (contour-based tidy layout; a lone child offset `lone`, well under half the
   sibling spacing, so parentage stays unambiguous), `model.ts` (add child, remove subtree, swap children,
@@ -219,7 +221,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   line): `withPlaybackRoom` puts the union of every step's extent in `meta.drawdsRoom` (playback.ts `ROOM_KEY`; set on
   open, cleared with null around the commit and on close, always history-ignored), the layout counts it and the
   geometry gets two internal corner points, so the box holds every step and still. Caches keyed by props must also
-  key on the meta / layout offset (layouts, placed pointers, the bar's placement). `clearStaleRooms` (App onMount).
+  key on the meta / layout offset (layouts, placed pointers, the bar's placement; tldraw's own indicator cache is per
+  props, so `getIndicatorPath` reads the live record). `clearStaleRooms` (App onMount).
 - Use tldraw style props (`DefaultColorStyle`, `DefaultSizeStyle`, `DefaultFontStyle`) so the built-in style panel
   drives our shapes; set `shapeType` on the tool so the panel shows them while the tool is active.
 - Keep gesture/layout maths in pure functions and test them with vitest.

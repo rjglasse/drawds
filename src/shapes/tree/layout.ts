@@ -107,7 +107,11 @@ function place(item: Item, offsets: Map<Item, number>, m: Metrics): Contour {
 	return contour
 }
 
-/** Every node (and null marker) at its automatic position, with the scene's top-left at (0, 0). */
+/**
+ * Every node (and null marker) at its automatic position: the root at x = 0, the top at y = 0. A
+ * tree that widens grows both ways from its root, so the root holds still on the page (the shape
+ * moves by its layout offset, see `CellShapeUtil.onBeforeUpdate`), during an operation's steps too.
+ */
 function baseScene(props: LayoutProps): Scene {
 	const m = getTreeMetrics(props.size)
 	const metrics = { fontSize: m.fontSize, labelFontSize: m.labelFontSize, strokeWidth: m.strokeWidth }
@@ -135,9 +139,8 @@ function baseScene(props: LayoutProps): Scene {
 	}
 	visit(root, 0, 0)
 
-	const minX = Math.min(...nodes.map((n) => n.x - n.w / 2))
 	const minY = Math.min(...nodes.map((n) => n.y - n.h / 2))
-	return { nodes: nodes.map((n) => ({ ...n, x: n.x - minX, y: n.y - minY })), edges, metrics }
+	return { nodes: nodes.map((n) => ({ ...n, y: n.y - minY })), edges, metrics }
 }
 
 /** The tree's scene: the automatic layout plus each node's drag offset; null markers follow their parent. */
@@ -160,7 +163,7 @@ export function treeBasePosition(props: LayoutProps, key: string): Point | undef
 	return node && { x: node.x, y: node.y }
 }
 
-/** Centre of the root with no drag offset; the sketch tool keeps this under the drag origin. */
+/** Centre of the root with no drag offset (layout coordinates); the sketch tool keeps this under the drag origin. */
 export function treeRootCentre(props: LayoutProps): Point {
 	return (props.nodes[0] && treeBasePosition(props, props.nodes[0].id)) ?? { x: 0, y: 0 }
 }

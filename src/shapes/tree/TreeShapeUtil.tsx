@@ -1,4 +1,4 @@
-import { Vec, type TLShapePartial, type VecLike } from 'tldraw'
+import type { TLShapePartial, VecLike } from 'tldraw'
 import { pruneMarks, type MarkColor, type Marks } from '../../cells/marks'
 import { compareKeys } from '../../data/compare'
 import { fillValues, insertValue } from '../../data/fill'
@@ -9,7 +9,7 @@ import { prunePointers } from '../../pointers/pointers'
 import { playOperation, type Frame } from '../../nodelink/playback'
 import { assignInOrder, bstDelete, bstInsert, bstViolations } from './bst'
 import { bstSearch } from './search'
-import { nullKey, treeBasePosition, treeRootCentre, treeScene } from './layout'
+import { nullKey, treeBasePosition, treeScene } from './layout'
 import { ORDER_NAMES, traverseTree, type TreeOrder } from './traverse'
 import { addChild, levelOrder, mirrorSubtree, parentOf, removeSubtree, swapChildren } from './model'
 import {
@@ -363,13 +363,10 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 	}
 
 	/**
-	 * New nodes, positioned so the root stays where it is on the page. Marks and pointers on removed
-	 * nodes go with them (ids are paths, so a node added later in the same place mustn't inherit one).
+	 * New nodes (the root stays where it is on the page: layouts are anchored on it). Marks and pointers
+	 * on removed nodes go with them (ids are paths, so a node added later in the same place mustn't inherit one).
 	 */
 	private withNodes(shape: TreeShape, nodes: TreeNode[]): TLShapePartial<TreeShape> {
-		const before = treeRootCentre(shape.props)
-		const after = treeRootCentre({ ...shape.props, nodes })
-		const shift = Vec.Rot(Vec.Sub(before, after), shape.rotation)
 		const marks = pruneMarks(
 			shape.props.marks,
 			nodes.map((n) => n.id)
@@ -380,8 +377,6 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 		return {
 			id: shape.id,
 			type: TREE_SHAPE_TYPE,
-			x: shape.x + shift.x,
-			y: shape.y + shift.y,
 			props: { nodes, marks, pointers },
 		}
 	}

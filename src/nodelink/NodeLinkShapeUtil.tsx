@@ -585,8 +585,11 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	}
 
 	getIndicatorPath(shape: S) {
+		// tldraw caches the outline per props, but the room for an operation's steps (meta) moves shape
+		// space too: reading the record makes it follow, so the outline stays on the drawing.
+		const current = (this.editor.getShape(shape.id) as S | undefined) ?? shape
 		const path = new Path2D()
-		for (const n of this.displayScene(shape).nodes) {
+		for (const n of this.displayScene(current).nodes) {
 			if (n.kind === 'null' || n.kind === 'label') continue
 			if (n.kind === 'circle') {
 				path.moveTo(n.x + n.w / 2, n.y)

@@ -27,7 +27,7 @@ export function heapTreeNodes(values: readonly string[]): TreeNode[] {
 
 type HeapLayoutProps = { values: readonly string[]; size: TLDefaultSizeStyle }
 
-/** The heap drawn twice: as a tidy tree, and as its backing array (with indices) centred below. */
+/** The heap drawn twice: as a tidy tree (its root at x = 0), and as its backing array (with indices) centred below. */
 export function heapScene({ values, size }: HeapLayoutProps): Scene {
 	const m = getTreeMetrics(size)
 	const tree = treeScene({ nodes: heapTreeNodes(values), nulls: 'hide', size })
@@ -54,11 +54,12 @@ export function heapScene({ values, size }: HeapLayoutProps): Scene {
 		})
 	})
 
-	const minX = Math.min(...nodes.map((n) => n.x - n.w / 2))
+	// The root stays at x = 0, as the tree's: a heap gaining a level grows both ways and its root holds still.
 	const minY = Math.min(...nodes.map((n) => n.y - n.h / 2))
-	return { ...tree, nodes: nodes.map((n) => ({ ...n, x: n.x - minX, y: n.y - minY })) }
+	return { ...tree, nodes: nodes.map((n) => ({ ...n, y: n.y - minY })) }
 }
 
+/** Centre of the root (layout coordinates); the sketch tool keeps it under the drag origin. */
 export function heapRootCentre(props: HeapLayoutProps): Point {
 	const root = heapScene(props).nodes.find((n) => n.key === '0')
 	return root ? { x: root.x, y: root.y } : { x: 0, y: 0 }

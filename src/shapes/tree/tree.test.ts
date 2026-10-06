@@ -125,19 +125,27 @@ describe('treeScene', () => {
 		expect(scene.edges.map((e) => e.to)).toContain(nullKey('n', 1))
 	})
 
-	it('normalises to (0, 0) and applies drag offsets; nulls follow their parent', () => {
+	it('puts the root at x = 0 and the top at y = 0, and applies drag offsets; nulls follow their parent', () => {
 		const nodes = [node('n', ['nL', null]), { ...node('nL'), dx: 30, dy: 10 }]
 		const scene = treeScene(props(nodes, 'show'))
 		const base = treeScene(props([node('n', ['nL', null]), node('nL')], 'show'))
-		expect(Math.min(...base.nodes.map((n) => n.x - n.w / 2))).toBeCloseTo(0)
+		expect(at(base, 'n').x).toBe(0)
+		expect(Math.min(...base.nodes.map((n) => n.y - n.h / 2))).toBeCloseTo(0)
 		expect(at(scene, 'nL').x - at(base, 'nL').x).toBe(30)
 		expect(at(scene, nullKey('nL', 0)).y - at(base, nullKey('nL', 0)).y).toBe(10)
 		expect(treeBasePosition(props(nodes), 'nL')).toEqual(treeBasePosition(props([node('n', ['nL', null]), node('nL')]), 'nL'))
 	})
 
+	it('keeps the root still as the tree widens: it grows both ways', () => {
+		const small = treeScene(props([node('n', ['nL', 'nR']), node('nL'), node('nR')]))
+		const wider = treeScene(props([node('n', ['nL', 'nR']), node('nL', ['nLL', 'nLR']), node('nR'), node('nLL'), node('nLR')]))
+		expect(at(wider, 'n')).toMatchObject({ x: at(small, 'n').x, y: at(small, 'n').y })
+		expect(Math.min(...wider.nodes.map((n) => n.x))).toBeLessThan(Math.min(...small.nodes.map((n) => n.x)))
+	})
+
 	it('finds the root centre', () => {
 		const p = props([node('n', ['nL', 'nR']), node('nL'), node('nR')])
-		expect(treeRootCentre(p)).toEqual({ x: at(treeScene(p), 'n').x, y: at(treeScene(p), 'n').y })
+		expect(treeRootCentre(p)).toEqual({ x: 0, y: at(treeScene(p), 'n').y })
 	})
 })
 

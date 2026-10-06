@@ -170,12 +170,32 @@ test('list insert and delete: every step inside the box, the head where it was',
 	await expectBoxFitsDrawing(page)
 })
 
-test('heap insert: the steps that add a level stay inside the box', async ({ page }) => {
+test('heap insert: the steps that add a level stay inside the box, the root where it was', async ({ page }) => {
 	await sketchHeap(page, [500, 200], 7)
+	const root = await rounded(page, '0')
 	await page.getByTestId('insert-key').click()
 	await page.getByTestId('key-prompt').fill('1')
 	await page.keyboard.press('Enter')
-	await checkEveryStep(page)
+	await checkEveryStep(page, '0')
+	expect(await rounded(page, '0')).toEqual(root)
+})
+
+test('BST insert down the left spine: a new level on the left, the root where it was', async ({ page }) => {
+	await page.keyboard.press('Shift+T')
+	await page.getByTestId('style.tree-kind.bst').click()
+	await sketchTree(page, [500, 170], 3, 1)
+	const root = await rounded(page, 'n')
+	// Smaller than every key: it walks the left spine and hangs below the leftmost node.
+	await page.getByTestId('insert-key').click()
+	await page.getByTestId('key-prompt').fill('-5')
+	await page.keyboard.press('Enter')
+	await checkEveryStep(page, 'n')
+	expect(await rounded(page, 'n')).toEqual(root)
+	// Undo takes the node away again, and still nothing moves.
+	await page.keyboard.press('ControlOrMeta+z')
+	await expect.poll(() => withEditor(page, (e) => (e.getOnlySelectedShape()!.props as { nodes: unknown[] }).nodes.length)).toBe(7)
+	expect(await rounded(page, 'n')).toEqual(root)
+	await expectBoxFitsDrawing(page)
 })
 
 test('hash rehash: the bigger table stays inside the box, the first bucket where it was', async ({ page }) => {
