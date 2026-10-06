@@ -74,6 +74,18 @@ describe('stepFrom', () => {
 		expect(stepFrom({ step: 1, asking: true }, -1, { steps: 3, asks: false })).toEqual({ step: 0, asking: false })
 	})
 
+	it('takes one press for a step with nothing to guess, either way', () => {
+		const asks = (step: number) => step !== 1
+		const forward: (Position | undefined)[] = []
+		let at: Position | undefined = { step: 0, asking: true }
+		while (at) forward.push((at = stepFrom(at, 1, { steps: 3, asks })))
+		expect(forward).toEqual([{ step: 0, asking: false }, { step: 1, asking: false }, { step: 2, asking: true }, { step: 2, asking: false }, undefined])
+		const back: (Position | undefined)[] = []
+		at = { step: 2, asking: false }
+		while (at) back.push((at = stepFrom(at, -1, { steps: 3, asks })))
+		expect(back).toEqual([{ step: 2, asking: true }, { step: 1, asking: false }, { step: 0, asking: false }, { step: 0, asking: true }, undefined])
+	})
+
 	it('shows the step before while asking about one (-1: nothing yet)', () => {
 		expect(shownFrame({ step: 2, asking: false })).toBe(2)
 		expect(shownFrame({ step: 2, asking: true })).toBe(1)

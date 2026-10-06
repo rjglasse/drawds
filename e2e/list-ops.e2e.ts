@@ -182,6 +182,7 @@ test('print a circular list with a do-while; print a doubly linked one backwards
 	await stepToEnd(page)
 	await expect(caption(page)).toHaveText('print 30; curr = curr.next: the head again, so stop')
 	await page.keyboard.press('Enter')
+	await page.waitForTimeout(450) // the first menu may still be closing: it would swallow the right-click
 	await listOp(page, 'n0', 'list-print-back')
 	await stepToEnd(page)
 	await expect(caption(page)).toHaveText('print 10; curr = curr.prev: 30 again, so stop')

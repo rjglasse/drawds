@@ -321,6 +321,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 						hiddenKey={editing}
 						flash={playing && { marks: playing.flash, fading: playing.fading, id: playing.id }}
 						dim={playing && !playing.fading ? (playing.dim ?? []) : undefined}
+						pulse={playing && !playing.fading ? playing.pulse : undefined}
 						swaps={frame?.swaps?.length && playing ? { pairs: frame.swaps, id: playing.id, ms: animationMs(SWAP_MS, playing) } : undefined}
 					/>
 					{controls && (
@@ -385,6 +386,7 @@ export function MatrixSvg({
 	hiddenKey,
 	flash,
 	dim,
+	pulse,
 	swaps,
 	rowLabels,
 	colLabels,
@@ -398,6 +400,8 @@ export function MatrixSvg({
 	hiddenKey?: string
 	flash?: { marks: Marks; fading: boolean; id: number }
 	dim?: readonly string[]
+	/** Canvas only, in predict mode: cells the play bar's question is about (`r,c`), ringed in pulsing violet. */
+	pulse?: readonly string[]
 	swaps?: { pairs: [string, string][]; id: number; ms: number }
 	/** Headers in place of the indices. */
 	rowLabels?: readonly string[]
@@ -479,6 +483,27 @@ export function MatrixSvg({
 						style={{ transition: 'opacity 300ms ease-in-out' }}
 					/>
 				))}
+			{pulse?.map((key) => {
+				const at = parseCellKey(key)
+				if (!at || at[0] >= rows || at[1] >= cols) return null
+				const box = layout.cellBox(...at)
+				// Inside the cell, as an array's: neighbours share its edges.
+				return (
+					<rect
+						key={`pulse-${key}`}
+						className="drawds-pulse"
+						data-pulse={key}
+						x={box.x + strokeWidth * 2}
+						y={box.y + strokeWidth * 2}
+						width={cell - strokeWidth * 4}
+						height={cell - strokeWidth * 4}
+						rx={strokeWidth}
+						fill="none"
+						stroke={getColorValue(colors, 'violet', 'solid')}
+						strokeWidth={strokeWidth * 2}
+					/>
+				)
+			})}
 			{all.map(({ key, value, box }) => {
 				if (key === hiddenKey) return null
 				const swap = swapStyle(key)

@@ -77,3 +77,14 @@ describe('buildHeapSteps', () => {
 		expect(buildHeapSteps(['4'], 'max').frames[0].caption).toBe('A single value is a heap already')
 	})
 })
+
+describe("build heap's predict questions", () => {
+	it('asks "swap with one, or stop?" at every step of a sift, the value and its children in focus', () => {
+		const { frames } = buildHeapSteps(['1', '9', '8', '2', '7'], 'max')
+		const sifting = frames.filter((f) => / is the larger child, so swap them$|: the subtree at index \d is a heap$/.test(f.caption ?? ''))
+		expect(sifting.length).toBeGreaterThan(2)
+		for (const f of sifting) expect(f.ask === false || /swap with one, or stop\?$/.test(String(f.ask))).toBe(true)
+		expect(frames[0].ask).toBe('Build a heap bottom-up (Floyd): where does it start?')
+		expect(frames.at(-1)!.ask).toBe(false)
+	})
+})

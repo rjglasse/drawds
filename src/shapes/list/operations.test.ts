@@ -385,3 +385,29 @@ describe('the tidy last step', () => {
 		expect(endTidied(base, base, frames)).toEqual(frames)
 	})
 })
+
+describe("predict mode's questions", () => {
+	it('find asks whether curr has found it or where it goes, the same either way', () => {
+		const { frames } = findInList(props, '9')
+		expect(frames.map((f) => f.ask)).toEqual([
+			'Find 9: where does curr start?',
+			'curr is at 7: found 9, or where does curr go?',
+			'curr is at 3: found 9, or where does curr go?',
+			'curr is at 9: found 9, or where does curr go?',
+		])
+		expect(frames[3].askFocus).toEqual(['n2'])
+	})
+
+	it('insert asks which line comes next at every assignment (the order is the lesson)', () => {
+		const { frames } = insertIntoList(props, 'n1', 'n9', '5')
+		expect(frames[0].ask).toBe(false)
+		expect(frames.slice(1).every((f) => f.ask === 'Which line comes next?')).toBe(true)
+		expect(frames.length).toBeGreaterThan(3)
+	})
+
+	it('reverse asks where prev and curr start, then which line of the loop comes next', () => {
+		const { frames } = reverseList(props)
+		expect(frames[0].ask).toBe('Reverse the list: where do prev and curr start?')
+		expect(frames.slice(1).every((f) => f.ask === 'Which line comes next?')).toBe(true)
+	})
+})

@@ -195,10 +195,12 @@ export function SceneSvg({
 				const node = byKey.get(key)
 				return (
 					node && (
+						// Inside the node: cells side by side (a heap's array, a table's slots) share edges,
+						// and a ring outside an edge node would stick out of the shape's box.
 						<NodeRing
 							key={`pulse-${key}`}
 							node={node}
-							pad={strokeWidth * 2.5}
+							pad={-strokeWidth * 1.5}
 							className="drawds-pulse"
 							data-pulse={key}
 							stroke={violet}
@@ -250,7 +252,7 @@ export function SceneSvg({
 	)
 }
 
-/** A ring just outside a node (round or boxed, as the node is), `pad` off its outline. */
+/** A ring round a node (round or boxed, as the node is), `pad` off its outline: outside, or (negative) inside. */
 function NodeRing({ node, pad, ...rest }: { node: SceneNode; pad: number } & SVGProps<SVGCircleElement & SVGRectElement>) {
 	return node.kind === 'circle' ? (
 		<circle cx={node.x} cy={node.y} r={node.w / 2 + pad} fill="none" {...rest} />

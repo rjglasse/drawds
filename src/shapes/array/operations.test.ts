@@ -343,3 +343,44 @@ describe('appending many values', () => {
 		expect(last(op).caption).toMatch(/^8 appends cost 60 copies, 7.5 per append/)
 	})
 })
+
+describe("predict mode's questions", () => {
+	// A question must not give the answer away: the step after a comparison asks the same whichever way it goes.
+	const asksOf = (op: ArrayOperation, caption: RegExp) => op.frames.filter((f) => caption.test(f.caption ?? '')).map((f) => f.ask)
+
+	it('binary search asks for mid, then "found it, or which half?" whatever the outcome, the mid cell in focus', () => {
+		const found = binarySearch(arr(1, 3, 5, 7, 9), '7')
+		const missed = binarySearch(arr(1, 3, 5, 7, 9), '4')
+		expect(asksOf(found, /^mid = /)).toEqual(['lo = 0, hi = 4: which index is mid?', 'lo = 3, hi = 4: which index is mid?'])
+		const decisions = [...found.frames, ...missed.frames].filter((f) => /^(Yes|\d+ [<>] )/.test(f.caption ?? ''))
+		expect(decisions.length).toBeGreaterThan(2)
+		for (const f of decisions) expect(f.ask).toMatch(/^a\[\d\] = \d vs \d: found it, or which half is left\?$/)
+		expect(found.frames.find((f) => f.caption?.startsWith('Yes'))?.askFocus).toEqual(['3'])
+	})
+
+	it('sorts ask "swap or not?" before each comparison; the swap that follows has nothing to guess', () => {
+		for (const op of [bubbleSort(arr(3, 1, 2)), insertionSort(arr(3, 1, 2))]) {
+			const comparisons = op.frames.filter((f) => /: (swap them|leave them|.* is in place)$/.test(f.caption ?? ''))
+			expect(comparisons.length).toBeGreaterThan(1)
+			for (const f of comparisons) expect(f.ask).toMatch(/swap them or (not|leave them)\?$/)
+			for (const f of op.frames.filter((f) => f.caption?.startsWith('swap('))) expect(f.ask).toBe(false)
+			expect(last(op).ask).toBe(false)
+		}
+	})
+
+	it('quicksort and merge sort ask which call comes next', () => {
+		expect(asksOf(quicksort(arr(3, 1, 2)), /^quicksort\(/).every((ask) => ask === 'Which call comes next?')).toBe(true)
+		expect(asksOf(mergeSort(arr(3, 1, 2)), /^mergeSort\(/).every((ask) => ask === 'Which call comes next?')).toBe(true)
+	})
+
+	it('inserting asks first which value moves (from the end, so nothing is overwritten)', () => {
+		const op = insertAt(arr(1, 2, 3), 0, '9')
+		expect(op.frames.map((f) => f.ask)).toEqual([
+			'Insert 9 at index 0: where does the room come from?',
+			'There is room at the end: which value moves first?',
+			'Which value moves next, and where to?',
+			'Which value moves next, and where to?',
+			'Every value from index 0 on has moved: what now?',
+		])
+	})
+})

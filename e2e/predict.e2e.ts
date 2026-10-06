@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { TreeShapeProps } from '../src/shapes/tree/tree-shape-types'
-import { insertKey, nodeScreenPosition, open, shapesOfType, sketchGraph, sketchTree } from './helpers'
+import { insertKey, nodeScreenPosition, open, shapesOfType, sketchArray, sketchGraph, sketchTree } from './helpers'
 
 const tree = async (page: Page) => (await shapesOfType<TreeShapeProps>(page, 'binary-tree'))[0].props
 const caption = (page: Page) => page.getByTestId('play-caption')
@@ -133,4 +133,57 @@ test('hash insert asks which bucket the key hashes to', async ({ page }) => {
 	await expect(asking(page)).toHaveText('Insert 22: with m = 7, which bucket does h(22) give?')
 	await page.keyboard.press('ArrowRight')
 	await expect(caption(page)).toHaveText("Insert 22: h(22) = 22 mod 7 = 1: walk bucket 1's chain")
+})
+
+/** An array at (200, 200) holding `values`, selected; right-click cell `i` > Step by step > `item`. */
+async function arrayStep(page: Page, values: string[], i: number, item: string) {
+	await sketchArray(page, [200, 200], values.length)
+	await page.evaluate((values) => {
+		const e = window.editor!
+		const s = e.getOnlySelectedShape()!
+		e.updateShape({ id: s.id, type: 'array', props: { values } } as never)
+	}, values)
+	await page.mouse.click(200 + i * 48, 200, { button: 'right' })
+	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
+	await page.getByTestId(`context-menu.${item}`).click()
+}
+
+test('binary search asks where mid is, then "found it, or which half?" with that cell pulsing', async ({ page }) => {
+	await predicting(page)
+	await open(page)
+	await arrayStep(page, ['10', '20', '30', '40', '50'], 3, 'array-binary-search')
+	await expect(asking(page)).toHaveText('Binary search for 40: where do lo and hi start?')
+	await page.keyboard.press('ArrowRight')
+	await expect(caption(page)).toHaveText('lo = 0, hi = 4: 40 could be anywhere in a[0..4]')
+	await page.keyboard.press('ArrowRight')
+	await expect(asking(page)).toHaveText('lo = 0, hi = 4: which index is mid?')
+	await page.keyboard.press('ArrowRight')
+	await expect(caption(page)).toHaveText('mid = (0 + 4) / 2 = 2. Is a[2] = 30 equal to 40?')
+	await page.keyboard.press('ArrowRight')
+	await expect(asking(page)).toHaveText('a[2] = 30 vs 40: found it, or which half is left?')
+	await expect(pulsing(page)).toHaveAttribute('data-pulse', '2')
+	await page.keyboard.press('ArrowRight')
+	await expect(caption(page)).toHaveText('30 < 40, so 40 can only be right of mid: lo = mid + 1 = 3')
+	await expect(pulsing(page)).toHaveCount(0)
+})
+
+test('bubble sort: "swap or leave?", then the swap itself shows in one press, either way', async ({ page }) => {
+	await predicting(page)
+	await open(page)
+	await arrayStep(page, ['20', '10', '30'], 0, 'array-bubble-sort')
+	await expect(asking(page)).toHaveText('a[0] = 20 vs a[1] = 10: swap them or leave them?')
+	await expect(page.locator('[data-pulse]')).toHaveCount(2)
+	await page.keyboard.press('ArrowRight')
+	await expect(caption(page)).toHaveText('Pass 1: a[0] = 20 > a[1] = 10: swap them')
+	// Nothing to guess: the swap was just announced.
+	await page.keyboard.press('ArrowRight')
+	await expect(caption(page)).toHaveText('swap(a[0], a[1])')
+	await expect(asking(page)).toHaveCount(0)
+	await page.keyboard.press('ArrowRight')
+	await expect(asking(page)).toHaveText('a[1] = 20 vs a[2] = 30: swap them or leave them?')
+	// Back: the step before (no question to ask again on the swap), then the comparison.
+	await page.keyboard.press('ArrowLeft')
+	await expect(caption(page)).toHaveText('swap(a[0], a[1])')
+	await page.keyboard.press('ArrowLeft')
+	await expect(caption(page)).toHaveText('Pass 1: a[0] = 20 > a[1] = 10: swap them')
 })

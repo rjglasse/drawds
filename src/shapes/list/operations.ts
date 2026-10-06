@@ -137,23 +137,37 @@ export interface ListOperation {
  * Find `target`: curr walks from the first value (after the sentinel, if any) comparing, until it
  * finds it, or reaches null, or (circular, or a cycle) comes back round to a node it has seen.
  */
+// Predict mode: before each step the class guesses what the code does next. Walks ask whether curr
+// has found it or where it goes; the assignments ask which line comes next (the order is the lesson).
+
+const NEXT_LINE = 'Which line comes next?'
+
+/** Frames with predict mode's questions: `first` before the first step, `rest` before the others. */
+function asking(frames: Frame[], first: Frame['ask'], rest: Frame['ask'] = NEXT_LINE): Frame[] {
+	return frames.map((frame, i) => ({ ...frame, ask: i === 0 ? first : rest }))
+}
+
 export function findInList(props: ListProps, target: string): ListOperation {
 	const { nodes } = props
 	const { v, name } = listOf(props)
 	const frames: Frame[] = []
 	const start = v.sentinel ? 'curr = head.next (past the sentinel)' : 'curr = head'
+	// The same question whatever the answer: found it, or on to the next node.
+	const decide = (at: ListNode) => ({ ask: `curr is at ${at.value}: found ${target}, or where does curr go?`, askFocus: [at.id] })
 	for (const [i, node] of nodes.entries()) {
 		const how = i === 0 ? `${start} (${node.value})` : `${nodes[i - 1].value} ≠ ${target}, so curr = curr.next (${node.value})`
 		frames.push({
 			pointers: [pointer('curr', node.id)],
 			flash: { [node.id]: LOOK, ...(i ? { [nodes[i - 1].id]: null } : {}) },
 			caption: `${how}. Is it ${target}?`,
+			...(i === 0 ? { ask: `Find ${target}: where does curr start?` } : decide(nodes[i - 1])),
 		})
 		if (node.value === target) {
 			frames.push({
 				pointers: [pointer('curr', node.id)],
 				flash: { [node.id]: FOUND },
 				caption: `Yes: ${target} is node ${i + 1} from the head`,
+				...decide(node),
 			})
 			return { frames, finalFlash: { [node.id]: FOUND } }
 		}
@@ -163,13 +177,14 @@ export function findInList(props: ListProps, target: string): ListOperation {
 	if (v.circular || v.cycleTo) {
 		const back = v.circular ? (v.sentinel ? SENTINEL_KEY : nodes[0].id) : v.cycleTo!
 		const why = v.circular ? `back at ${v.sentinel ? 'the sentinel' : 'the head'}` : `${name(back)} again, a node already seen: the list has a cycle`
-		frames.push({ pointers: [pointer('curr', back)], flash: { [last.id]: null }, caption: `${after}${why}. ${target} is not in the list` })
+		frames.push({ pointers: [pointer('curr', back)], flash: { [last.id]: null }, caption: `${after}${why}. ${target} is not in the list`, ...decide(last) })
 		return { frames }
 	}
 	frames.push({
 		pointers: [pointer('curr', NULL_KEY)],
 		flash: { [last.id]: null },
 		caption: `${after}null. ${target} is not in the list`,
+		...decide(last),
 	})
 	return { frames }
 }
@@ -269,7 +284,8 @@ export function insertIntoList(props: ListProps, afterId: string | undefined, id
 	const node: ListNode = { id, value, dx: 0, dy: 0 }
 	const k = after === undefined || after === SENTINEL_KEY ? -1 : nodes.findIndex((n) => n.id === after)
 	return {
-		frames: withLoops(frames, props, { [id]: i + 0.5 }),
+		// Where curr is sets the scene; then which assignment comes next, every time.
+		frames: withLoops(asking(frames, after === undefined ? NEXT_LINE : false), props, { [id]: i + 0.5 }),
 		nodes: [...nodes.slice(0, k + 1), node, ...nodes.slice(k + 1)],
 		finalFlash: { [id]: FOUND },
 	}
@@ -303,12 +319,12 @@ export function deleteFromList(props: ListProps, id: string): ListOperation {
 
 	if (c === 0) {
 		// The head, and no sentinel in front of it.
-		frames.push({ pointers: [pointer('curr', id)], flash: { [id]: GONE }, caption: `Delete the head, ${target.value}` })
+		frames.push({ pointers: [pointer('curr', id)], flash: { [id]: GONE }, caption: `Delete the head, ${target.value}`, ask: false })
 		point({ [HEAD_EDGE]: nextKey })
-		frames.push({ scene, pointers: [pointer('curr', id)], flash: { [edgeMark(HEAD_EDGE)]: CHANGED }, caption: `head = head.next: the list starts at ${nextName} now` })
+		frames.push({ scene, pointers: [pointer('curr', id)], flash: { [edgeMark(HEAD_EDGE)]: CHANGED }, caption: `head = head.next: the list starts at ${nextName} now`, ask: NEXT_LINE })
 		let lit = edgeMark(HEAD_EDGE)
 		const step = (caption: string, key: string) => {
-			frames.push({ scene, pointers: [pointer('curr', id)], flash: { [lit]: null, [edgeMark(key)]: CHANGED }, caption })
+			frames.push({ scene, pointers: [pointer('curr', id)], flash: { [lit]: null, [edgeMark(key)]: CHANGED }, caption, ask: NEXT_LINE })
 			lit = edgeMark(key)
 		}
 		if (v.doubly) {
@@ -320,7 +336,7 @@ export function deleteFromList(props: ListProps, id: string): ListOperation {
 			step(`last.next = head: the last node, ${name(lastId)}, points at ${nextName} now`, next(lastId))
 		}
 		gone.scene = dropped(scene)
-		frames.push({ scene: gone.scene, flash: { [lit]: null }, caption: `Nothing points at ${target.value} any more: it is out of the list` })
+		frames.push({ scene: gone.scene, flash: { [lit]: null }, caption: `Nothing points at ${target.value} any more: it is out of the list`, ask: `What happens to ${target.value} now?` })
 		return { frames: withLoops(frames, props, { [id]: c }), nodes: nodes.slice(1) }
 	}
 
@@ -338,16 +354,19 @@ export function deleteFromList(props: ListProps, id: string): ListOperation {
 			pointers: [...prev, pointer('curr', chain[j])],
 			flash: { [chain[j]]: j === c ? GONE : LOOK, ...(j > first ? { [chain[j - 1]]: null } : {}) },
 			caption: j === c ? `${how}: found ${target.value}` : `${how}. Is it ${target.value}?`,
+			...(j === first
+				? { ask: `Delete ${target.value}: where does the walk start?` }
+				: { ask: `curr is at ${name(chain[j - 1])}: is it ${target.value}? Where do prev and curr go?`, askFocus: [chain[j - 1]] }),
 		})
 	}
 	const prevKey = chain[c - 1]
 	const pointers = [pointer('prev', prevKey), pointer('curr', id)]
 	point({ [next(prevKey)]: nextKey }, { [next(prevKey)]: 0.3 })
 	const changes = [`prev.next = curr.next: ${name(prevKey)} now points past ${target.value}, at ${nextName}`]
-	frames.push({ scene, pointers, flash: { [edgeMark(next(prevKey))]: CHANGED }, caption: changes[0] })
+	frames.push({ scene, pointers, flash: { [edgeMark(next(prevKey))]: CHANGED }, caption: changes[0], ask: NEXT_LINE })
 	let lit = edgeMark(next(prevKey))
 	const step = (caption: string, key: string) => {
-		frames.push({ scene, pointers, flash: { [lit]: null, [edgeMark(key)]: CHANGED }, caption })
+		frames.push({ scene, pointers, flash: { [lit]: null, [edgeMark(key)]: CHANGED }, caption, ask: NEXT_LINE })
 		lit = edgeMark(key)
 	}
 	if (v.doubly && nextKey !== NULL_KEY) {
@@ -358,7 +377,13 @@ export function deleteFromList(props: ListProps, id: string): ListOperation {
 		point({ [TAIL_EDGE]: prevKey })
 		step(`tail = prev: ${name(prevKey)} is the last node now`, TAIL_EDGE)
 	}
-	frames.push({ scene: dropped(scene), pointers, flash: { [lit]: null }, caption: `Nothing points at ${target.value} any more: it is out of the list` })
+	frames.push({
+		scene: dropped(scene),
+		pointers,
+		flash: { [lit]: null },
+		caption: `Nothing points at ${target.value} any more: it is out of the list`,
+		ask: `What happens to ${target.value} now?`,
+	})
 	return { frames: withLoops(frames, props, { [id]: c }), nodes: nodes.filter((n) => n.id !== id) }
 }
 
@@ -406,7 +431,7 @@ export function reverseList(props: ListProps): ListOperation {
 			flash: { [edgeMark(fromEdge)]: CHANGED, [nodes[nodes.length - 1].id]: null },
 			caption: `${v.sentinel ? 'sentinel.next' : 'head'} = the old last node, ${name(lastId)}${v.tail ? `; tail = the old first, ${name(firstId)}` : ''}`,
 		})
-		return { frames, ...result }
+		return { frames: asking(frames, 'Reverse the list: where does curr start?'), ...result }
 	}
 	const head = nodeOf(base, firstId)
 	const axis = listAxis(props.direction)
@@ -461,7 +486,7 @@ export function reverseList(props: ListProps): ListOperation {
 			? `sentinel.next = prev: the values start at ${label(prev)}, reversed${v.tail ? `; tail = the old first, ${name(firstId)}` : ''}`
 			: `head = prev: the list starts at ${label(prev)}, reversed${v.tail ? `; tail = the old first, ${name(firstId)}` : ''}`,
 	})
-	return { frames, ...result }
+	return { frames: asking(frames, 'Reverse the list: where do prev and curr start?'), ...result }
 }
 
 /**
@@ -501,7 +526,7 @@ export function findMiddle(props: ListProps): ListOperation {
 		flash: { [at(slow)]: FOUND },
 		caption: `${why}, so slow is at the middle: ${name(slow)} (after ${steps} step${steps === 1 ? '' : 's'}, half the list)`,
 	})
-	return { frames, finalFlash: { [at(slow)]: FOUND } }
+	return { frames: asking(frames, 'Find the middle: where do slow and fast start?', 'Where do slow and fast go next?'), finalFlash: { [at(slow)]: FOUND } }
 }
 
 /**
@@ -544,7 +569,7 @@ export function insertSorted(props: ListProps, id: string, value: string): ListO
 			: `curr = ${end === NULL_KEY ? 'null' : 'back round'}: ${value} is the largest, so it goes at the end, after ${nodes[k - 1].value}`,
 	})
 	const insert = insertIntoList(props, k > 0 ? nodes[k - 1].id : undefined, id, value)
-	if (!before) return { ...insert, frames: [...frames, ...insert.frames] }
+	if (!before) return { ...insert, frames: [...asking(frames, undefined), ...insert.frames] }
 	// The walk replaces insertIntoList's opening step ("curr is at ..."), and what it calls curr (the
 	// node before) is prev here, with curr staying on the node after.
 	const linking = insert.frames.slice(1).map((f) => ({
@@ -552,7 +577,7 @@ export function insertSorted(props: ListProps, id: string, value: string): ListO
 		pointers: [...(f.pointers ?? []).map((p) => (p.name === 'curr' ? pointer('prev', p.at) : p)), pointer('curr', stopKey)],
 		caption: f.caption?.replace(/\bcurr\b/g, 'prev'),
 	}))
-	return { ...insert, frames: [...frames, ...linking] }
+	return { ...insert, frames: [...asking(frames, undefined), ...linking] }
 }
 
 /**
@@ -635,7 +660,11 @@ export function appendToList(props: ListProps, id: string, value: string): ListO
 			? `Appended in O(1): ${assignments} assignments and no walk, however long the list`
 			: `Appended, but finding the end took ${steps} step${steps === 1 ? '' : 's'}, one per node: O(n). A tail pointer makes it O(1)`,
 	})
-	return { frames: withLoops(frames, props, { [id]: chain.length - 0.5 }), nodes: [...nodes, { id, value, dx: 0, dy: 0 }], finalFlash: { [id]: FOUND } }
+	return {
+		frames: withLoops(asking(frames, `Append ${value}: where does it start?`), props, { [id]: chain.length - 0.5 }),
+		nodes: [...nodes, { id, value, dx: 0, dy: 0 }],
+		finalFlash: { [id]: FOUND },
+	}
 }
 
 /**
@@ -667,7 +696,7 @@ export function printList(props: ListProps): ListOperation {
 			caption: `print ${node.value}; curr = curr.next${last ? `: ${stop}${v.circular && !v.sentinel ? ' again' : ''}, so stop` : ` (${name(to)})`}`,
 		})
 	}
-	return { frames }
+	return { frames: asking(frames, 'Print the list: where does curr start?', 'What is printed next, and where does curr go?') }
 }
 
 /**
@@ -718,6 +747,9 @@ export function printBackwards(props: ListProps): ListOperation {
 	return { frames }
 }
 
+const CYCLE_START = 'Is there a cycle? Where do slow and fast start?'
+const CYCLE_STEP = 'Where do slow and fast go next: have they met?'
+
 /**
  * Floyd's cycle detection: slow takes one step at a time and fast two, until fast runs off the end
  * (no cycle) or they meet (fast has lapped slow round a cycle). Then slow starts again from the
@@ -750,7 +782,7 @@ export function detectCycle(props: ListProps): ListOperation {
 		if (fast === NULL_KEY || nextOf(fast) === NULL_KEY) {
 			const why = fast === NULL_KEY ? 'fast is null' : "fast.next is null: fast can't take two more steps"
 			frames.push({ pointers: [pointer('slow', slow), pointer('fast', fast)], flash: { [lit]: null }, counts: { steps }, caption: `${why}, so it ran off the end: no cycle` })
-			return { frames }
+			return { frames: asking(frames, CYCLE_START, CYCLE_STEP) }
 		}
 		slow = nextOf(slow)
 		fast = nextOf(nextOf(fast))
@@ -772,7 +804,7 @@ export function detectCycle(props: ListProps): ListOperation {
 		show(`slow = slow.next (${name(slow)}), fast = fast.next (${name(fast)})`)
 	}
 	show(`They meet at ${name(slow)}: the cycle starts here (the head and the meeting point are as far from it, going round)`, FOUND)
-	return { frames, finalFlash: { [slow]: FOUND } }
+	return { frames: asking(frames, CYCLE_START, CYCLE_STEP), finalFlash: { [slow]: FOUND } }
 }
 
 /** Whether two scenes draw the same: nodes in the same places, arrows to the same nodes, the same way. */
@@ -802,6 +834,7 @@ export function endTidied(before: ListProps, after: ListProps, frames: readonly 
 		scene,
 		flash: Object.fromEntries(lit.map((key) => [key, null])),
 		caption: remark ?? 'Tidied up: the same links, drawn in a line',
+		ask: false,
 	}
 	return remark ? [...frames.slice(0, -1), tidy] : [...frames, tidy]
 }

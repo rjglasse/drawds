@@ -118,29 +118,38 @@ export function buildHeapSteps(start: readonly string[], type: HeapType): { fram
 		last < 0
 			? 'A single value is a heap already'
 			: `The leaves (index ${last + 1} on) are heaps on their own. Sift down each parent, from the last (index ${last}) back to the root`,
-		green(last + 1)
+		green(last + 1),
+		{ ask: last < 0 ? false : 'Build a heap bottom-up (Floyd): where does it start?' }
 	)
+	// Predict mode: swap with a child, or stop? The same question at every step of a sift.
+	const swapOrStop = (at: number): Partial<Frame> => {
+		const kids = childIndices(at).filter((c) => c < n)
+		return kids.length
+			? { ask: `${values[at]} vs its children (${kids.map((c) => values[c]).join(', ')}): swap with one, or stop?`, askFocus: [at, ...kids].map(String) }
+			: { ask: false }
+	}
 	for (let i = last; i >= 0; i--) {
 		const pointers = [{ id: '#i', name: 'i', at: String(i) }]
-		step(`i = ${i}: sift ${values[i]} down until it ${holds} its children`, { ...green(i + 1), [i]: 'orange' }, { pointers })
+		step(`i = ${i}: sift ${values[i]} down until it ${holds} its children`, { ...green(i + 1), [i]: 'orange' }, { pointers, ask: 'Which parent is sifted down next?' })
 		let at = i
 		for (;;) {
 			let best = at
 			for (const c of childIndices(at)) if (c < n && above(values[c], values[best], type)) best = c
 			if (best === at) break
 			const caption = `${values[best]} ${beats} ${values[at]}: ${values[best]} is the ${child} child, so swap them`
+			const question = swapOrStop(at)
 			;[values[at], values[best]] = [values[best], values[at]]
 			swaps.push([at, best])
-			step(caption, { ...green(i + 1), [best]: 'orange' }, { pointers, swaps: [[String(at), String(best)]] })
+			step(caption, { ...green(i + 1), [best]: 'orange' }, { pointers, swaps: [[String(at), String(best)]], ...question })
 			at = best
 		}
 		const kids = childIndices(at)
 			.filter((c) => c < n)
 			.map((c) => values[c])
 		const rest = kids.length ? `${holds} its children (${kids.join(', ')})` : 'has no children'
-		step(`${values[at]} ${rest}: the subtree at index ${i} is a heap`, green(i), { pointers })
+		step(`${values[at]} ${rest}: the subtree at index ${i} is a heap`, green(i), { pointers, ...swapOrStop(at) })
 	}
 	const s = swaps.length
-	step(`Every parent ${holds} its children: a ${type} heap, after ${s} swap${s === 1 ? '' : 's'}`, green(0))
+	step(`Every parent ${holds} its children: a ${type} heap, after ${s} swap${s === 1 ? '' : 's'}`, green(0), { ask: false })
 	return { frames, values, swaps }
 }

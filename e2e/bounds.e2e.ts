@@ -146,6 +146,7 @@ async function checkEveryStep(page: Page, still?: string) {
 }
 
 async function listOp(page: Page, key: string, item: string) {
+	await page.waitForTimeout(450) // an earlier menu may still be closing: it would swallow the right-click
 	await page.mouse.click(...(await nodeScreenPosition(page, key)), { button: 'right' })
 	await page.getByTestId('context-menu-sub.drawds-list-steps-button').click()
 	await page.getByTestId(`context-menu.${item}`).click()

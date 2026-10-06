@@ -886,6 +886,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 						slides={slides}
 						flash={playing && { marks: playing.flash, fading: playing.fading, id: playing.id }}
 						dim={playing && !playing.fading ? (playing.dim ?? []) : undefined}
+						pulse={playing && !playing.fading ? playing.pulse : undefined}
 						offEnd={framePointers ? [] : this.offEndSlots(shape)}
 						aux={aux}
 						cross={cross}
@@ -979,6 +980,7 @@ function ArraySvg({
 	slides,
 	flash,
 	dim,
+	pulse,
 	offEnd = [],
 	aux,
 	cross,
@@ -1001,6 +1003,8 @@ function ArraySvg({
 	flash?: { marks: Marks; fading: boolean; id: number }
 	/** Canvas only, while an operation is open: cells out of play, drawn faded (in or out). */
 	dim?: readonly string[]
+	/** Canvas only, in predict mode: the cells the play bar's question is about, ringed in pulsing violet. */
+	pulse?: readonly string[]
 	/** Canvas only: a second row under the array, such as a new array being filled. */
 	aux?: AuxRow
 	/** Values moving between the array and the second row this step. */
@@ -1176,6 +1180,27 @@ function ArraySvg({
 						/>
 					)
 				})}
+			{pulse?.map((key) => {
+				const i = Number(key)
+				if (!Number.isInteger(i) || i < 0 || i >= values.length) return null
+				const { x, y } = cellAt(i)
+				// Inside the cell: neighbours share its edges, and the shape's box ends at the outer ones.
+				return (
+					<rect
+						key={`pulse-${i}`}
+						className="drawds-pulse"
+						data-pulse={key}
+						x={x + strokeWidth * 2}
+						y={y + strokeWidth * 2}
+						width={cell - strokeWidth * 4}
+						height={cell - strokeWidth * 4}
+						rx={strokeWidth}
+						fill="none"
+						stroke={getColorValue(colors, 'violet', 'solid')}
+						strokeWidth={strokeWidth * 2}
+					/>
+				)
+			})}
 			{drag?.to !== undefined && drag.to !== drag.from && (
 				<rect
 					x={cellAt(drag.to).x + strokeWidth}

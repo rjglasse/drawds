@@ -30,6 +30,9 @@ import { arrayKey, heapScene, heapTreeNodes, indexOfKey } from './layout'
 /** Highlight index i in both views (tree node and array cell). */
 const both = (i: number, color: MarkColor): Marks => ({ [String(i)]: color, [arrayKey(i)]: color })
 
+/** Indices as keys in both views: the tree's nodes and the array's cells. */
+const bothKeys = (...indices: number[]) => indices.flatMap((i) => [String(i), arrayKey(i)])
+
 /** A frame keyed by index (tree view) lighting, swapping and numbering both views. */
 function inBothViews(frame: Frame): Frame {
 	const dup = <T,>(entries: Record<string, T> | undefined) =>
@@ -42,6 +45,7 @@ function inBothViews(frame: Frame): Frame {
 		flash: dup(frame.flash),
 		badges: dup(frame.badges),
 		swaps: frame.swaps?.flatMap(([a, b]) => swapPairs(Number(a), Number(b))),
+		askFocus: frame.askFocus?.flatMap((k) => (/^\d+$/.test(k) ? bothKeys(Number(k)) : [k])),
 	}
 }
 
@@ -270,9 +274,18 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 			{
 				flash: both(i, 'red'),
 				caption: i === 0 ? `Extract the ${heapType}, ${values[0]}` : `Remove ${values[i]} (index ${i})`,
+				ask: false,
 			},
 			...(i < last
-				? [{ props: { values: moved }, flash: both(i, 'orange'), caption: `Move the last value, ${values[last]}, into index ${i}` }]
+				? [
+						{
+							props: { values: moved },
+							flash: both(i, 'orange'),
+							caption: `Move the last value, ${values[last]}, into index ${i}`,
+							ask: `${values[i]} is going: what fills its place?`,
+							askFocus: bothKeys(i),
+						},
+					]
 				: []),
 			// heapRemoveAt sifts the moved value up only if it now beats its parent, which means a swap.
 			...this.siftFrames(moved, result, heapType, result.swaps.length > 0 && result.swaps[0][1] < result.swaps[0][0]),
@@ -292,7 +305,12 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 		const result = heapInsert(values, value, heapType)
 		const appended = [...values, value]
 		const frames: Frame[] = [
-			{ props: { values: appended }, flash: both(values.length, 'orange'), caption: `Append ${value} at the end (index ${values.length})` },
+			{
+				props: { values: appended },
+				flash: both(values.length, 'orange'),
+				caption: `Append ${value} at the end (index ${values.length})`,
+				ask: `Insert ${value}: where does it go first?`,
+			},
 			...this.siftFrames(appended, result, heapType, true),
 		]
 		const after = result.swaps.reduce((m, [a, b]) => swapMarks(m, String(a), String(b)), marks)
@@ -307,12 +325,22 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 		const values = [...start]
 		// In a min heap smaller values go up; in a max heap larger ones.
 		const [beats, yields, holds, child] = type === 'min' ? ['<', '≥', '≤', 'smaller'] : ['>', '≤', '≥', 'larger']
+		// Predict mode asks the same at every step, swap or stop: compare with the parent (up), or the
+		// children (down). With nothing to compare (the root, a leaf) there is nothing to guess.
+		const ask = (i: number): Pick<Frame, 'ask' | 'askFocus'> => {
+			if (up) return i === 0 ? { ask: false } : { ask: `${values[i]} vs its parent ${values[parentIndex(i)]}: swap or stop?`, askFocus: bothKeys(i, parentIndex(i)) }
+			const kids = childIndices(i).filter((c) => c < values.length)
+			return kids.length
+				? { ask: `${values[i]} vs its children (${kids.map((c) => values[c]).join(', ')}): swap with one, or stop?`, askFocus: bothKeys(i, ...kids) }
+				: { ask: false }
+		}
 		const frames: Frame[] = sift.swaps.map(([a, b]) => {
 			const caption = up
 				? `${values[a]} ${beats} ${values[b]}, its parent: swap them`
 				: `${values[b]} ${beats} ${values[a]}: ${values[b]} is the ${child} child, so swap them`
+			const question = ask(a)
 			;[values[a], values[b]] = [values[b], values[a]]
-			return { props: { values: [...values] }, swaps: swapPairs(a, b), flash: { ...both(a, 'orange'), ...both(b, 'orange') }, caption }
+			return { props: { values: [...values] }, swaps: swapPairs(a, b), flash: { ...both(a, 'orange'), ...both(b, 'orange') }, caption, ...question }
 		})
 		const at = sift.at
 		if (at < 0) return frames
@@ -325,7 +353,7 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 			: kids.length
 				? `${v} ${holds} its children (${kids.map((c) => values[c]).join(', ')}): done`
 				: `${v} has no children: done`
-		return [...frames, { props: { values: [...values] }, flash: both(at, 'green'), caption }]
+		return [...frames, { props: { values: [...values] }, flash: both(at, 'green'), caption, ...ask(at) }]
 	}
 
 	private play(

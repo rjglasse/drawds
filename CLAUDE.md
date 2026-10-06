@@ -150,9 +150,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   the pace; the bar's autoplay toggle (localStorage) plays them straight away instead, at the bar's speed
   (`SPEEDS` ½x-4x, localStorage; animations within a step use `animationMs` to fit while playing). Predict mode (the
   bar's ? toggle, localStorage `drawds:predict`): stepping by hand, each step is first a question in the caption's place
-  (`Frame.ask`, else `DEFAULT_QUESTION`; `askFocus` elements pulse violet, SceneSvg `pulse`) over the step before, and
-  the next press reveals it; back undoes one press at a time; playing goes straight through, and once the result is in
-  nothing is asked. `stepFrom` / `shownFrame` are the pure position logic. `stateAt(frames, step)` is the pure accumulation. `displayScene` (frame or committed)
+  (`Frame.ask`, else `DEFAULT_QUESTION`; `askFocus` elements pulse violet inside their outline: SceneSvg, ArraySvg and
+  MatrixSvg `pulse`) over the step before, and the next press reveals it; `ask: false` (nothing to guess: the swap a
+  step announced, a summing-up) shows straight away; back undoes one press at a time; playing goes straight through,
+  and once the result is in nothing is asked. `stepFrom` / `shownFrame` are the pure position logic. `stateAt(frames, step)` is the pure accumulation. `displayScene` (frame or committed)
   feeds rendering and the selection outline (arrays: `displayShape`, which also sizes the geometry, so a step
   with an extra cell stays in the box). SceneSvg draws node shapes then values in two passes so a value
   in flight is never painted over. Any `CellShapeUtil` with `playbackLayout` can play operations; it may hand
@@ -250,8 +251,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
 - Animated operations: implement `removeNodeAnimated` and/or `getInsertPrompt` + `insertKey`, build frames and
   call `playOperation`; compare keys with `compareKeys` (numeric when both are numbers). Give every frame a
   `caption` saying why (the teacher may pause on it), and end with a frame showing why it stopped. Where predict
-  mode's default question is weak, give a frame an `ask` worded so it doesn't give the answer away (BFS / DFS "A–B: is
-  B new?", BST "30 vs 21: which way?", hashing "which bucket does h(22) give?").
+  mode's default question is weak, give a frame an `ask` worded so it doesn't give the answer away: the same question
+  whichever way the step goes (BFS / DFS "A–B: is B new?", BST "30 vs 21: which way?", hashing "which bucket does
+  h(22) give?", binary search "found it, or which half?", sorts "swap them or not?", recursion "which call comes
+  next?", list code "which line comes next?"); array operations pass `ask` / `askFocus` to the recorder's `step`.
 - Operations from a node (BFS / DFS on graphs, pre/in/post/level-order on trees and heaps, an array's searches):
   implement `nodeOperations(shape, key)` (on `CellShapeUtil`); they appear in that element's context menu.
   Whole-structure operations (an array's sorts) go in `shapeOperations(shape)`, shown wherever it is clicked.

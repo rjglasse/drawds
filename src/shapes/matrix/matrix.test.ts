@@ -136,3 +136,19 @@ describe('matrix operations', () => {
 function within(values: string[], lo: number, hi: number) {
 	return values.every((v) => Number(v) >= lo && Number(v) <= hi)
 }
+
+describe("staircase search's predict questions", () => {
+	it('asks "found it, go left, or go down?" at every cell, whatever the answer', () => {
+		const grid = [
+			['1', '4', '7'],
+			['2', '5', '8'],
+			['3', '6', '9'],
+		]
+		for (const target of ['5', '10', '0']) {
+			const { frames } = staircaseSearch(grid, target)
+			const compared = frames.filter((f) => f.askFocus)
+			expect(compared.length).toBeGreaterThan(0)
+			for (const f of compared) expect(f.ask).toMatch(/^(Start top-right: )?a\[\d\]\[\d\] = \d vs \d+: found it, go left, or go down\?$/)
+		}
+	})
+})

@@ -42,9 +42,10 @@ export interface Frame {
 	caption?: string
 	/**
 	 * In predict mode, the question put to the class before this step is shown, worded so it doesn't
-	 * give the answer away (default: DEFAULT_QUESTION).
+	 * give the answer away (default: DEFAULT_QUESTION). False: nothing to guess (it carries out what
+	 * the step before announced, or sums up), so it shows straight away.
 	 */
-	ask?: string
+	ask?: string | false
 	/** Elements the question is about (nodes, `edge:<key>`), pulsing while it is asked. */
 	askFocus?: string[]
 }
@@ -69,12 +70,18 @@ export const shownFrame = (at: Position) => (at.asking ? at.step - 1 : at.step)
  * result not in yet) every step takes two presses forward, the question then the reveal, and back
  * undoes them one at a time. Undefined: past the last step (forward: the result) or at the start.
  */
-export function stepFrom(at: Position, dir: 1 | -1, { steps, asks }: { steps: number; asks: boolean }): Position | undefined {
+export function stepFrom(
+	at: Position,
+	dir: 1 | -1,
+	{ steps, asks }: { steps: number; asks: boolean | ((step: number) => boolean) }
+): Position | undefined {
+	// Steps with nothing to guess take one press either way.
+	const asksAt = (step: number) => (typeof asks === 'function' ? asks(step) : asks)
 	if (dir > 0) {
 		if (at.asking) return { step: at.step, asking: false }
-		return at.step < steps - 1 ? { step: at.step + 1, asking: asks } : undefined
+		return at.step < steps - 1 ? { step: at.step + 1, asking: asksAt(at.step + 1) } : undefined
 	}
-	if (!at.asking && asks) return { step: at.step, asking: true }
+	if (!at.asking && asksAt(at.step)) return { step: at.step, asking: true }
 	return at.step > 0 ? { step: at.step - 1, asking: false } : undefined
 }
 
@@ -286,8 +293,11 @@ export function setPredict(editor: Editor, on: boolean) {
 	if (p.op?.asking && !on) go(editor, { step: p.op.step, asking: false })
 }
 
-/** Whether the next step should be asked about first: predict mode, stepping by hand, result not in. */
-const asks = (op: Operation) => predictAtom.get() && op.paused && !op.done
+/**
+ * Whether step `step` is asked about first: predict mode, stepping by hand, the result not in yet,
+ * and something to guess.
+ */
+const asks = (op: Operation) => (step: number) => predictAtom.get() && op.paused && !op.done && op.frames[step]?.ask !== false
 
 /** The playing speed (1 = STEP_MS a step). Reactive. */
 export const playbackSpeed = () => speedAtom.get()
@@ -378,7 +388,7 @@ export function playOperation(
 	if (p.op) finishPlayback(editor)
 	clearTimeout(p.timer)
 	const paused = !autoplayAtom.get()
-	p.op = { shapeId, label, frames, final, finalFlash, keep, withMarks, step: 0, asking: paused && predictAtom.get(), paused, done: false }
+	p.op = { shapeId, label, frames, final, finalFlash, keep, withMarks, step: 0, asking: paused && predictAtom.get() && frames[0]?.ask !== false, paused, done: false }
 	if (!frames.length) {
 		commit(editor, false)
 		return dismiss(editor, false)
@@ -423,7 +433,7 @@ function show(p: Player, { back = false, still = false } = {}) {
 		paused: op.paused,
 		done: op.done,
 		committed: op.committed,
-		question: asked && (asked.ask ?? DEFAULT_QUESTION),
+		question: asked && (asked.ask || DEFAULT_QUESTION),
 		pulse: asked?.askFocus,
 	})
 }
