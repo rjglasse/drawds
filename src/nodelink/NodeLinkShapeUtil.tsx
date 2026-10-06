@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import {
 	Circle2d,
 	Group2d,
+	Point2d,
 	Polyline2d,
 	Rectangle2d,
 	SVGContainer,
@@ -30,7 +31,7 @@ import { showsStructureControls } from '../controls/visibility'
 import { POINTER_FONT_SCALE, placePointers, type PlacedPointer, type PointerAnchor, type PointerSide } from '../pointers/layout'
 import { boxContains, labelBox, nodeBox, nodeContains, routeScene, spatialNeighbor, type EdgeRoute } from './geometry'
 import { hoveredEdge, hoveredNode } from './hover'
-import { animationMs, isBusy, playbackFor, type Frame } from './playback'
+import { ROOM_KEY, animationMs, isBusy, playbackFor, roomOf, type Frame, type Room } from './playback'
 import { edgeCellKey, translateScene, type Scene, type SceneEdge, type SceneNode } from './scene'
 import { sceneCells } from './scene-cells'
 import { SceneSvg } from './SceneSvg'
@@ -103,7 +104,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	readonly markableEdges: boolean = false
 
 	readonly cells: EditableCells<S> = sceneCells<S>(this)
-	private layouts = new WeakMap<object, { scene: Scene; offset: VecLike }>()
+	private layouts = new WeakMap<object, { scene: Scene; offset: VecLike; room: unknown }>()
 
 	/**
 	 * The scene in shape space: the layout moved so that everything drawn (nodes, edges, weights,
@@ -120,36 +121,36 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 
 	private layoutOf(shape: S) {
 		let layout = this.layouts.get(shape.props)
-		if (!layout) {
-			layout = this.normalise(shape, this.buildScene(shape))
+		// The room an open operation needs lives in the meta, not the props.
+		if (!layout || layout.room !== shape.meta[ROOM_KEY]) {
+			layout = { ...this.normalise(shape, this.buildScene(shape), roomOf(shape)), room: shape.meta[ROOM_KEY] }
 			this.layouts.set(shape.props, layout)
 		}
 		return layout
 	}
 
-	/** A scene moved so that its drawing, pointers included, starts at (0, 0). */
-	private normalise(shape: S, raw: Scene) {
-		const xs: number[] = []
-		const ys: number[] = []
-		const add = (x: number, y: number) => {
-			xs.push(x)
-			ys.push(y)
-		}
-		for (const n of raw.nodes) add(n.x - n.w / 2, n.y - n.h / 2)
-		for (const [key, route] of routeScene(raw)) {
-			for (const p of route.points) add(p.x, p.y)
-			const label = raw.edges.find((e) => e.key === key)?.label
-			if (label !== undefined) {
-				const box = labelBox(route.labelAt, label, raw.metrics.labelFontSize)
-				add(box.x, box.y)
-			}
-		}
+	/** A scene moved so that its drawing, pointers included (and any room for steps), starts at (0, 0). */
+	private normalise(shape: S, raw: Scene, room: Room | undefined) {
 		const fontSize = raw.metrics.fontSize * POINTER_FONT_SCALE
-		for (const { label } of placePointers(this.getPointers(shape), (key) => this.pointerAnchorIn(shape, raw, key), fontSize)) {
-			add(label.x, label.y)
-		}
-		const offset = { x: xs.length ? -Math.min(...xs) : 0, y: ys.length ? -Math.min(...ys) : 0 }
+		const labels = placePointers(this.getPointers(shape), (key) => this.pointerAnchorIn(shape, raw, key), fontSize)
+		const box = unionRoom(sceneRoom(raw), ...labels.map(({ label }) => roomOfBox(label)), room)
+		const offset = { x: box ? -box.minX : 0, y: box ? -box.minY : 0 }
 		return { scene: translateScene(raw, offset), offset }
+	}
+
+	/**
+	 * The room an operation's steps take (layout coordinates), kept in the meta while it is open, so
+	 * the box holds every step: a bigger table after a rehash, a heap's new level, a list node off the
+	 * line. Without `frames`, takes it away. Undefined when nothing needs changing.
+	 */
+	withPlaybackRoom(shape: S, frames: readonly Frame[] | undefined): TLShapePartial<S> | undefined {
+		const offset = this.layoutOffset(shape)
+		const steps = (frames ?? []).filter((f) => f.scene || f.props).map((f) => translateScene(this.displayScene(shape, f), Vec.Neg(offset)))
+		const room = unionRoom(...steps.map(sceneRoom))
+		const current = roomOf(shape)
+		if (room ? current && sameRoom(room, current) : !current) return undefined
+		// Meta updates merge key by key: null takes the room away.
+		return { id: shape.id, type: shape.type, meta: { [ROOM_KEY]: room ? { ...room } : null } } as unknown as TLShapePartial<S>
 	}
 
 	/** The node or edge cell at the point, else (if edges take marks) the edge passing near it. */
@@ -222,7 +223,15 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 			const box = labelBox(route.labelAt, e.label, scene.metrics.labelFontSize)
 			return [new Rectangle2d({ x: box.x, y: box.y, width: box.w, height: box.h, isFilled: true })]
 		})
-		const children = [...nodes, ...edges, ...labels, ...this.pointerGeometry(shape)]
+		// Room for an open operation's steps: its corners stretch the box, without catching clicks.
+		const room = roomOf(shape)
+		const offset = this.layoutOffset(shape)
+		const corners = room
+			? [new Vec(room.minX, room.minY), new Vec(room.maxX, room.maxY)].map(
+					(p) => new Point2d({ point: Vec.Add(p, offset), margin: 0, isInternal: true })
+				)
+			: []
+		const children = [...nodes, ...edges, ...labels, ...this.pointerGeometry(shape), ...corners]
 		return children.length ? new Group2d({ children }) : new Rectangle2d({ width: 1, height: 1, isFilled: false })
 	}
 
@@ -636,3 +645,32 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		return this.editor.getCurrentTheme().fonts[this.style(shape).font].fontFamily
 	}
 }
+
+/** What a scene's drawing covers: its nodes, edges and edge labels. */
+function sceneRoom(scene: Scene): Room | undefined {
+	const boxes: Room[] = scene.nodes.map((n) => ({ minX: n.x - n.w / 2, minY: n.y - n.h / 2, maxX: n.x + n.w / 2, maxY: n.y + n.h / 2 }))
+	for (const [key, route] of routeScene(scene)) {
+		for (const p of route.points) boxes.push({ minX: p.x, minY: p.y, maxX: p.x, maxY: p.y })
+		const label = scene.edges.find((e) => e.key === key)?.label
+		if (label !== undefined) boxes.push(roomOfBox(labelBox(route.labelAt, label, scene.metrics.labelFontSize)))
+	}
+	return unionRoom(...boxes)
+}
+
+function roomOfBox(box: { x: number; y: number; w: number; h: number }): Room {
+	return { minX: box.x, minY: box.y, maxX: box.x + box.w, maxY: box.y + box.h }
+}
+
+function unionRoom(...rooms: (Room | undefined)[]): Room | undefined {
+	const present = rooms.filter((r): r is Room => !!r)
+	if (!present.length) return undefined
+	return {
+		minX: Math.min(...present.map((r) => r.minX)),
+		minY: Math.min(...present.map((r) => r.minY)),
+		maxX: Math.max(...present.map((r) => r.maxX)),
+		maxY: Math.max(...present.map((r) => r.maxY)),
+	}
+}
+
+const sameRoom = (a: Room, b: Room) =>
+	Math.abs(a.minX - b.minX) < 1e-6 && Math.abs(a.minY - b.minY) < 1e-6 && Math.abs(a.maxX - b.maxX) < 1e-6 && Math.abs(a.maxY - b.maxY) < 1e-6

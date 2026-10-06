@@ -11,7 +11,7 @@ interface Placement {
 	bar: { x: number; y: number }
 }
 
-const placements = new WeakMap<readonly Frame[], { props: object; committed: object | undefined; placement: Placement }>()
+const placements = new WeakMap<readonly Frame[], { props: object; meta: object; committed: object | undefined; placement: Placement }>()
 
 /**
  * The strips and the bar, placed once for the whole operation, so they hold still while it plays:
@@ -22,7 +22,8 @@ const placements = new WeakMap<readonly Frame[], { props: object; committed: obj
 function placementFor(util: CellShapeUtil<TLShape>, shape: TLShape, view: PlaybackView): Placement {
 	const { frames, committed } = view
 	const cached = placements.get(frames)
-	if (cached?.props === shape.props && cached.committed === committed) return cached.placement
+	// The meta too: room made for the steps moves shape space (see playback.ts's ROOM_KEY).
+	if (cached?.props === shape.props && cached.meta === shape.meta && cached.committed === committed) return cached.placement
 	let left = Infinity
 	let bottom = -Infinity
 	let tallest = 0
@@ -38,7 +39,7 @@ function placementFor(util: CellShapeUtil<TLShape>, shape: TLShape, view: Playba
 	}
 	const strip = { x: left, y: bottom + gap }
 	const placement = { strip, bar: { x: left, y: tallest ? strip.y + tallest + gap : strip.y } }
-	placements.set(frames, { props: shape.props, committed, placement })
+	placements.set(frames, { props: shape.props, meta: shape.meta, committed, placement })
 	return placement
 }
 

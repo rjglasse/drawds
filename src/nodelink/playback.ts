@@ -134,6 +134,52 @@ export interface PlaybackView extends StepState {
 	committed?: { before: TLShape; after: TLShape }
 }
 
+/**
+ * Room an open operation's steps need, in the shape's layout coordinates, kept in its meta: shapes
+ * whose steps draw more (or elsewhere) than the shape itself count it in their layout, so their box
+ * holds every step, and `CellShapeUtil.onBeforeUpdate` moves the shape so nothing shifts on the page.
+ * Set when an operation opens and cleared when it closes, never in the undo history.
+ */
+export const ROOM_KEY = 'drawdsRoom'
+
+export interface Room {
+	minX: number
+	minY: number
+	maxX: number
+	maxY: number
+}
+
+export function roomOf(shape: TLShape): Room | undefined {
+	// Null once taken away (meta updates merge, so a key can't be dropped).
+	const room = shape.meta[ROOM_KEY] as Partial<Room> | null | undefined
+	return room && [room.minX, room.minY, room.maxX, room.maxY].every((v) => typeof v === 'number') ? (room as Room) : undefined
+}
+
+/** Shapes that need room for their steps work it out (see `NodeLinkShapeUtil.withPlaybackRoom`). */
+interface RoomMaker {
+	withPlaybackRoom?(shape: TLShape, frames: readonly Frame[] | undefined): TLShapePartial | undefined
+}
+
+/** Make room for an operation's `frames` on its shape, or (none) take it away again. */
+function fitRoom(editor: Editor, shapeId: TLShapeId, frames?: readonly Frame[]) {
+	const shape = editor.getShape(shapeId)
+	if (!shape) return
+	const update = (editor.getShapeUtil(shape) as RoomMaker).withPlaybackRoom?.(shape, frames)
+	if (update) editor.run(() => editor.updateShape(update), { history: 'ignore', ignoreShapeLock: true })
+}
+
+/**
+ * Take away room no open operation needs: left by a reload mid-operation, or brought back by undoing
+ * a change made while an operation was open. Returns the cleanup.
+ */
+export function clearStaleRooms(editor: Editor) {
+	const stale = (shape: TLShape) => !!roomOf(shape) && player(editor).op?.shapeId !== shape.id
+	for (const record of editor.store.allRecords()) if (record.typeName === 'shape' && stale(record)) fitRoom(editor, record.id)
+	return editor.sideEffects.registerAfterChangeHandler('shape', (_prev, next) => {
+		if (stale(next)) editor.timers.setTimeout(() => editor.getShape(next.id) && stale(editor.getShape(next.id)!) && fitRoom(editor, next.id), 0)
+	})
+}
+
 /** Time per frame when playing, and how long highlights take to fade after an operation. */
 export const STEP_MS = 650
 export const FADE_MS = 2200
@@ -338,6 +384,7 @@ export function playOperation(
 		return dismiss(editor, false)
 	}
 	p.detach.push(attachKeys(editor))
+	fitRoom(editor, shapeId, frames)
 	show(p)
 	schedule(editor)
 }
@@ -464,14 +511,16 @@ export function cancelPlayback(editor: Editor) {
 	if (!op) return
 	if (op.done) return dismiss(editor, false)
 	clearTimeout(p.timer)
-	close(p)
+	close(editor, p)
 	p.view.set(null)
 }
 
-function close(p: Player) {
+function close(editor: Editor, p: Player) {
 	p.detach.forEach((f) => f())
 	p.detach = []
+	const op = p.op
 	p.op = undefined
+	if (op) fitRoom(editor, op.shapeId)
 }
 
 /** Apply the result, as one undo step, and leave the bar up on the last step. */
@@ -483,6 +532,8 @@ function commit(editor: Editor, keepNow: boolean) {
 	op.keep = op.keep || keepNow
 	const update = op.keep && op.withMarks ? op.withMarks(op.final, finalHighlights(op)) : op.final
 	if (update) {
+		// The result goes in (and in the undo history) without the steps' room, which comes back after.
+		fitRoom(editor, op.shapeId)
 		const before = editor.getShape(op.shapeId)
 		editor.markHistoryStoppingPoint(op.label)
 		editor.updateShape(update)
@@ -494,6 +545,7 @@ function commit(editor: Editor, keepNow: boolean) {
 	op.step = op.frames.length - 1
 	op.asking = false
 	show(p)
+	if (update) fitRoom(editor, op.shapeId, op.frames)
 	// The bar goes when the teacher moves on: another shape selected, or this one changed.
 	const committed = editor.getShape(op.shapeId)?.props
 	p.detach.push(
@@ -512,7 +564,7 @@ function dismiss(editor: Editor, keep: boolean) {
 	const op = p.op
 	if (!op) return
 	clearTimeout(p.timer)
-	close(p)
+	close(editor, p)
 	const all = finalHighlights(op)
 	if (keep && op.withMarks) {
 		editor.markHistoryStoppingPoint('keep highlights')

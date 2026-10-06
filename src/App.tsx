@@ -17,6 +17,7 @@ import { MatrixShapeUtil } from './shapes/matrix/MatrixShapeUtil'
 import { TreeShapeTool } from './shapes/tree/TreeShapeTool'
 import { TreeShapeUtil } from './shapes/tree/TreeShapeUtil'
 import { showBoardNameInTitle } from './files/board'
+import { clearStaleRooms } from './nodelink/playback'
 import { components, uiOverrides } from './ui/overrides'
 
 // Defined at module level so they aren't recreated on every render.
@@ -33,10 +34,11 @@ declare global {
 }
 
 // Expose the editor in dev for console poking and browser-driven tests. A graph's views
-// (adjacency matrix, lists) are deleted with it; the tab's title names the board.
+// (adjacency matrix, lists) are deleted with it; the tab's title names the board; room left for an
+// operation's steps that none needs any more goes.
 function onMount(editor: Editor) {
 	if (import.meta.env.DEV) window.editor = editor
-	const cleanups = [deleteViewsWithTheirGraph(editor), showBoardNameInTitle(editor)]
+	const cleanups = [deleteViewsWithTheirGraph(editor), showBoardNameInTitle(editor), clearStaleRooms(editor)]
 	return () => cleanups.forEach((f) => f())
 }
 

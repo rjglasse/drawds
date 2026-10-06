@@ -211,7 +211,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   box at the origin, sized to the bounds, and content outside it leaves ghosts when the camera moves (dds-55z.29).
   Node-link scenes are moved there automatically (`getScene` is the moved layout; models and `getGrowGrips` use
   layout coordinates; handles convert with `layoutOffset(initial)`); arrays make room in `getArrayMetrics().origin`.
-  When the offset changes, `CellShapeUtil.onBeforeUpdate` moves the shape so nothing shifts on the page.
+  When the offset changes, `CellShapeUtil.onBeforeUpdate` moves the shape so nothing shifts on the page. While an
+  operation is open, node-link steps can draw more than the shape (a rehash, a heap's new level, a list node off the
+  line): `withPlaybackRoom` puts the union of every step's extent in `meta.drawdsRoom` (playback.ts `ROOM_KEY`; set on
+  open, cleared with null around the commit and on close, always history-ignored), the layout counts it and the
+  geometry gets two internal corner points, so the box holds every step and still. Caches keyed by props must also
+  key on the meta / layout offset (layouts, placed pointers, the bar's placement). `clearStaleRooms` (App onMount).
 - Use tldraw style props (`DefaultColorStyle`, `DefaultSizeStyle`, `DefaultFontStyle`) so the built-in style panel
   drives our shapes; set `shapeType` on the tool so the panel shows them while the tool is active.
 - Keep gesture/layout maths in pure functions and test them with vitest.

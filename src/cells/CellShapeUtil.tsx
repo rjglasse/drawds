@@ -174,18 +174,21 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 		return { ...next, x: next.x - d.x, y: next.y - d.y }
 	}
 
-	private placed = new WeakMap<object, PlacedPointer[]>()
+	private placed = new WeakMap<object, { offset: VecLike; placed: PlacedPointer[] }>()
 
 	/** The shape's pointers, laid out around their elements (shape space). */
 	placedPointers(shape: S): PlacedPointer[] {
-		let placed = this.placed.get(shape.props)
-		if (!placed) {
+		// Per props, and per layout offset: room made for an operation's steps moves shape space.
+		const offset = this.layoutOffset(shape)
+		let cached = this.placed.get(shape.props)
+		if (!cached || cached.offset.x !== offset.x || cached.offset.y !== offset.y) {
 			// The structure's own markers are laid out with the pointers, so the two never overlap.
 			const pointers = [...this.getPointers(shape), ...(this.markerPointers?.(shape) ?? [])]
-			placed = this.pointerAnchor ? placePointers(pointers, (key) => this.pointerAnchor?.(shape, key), this.getPointerFontSize(shape)) : []
-			this.placed.set(shape.props, placed)
+			const placed = this.pointerAnchor ? placePointers(pointers, (key) => this.pointerAnchor?.(shape, key), this.getPointerFontSize(shape)) : []
+			cached = { offset: { x: offset.x, y: offset.y }, placed }
+			this.placed.set(shape.props, cached)
 		}
-		return placed
+		return cached.placed
 	}
 
 	/** Pointer labels as geometry, so they count in the shape's bounds (selection, export). */
