@@ -10,6 +10,8 @@ import { HashShapeTool } from './shapes/hash/HashShapeTool'
 import { HashShapeUtil } from './shapes/hash/HashShapeUtil'
 import { HeapShapeTool } from './shapes/heap/HeapShapeTool'
 import { HeapShapeUtil } from './shapes/heap/HeapShapeUtil'
+import { UnionFindShapeTool } from './shapes/union-find/UnionFindShapeTool'
+import { UnionFindShapeUtil } from './shapes/union-find/UnionFindShapeUtil'
 import { ListShapeTool } from './shapes/list/ListShapeTool'
 import { ListShapeUtil } from './shapes/list/ListShapeUtil'
 import { MatrixShapeTool } from './shapes/matrix/MatrixShapeTool'
@@ -22,8 +24,8 @@ import { clearStaleRooms } from './nodelink/playback'
 import { components, uiOverrides } from './ui/overrides'
 
 // Defined at module level so they aren't recreated on every render.
-const shapeUtils = [ArrayShapeUtil, MatrixShapeUtil, ListShapeUtil, TreeShapeUtil, HeapShapeUtil, HashShapeUtil, GraphShapeUtil, GraphViewShapeUtil]
-const tools = [ArrayShapeTool, MatrixShapeTool, ListShapeTool, TreeShapeTool, HeapShapeTool, HashShapeTool, GraphShapeTool]
+const shapeUtils = [ArrayShapeUtil, MatrixShapeUtil, ListShapeUtil, TreeShapeUtil, HeapShapeUtil, UnionFindShapeUtil, HashShapeUtil, GraphShapeUtil, GraphViewShapeUtil]
+const tools = [ArrayShapeTool, MatrixShapeTool, ListShapeTool, TreeShapeTool, HeapShapeTool, UnionFindShapeTool, HashShapeTool, GraphShapeTool]
 // Digits mark the element under the pointer (1-4, 0 clears), so tldraw's "press n for the nth
 // toolbar tool" shortcuts are off; every tool still has its letter shortcut.
 const options = { enableToolbarKeyboardShortcuts: false }

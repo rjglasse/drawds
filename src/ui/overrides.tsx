@@ -50,14 +50,16 @@ import listIconUrl from './icons/list.svg'
 import treeIconUrl from './icons/tree.svg'
 import { HeapPickers, heapPickerTranslations } from './HeapPickers'
 import heapIconUrl from './icons/heap.svg'
+import unionFindIconUrl from './icons/union-find.svg'
 import matrixIconUrl from './icons/matrix.svg'
 import hashIconUrl from './icons/hash.svg'
 import { HashPickers, hashPickerTranslations } from './HashPickers'
 import { TreePickers, treePickerTranslations } from './TreePickers'
+import { UnionFindPickers, unionFindPickerTranslations } from './UnionFindPickers'
 import { StructureHint } from './StructureHint'
 
 /** Our structure tools, in toolbar order. */
-const STRUCTURE_TOOLS = ['array', 'matrix', 'linked-list', 'binary-tree', 'heap', 'hash-table', 'graph'] as const
+const STRUCTURE_TOOLS = ['array', 'matrix', 'linked-list', 'binary-tree', 'heap', 'union-find', 'hash-table', 'graph'] as const
 
 const RELAYOUT = 'drawds.relayout'
 
@@ -113,6 +115,13 @@ export const uiOverrides: TLUiOverrides = {
 			// "p" for priority queue; plain "h" is the hand tool.
 			kbd: 'shift+p',
 			onSelect: () => editor.setCurrentTool('heap'),
+		}
+		tools['union-find'] = {
+			id: 'union-find',
+			icon: maskIcon(unionFindIconUrl),
+			label: 'Union-find (disjoint sets)',
+			kbd: 'shift+u',
+			onSelect: () => editor.setCurrentTool('union-find'),
 		}
 		tools['hash-table'] = {
 			id: 'hash-table',
@@ -187,6 +196,7 @@ export const uiOverrides: TLUiOverrides = {
 			...hashPickerTranslations,
 			...treePickerTranslations,
 			...heapPickerTranslations,
+			...unionFindPickerTranslations,
 			...invariantPickerTranslations,
 			...graphPickerTranslations,
 			...graphViewPickerTranslations,
@@ -429,6 +439,7 @@ export const components: TLComponents = {
 			<ListPickers />
 			<TreePickers />
 			<HeapPickers />
+			<UnionFindPickers />
 			<HashPickers />
 			<GraphPickers />
 			<GraphViewPickers />

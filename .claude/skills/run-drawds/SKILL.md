@@ -208,6 +208,11 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
 - **Graph views**: `rclick` a graph node, `context-menu-sub.drawds-graph-show-button`, then
   `context-menu.graph-show-matrix` or `graph-show-lists`: a `graph-view` shape appears to the graph's right
   and follows it (marks and BFS / DFS highlights too). With a view selected, `style.graph-view.matrix|lists`.
+- **Union-find**: `key Shift+U` then `drag x y x+dx y` (an element per 48 px, at least 2, element 0 under the press),
+  each in a set of its own. Keys: element `<i>`, parent cell `p<i>`, size / rank cell `w<i>`, parent arrow `e<i>`. Right-click
+  an element: `context-menu-sub.drawds-uf-steps-button` (`uf-find`, `uf-union`: then `key-prompt` takes a name or index),
+  `drawds-uf-actions` (`uf-random`, `uf-reset`). Styles `style.uf-union.size|rank|naive`, `style.uf-compress.on|off`.
+  Set a forest directly: `eval` an `updateShape` with `parent`, `sizes`, `ranks`.
 - **Hash table**: `key Shift+B` then `drag x y x y+dy` (a bucket per 48 px, at least 3), filled to a
   load of about 0.6. `style.hash-strategy.chaining|probing`. Insert: `clicksel [data-testid="insert-key"]`,
   `type 22`, `key Enter`. A key's x deletes it (`hover k:22` or `hover s3`, then `remove-node-<key>`); its

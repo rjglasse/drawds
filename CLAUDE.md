@@ -168,6 +168,16 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   implicit complete tree (keys `"i"`) plus the array (keys `"a" + i`); marks keyed by index. `heap.ts` is pure
   (sift up/down with swaps + path, insert, removeAt, heapify, violations, `buildHeapSteps`: Floyd as frames, keyed
   by index; `inBothViews` lights tree and array). Heap menu: build heap step by step, shuffle values.
+- `src/shapes/union-find/` - union-find (disjoint sets), node-link: `parent` (a root is its own parent), `sizes`,
+  `ranks` (kept as the code keeps them, meaningful at roots), `labels`; styles `drawds:uf-union` size / rank / naive and
+  `drawds:uf-compress` on / off (`src/ui/UnionFindPickers.tsx`). Drawn as a forest (`forestPositions`: n-ary tidy trees
+  side by side, arrows up to the parent) centred over the parent array (index row, `parent`, then `size` / `rank`; the
+  array starts at x = 0 and holds still). Keys: element `<i>`, parent pointer edge `e<i>` (marks `edge:e<i>`), cells
+  `p<i>` / `w<i>`; an element's mark lights its parent cell. `union-find.ts` pure model, `operations.ts` frames: find
+  (walk up with `curr`, then compression re-points arrows in a `scene` frame where the nodes are, then tidies) and
+  union (both finds, then link by size / rank / naively, or refuse: one set already, Kruskal's cycle). Element menu: Find,
+  Union with... (prompt: a name or index); actions: Random unions, reset. Type a parent into its cell (a loop is refused;
+  sizes and ranks recounted). Shift+U.
 - `src/shapes/tree/bst.ts` - BST as a *kind* of binary tree (`drawds:tree-kind` style): in-order key placement,
   insert (path), delete (leaf / one child / two children via successor), violation check with ancestor bounds.
   `search.ts`: search as frames (curr walks down, each ruled-out subtree fades via `dim`). Invariant checks:

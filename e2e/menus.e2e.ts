@@ -98,3 +98,14 @@ test('the style panel says what can be done with the selected structure', async 
 	await page.evaluate(() => window.editor!.selectNone())
 	await expect(page.getByTestId('structure-hint')).toHaveCount(0)
 })
+
+test('union-find follows the same layout', async ({ page }) => {
+	await page.keyboard.press('Shift+U')
+	await page.mouse.move(300, 200)
+	await page.mouse.down()
+	await page.mouse.move(300 + 3 * 48 + 10, 200, { steps: 20 })
+	await page.mouse.up()
+	expect(await submenusAt(page, await nodeScreenPosition(page, '1'))).toEqual(
+		['Step by step', 'Union-find', 'Mark', 'Pointer'].map((label, i) => [label, ids('uf', 'steps', 'actions', 'mark', 'pointer')[i]])
+	)
+})
