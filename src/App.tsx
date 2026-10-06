@@ -17,6 +17,7 @@ import { MatrixShapeUtil } from './shapes/matrix/MatrixShapeUtil'
 import { TreeShapeTool } from './shapes/tree/TreeShapeTool'
 import { TreeShapeUtil } from './shapes/tree/TreeShapeUtil'
 import { showBoardNameInTitle } from './files/board'
+import { BoardFileKeys } from './files/BoardFileKeys'
 import { clearStaleRooms } from './nodelink/playback'
 import { components, uiOverrides } from './ui/overrides'
 
@@ -53,7 +54,9 @@ export default function App() {
 				components={components}
 				options={options}
 				onMount={onMount}
-			/>
+			>
+				<BoardFileKeys />
+			</Tldraw>
 		</div>
 	)
 }

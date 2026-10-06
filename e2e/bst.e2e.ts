@@ -28,8 +28,11 @@ test('any sketched BST is valid: keys sorted in in-order', async ({ page }) => {
 
 test('insert a key: it lands where the BST algorithm puts it, after the animation', async ({ page }) => {
 	const before = await sketchBst(page, 3, 0)
-	const expected = bstInsert(before.nodes, '50')
-	await insertKey(page, '50')
+	// A key from the middle of the range that the random tree doesn't hold yet (50 might be there).
+	const taken = new Set(before.nodes.map((n) => n.value))
+	const key = String(Array.from({ length: 100 }, (_, i) => (50 + i) % 100).find((k) => !taken.has(String(k))))
+	const expected = bstInsert(before.nodes, key)
+	await insertKey(page, key)
 	// Operations open paused on their first step; Enter finishes.
 	await page.keyboard.press('Enter')
 	expect((await tree(page)).nodes).toHaveLength(before.nodes.length + 1)
