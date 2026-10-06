@@ -304,6 +304,27 @@ const commands = {
 		await viewer.close()
 		return { svg: svgFile, png: pngFile, bytes: svg.length }
 	},
+	// Every step of the open operation as numbered images (as the play bar's export makes them), into
+	// OUT/<name>/: 01-caption.png..., plus steps.json (file, caption, size). Options as key=value:
+	// format=png|svg, scale=2, aspect=1.7778 (16:9 for slides), captions=off (leave them for the slide),
+	// background=off (transparent, to sit on a slide's own background).
+	async steps(name = 'steps', ...options) {
+		const o = Object.fromEntries(options.map((kv) => kv.split('=')))
+		const images = await page.evaluate((o) => window.drawdsSteps(o), {
+			format: o.format ?? 'png',
+			scale: +(o.scale ?? 2),
+			aspect: o.aspect ? +o.aspect : undefined,
+			captions: o.captions !== 'off',
+			background: o.background !== 'off',
+		})
+		if (!images.length) throw new Error('no operation open')
+		const dir = join(OUT, name)
+		mkdirSync(dir, { recursive: true })
+		for (const image of images) writeFileSync(join(dir, image.name), Buffer.from(image.base64, 'base64'))
+		const manifest = images.map(({ name, caption, header, width, height }) => ({ file: name, header, caption, width, height }))
+		writeFileSync(join(dir, 'steps.json'), JSON.stringify(manifest, null, 2))
+		return { dir, files: images.map((i) => i.name), size: [images[0].width, images[0].height] }
+	},
 	async wait(ms) {
 		await page.waitForTimeout(+ms)
 	},

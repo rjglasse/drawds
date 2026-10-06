@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { exportSteps, saveStepImages } from '../export/steps'
 import { getColorValue, useValue, type Editor, type TLThemeColors, type VecLike } from 'tldraw'
 import {
 	cancelPlayback,
@@ -27,6 +28,8 @@ const ICONS = {
 	autoplay: 'M2 4L7.5 8L2 12Z M8.5 4L14 8L8.5 12Z',
 	// A question mark: predict mode.
 	predict: 'M5.2 5.6A2.8 2.8 0 1 1 9.4 8C8.5 8.6 8 9.2 8 10.2 M8 13.2V13.3',
+	// A download arrow: every step as images.
+	export: 'M8 2.5V10 M4.8 7L8 10.2L11.2 7 M3 13.5H13',
 }
 
 /**
@@ -197,6 +200,9 @@ export function PlayBar({
 				})}
 				{button('play-predict', 'Predict: ask the class about each step before showing it', 'predict', () => setPredict(editor, !predict), {
 					pressed: predict,
+				})}
+				{button('play-export', 'Save every step as numbered images (for slides and notes)', 'export', () => {
+					void exportSteps(editor).then(saveStepImages)
 				})}
 				{view.done
 					? button('play-done', 'Done (Enter; Shift keeps the highlights as marks)', 'finish', (shift) =>

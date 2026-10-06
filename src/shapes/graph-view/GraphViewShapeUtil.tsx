@@ -9,6 +9,7 @@ import {
 	type TLThemeColors,
 } from 'tldraw'
 import { showsColourCues } from '../../cells/cues'
+import { exportingStep } from '../../export/exporting'
 import type { Marks } from '../../cells/marks'
 import { playbackFor } from '../../nodelink/playback'
 import { SceneSvg } from '../../nodelink/SceneSvg'
@@ -90,7 +91,9 @@ export class GraphViewShapeUtil extends ShapeUtil<GraphViewShape> {
 	}
 
 	override toSvg(shape: GraphViewShape, ctx: SvgExportContext) {
-		return this.draw(shape, this.editor.getCurrentTheme().colors[ctx.colorMode], false)
+		// Exporting its graph's steps: the step, as on the canvas.
+		const live = !!exportingStep(this.editor, shape.props.graphId as TLShapeId)
+		return this.draw(shape, this.editor.getCurrentTheme().colors[ctx.colorMode], live)
 	}
 
 	private draw(shape: GraphViewShape, colors: TLThemeColors, live: boolean) {

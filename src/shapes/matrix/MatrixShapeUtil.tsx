@@ -8,11 +8,14 @@ import {
 	type TLFontFace,
 	type TLHandle,
 	type TLHandleDragInfo,
+	type TLShape,
 	type TLShapePartial,
 	type TLThemeColors,
 } from 'tldraw'
 import { CellShapeUtil, type NodeOperation, type PlaybackLayout } from '../../cells/CellShapeUtil'
 import { CueBadge } from '../../cells/CueBadge'
+import { exportingStep } from '../../export/exporting'
+import { StepExtrasSvg } from '../../export/StepExtrasSvg'
 import { cueBadgeAt, showsColourCues } from '../../cells/cues'
 import { pruneMarks, type MarkColor, type Marks } from '../../cells/marks'
 import { growHandle, grownCount } from '../../controls/grow'
@@ -342,6 +345,26 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 
 	override toSvg(shape: MatrixShape, ctx: SvgExportContext) {
 		const colors = this.editor.getCurrentTheme().colors[ctx.colorMode]
+		// Exporting an operation's steps: this one as the canvas shows it, with its pointers, strips and caption.
+		const step = exportingStep(this.editor, shape.id)
+		if (step) {
+			return (
+				<>
+					<MatrixSvg
+						values={this.displayValues(shape)}
+						marks={shape.props.marks}
+						color={shape.props.color}
+						metrics={getMatrixMetrics(shape.props.size)}
+						colors={colors}
+						fontFamily={this.getFontFamily(shape)}
+						flash={{ marks: step.flash, fading: false, id: step.id }}
+						dim={step.dim ?? []}
+						cues={showsColourCues()}
+					/>
+					<StepExtrasSvg util={this as unknown as CellShapeUtil<TLShape>} shape={shape} view={step} colors={colors} />
+				</>
+			)
+		}
 		return (
 			<MatrixSvg
 				values={shape.props.values}

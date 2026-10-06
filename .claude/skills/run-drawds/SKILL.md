@@ -114,6 +114,7 @@ numbers sorted, and `fill` is `"ascending"`.
 | `screenshot [name] [x y w h]` | full-page PNG, or just that clip; run the driver with `SCALE=3` in the environment for a 3x crop of small controls |
 | `export [name]` | export all shapes the way tldraw does (`editor.getSvgString`), write `.svg`, render it to `.png` |
 | `reset` | delete every shape, back to the select tool |
+| `steps [name] [key=value...]` | every step of the open operation as numbered images into `$OUT/<name>/` plus `steps.json` (file, header, caption): `format=png\|svg`, `scale=2`, `aspect=1.7778`, `captions=off`, `background=off`. Puts the result in first, as the play bar's export does |
 | `wait <ms>` | sleep |
 | `errors` | console errors, page errors and HTTP >= 400 seen so far (should be `[]`) |
 
@@ -122,6 +123,19 @@ numbers sorted, and `fill` is `"ascending"`.
 ```bash
 npm run dev -- --port 5179 --strictPort   # open http://localhost:5179; Ctrl-C to stop
 ```
+
+## Slides from steps
+
+Export each operation with `steps <name> captions=off background=off`, then build a 16:9 deck (title slide, a
+heading per section, one slide per step: image, caption as editable text, notes) with python-pptx:
+
+```bash
+python3 .claude/skills/run-drawds/deck.py ~/Downloads/deck.pptx --title "Title" \
+  --section "Inserting into a BST|One line about it|$TMPDIR/run-drawds/<name>"
+```
+
+Google Slides takes the .pptx as an upload (Drive converts it). The Drive connector can't carry an image-heavy
+file (its upload goes inside the tool call), so hand the .pptx over rather than uploading it from here.
 
 ## Test
 

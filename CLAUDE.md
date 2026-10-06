@@ -150,7 +150,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   buttons come first in fixed places, the caption last and keys go to it first (window capture: Space, Left/Right and PageUp/PageDown (clickers), Enter /
   Shift+Enter, Esc cancels without changing anything). Once the result is committed the bar stays (`done`):
   step back through it or replay it, then Done / Enter / Esc, or select something else / edit the shape;
-  `isBusy` says when the shape's own controls should hide. Operations open paused on step 1 so the teacher sets
+  `isBusy` says when the shape's own controls should hide. Once the result is in, a step with no props or scene of
+  its own shows the structure as it was before (`committed.before`), the last step the result (`isLastFrame`). Operations open paused on step 1 so the teacher sets
   the pace; the bar's autoplay toggle (localStorage) plays them straight away instead, at the bar's speed
   (`SPEEDS` ½x-4x, localStorage; animations within a step use `animationMs` to fit while playing). Predict mode (the
   bar's ? toggle, localStorage `drawds:predict`): stepping by hand, each step is first a question in the caption's place
@@ -204,7 +205,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `connect.ts` the connect grip (a 'create' handle `connect:<id>` on each node's right rim; drag state in a
   per-editor atom; drop on a node = edge, in empty space = new node + edge). `algorithms.ts`: Dijkstra (distance
   badges, best edge green), Prim, Kruskal, topological sort (Kahn) as frames, reusing traverse.ts's `Recorder`
-  (an edge only looked at flashes, then gets its colour back); unweighted graphs count every edge 1.
+  (an edge only looked at flashes, then gets its colour back); unweighted graphs count every edge 1. `components`:
+  connected components (each node in no piece yet starts one, BFS finds the rest; pieces coloured and numbered).
 - `src/controls/` - on-canvas controls shown while a structure is the only selected shape
   (`showsStructureControls`): grow grips (tldraw `create` handles `grow` / `grow-start`, drawn only on hover,
   plus our own '+' `GrowGrip`; `grownCount` is pure) and `ControlButton` (HTML insert '+' / remove 'x',
@@ -212,6 +214,13 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
 - `src/data/` - seeded RNG (`mulberry32`) and fill generators (`fillValues`, `extendValues`, `insertValue`, each
   taking a `range`: 0-9, 0-99, 0-999, -50..50); `fill-style.ts` has the `drawds:fill` and `drawds:fill-range`
   StyleProps (every filled shape stores `range`) plus `refillSelectedShapes`.
+- `src/export/` - an operation's steps as images (`exportSteps`: the play bar's download button, and in dev
+  `window.drawdsSteps` / the driver's `steps`): puts the result in first, then for each step `showStep` + tldraw's
+  `toImage` over one area (the union of every step, optionally grown to an `aspect`), named `01-caption-words.png`.
+  While exporting (`whileExportingSteps`), shapes' `toSvg` draw the step as the canvas shows it (`exportingStep`) plus
+  `StepExtrasSvg`: the step's pointers, strips and a wrapped caption under it (`captions: false` leaves it out); a
+  graph's views draw it too. A new structure's `toSvg` must do the same. `saveStepImages`: Chrome's directory picker,
+  else downloads. `.claude/skills/run-drawds/deck.py` turns exported steps into a 16:9 .pptx (Google Slides imports it).
 - `src/files/` - boards as files: Open board... / Save board / Save board as... first in the main menu (Ctrl+O / Ctrl+S /
   Ctrl+Shift+S), tldraw's `.tldr` JSON (`serializeTldrawJsonBlob` / `parseTldrawJsonFile`, so our shape migrations
   run on open). Chrome's File System Access pickers where present (Save then writes back to the picked file: handles

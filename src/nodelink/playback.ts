@@ -491,6 +491,34 @@ export function stepForward(editor: Editor, keep = false) {
 	else show(p)
 }
 
+/** Whether `frame` (one of the view's frames, or the copy it shows) is the operation's last step. */
+export function isLastFrame(view: PlaybackView, frame: Frame) {
+	const i = view.frames.indexOf(frame)
+	return (i >= 0 ? i : view.step) === view.frames.length - 1
+}
+
+/** Put the open operation's result in (as reaching its last step does), staying on its bar. */
+export function completeOperation(editor: Editor) {
+	const op = player(editor).op
+	if (op && !op.done) commit(editor, false)
+}
+
+/** The open operation: its shape, how many steps it has and where it stands. */
+export function openOperation(editor: Editor) {
+	const op = player(editor).op
+	return op && { shapeId: op.shapeId, label: op.label, steps: op.frames.length, at: { step: op.step, asking: op.asking } as Position }
+}
+
+/** Show step `to` (or a position) of the open operation, paused there: for exporting each step. */
+export function showStep(editor: Editor, to: number | Position) {
+	const p = player(editor)
+	const op = p.op
+	if (!op) return
+	clearTimeout(p.timer)
+	op.paused = true
+	go(editor, typeof to === 'number' ? { step: Math.max(0, Math.min(op.frames.length - 1, to)), asking: false } : to)
+}
+
 /** Show the previous step (in predict mode: ask about this one again), and pause there. */
 export function stepBack(editor: Editor) {
 	const p = player(editor)

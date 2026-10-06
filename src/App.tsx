@@ -1,3 +1,4 @@
+import { exportSteps, type StepExportOptions } from './export/steps'
 import { Tldraw, type Editor } from 'tldraw'
 import 'tldraw/tldraw.css'
 import './drawds.css'
@@ -33,6 +34,8 @@ const options = { enableToolbarKeyboardShortcuts: false }
 declare global {
 	interface Window {
 		editor?: Editor
+		/** Dev: every step of the open operation as images, base64 (the run-drawds driver's `steps`). */
+		drawdsSteps?: (options?: StepExportOptions) => Promise<{ name: string; caption: string; header: string; width: number; height: number; base64: string }[]>
 	}
 }
 
@@ -40,7 +43,18 @@ declare global {
 // (adjacency matrix, lists) are deleted with it; the tab's title names the board; room left for an
 // operation's steps that none needs any more goes.
 function onMount(editor: Editor) {
-	if (import.meta.env.DEV) window.editor = editor
+	if (import.meta.env.DEV) {
+		window.editor = editor
+		window.drawdsSteps = async (options) =>
+			Promise.all(
+				(await exportSteps(editor, options)).map(async ({ blob, ...image }) => {
+					const bytes = new Uint8Array(await blob.arrayBuffer())
+					let binary = ''
+					for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+					return { ...image, base64: btoa(binary) }
+				})
+			)
+	}
 	const cleanups = [deleteViewsWithTheirGraph(editor), showBoardNameInTitle(editor), clearStaleRooms(editor)]
 	return () => cleanups.forEach((f) => f())
 }

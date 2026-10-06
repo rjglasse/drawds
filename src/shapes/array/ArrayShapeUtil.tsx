@@ -9,12 +9,15 @@ import {
 	type TLFontFace,
 	type TLHandle,
 	type TLHandleDragInfo,
+	type TLShape,
 	type TLShapePartial,
 	type TLThemeColors,
 	type VecLike,
 } from 'tldraw'
 import { CellShapeUtil, type NodeOperation, type PlaybackLayout, type PointerDirection } from '../../cells/CellShapeUtil'
 import { CueBadge } from '../../cells/CueBadge'
+import { exportingStep } from '../../export/exporting'
+import { StepExtrasSvg } from '../../export/StepExtrasSvg'
 import { cueBadgeAt, showsColourCues } from '../../cells/cues'
 import { pruneMarks, type Marks } from '../../cells/marks'
 import { GROW_HANDLE_ID, growHandle, grownCount } from '../../controls/grow'
@@ -916,6 +919,29 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	override toSvg(shape: ArrayShape, ctx: SvgExportContext) {
 		const colors = this.editor.getCurrentTheme().colors[ctx.colorMode]
+		// Exporting an operation's steps: this one as the canvas shows it (values at rest), with its
+		// pointers, strips and caption.
+		const step = exportingStep(this.editor, shape.id)
+		if (step) {
+			const framePointers = !!step.frame?.pointers
+			return (
+				<>
+					<ArraySvg
+						shape={this.displayShape(shape)}
+						metrics={getArrayMetrics(shape.props)}
+						colors={colors}
+						fontFamily={this.getFontFamily(shape)}
+						flash={{ marks: step.flash, fading: false, id: step.id }}
+						dim={step.dim ?? []}
+						offEnd={framePointers ? [] : this.offEndSlots(shape)}
+						aux={this.displayAux(shape)}
+						cues={showsColourCues()}
+					/>
+					{!framePointers && this.renderPointers(shape, colors, { exporting: true })}
+					<StepExtrasSvg util={this as unknown as CellShapeUtil<TLShape>} shape={shape} view={step} colors={colors} />
+				</>
+			)
+		}
 		return (
 			<>
 				<ArraySvg shape={shape} colors={colors} fontFamily={this.getFontFamily(shape)} offEnd={this.offEndSlots(shape)} cues={showsColourCues()} />

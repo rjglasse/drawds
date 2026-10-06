@@ -17,6 +17,7 @@ import {
 	type TLHandleDragInfo,
 	type TLShape,
 	type TLShapePartial,
+	type TLThemeColors,
 	type VecLike,
 } from 'tldraw'
 import { CellShapeUtil, type CellFont, type PlaybackLayout, type PointerDirection } from '../cells/CellShapeUtil'
@@ -29,10 +30,12 @@ import { ControlButton } from '../controls/ControlButton'
 import { KeyPrompt } from '../controls/KeyPrompt'
 import { closePrompt, isPromptOpen, openPrompt } from '../controls/prompt'
 import { showsStructureControls } from '../controls/visibility'
+import { exportingStep } from '../export/exporting'
+import { StepExtrasSvg } from '../export/StepExtrasSvg'
 import { POINTER_FONT_SCALE, placePointers, type PlacedPointer, type PointerAnchor, type PointerSide } from '../pointers/layout'
 import { boxContains, labelBox, nodeBox, nodeContains, routeScene, spatialNeighbor, type EdgeRoute } from './geometry'
 import { hoveredEdge, hoveredNode } from './hover'
-import { ROOM_KEY, animationMs, isBusy, playbackFor, roomOf, type Frame, type Room } from './playback'
+import { ROOM_KEY, animationMs, isBusy, isLastFrame, playbackFor, roomOf, type Frame, type PlaybackView, type Room } from './playback'
 import { edgeCellKey, translateScene, type Scene, type SceneEdge, type SceneNode } from './scene'
 import { sceneCells } from './scene-cells'
 import { SceneSvg } from './SceneSvg'
@@ -259,29 +262,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		return (
 			<>
 				<SVGContainer>
-					<SceneSvg
-						scene={scene}
-						colors={colors}
-						color={this.style(shape).color}
-						fontFamily={this.getFontFamily(shape)}
-						hiddenKey={this.getEditingKey(shape)}
-						marks={this.sceneMarks(shape)}
-						flash={
-							playing
-								? { marks: playing.flash, badges: playing.badges, fading: playing.fading, id: playing.id }
-								: hover && { marks: hover, fading: false, id: 0 }
-						}
-						swaps={
-							playing?.frame && (playing.frame.swaps || playing.frame.moves)
-								? { pairs: playing.frame.swaps ?? [], moves: playing.frame.moves, id: playing.id, ms: animationMs(380, playing) }
-								: undefined
-						}
-						dim={playing && !playing.fading ? playing.dim : undefined}
-						pulse={playing && !playing.fading ? playing.pulse : undefined}
-						// Not while an operation is open: its steps break the invariant on the way to restoring it.
-						warnings={playing && !playing.fading ? undefined : this.sceneWarnings?.(shape)}
-						cues={showsColourCues()}
-					/>
+					{this.sceneSvg(shape, colors, playing, { scene, hover, animate: true })}
 
 					{controls &&
 						!busy &&
@@ -540,8 +521,57 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		if (updated) this.editCell(updated, inserted.key)
 	}
 
+	/**
+	 * The scene as the canvas shows it: an operation's step (its highlights, faded elements and, on the
+	 * canvas, values arcing into place) or the hovered element's highlights, over the marks.
+	 */
+	private sceneSvg(
+		shape: S,
+		colors: TLThemeColors,
+		playing: PlaybackView | undefined,
+		{ scene = this.displayScene(shape), hover, animate = false }: { scene?: Scene; hover?: Marks; animate?: boolean } = {}
+	) {
+		return (
+			<SceneSvg
+				scene={scene}
+				colors={colors}
+				color={this.style(shape).color}
+				fontFamily={this.getFontFamily(shape)}
+				hiddenKey={this.getEditingKey(shape)}
+				marks={this.sceneMarks(shape)}
+				flash={
+					playing
+						? { marks: playing.flash, badges: playing.badges, fading: playing.fading, id: playing.id }
+						: hover && { marks: hover, fading: false, id: 0 }
+				}
+				swaps={
+					animate && playing?.frame && (playing.frame.swaps || playing.frame.moves)
+						? { pairs: playing.frame.swaps ?? [], moves: playing.frame.moves, id: playing.id, ms: animationMs(380, playing) }
+						: undefined
+				}
+				dim={playing && !playing.fading ? playing.dim : undefined}
+				pulse={playing && !playing.fading ? playing.pulse : undefined}
+				// Not while an operation is open: its steps break the invariant on the way to restoring it.
+				warnings={playing && !playing.fading ? undefined : this.sceneWarnings?.(shape)}
+				cues={showsColourCues()}
+			/>
+		)
+	}
+
 	override toSvg(shape: S, ctx: SvgExportContext) {
 		const colors = this.editor.getCurrentTheme().colors[ctx.colorMode]
+		// Exporting an operation's steps: this one as the canvas shows it, with its pointers, strips and caption.
+		const step = exportingStep(this.editor, shape.id)
+		if (step) {
+			const scene = this.displayScene(shape)
+			return (
+				<>
+					{this.sceneSvg(shape, colors, step, { scene })}
+					{!this.framePointers(shape, step.frame, scene) && this.renderPointers(shape, colors, { exporting: true })}
+					<StepExtrasSvg util={this as unknown as CellShapeUtil<TLShape>} shape={shape} view={step} colors={colors} />
+				</>
+			)
+		}
 		return (
 			<>
 				<SceneSvg
@@ -563,11 +593,16 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	 * props. Reactive, so the selection outline (tldraw caches it in a computed) follows the frames.
 	 */
 	displayScene(shape: S, frame: Frame | undefined = playbackFor(this.editor, shape.id)?.frame): Scene {
-		if (!frame?.scene && !frame?.props) return this.getScene(shape)
+		const view = playbackFor(this.editor, shape.id)
+		const committed = view?.committed
+		// Once the result is in, a step with no state of its own shows the structure as it was then
+		// (stepping back through an insert, the new node isn't there yet); the last step shows the result.
+		const then = !!(committed && view && frame && !frame.scene && !frame.props && !isLastFrame(view, frame))
+		if (!frame || (!frame.scene && !frame.props && !then)) return this.getScene(shape)
 		// At the committed layout's offset, so whatever the step doesn't change stays put; once the
 		// result is in, less the move it made (its origin and its offset), so the steps hold still.
-		const raw = frame.scene ?? this.buildScene({ ...shape, props: { ...shape.props, ...frame.props } })
-		const committed = playbackFor(this.editor, shape.id)?.committed
+		const base = (committed?.before as S | undefined) ?? shape
+		const raw = frame.scene ?? this.buildScene({ ...base, props: { ...base.props, ...frame.props } })
 		if (!committed) return translateScene(raw, this.layoutOffset(shape))
 		const [before, after] = [committed.before as S, committed.after as S]
 		const moved = Vec.Add(Vec.Sub(this.layoutOffset(after), this.layoutOffset(before)), Vec.Rot(Vec.Sub(after, before), -after.rotation))
