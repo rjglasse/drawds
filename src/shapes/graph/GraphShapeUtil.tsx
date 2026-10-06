@@ -39,7 +39,7 @@ import type { GraphViewShape } from '../graph-view/graph-view-shape-types'
 import { showGraphView, viewsOf } from '../graph-view/GraphViewShapeUtil'
 import { generateGraph } from './generate'
 import { getGraphMetrics, graphCorner, graphScene, toUnits } from './layout'
-import { dijkstra, kruskal, prim, topologicalSort } from './algorithms'
+import { components, dijkstra, kruskal, prim, topologicalSort } from './algorithms'
 import { bfs, dfs } from './traverse'
 import {
 	addEdge,
@@ -279,6 +279,16 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 
 	private algorithmOperations(shape: GraphShape): NodeOperation[] {
 		const algorithms = { group: 'algorithms' }
+		const pieces: NodeOperation = {
+			...algorithms,
+			id: 'graph-components',
+			label: 'Count connected components',
+			run: () => this.runAlgorithm(shape.id, 'connected components', (s) => components(s.props, this.algorithmOptions(s)).frames),
+		}
+		return [pieces, ...this.directedOrNot(shape, algorithms)]
+	}
+
+	private directedOrNot(shape: GraphShape, algorithms: { group: string }): NodeOperation[] {
 		return shape.props.direction === 'directed'
 			? [
 					{
@@ -309,7 +319,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 			'Double-click a node or a weight to type',
 			"Drag from the dot on a node's right edge to another node to join them, or into space for a new node",
 			'Hover a node or an edge for x (remove); drag the dot under a node to move it',
-			"Right-click a node: Step by step has BFS, DFS, Dijkstra, Prim and Kruskal (with its union-find beside the graph); Show puts its adjacency matrix, lists or union-find beside it",
+			"Right-click a node: Step by step has BFS, DFS, Dijkstra, Prim, Kruskal (with its union-find beside the graph) and connected components; Show puts its adjacency matrix, lists or union-find beside it",
 			'Style panel: Edges (directed or not), Weights, Labels, and Density, Pieces, Order for a new sketch',
 		]
 	}

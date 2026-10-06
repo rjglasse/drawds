@@ -170,3 +170,29 @@ test("Show > Union-find puts Kruskal's sets beside an undirected graph; not offe
 	await expect(page.getByTestId('context-menu.graph-show-matrix')).toBeVisible()
 	await expect(page.getByTestId('context-menu.graph-show-union-find')).toHaveCount(0)
 })
+
+test('count connected components: each piece numbered and coloured as a search finds it', async ({ page }) => {
+	await knownGraph(page)
+	// Two more pieces: X–Z, and Y on its own.
+	await page.evaluate(() => {
+		const e = window.editor!
+		const s = e.getCurrentPageShapes().find((x) => x.type === 'graph')!
+		const p = s.props as { nodes: object[]; edges: object[] }
+		e.updateShape({
+			id: s.id,
+			type: 'graph',
+			props: {
+				nodes: [...p.nodes, { id: 'x', value: 'X', x: 1, y: 6 }, { id: 'y', value: 'Y', x: 4, y: 6 }, { id: 'z', value: 'Z', x: 7, y: 6 }],
+				edges: [...p.edges, { id: 'xz', from: 'x', to: 'z', weight: '2' }],
+			},
+		} as never)
+	})
+	await rightClick(page, await nodeScreenPosition(page, 'a'))
+	await page.getByTestId('context-menu-sub.drawds-graph-steps-button').click()
+	await page.getByTestId('context-menu.graph-components').click()
+	await expect(caption(page)).toContainText('Count the pieces')
+	await stepToEnd(page)
+	await expect(caption(page)).toHaveText('Every node is in a piece: 3 components')
+	await expect(page.getByTestId('play-counts')).toHaveText('components 3')
+	await page.keyboard.press('Enter')
+})

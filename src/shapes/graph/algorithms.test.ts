@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { stateAt } from '../../nodelink/playback'
-import { dijkstra, kruskal, prim, topologicalSort } from './algorithms'
+import { components, dijkstra, kruskal, prim, topologicalSort } from './algorithms'
 import type { GraphModel } from './model'
 
 const node = (id: string, value: string) => ({ id, value, x: 0, y: 0 })
@@ -82,6 +82,25 @@ describe('minimum spanning trees', () => {
 	it('a disconnected graph gets a forest', () => {
 		const run = kruskal({ ...graph, nodes: [...graph.nodes, node('z', 'Z')] }, weighted)
 		expect(last(run.frames)).toBe("No edges left and the graph isn't connected: a minimum spanning forest, total weight 11")
+	})
+})
+
+describe('connected components', () => {
+	it('counts the pieces: each node in no piece yet starts one, a search finds the rest', () => {
+		const run = components({ nodes: [...graph.nodes, node('y', 'Y'), node('x', 'X'), node('z', 'Z')], edges: [...graph.edges, edge('xz', 'x', 'z', 1)] }, weighted)
+		expect(run.pieces).toEqual([['a', 'b', 'c', 'd', 'e'], ['x', 'z'], ['y']])
+		expect(last(run.frames)).toBe('Every node is in a piece: 3 components')
+		const end = stateAt(run.frames, run.frames.length - 1)
+		expect(end.badges).toMatchObject({ a: '1', e: '1', x: '2', z: '2', y: '3' })
+		expect(end.counts).toEqual({ components: 3 })
+		expect(end.flash).toMatchObject({ a: 'blue', x: 'green', y: 'orange', 'edge:xz': 'green' })
+		expect(run.frames.map((f) => f.caption)).toContain('B is in piece 1 already: next')
+		expect(run.frames.map((f) => f.caption)).toContain('X–Z: Z joins piece 2')
+	})
+
+	it('a connected graph is one piece; a directed one counts edges both ways', () => {
+		expect(last(components(graph, weighted).frames)).toBe('Every node is in one piece: the graph is connected (1 component)')
+		expect(components(graph, { directed: true, weighted: true }).frames[0].caption).toContain('(edges count both ways)')
 	})
 })
 

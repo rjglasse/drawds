@@ -32,6 +32,8 @@ export interface GraphRun {
 	dist?: Map<string, number>
 	/** Topological sort: the order (shorter than the graph if there is a cycle). */
 	order?: string[]
+	/** Connected components: the pieces, each a list of nodes in the order found. */
+	pieces?: string[][]
 }
 
 function helpers(model: GraphModel, { directed, weighted }: AlgorithmOptions) {
@@ -251,6 +253,78 @@ export function kruskal(model: GraphModel, options: AlgorithmOptions): GraphRun 
 				: `No edges left and the graph isn't connected: a minimum spanning forest, total weight ${total}`,
 	})
 	return { frames: rec.frames, chosen }
+}
+
+/** Pieces take the mark colours in turn (and a numbered badge each, as there may be more than four). */
+const PIECE_COLOURS: MarkColor[] = ['blue', 'green', 'orange', 'red']
+
+/**
+ * Connected components: take the nodes in label order; one that isn't in a piece yet starts a new
+ * piece (counted), and a breadth-first search from it finds the rest of that piece, each node joining
+ * as an edge reaches it. Edges count both ways (a directed graph's are taken as undirected). Pieces
+ * take colours in turn and every node a badge with its piece's number.
+ */
+export function components(model: GraphModel, options: AlgorithmOptions): GraphRun {
+	const { name, byLabel } = helpers(model, { ...options, directed: false })
+	const adjacent = neighbours(model, false)
+	const rec = new Recorder()
+	const piece = new Map<string, number>()
+	const pieces: string[][] = []
+	const order = model.nodes.map((n) => n.id).sort(byLabel)
+	const queue: string[] = []
+	const strips = () => [
+		{ title: 'queue (front on the left)', items: queue.map(name) },
+		{ title: 'pieces', items: pieces.map((p, i) => `${i + 1}: ${p.map(name).join(' ')}`) },
+	]
+	const both = options.directed ? ' (edges count both ways)' : ''
+	rec.add({
+		strips: strips(),
+		counts: { components: 0 },
+		caption: `Count the pieces${both}: take the nodes in order; one in no piece yet starts a new piece, and a search from it finds the rest`,
+	})
+	for (const start of order) {
+		if (piece.has(start)) {
+			rec.add({ caption: `${name(start)} is in piece ${piece.get(start)} already: next`, ask: `Is ${name(start)} in a piece yet?`, askFocus: [start] })
+			continue
+		}
+		const k = pieces.length + 1
+		const colour = PIECE_COLOURS[(k - 1) % PIECE_COLOURS.length]
+		piece.set(start, k)
+		pieces.push([start])
+		queue.push(start)
+		rec.add({
+			flash: { [start]: colour },
+			badges: { [start]: String(k) },
+			strips: strips(),
+			counts: { components: k },
+			caption: `${name(start)} is in no piece yet: start piece ${k} there and search from it`,
+			ask: `Is ${name(start)} in a piece yet?`,
+			askFocus: [start],
+		})
+		while (queue.length) {
+			const u = queue.shift()!
+			for (const { node: v, edge } of adjacent.get(u) ?? []) {
+				if (piece.has(v)) continue
+				piece.set(v, k)
+				pieces[k - 1].push(v)
+				queue.push(v)
+				rec.add({
+					flash: { [v]: colour, [edgeCellKey(edge)]: colour },
+					badges: { [v]: String(k) },
+					strips: strips(),
+					caption: `${name(u)}–${name(v)}: ${name(v)} joins piece ${k}`,
+				})
+			}
+		}
+		rec.add({ strips: strips(), caption: `The queue is empty: piece ${k} is ${pieces[k - 1].map(name).join(', ')}`, ask: false })
+	}
+	const n = pieces.length
+	rec.add({
+		strips: strips(),
+		caption: n === 1 ? 'Every node is in one piece: the graph is connected (1 component)' : `Every node is in a piece: ${n} components`,
+		ask: false,
+	})
+	return { frames: rec.frames, chosen: [], pieces }
 }
 
 /**
