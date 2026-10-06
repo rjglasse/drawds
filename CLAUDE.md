@@ -122,9 +122,13 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   deletes rows and columns (`moveMarks` keeps marks on their cells). `operations.ts`: row- vs column-major
   traversal with a "place in memory" strip, transpose (swaps across the diagonal), staircase search (sorted
   matrices); step pointers i / j sit at `row:<r>` / `col:<c>` (the index labels).
-- `src/shapes/graph-view/` - a graph's adjacency matrix or adjacency lists as a separate shape (`graphId`, style
-  `drawds:graph-view`), redrawn from the graph as it renders (`model.ts` is pure; rows, columns and lists in label
-  order, as BFS / DFS visit neighbours). The graph's marks and an operation's highlights map onto it
+- `src/shapes/graph-view/` - a graph's adjacency matrix, adjacency lists or Kruskal's union-find as a separate shape
+  (`graphId`, style `drawds:graph-view`), redrawn from the graph as it renders (`model.ts` is pure; rows, columns and
+  lists in label order, as BFS / DFS visit neighbours). The union-find view draws `Frame.sets` (Kruskal's frames carry
+  each node's parent and size, keyed by node, plus what to light) while Kruskal plays, else where Kruskal ends
+  (`kruskalSets`); laid out from the widest arrangement with room for the deepest step, so it holds still. Kruskal opens
+  one if the graph has none (`playOperation`'s `onCancel` takes it back on Esc). A graph's strips and play bar go under
+  any view beside it (`GraphShapeUtil.playbackLayout`). The graph's marks and an operation's highlights map onto it
   (`viewHighlights`: a node to its row / column headers or list head, `edge:<id>` to its cells or list entries).
   Created from the graph's menu (`showGraphView`, to its right); deleted with its graph (`deleteViewsWithTheirGraph`,
   an after-delete side effect registered in App's onMount). The matrix reuses `MatrixSvg` with `rowLabels` /

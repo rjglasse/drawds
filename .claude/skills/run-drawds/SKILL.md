@@ -206,7 +206,8 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `drawds-matrix-actions` (`matrix-row-above|below`, `matrix-col-left|right`, `matrix-delete-row|col`,
   `matrix-transpose`, `matrix-reroll`).
 - **Graph views**: `rclick` a graph node, `context-menu-sub.drawds-graph-show-button`, then
-  `context-menu.graph-show-matrix` or `graph-show-lists`: a `graph-view` shape appears to the graph's right
+  `context-menu.graph-show-matrix`, `graph-show-lists` or `graph-show-union-find` (undirected): a `graph-view` shape
+  appears to the graph's right (past any views it has; Kruskal opens the union-find one itself)
   and follows it (marks and BFS / DFS highlights too). With a view selected, `style.graph-view.matrix|lists`.
 - **Union-find**: `key Shift+U` then `drag x y x+dx y` (an element per 48 px, at least 2, element 0 under the press),
   each in a set of its own. Keys: element `<i>`, parent cell `p<i>`, size / rank cell `w<i>`, parent arrow `e<i>`. Right-click

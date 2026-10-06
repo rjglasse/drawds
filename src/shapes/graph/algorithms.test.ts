@@ -61,8 +61,22 @@ describe('minimum spanning trees', () => {
 	it('kruskal takes edges cheapest first, skipping those that close a cycle', () => {
 		const run = kruskal(graph, weighted)
 		expect(run.chosen).toEqual(['ac', 'cb', 'de', 'bd'])
-		expect(run.frames.map((f) => f.caption)).toContain('A–B (4): A and B are already connected, so it would close a cycle: skip it')
+		expect(run.frames.map((f) => f.caption)).toContain('A–B (4): find(A) = C, find(B) = C, one tree already, so it would close a cycle: skip it')
 		expect(last(run.frames)).toBe('4 edges for 5 nodes: a minimum spanning tree, total weight 11')
+	})
+
+	it('kruskal keeps its trees in a union-find (by size), carried by every frame', () => {
+		const run = kruskal(graph, weighted)
+		expect(run.frames.every((f) => f.sets)).toBe(true)
+		expect(run.frames[0].sets!.parent).toEqual({ a: 'a', b: 'b', c: 'c', d: 'd', e: 'e' })
+		// A–C: two singletons, so A goes under C; C–B: C's tree is bigger, so B goes under C too.
+		expect(run.frames[1].caption).toBe("A–C (1): find(A) = A, find(C) = C, two trees, so take it: union puts A's tree under C")
+		expect(run.frames[2].sets).toMatchObject({ parent: { a: 'c', b: 'c', c: 'c' }, sizes: { c: 3 }, flash: { 'edge:b': 'green', c: 'green' } })
+		// The skipped A–B: both ways up lit red at the root.
+		const skip = run.frames.find((f) => f.caption?.startsWith('A–B'))!
+		expect(skip.sets!.flash).toMatchObject({ a: 'orange', 'edge:a': 'orange', b: 'orange', c: 'red' })
+		// B–D joins C's tree (3) and E's (2): E goes under C.
+		expect(run.frames.at(-1)!.sets!.parent).toEqual({ a: 'c', b: 'c', c: 'c', d: 'e', e: 'c' })
 	})
 
 	it('a disconnected graph gets a forest', () => {

@@ -48,6 +48,19 @@ export interface Frame {
 	ask?: string | false
 	/** Elements the question is about (nodes, `edge:<key>`), pulsing while it is asked. */
 	askFocus?: string[]
+	/** Disjoint sets at this step (a graph's Kruskal), for the union-find drawn beside the structure. */
+	sets?: FrameSets
+}
+
+/**
+ * Disjoint sets as a step leaves them: each node's parent and each node's set size (meaningful at
+ * roots), keyed by node, and what to light on the union-find (nodes, `edge:<node>` for a node's
+ * parent pointer) at this step.
+ */
+export interface FrameSets {
+	parent: Record<string, string>
+	sizes: Record<string, number>
+	flash?: Record<string, MarkColor>
 }
 
 /** What predict mode asks before a step that has no question of its own. */
@@ -199,6 +212,7 @@ interface Operation {
 	finalFlash: Marks
 	keep: boolean
 	withMarks?(update: TLShapePartial | undefined, marks: Marks): TLShapePartial
+	onCancel?(): void
 	step: number
 	/** Predict mode: asking about `step` before showing it. */
 	asking: boolean
@@ -373,6 +387,7 @@ export function playOperation(
 		finalFlash = {},
 		keep = false,
 		withMarks,
+		onCancel,
 	}: {
 		shapeId: TLShapeId
 		label: string
@@ -382,13 +397,15 @@ export function playOperation(
 		keep?: boolean
 		/** Merge highlights into the final update as marks (used when `keep`). */
 		withMarks?(update: TLShapePartial | undefined, marks: Marks): TLShapePartial
+		/** Cancelled before its result was in (Esc): take back what was set up for it (a view it opened). */
+		onCancel?(): void
 	}
 ) {
 	const p = player(editor)
 	if (p.op) finishPlayback(editor)
 	clearTimeout(p.timer)
 	const paused = !autoplayAtom.get()
-	p.op = { shapeId, label, frames, final, finalFlash, keep, withMarks, step: 0, asking: paused && predictAtom.get() && frames[0]?.ask !== false, paused, done: false }
+	p.op = { shapeId, label, frames, final, finalFlash, keep, withMarks, onCancel, step: 0, asking: paused && predictAtom.get() && frames[0]?.ask !== false, paused, done: false }
 	if (!frames.length) {
 		commit(editor, false)
 		return dismiss(editor, false)
@@ -523,6 +540,7 @@ export function cancelPlayback(editor: Editor) {
 	clearTimeout(p.timer)
 	close(editor, p)
 	p.view.set(null)
+	op.onCancel?.()
 }
 
 function close(editor: Editor, p: Player) {

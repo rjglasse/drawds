@@ -71,9 +71,11 @@ export function forestPositions(parent: readonly number[], nodeW: number, sep: n
 /**
  * The forest drawn as trees (each element pointing at its parent, roots at the top), centred over
  * the parent array: element indices, then `parent[i]`, then (union by size or rank) `size[i]` or
- * `rank[i]`, each row titled on its left. The array starts at x = 0, so it holds still as sets merge.
+ * `rank[i]`, each row titled on its left. The array starts at x = 0, so it holds still as sets merge;
+ * `levels` keeps room for that many levels of trees above it (an operation's deepest step), so it
+ * doesn't move down either. `names`: the array by element name (a graph's nodes), not by index.
  */
-export function unionFindScene({ labels, parent, sizes, ranks, unionBy, size }: UnionFindLayoutProps): Scene {
+export function unionFindScene({ labels, parent, sizes, ranks, unionBy, size }: UnionFindLayoutProps, { levels = 1, names = false } = {}): Scene {
 	const m = getTreeMetrics(size)
 	const metrics = { fontSize: m.fontSize, labelFontSize: m.labelFontSize, strokeWidth: m.strokeWidth }
 	const n = parent.length
@@ -94,7 +96,7 @@ export function unionFindScene({ labels, parent, sizes, ranks, unionBy, size }: 
 	}))
 	const edges: SceneEdge[] = parent.flatMap((p, i) => (p === i ? [] : [{ key: edgeKey(i), from: elementKey(i), to: elementKey(p), directed: true }]))
 
-	const bottom = Math.max(...forest.depth) * levelH + diameter
+	const bottom = (Math.max(levels, ...forest.depth.map((d) => d + 1)) - 1) * levelH + diameter
 	const indexY = bottom + cell * 0.75
 	const parentY = indexY + labelFontSize * 0.9 + cell / 2
 	const weightY = parentY + cell
@@ -126,12 +128,13 @@ export function unionFindScene({ labels, parent, sizes, ranks, unionBy, size }: 
 		return label(key, value, -cell * 0.25 - w / 2, y)
 	}
 	const weights = unionBy === 'naive' ? undefined : unionBy === 'size' ? sizes : ranks
+	const name = (i: number) => (names ? (labels[i] ?? String(i)) : String(i))
 	parent.forEach((p, i) => {
-		nodes.push(label(`#i${i}`, String(i), i * cell + cell / 2, indexY))
-		nodes.push(cellNode(parentKey(i), String(p), i, parentY, true))
+		nodes.push(label(`#i${i}`, name(i), i * cell + cell / 2, indexY))
+		nodes.push(cellNode(parentKey(i), name(p), i, parentY, true))
 		if (weights) nodes.push(cellNode(weightKey(i), String(weights[i] ?? ''), i, weightY, false))
 	})
-	nodes.push(title('#index', 'i', indexY), title('#parent', 'parent', parentY))
+	nodes.push(title('#index', names ? 'node' : 'i', indexY), title('#parent', 'parent', parentY))
 	if (weights) nodes.push(title('#weight', unionBy, weightY))
 	return { nodes, edges, metrics }
 }

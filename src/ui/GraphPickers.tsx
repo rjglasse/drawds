@@ -208,14 +208,20 @@ const VIEW_ITEMS: StyleValuesForUi<GraphViewKind> = [
 		value: 'lists',
 		icon: svgIcon('<rect x="3" y="5" width="6" height="6"/><rect x="13" y="5" width="6" height="6"/><path d="M9 8h4"/><rect x="3" y="19" width="6" height="6"/><rect x="13" y="19" width="6" height="6"/><rect x="23" y="19" width="5" height="6"/><path d="M9 22h4M19 22h4"/>'),
 	},
+	{
+		value: 'union-find',
+		// Two small trees, children pointing up at their roots, over the parent array.
+		icon: svgIcon('<circle cx="8" cy="5" r="2.5"/><circle cx="4" cy="13" r="2.5"/><circle cx="12" cy="13" r="2.5"/><circle cx="22" cy="9" r="2.5"/><path d="M5.2 10.8L7 7.3M10.8 10.8L9 7.3"/><rect x="3" y="20" width="24" height="6"/><path d="M11 20v6M19 20v6"/>'),
+	},
 ]
 
 export const graphViewPickerTranslations: Record<string, string> = {
 	'graph-view-style.matrix': 'Adjacency matrix',
 	'graph-view-style.lists': 'Adjacency lists',
+	'graph-view-style.union-find': "Union-find (Kruskal's sets)",
 }
 
-/** A graph view shows its graph as an adjacency matrix or as adjacency lists. */
+/** A graph view shows its graph as an adjacency matrix, as adjacency lists, or as Kruskal's union-find. */
 export function GraphViewPickers() {
 	const { styles } = useStylePanelContext()
 	const view = styles.get(GraphViewKindStyle)

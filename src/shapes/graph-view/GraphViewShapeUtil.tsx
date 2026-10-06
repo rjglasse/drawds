@@ -16,12 +16,13 @@ import { GRAPH_SHAPE_TYPE, type GraphShape } from '../graph/graph-shape-types'
 import { getMatrixLayout, getMatrixMetrics } from '../matrix/layout'
 import { MatrixSvg } from '../matrix/MatrixShapeUtil'
 import { GRAPH_VIEW_TYPE, graphViewShapeMigrations, graphViewShapeProps, type GraphViewShape } from './graph-view-shape-types'
-import { adjacencyMatrix, adjacencyScene, viewHighlights } from './model'
+import { adjacencyMatrix, adjacencyScene, setsHighlights, setsLevels, unionFindView, viewHighlights } from './model'
 
 /**
- * A view of a graph beside it: its adjacency matrix or its adjacency lists, redrawn whenever the
- * graph changes (it reads the graph as it renders). The graph's marks show on it, and so do an
- * operation's steps: a BFS lights each node's list as it scans it.
+ * A view of a graph beside it: its adjacency matrix, its adjacency lists, or Kruskal's union-find,
+ * redrawn whenever the graph changes (it reads the graph as it renders). The graph's marks show on
+ * it, and so do an operation's steps: a BFS lights each node's list as it scans it, Kruskal's steps
+ * find roots and union sets on the union-find.
  */
 export class GraphViewShapeUtil extends ShapeUtil<GraphViewShape> {
 	static override type = GRAPH_VIEW_TYPE
@@ -37,10 +38,21 @@ export class GraphViewShapeUtil extends ShapeUtil<GraphViewShape> {
 		return graph && this.editor.isShapeOfType(graph, GRAPH_SHAPE_TYPE) ? graph : undefined
 	}
 
-	/** What the view draws for the graph as it is now: the matrix's values and labels, or the lists' scene. */
-	private content(shape: GraphViewShape) {
+	/**
+	 * What the view draws for the graph as it is now: the matrix's values and labels, or the lists' or
+	 * the union-find's scene. `live`: the step an operation shows (the canvas), not just the graph (exports).
+	 */
+	private content(shape: GraphViewShape, live = true) {
 		const graph = this.graph(shape)
 		if (!graph) return undefined
+		if (shape.props.view === 'union-find') {
+			// While Kruskal plays, its step's sets, with room for its deepest step so the array holds still.
+			const playing = live ? playbackFor(this.editor, graph.id) : undefined
+			const steps = playing?.frames.flatMap((f) => (f.sets ? [f.sets] : [])) ?? []
+			const sets = playing?.frame?.sets
+			const { scene, box } = unionFindView(graph.props, shape.props.size, sets, Math.max(1, ...steps.map(setsLevels)))
+			return { kind: 'union-find' as const, graph, scene, box, sets }
+		}
 		if (shape.props.view === 'matrix') {
 			const { labels, values } = adjacencyMatrix(graph.props)
 			const layout = getMatrixLayout(values.length, values.length, getMatrixMetrics(shape.props.size))
@@ -82,7 +94,7 @@ export class GraphViewShapeUtil extends ShapeUtil<GraphViewShape> {
 	}
 
 	private draw(shape: GraphViewShape, colors: TLThemeColors, live: boolean) {
-		const content = this.content(shape)
+		const content = this.content(shape, live)
 		const fontFamily = this.editor.getCurrentTheme().fonts[shape.props.font].fontFamily
 		if (!content) {
 			return (
@@ -92,9 +104,23 @@ export class GraphViewShapeUtil extends ShapeUtil<GraphViewShape> {
 			)
 		}
 		const { graph } = content
-		const marks = viewHighlights(graph.props, shape.props.view, graph.props.marks)
 		const playing = live ? playbackFor(this.editor, graph.id) : undefined
-		const flash = playing && { marks: viewHighlights(graph.props, shape.props.view, playing.flash), fading: playing.fading, id: playing.id }
+		if (content.kind === 'union-find') {
+			return (
+				<SceneSvg
+					scene={content.scene}
+					colors={colors}
+					color={shape.props.color}
+					fontFamily={fontFamily}
+					marks={setsHighlights(graph.props, graph.props.marks)}
+					flash={playing && content.sets?.flash && { marks: setsHighlights(graph.props, content.sets.flash), fading: playing.fading, id: playing.id }}
+					cues={showsColourCues()}
+				/>
+			)
+		}
+		const view = content.kind
+		const marks = viewHighlights(graph.props, view, graph.props.marks)
+		const flash = playing && { marks: viewHighlights(graph.props, view, playing.flash), fading: playing.fading, id: playing.id }
 		if (content.kind === 'matrix') {
 			return (
 				<MatrixSvg
@@ -136,17 +162,23 @@ export class GraphViewShapeUtil extends ShapeUtil<GraphViewShape> {
 	}
 }
 
-/** Put a view of `graph` (matrix or lists) to its right, one undo step. */
+/** The views following `graph`. */
+export const viewsOf = (editor: Editor, graph: GraphShape) =>
+	editor.getCurrentPageShapes().filter((s): s is GraphViewShape => s.type === GRAPH_VIEW_TYPE && (s as GraphViewShape).props.graphId === graph.id)
+
+/** Put a view of `graph` to its right (past any views it has already), one undo step. Returns its history mark. */
 export function showGraphView(editor: Editor, graph: GraphShape, view: GraphViewShape['props']['view']) {
 	const bounds = editor.getShapePageBounds(graph)
-	if (!bounds) return
-	editor.markHistoryStoppingPoint(`show adjacency ${view}`)
+	if (!bounds) return undefined
+	const right = Math.max(bounds.maxX, ...viewsOf(editor, graph).map((v) => editor.getShapePageBounds(v)?.maxX ?? -Infinity))
+	const mark = editor.markHistoryStoppingPoint(`show ${view === 'union-find' ? 'union-find' : `adjacency ${view}`}`)
 	editor.createShape<GraphViewShape>({
 		type: GRAPH_VIEW_TYPE,
-		x: bounds.maxX + 60,
+		x: right + 60,
 		y: bounds.minY,
 		props: { graphId: graph.id, view, color: graph.props.color, size: graph.props.size, font: graph.props.font },
 	})
+	return mark
 }
 
 /** A graph's views go with it. */

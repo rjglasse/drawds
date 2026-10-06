@@ -1,7 +1,10 @@
 import type { TLDefaultSizeStyle } from 'tldraw'
 import type { MarkColor, Marks } from '../../cells/marks'
 import { compareKeys } from '../../data/compare'
-import type { Scene, SceneEdge, SceneNode } from '../../nodelink/scene'
+import type { FrameSets } from '../../nodelink/playback'
+import { translateScene, type Scene, type SceneEdge, type SceneNode } from '../../nodelink/scene'
+import { kruskal } from '../graph/algorithms'
+import { edgeKey as ufEdgeKey, elementKey, parentKey, unionFindScene } from '../union-find/layout'
 import { CELL_SIZES } from '../sizes'
 import type { GraphEdge, GraphNode, GraphShapeProps } from '../graph/graph-shape-types'
 import { neighbours } from '../graph/traverse'
@@ -134,4 +137,72 @@ export function viewHighlights(graph: Graph, view: 'matrix' | 'lists', marks: Re
 		}
 	}
 	return out as Marks
+}
+
+// Union-find view: Kruskal's union-find over the graph's nodes (in label order), drawn as the
+// union-find shape draws one. While Kruskal plays, a step's sets (`Frame.sets`); otherwise where
+// Kruskal ends: the graph's connected pieces.
+
+const endSets = new WeakMap<object, FrameSets>()
+
+/** The sets Kruskal leaves (union by size, over the edges cheapest first). */
+export function kruskalSets(graph: Graph): FrameSets {
+	let sets = endSets.get(graph)
+	if (!sets) {
+		sets = kruskal(graph, { directed: false, weighted: graph.weights === 'weighted' }).frames.at(-1)?.sets ?? { parent: {}, sizes: {} }
+		endSets.set(graph, sets)
+	}
+	return sets
+}
+
+/** How many levels the deepest tree of some sets has. */
+export function setsLevels(sets: FrameSets): number {
+	const up = (id: string) => {
+		let levels = 1
+		for (let at = id; sets.parent[at] !== undefined && sets.parent[at] !== at && levels <= Object.keys(sets.parent).length; at = sets.parent[at]) levels++
+		return levels
+	}
+	return Math.max(1, ...Object.keys(sets.parent).map(up))
+}
+
+/**
+ * The union-find scene of `sets` (default: where Kruskal ends), at the origin, and its box. Laid out
+ * from the widest arrangement (every node on its own), with `levels` of room for trees, so nothing
+ * moves as sets merge during an operation.
+ */
+export function unionFindView(graph: Graph, size: TLDefaultSizeStyle, sets: FrameSets = kruskalSets(graph), levels = 1) {
+	const nodes = orderedNodes(graph)
+	const index = new Map(nodes.map((n, i) => [n.id, i]))
+	const props = {
+		labels: nodes.map((n) => n.value),
+		parent: nodes.map((n, i) => index.get(sets.parent[n.id]) ?? i),
+		sizes: nodes.map((n) => sets.sizes[n.id] ?? 1),
+		ranks: nodes.map(() => 0),
+		unionBy: 'size' as const,
+		size,
+	}
+	const widest = unionFindScene({ ...props, parent: nodes.map((_, i) => i) }, { names: true })
+	if (!widest.nodes.length) return { scene: widest, box: { x: 0, y: 0, w: 1, h: 1 }, index }
+	const minX = Math.min(...widest.nodes.map((n) => n.x - n.w / 2))
+	const maxX = Math.max(...widest.nodes.map((n) => n.x + n.w / 2))
+	const scene = translateScene(unionFindScene(props, { levels, names: true }), { x: -minX, y: 0 })
+	return { scene, box: { x: 0, y: 0, w: maxX - minX, h: Math.max(...scene.nodes.map((n) => n.y + n.h / 2)) }, index }
+}
+
+/**
+ * Highlights on the union-find view in its keys: the graph's node marks on their elements, and a
+ * step's `sets.flash` (nodes, `edge:<node>` for a node's parent pointer).
+ */
+export function setsHighlights(graph: Graph, marks: Record<string, MarkColor | null>): Marks {
+	const index = new Map(orderedNodes(graph).map((n, i) => [n.id, i]))
+	const out: Marks = {}
+	for (const [key, color] of Object.entries(marks)) {
+		if (!color) continue
+		const node = key.startsWith('edge:') ? key.slice(5) : key
+		const i = index.get(node)
+		if (i === undefined) continue
+		if (key.startsWith('edge:')) out[`edge:${ufEdgeKey(i)}`] = color
+		else Object.assign(out, { [elementKey(i)]: color, [parentKey(i)]: color })
+	}
+	return out
 }

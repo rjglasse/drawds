@@ -13,7 +13,7 @@ import { GROW_HANDLE_ID } from '../../controls/grow'
 import { GrowGrip } from '../../controls/GrowGrip'
 import { showsStructureControls } from '../../controls/visibility'
 import { arrowHead, routeEdge } from '../../nodelink/geometry'
-import type { PointerDirection } from '../../cells/CellShapeUtil'
+import type { PlaybackLayout, PointerDirection } from '../../cells/CellShapeUtil'
 import { spatialNeighbor } from '../../nodelink/geometry'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import { prunePointers } from '../../pointers/pointers'
@@ -35,7 +35,8 @@ import {
 	type GraphLabelsMode,
 	type GraphShape,
 } from './graph-shape-types'
-import { showGraphView } from '../graph-view/GraphViewShapeUtil'
+import type { GraphViewShape } from '../graph-view/graph-view-shape-types'
+import { showGraphView, viewsOf } from '../graph-view/GraphViewShapeUtil'
 import { generateGraph } from './generate'
 import { getGraphMetrics, graphCorner, graphScene, toUnits } from './layout'
 import { dijkstra, kruskal, prim, topologicalSort } from './algorithms'
@@ -263,11 +264,15 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		const views: NodeOperation[] = [
 			{ ...show, id: 'graph-show-matrix', label: 'Adjacency matrix beside it', run: () => this.showView(shape.id, 'matrix') },
 			{ ...show, id: 'graph-show-lists', label: 'Adjacency lists beside it', run: () => this.showView(shape.id, 'lists') },
+			// Kruskal's sets: spanning trees are about undirected graphs.
+			...(shape.props.direction === 'directed'
+				? []
+				: [{ ...show, id: 'graph-show-union-find', label: "Union-find beside it (Kruskal's sets)", run: () => this.showView(shape.id, 'union-find') }]),
 		]
 		return [...views, ...this.algorithmOperations(shape)]
 	}
 
-	private showView(id: GraphShape['id'], view: 'matrix' | 'lists') {
+	private showView(id: GraphShape['id'], view: GraphViewShape['props']['view']) {
 		const shape = this.editor.getShape(id) as GraphShape | undefined
 		if (shape) showGraphView(this.editor, shape, view)
 	}
@@ -288,7 +293,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 						...algorithms,
 						id: 'graph-kruskal',
 						label: 'Minimum spanning tree (Kruskal)',
-						run: () => this.runAlgorithm(shape.id, 'minimum spanning tree', (s) => kruskal(s.props, this.algorithmOptions(s)).frames),
+						run: () => this.kruskal(shape.id),
 					},
 				]
 	}
@@ -304,9 +309,24 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 			'Double-click a node or a weight to type',
 			"Drag from the dot on a node's right edge to another node to join them, or into space for a new node",
 			'Hover a node or an edge for x (remove); drag the dot under a node to move it',
-			'Right-click a node: Step by step has BFS, DFS, Dijkstra, Prim; Show puts its adjacency matrix or lists beside it',
+			"Right-click a node: Step by step has BFS, DFS, Dijkstra, Prim and Kruskal (with its union-find beside the graph); Show puts its adjacency matrix, lists or union-find beside it",
 			'Style panel: Edges (directed or not), Weights, Labels, and Density, Pieces, Order for a new sketch',
 		]
+	}
+
+	/**
+	 * The strips and play bar go under the graph and under any view beside it (overlapping its height:
+	 * a union-find or a matrix taller than the graph), so they never cover a view while it follows the steps.
+	 */
+	override playbackLayout(shape: GraphShape, frame: Frame | undefined): PlaybackLayout {
+		const layout = super.playbackLayout(shape, frame)
+		const graph = this.editor.getShapePageBounds(shape)
+		if (!graph) return layout
+		const beside = viewsOf(this.editor, shape).flatMap((v) => {
+			const b = this.editor.getShapePageBounds(v)
+			return b && b.minY < graph.maxY && b.maxY > graph.minY ? [this.editor.getPointInShapeSpace(shape, { x: b.minX, y: b.maxY }).y] : []
+		})
+		return { ...layout, bottom: Math.max(layout.bottom, ...beside) }
 	}
 
 	private algorithmOptions(shape: GraphShape) {
@@ -320,7 +340,20 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 	}
 
 	/** Play an algorithm's steps on the graph as it is now; nothing changes (Shift at the end keeps the highlights as marks). */
-	private runAlgorithm(id: GraphShape['id'], label: string, steps: (shape: GraphShape) => Frame[]) {
+	/**
+	 * Kruskal, with its union-find beside the graph: opened for it if the graph has none (Esc, before
+	 * the result is in, takes it away again, so cancelling changes nothing).
+	 */
+	private kruskal(id: GraphShape['id']) {
+		const shape = this.editor.getShape(id) as GraphShape | undefined
+		if (!shape) return
+		const shown = viewsOf(this.editor, shape).some((v) => v.props.view === 'union-find')
+		const mark = shown ? undefined : showGraphView(this.editor, shape, 'union-find')
+		const takeBack = mark === undefined ? undefined : () => void this.editor.bailToMark(mark)
+		this.runAlgorithm(id, 'minimum spanning tree', (s) => kruskal(s.props, this.algorithmOptions(s)).frames, takeBack)
+	}
+
+	private runAlgorithm(id: GraphShape['id'], label: string, steps: (shape: GraphShape) => Frame[], onCancel?: () => void) {
 		const shape = this.editor.getShape(id) as GraphShape | undefined
 		if (!shape) return
 		const frames = steps(shape)
@@ -328,6 +361,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 			shapeId: id,
 			label,
 			frames,
+			onCancel,
 			withMarks: (_update, highlights) => {
 				const current = (this.editor.getShape(id) as GraphShape | undefined) ?? shape
 				return this.withModel(current, current.props, { ...current.props.marks, ...highlights })

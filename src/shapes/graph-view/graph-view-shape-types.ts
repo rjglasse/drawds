@@ -14,10 +14,10 @@ import {
 
 export const GRAPH_VIEW_TYPE = 'graph-view'
 
-/** How a graph view shows its graph: an adjacency matrix, or adjacency lists. */
+/** How a graph view shows its graph: an adjacency matrix, adjacency lists, or Kruskal's union-find. */
 export const GraphViewKindStyle = StyleProp.defineEnum('drawds:graph-view', {
 	defaultValue: 'matrix' as const,
-	values: ['matrix', 'lists'] as const,
+	values: ['matrix', 'lists', 'union-find'] as const,
 })
 export type GraphViewKind = T.TypeOf<typeof GraphViewKindStyle>
 

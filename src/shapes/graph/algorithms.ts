@@ -1,7 +1,8 @@
 import type { MarkColor } from '../../cells/marks'
 import { compareKeys } from '../../data/compare'
-import type { Frame } from '../../nodelink/playback'
+import type { Frame, FrameSets } from '../../nodelink/playback'
 import { edgeCellKey } from '../../nodelink/scene'
+import { findPath, singletons, union } from '../union-find/union-find'
 import type { GraphModel } from './model'
 import { neighbours, Recorder } from './traverse'
 
@@ -173,18 +174,28 @@ export function prim(model: GraphModel, start: string, options: AlgorithmOptions
 
 /**
  * Kruskal's minimum spanning tree: the edges from cheapest to dearest, each taken if it joins two
- * separate trees and skipped (red) if its ends are already connected, as it would close a cycle.
+ * separate trees and skipped (red) if its ends are already connected, as it would close a cycle. A
+ * union-find keeps the trees (union by size): each step asks find() for both ends' roots, and a
+ * taken edge unions the two sets. Every frame carries the sets for the union-find drawn beside it.
  */
 export function kruskal(model: GraphModel, options: AlgorithmOptions): GraphRun {
 	const { name, weight, edgeName, note } = helpers(model, { ...options, directed: false })
 	const rec = new Recorder()
 	const order = new Map(model.edges.map((e, i) => [e.id, i]))
 	const sorted = [...model.edges].sort((a, b) => weight(a.id) - weight(b.id) || order.get(a.id)! - order.get(b.id)!)
-	const root = new Map(model.nodes.map((n) => [n.id, n.id]))
-	const find = (id: string): string => {
-		while (root.get(id) !== id) id = root.get(id)!
-		return id
-	}
+	const ids = model.nodes.map((n) => n.id)
+	const index = new Map(ids.map((id, i) => [id, i]))
+	let forest = singletons(ids.length)
+	const sets = (flash: Record<string, MarkColor> = {}): FrameSets => ({
+		parent: Object.fromEntries(ids.map((id, i) => [id, ids[forest.parent[i]]])),
+		sizes: Object.fromEntries(ids.map((id, i) => [id, forest.sizes[i]])),
+		flash,
+	})
+	// A find's way up on the union-find: the nodes and parent pointers passed orange, the root in `root`.
+	const way = (path: number[], root: MarkColor) => ({
+		...Object.fromEntries(path.slice(0, -1).flatMap((i) => [[ids[i], LOOKING], [`edge:${ids[i]}`, LOOKING]])),
+		[ids[path[path.length - 1]]]: root,
+	})
 	const chosen: string[] = []
 	let total = 0
 	const remaining = (from: number) => {
@@ -192,33 +203,48 @@ export function kruskal(model: GraphModel, options: AlgorithmOptions): GraphRun 
 		return [{ title: 'edges, cheapest first', items: items.length > 10 ? [...items.slice(0, 10), '…'] : items }]
 	}
 	const needed = model.nodes.length - 1
-	rec.add({ strips: remaining(0), counts: { weight: total }, caption: `${note}Take the edges from cheapest to dearest, skipping any that would close a cycle` })
+	rec.add({
+		strips: remaining(0),
+		counts: { weight: total },
+		sets: sets(),
+		caption: `${note}Take the edges from cheapest to dearest, skipping any that would close a cycle. A union-find keeps the trees: every node starts on its own`,
+	})
 	for (const [i, e] of sorted.entries()) {
 		if (chosen.length === needed) break
-		const [a, b] = [find(e.from), find(e.to)]
-		if (a === b) {
+		const [pu, pv] = [findPath(forest.parent, index.get(e.from)!), findPath(forest.parent, index.get(e.to)!)]
+		const [ru, rv] = [pu[pu.length - 1], pv[pv.length - 1]]
+		const finds = `find(${name(e.from)}) = ${name(ids[ru])}, find(${name(e.to)}) = ${name(ids[rv])}`
+		const ask = 'Take it or skip it?'
+		if (ru === rv) {
 			rec.look(
 				e.id,
 				{
 					strips: remaining(i + 1),
-					caption: `${edgeName(e.id)}: ${name(e.from)} and ${name(e.to)} are already connected, so it would close a cycle: skip it`,
+					sets: sets({ ...way(pu, REJECTED), ...way(pv, REJECTED) }),
+					caption: `${edgeName(e.id)}: ${finds}, one tree already, so it would close a cycle: skip it`,
+					ask,
 				},
 				REJECTED
 			)
 			continue
 		}
-		root.set(a, b)
+		const link = union(forest, ru, rv, 'size')
+		forest = link.forest
 		chosen.push(e.id)
 		total += weight(e.id)
 		rec.add({
 			flash: { [edgeCellKey(e.id)]: CHOSEN, [e.from]: DONE, [e.to]: DONE },
 			strips: remaining(i + 1),
 			counts: { weight: total },
-			caption: `${edgeName(e.id)} joins two separate trees: take it`,
+			// The ways up as they were, then the link the union made and the root it went under.
+			sets: sets({ ...way(pu, LOOKING), ...way(pv, LOOKING), [`edge:${ids[link.child!]}`]: CHOSEN, [ids[link.root!]]: CHOSEN }),
+			caption: `${edgeName(e.id)}: ${finds}, two trees, so take it: union puts ${name(ids[link.child!])}'s tree under ${name(ids[link.root!])}`,
+			ask,
 		})
 	}
 	rec.add({
 		strips: remaining(sorted.length),
+		sets: sets(),
 		caption:
 			chosen.length === needed
 				? `${needed} edges for ${model.nodes.length} nodes: a minimum spanning tree, total weight ${total}`

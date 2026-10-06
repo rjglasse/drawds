@@ -95,3 +95,78 @@ test('topological sort on a directed graph; spanning trees are offered only when
 	await stepToEnd(page)
 	await expect(caption(page)).toHaveText('Every node is placed: A, C, B, D, E. Every edge points forward in this order')
 })
+
+/** The union-find view's parent row (by node name, in label order), as it is drawn now. */
+const parentRow = (page: Page) =>
+	page.evaluate(() => {
+		const e = window.editor!
+		const view = e.getCurrentPageShapes().find((s) => s.type === 'graph-view' && (s.props as { view: string }).view === 'union-find')
+		if (!view) return null
+		const util = e.getShapeUtil(view) as unknown as { content(s: unknown): { scene: { nodes: { key: string; value: string; x: number }[] } } }
+		return util
+			.content(view)
+			.scene.nodes.filter((n) => /^p\d+$/.test(n.key))
+			.sort((a, b) => a.x - b.x)
+			.map((n) => n.value)
+			.join('')
+	})
+
+const unionFindViews = (page: Page) => page.evaluate(() => window.editor!.getCurrentPageShapes().filter((s) => s.type === 'graph-view').length)
+
+async function kruskalMenu(page: Page) {
+	await rightClick(page, await nodeScreenPosition(page, 'a'))
+	await page.getByTestId('context-menu-sub.drawds-graph-steps-button').click()
+	await page.getByTestId('context-menu.graph-kruskal').click()
+}
+
+test("Kruskal opens its union-find beside the graph: finds and unions step with the edges; Esc takes it away", async ({ page }) => {
+	await knownGraph(page)
+	await kruskalMenu(page)
+	expect(await unionFindViews(page)).toBe(1)
+	// Every node on its own to start with.
+	expect(await parentRow(page)).toBe('ABCDE')
+	await page.keyboard.press('ArrowRight')
+	await expect(caption(page)).toHaveText("A–C (1): find(A) = A, find(C) = C, two trees, so take it: union puts A's tree under C")
+	expect(await parentRow(page)).toBe('CBCDE')
+	await page.keyboard.press('ArrowRight')
+	await page.keyboard.press('ArrowRight')
+	await page.keyboard.press('ArrowRight')
+	await expect(caption(page)).toHaveText('A–B (4): find(A) = C, find(B) = C, one tree already, so it would close a cycle: skip it')
+	expect(await parentRow(page)).toBe('CCCEE')
+	// The bar sits under the view, not over it.
+	const [viewBottom, barTop] = await page.evaluate(() => {
+		const e = window.editor!
+		const view = e.getCurrentPageShapes().find((s) => s.type === 'graph-view')!
+		const b = e.getShapePageBounds(view)!
+		return [e.pageToViewport({ x: b.minX, y: b.maxY }).y, document.querySelector('[data-testid="play-bar"]')!.getBoundingClientRect().top]
+	})
+	expect(barTop).toBeGreaterThan(viewBottom)
+	// Cancelled before the result: the view it opened goes again.
+	await page.keyboard.press('Escape')
+	await expect(page.getByTestId('play-bar')).toHaveCount(0)
+	expect(await unionFindViews(page)).toBe(0)
+	// Run to the end: the view stays, showing where Kruskal ends; a second run uses it.
+	await kruskalMenu(page)
+	await stepToEnd(page)
+	await page.keyboard.press('Enter')
+	expect(await unionFindViews(page)).toBe(1)
+	expect(await parentRow(page)).toBe('CCCEC')
+	await kruskalMenu(page)
+	expect(await unionFindViews(page)).toBe(1)
+	await page.keyboard.press('Escape')
+	expect(await unionFindViews(page)).toBe(1)
+})
+
+test("Show > Union-find puts Kruskal's sets beside an undirected graph; not offered for a directed one", async ({ page }) => {
+	await knownGraph(page)
+	await rightClick(page, await nodeScreenPosition(page, 'a'))
+	await page.getByTestId('context-menu-sub.drawds-graph-show-button').click()
+	await page.getByTestId('context-menu.graph-show-union-find').click()
+	expect(await parentRow(page)).toBe('CCCEC')
+	await page.evaluate(() => void window.editor!.deleteShapes([...window.editor!.getCurrentPageShapeIds()]))
+	await knownGraph(page, 'directed')
+	await rightClick(page, await nodeScreenPosition(page, 'a'))
+	await page.getByTestId('context-menu-sub.drawds-graph-show-button').click()
+	await expect(page.getByTestId('context-menu.graph-show-matrix')).toBeVisible()
+	await expect(page.getByTestId('context-menu.graph-show-union-find')).toHaveCount(0)
+})
