@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { ArrayShapeProps } from '../src/shapes/array/array-shape-types'
-import { CELL, handlePosition, open, shapesOfType, sketchArray } from './helpers'
+import { CELL, handlePosition, open, rightClick, shapesOfType, sketchArray } from './helpers'
 
 const props = async (page: Page) => (await shapesOfType<ArrayShapeProps>(page, 'array'))[0].props
 
@@ -66,7 +66,7 @@ test('sorting a fixed array sorts the values in use; back to growing drops the s
 		const shape = editor.getOnlySelectedShape()!
 		editor.updateShape({ id: shape.id, type: 'array', props: { values: ['30', '10', '20', '', ''] } } as never)
 	})
-	await page.mouse.click(200, 200, { button: 'right' })
+	await rightClick(page, [200, 200])
 	await page.getByTestId('context-menu-sub.drawds-array-actions-button').click()
 	await page.getByTestId('context-menu.array-sort').click()
 	expect((await props(page)).values).toEqual(['10', '20', '30', '', ''])
@@ -83,7 +83,7 @@ async function stepToEnd(page: Page) {
 }
 
 async function arrayMenu(page: Page, submenu: string, item: string, at = 200) {
-	await page.mouse.click(at, 200, { button: 'right' })
+	await rightClick(page, [at, 200])
 	await page.getByTestId(`context-menu-sub.drawds-${submenu}-button`).click()
 	await page.getByTestId(`context-menu.${item}`).click()
 }
@@ -95,7 +95,6 @@ test('insert into a full fixed array stops; Grow doubles it via newArr, one copy
 	await expect(caption(page)).toContainText('the array is full, so there is no room for')
 	await page.keyboard.press('Enter')
 	expect(await props(page)).toEqual(before)
-	await page.waitForTimeout(400)
 	await arrayMenu(page, 'array-steps', 'array-grow')
 	await expect(caption(page)).toHaveText("newArr = new int[6]: a new array with room for 6. Arrays can't grow, so the values have to move")
 	await expect(page.getByTestId('array-aux')).toHaveCount(1)
@@ -117,7 +116,6 @@ test('insert and delete step by step keep the capacity; append grows a full arra
 	expect(p.values).toHaveLength(3)
 	expect(p.values.slice(1)).toEqual(before.values.slice(0, 2))
 	await page.keyboard.press('Enter')
-	await page.waitForTimeout(400)
 	await arrayMenu(page, 'array-steps', 'array-append')
 	await expect(caption(page)).toContainText('the array is full. Grow it first')
 	await stepToEnd(page)
@@ -125,7 +123,6 @@ test('insert and delete step by step keep the capacity; append grows a full arra
 	expect(p).toMatchObject({ used: 4 })
 	expect(p.values).toHaveLength(6)
 	await page.keyboard.press('Enter')
-	await page.waitForTimeout(400)
 	await arrayMenu(page, 'array-steps', 'array-delete')
 	await stepToEnd(page)
 	await expect(caption(page)).toContainText('size = 3: a[3] is a spare slot again')
@@ -142,7 +139,6 @@ test('append 8 values: doubling copies 12 times, growing by one 60 times', async
 	expect(await props(page)).toMatchObject({ used: 12 })
 	expect((await props(page)).values).toHaveLength(16)
 	await page.keyboard.press('ControlOrMeta+z')
-	await page.waitForTimeout(400)
 	await arrayMenu(page, 'array-steps', 'array-append-many-plus-one')
 	await stepToEnd(page)
 	await expect(page.getByTestId('play-counts')).toHaveText('appends 8 · copies 60')

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { nodeScreenPosition, open, sketchArray, sketchGraph, sketchHeap, sketchList, sketchTree, withEditor } from './helpers'
+import { nodeScreenPosition, open, rightClick, sketchArray, sketchGraph, sketchHeap, sketchList, sketchTree, withEditor } from './helpers'
 
 const CELL = 48
 
@@ -81,7 +81,7 @@ test('a board with every structure saved and opened in a fresh browser comes bac
 	await page.mouse.move(700, 450 + 3 * CELL + 10, { steps: 20 })
 	await page.mouse.up()
 	await sketchGraph(page, [950, 450], 4)
-	await page.mouse.click(...(await nodeScreenPosition(page, 'v0')), { button: 'right' })
+	await rightClick(page, await nodeScreenPosition(page, 'v0'))
 	await page.getByTestId('context-menu-sub.drawds-graph-show-button').click()
 	await page.getByTestId('context-menu.graph-show-matrix').click()
 	// Marks, a pointer and a style on the array.

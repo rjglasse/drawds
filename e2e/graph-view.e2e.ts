@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { GraphShapeProps } from '../src/shapes/graph/graph-shape-types'
-import { connectNodes, nodeScreenPosition, open, shapesOfType, sketchGraph } from './helpers'
+import { connectNodes, nodeScreenPosition, open, rightClick, shapesOfType, sketchGraph } from './helpers'
 
 const graph = async (page: Page) => (await shapesOfType<GraphShapeProps>(page, 'graph'))[0]
 const views = (page: Page) => shapesOfType<{ graphId: string; view: string }>(page, 'graph-view')
@@ -8,7 +8,7 @@ const views = (page: Page) => shapesOfType<{ graphId: string; view: string }>(pa
 const ones = (page: Page, id: string) => page.locator(`[data-shape-id="${id}"] text`, { hasText: /^1$/ }).count()
 
 async function showView(page: Page, view: 'matrix' | 'lists') {
-	await page.mouse.click(...(await nodeScreenPosition(page, 'v0')), { button: 'right' })
+	await rightClick(page, await nodeScreenPosition(page, 'v0'))
 	await page.getByTestId('context-menu-sub.drawds-graph-show-button').click()
 	await page.getByTestId(`context-menu.graph-show-${view}`).click()
 }

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { ArrayShapeProps } from '../src/shapes/array/array-shape-types'
-import { CELL, open, shapesOfType, sketchArray, withEditor } from './helpers'
+import { CELL, open, rightClick, shapesOfType, sketchArray, withEditor } from './helpers'
 
 const props = async (page: Page) => (await shapesOfType<ArrayShapeProps>(page, 'array'))[0].props
 const values = async (page: Page) => (await props(page)).values
@@ -20,7 +20,7 @@ async function setValues(page: Page, values: string[], marks: Record<string, str
 
 /** Right-click cell i of an array whose first cell is at (200, 200): submenu > item. */
 async function arrayOp(page: Page, i: number, submenu: string, item: string) {
-	await page.mouse.click(200 + i * CELL, 200, { button: 'right' })
+	await rightClick(page, [200 + i * CELL, 200])
 	await page.getByTestId(`context-menu-sub.drawds-${submenu}-button`).click()
 	await page.getByTestId(`context-menu.${item}`).click()
 }
@@ -100,7 +100,6 @@ test('selection and bubble sort: Enter finishes at once; Esc cancels', async ({ 
 	await arrayOp(page, 0, 'array-steps', 'array-bubble-sort')
 	await page.keyboard.press('Escape')
 	expect(await values(page)).toEqual(['50', '10', '40', '20', '30'])
-	await page.waitForTimeout(400)
 	await arrayOp(page, 0, 'array-steps', 'array-selection-sort')
 	await expect(caption(page)).toHaveText('i = 0: find the smallest of a[0..4]. min = 0 (50) so far')
 	await page.keyboard.press('Enter')
@@ -141,20 +140,16 @@ test('instant actions: sort, reverse, shuffle, new values, indices', async ({ pa
 	await setValues(page, ['30', '10', '50', '20', '40'], { 0: 'red' })
 	await arrayOp(page, 0, 'array-actions', 'array-sort')
 	expect(await props(page)).toMatchObject({ values: ['10', '20', '30', '40', '50'], marks: { 2: 'red' } })
-	await page.waitForTimeout(400)
 	await arrayOp(page, 0, 'array-actions', 'array-reverse')
 	expect(await values(page)).toEqual(['50', '40', '30', '20', '10'])
-	await page.waitForTimeout(400)
 	await arrayOp(page, 0, 'array-actions', 'array-shuffle')
 	const shuffled = await values(page)
 	expect(shuffled).not.toEqual(['50', '40', '30', '20', '10'])
 	expect([...shuffled].sort()).toEqual(['10', '20', '30', '40', '50'])
-	await page.waitForTimeout(400)
 	const seed = (await props(page)).seed
 	await arrayOp(page, 0, 'array-actions', 'array-reroll')
 	expect((await props(page)).seed).not.toBe(seed)
 	expect(await values(page)).toHaveLength(5)
-	await page.waitForTimeout(400)
 	await arrayOp(page, 0, 'array-show', 'array-indices')
 	expect((await props(page)).showIndices).toBe(false)
 	// Each action is one undo step.

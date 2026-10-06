@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { nodeScreenPosition, open, sketchArray, sketchGraph, sketchHeap, sketchList, sketchTree } from './helpers'
+import { nodeScreenPosition, open, rightClick, sketchArray, sketchGraph, sketchHeap, sketchList, sketchTree } from './helpers'
 
 // Every structure's context menu has the same shape: Step by step (animated operations), then a
 // submenu named after the structure (instant changes), then Show, then Mark and Pointer, each only
@@ -7,13 +7,12 @@ import { nodeScreenPosition, open, sketchArray, sketchGraph, sketchHeap, sketchL
 
 /** Our submenus in the context menu opened at the point: labels in order, and their test ids. */
 async function submenusAt(page: Page, at: [number, number]) {
-	await page.mouse.click(...at, { button: 'right' })
+	await rightClick(page, at)
 	const subs = page.locator('[data-testid^="context-menu-sub.drawds-"][data-testid$="-button"]')
 	await expect(subs.first()).toBeVisible()
 	const found = await subs.evaluateAll((els) => els.map((e) => [(e.textContent ?? '').trim(), e.getAttribute('data-testid')!]))
 	await page.keyboard.press('Escape')
 	await expect(subs).toHaveCount(0)
-	await page.waitForTimeout(450) // a closing menu swallows the next right-click
 	return found
 }
 

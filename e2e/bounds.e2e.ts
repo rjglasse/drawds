@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { handlePosition, hoverNode, nodeScreenPosition, open, sketchArray, sketchGraph, sketchHeap, sketchList, sketchTree, withEditor } from './helpers'
+import { handlePosition, hoverNode, nodeScreenPosition, open, rightClick, sketchArray, sketchGraph, sketchHeap, sketchList, sketchTree, withEditor } from './helpers'
 
 /**
  * tldraw puts a shape's box at the shape's origin, sized to its bounds; drawing outside the box
@@ -146,8 +146,7 @@ async function checkEveryStep(page: Page, still?: string) {
 }
 
 async function listOp(page: Page, key: string, item: string) {
-	await page.waitForTimeout(450) // an earlier menu may still be closing: it would swallow the right-click
-	await page.mouse.click(...(await nodeScreenPosition(page, key)), { button: 'right' })
+	await rightClick(page, await nodeScreenPosition(page, key))
 	await page.getByTestId('context-menu-sub.drawds-list-steps-button').click()
 	await page.getByTestId(`context-menu.${item}`).click()
 }
@@ -189,7 +188,7 @@ test('hash rehash: the bigger table stays inside the box, the first bucket where
 		const s = e.getOnlySelectedShape()!
 		e.updateShape({ id: s.id, type: s.type, props: { buckets: [['10', '5'], ['6'], [], [], []] } } as never)
 	})
-	await page.mouse.click(...(await nodeScreenPosition(page, 'k:6')), { button: 'right' })
+	await rightClick(page, await nodeScreenPosition(page, 'k:6'))
 	await page.getByTestId('context-menu-sub.drawds-hash-steps-button').click()
 	await page.getByTestId('context-menu.hash-rehash').click()
 	await checkEveryStep(page, 'b0')

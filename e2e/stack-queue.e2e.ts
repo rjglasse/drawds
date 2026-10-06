@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { ArrayShapeProps } from '../src/shapes/array/array-shape-types'
-import { CELL, open, shapesOfType } from './helpers'
+import { CELL, open, rightClick, shapesOfType, transitionsDone } from './helpers'
 
 const props = async (page: Page) => (await shapesOfType<ArrayShapeProps>(page, 'array'))[0].props
 
@@ -53,7 +53,7 @@ test('a fixed queue is a circular buffer: front and rear markers, spare slots bl
 		editor.updateShape({ id: s.id, type: 'array', props: { values: ['50', '', '20', '30', '40'], used: 4, front: 2 } } as never)
 	})
 	// front at index 2; rear wraps round to index 1, the next free slot (markers slide there).
-	await page.waitForTimeout(400)
+	await transitionsDone(page)
 	const [front, rear] = [await pointerBox(page, 'front'), await pointerBox(page, 'rear')]
 	expect(front!.x).toBeGreaterThan(rear!.x)
 	expect(Math.round((front!.x - rear!.x) / CELL)).toBe(1)
@@ -71,7 +71,7 @@ async function stepToEnd(page: Page) {
 }
 
 async function menu(page: Page, at: [number, number], submenu: string, item: string) {
-	await page.mouse.click(...at, { button: 'right' })
+	await rightClick(page, at)
 	await page.getByTestId(`context-menu-sub.drawds-${submenu}-button`).click()
 	await page.getByTestId(`context-menu.${item}`).click()
 }
@@ -85,12 +85,10 @@ test('stack: push a typed value, pop it again (last in, first out); overflow whe
 	// No spare slots: the push overflows and nothing changes.
 	await expect(caption(page)).toContainText('the stack is full. Stack overflow')
 	await page.keyboard.press('Enter')
-	await page.waitForTimeout(400)
 	expect(await props(page)).toMatchObject({ used: 2 })
 	// Make room, push, then pop.
 	await menu(page, [300, 450], 'array-steps', 'array-grow')
 	await page.keyboard.press('Enter')
-	await page.waitForTimeout(400)
 	await menu(page, [300, 450], 'array-steps', 'array-push-value')
 	await page.getByTestId('key-prompt').fill('42')
 	await page.keyboard.press('Enter')
@@ -98,7 +96,6 @@ test('stack: push a typed value, pop it again (last in, first out); overflow whe
 	await page.keyboard.press('Enter')
 	expect(await props(page)).toMatchObject({ used: 3 })
 	expect((await props(page)).values[2]).toBe('42')
-	await page.waitForTimeout(400)
 	await menu(page, [300, 450], 'array-steps', 'array-pop')
 	await stepToEnd(page)
 	await expect(caption(page)).toHaveText('top = top - 1 = 1: a[2] is free again. Popped 42, the last value pushed')
@@ -122,7 +119,6 @@ test('circular queue: enqueue wraps rear round to 0; dequeue moves front on, not
 	await expect(caption(page)).toHaveText('rear = (rear + 1) % 4 = 0: past the end, it wraps round to 0; size = 3')
 	await page.keyboard.press('Enter')
 	expect(await props(page)).toMatchObject({ values: ['', 'a', 'b', 'c'], used: 3, front: 1 })
-	await page.waitForTimeout(400)
 	await menu(page, [300, 300], 'array-steps', 'array-dequeue')
 	await stepToEnd(page)
 	await expect(page.getByTestId('playback-strip')).toContainText('a')
@@ -147,7 +143,6 @@ test('on-canvas buttons: push and pop a stack, enqueue and dequeue a queue', asy
 	await expect(caption(page)).toContainText('top = top + 1 = 3, a new cell on top')
 	await page.keyboard.press('Enter')
 	expect((await props(page)).values).toHaveLength(4)
-	await page.waitForTimeout(300)
 	await page.getByTestId('stack-pop').click()
 	await page.keyboard.press('Enter')
 	expect((await props(page)).values).toEqual(before)
@@ -156,7 +151,6 @@ test('on-canvas buttons: push and pop a stack, enqueue and dequeue a queue', asy
 	const queue = (await shapesOfType<ArrayShapeProps>(page, 'array')).find((s) => s.props.kind === 'queue')!.props.values
 	await page.getByTestId('queue-dequeue').click()
 	await page.keyboard.press('Enter')
-	await page.waitForTimeout(300)
 	await page.getByTestId('queue-enqueue').click()
 	await page.keyboard.press('Enter')
 	const after = (await shapesOfType<ArrayShapeProps>(page, 'array')).find((s) => s.props.kind === 'queue')!.props.values

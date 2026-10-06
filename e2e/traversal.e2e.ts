@@ -1,13 +1,13 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { GraphShapeProps } from '../src/shapes/graph/graph-shape-types'
 import { bfs, dfs } from '../src/shapes/graph/traverse'
-import { nodeScreenPosition, open, shapesOfType, sketchGraph } from './helpers'
+import { nodeScreenPosition, open, rightClick, shapesOfType, sketchGraph } from './helpers'
 
 const graph = async (page: Page) => (await shapesOfType<GraphShapeProps>(page, 'graph'))[0].props
 
 /** Right-click a node and pick a traversal from its context menu. */
 async function traverseFrom(page: Page, key: string, kind: 'bfs' | 'dfs') {
-	await page.mouse.click(...(await nodeScreenPosition(page, key)), { button: 'right' })
+	await rightClick(page, await nodeScreenPosition(page, key))
 	await page.getByTestId('context-menu-sub.drawds-graph-steps-button').click()
 	await page.getByTestId(`context-menu.graph-${kind}`).click()
 }

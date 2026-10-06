@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { heapInsert, heapRemoveAt, heapViolations } from '../src/shapes/heap/heap'
 import type { HeapShapeProps } from '../src/shapes/heap/heap-shape-types'
-import { focusedLabel, hoverNode, insertKey, nodeScreenPosition, open, shapesOfType, sketchHeap, withEditor } from './helpers'
+import { focusedLabel, hoverNode, insertKey, nodeScreenPosition, open, rightClick, shapesOfType, sketchHeap, withEditor } from './helpers'
 
 const heap = async (page: Page) => (await shapesOfType<HeapShapeProps>(page, 'heap'))[0].props
 const valid = (p: HeapShapeProps) => heapViolations(p.values, p.heapType).size === 0
@@ -79,14 +79,13 @@ test('pointing at an index highlights it, its parent and its children in both vi
 test('shuffle breaks the heap; build heap step by step restores it (Floyd), one undo', async ({ page }) => {
 	await sketchHeap(page, [600, 120], 7)
 	const heapMenu = async (item: string) => {
-		await page.mouse.click(...(await nodeScreenPosition(page, '0')), { button: 'right' })
+		await rightClick(page, await nodeScreenPosition(page, '0'))
 		await page.getByTestId(`context-menu-sub.drawds-heap-${item === 'heap-build' ? 'steps' : 'actions'}-button`).click()
 		await page.getByTestId(`context-menu.${item}`).click()
 	}
 	// Shuffles until it isn't a heap (a shuffle can land on another heap).
 	for (let tries = 0; tries < 10 && valid(await heap(page)); tries++) {
 		await heapMenu('heap-shuffle')
-		await page.waitForTimeout(400)
 	}
 	const shuffled = await heap(page)
 	expect(valid(shuffled)).toBe(false)

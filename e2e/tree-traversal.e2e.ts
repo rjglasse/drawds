@@ -3,14 +3,14 @@ import { compareKeys } from '../src/data/compare'
 import type { HeapShapeProps } from '../src/shapes/heap/heap-shape-types'
 import { traverseTree } from '../src/shapes/tree/traverse'
 import type { TreeShapeProps } from '../src/shapes/tree/tree-shape-types'
-import { nodeScreenPosition, open, shapesOfType, sketchHeap, sketchTree } from './helpers'
+import { nodeScreenPosition, open, rightClick, shapesOfType, sketchHeap, sketchTree } from './helpers'
 
 const tree = async (page: Page) => (await shapesOfType<TreeShapeProps>(page, 'binary-tree'))[0].props
 const heap = async (page: Page) => (await shapesOfType<HeapShapeProps>(page, 'heap'))[0].props
 
 /** Right-click a node: Step by step > the order (a tree's, or a heap's). */
 async function traverseFrom(page: Page, key: string, item: string) {
-	await page.mouse.click(...(await nodeScreenPosition(page, key)), { button: 'right' })
+	await rightClick(page, await nodeScreenPosition(page, key))
 	await page.getByTestId(`context-menu-sub.drawds-${item.split('-')[0]}-steps-button`).click()
 	await page.getByTestId(`context-menu.${item}`).click()
 }

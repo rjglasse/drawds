@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { GraphShapeProps } from '../src/shapes/graph/graph-shape-types'
-import { nodeScreenPosition, open, shapesOfType, sketchGraph } from './helpers'
+import { nodeScreenPosition, open, rightClick, shapesOfType, sketchGraph } from './helpers'
 
 const graph = async (page: Page) => (await shapesOfType<GraphShapeProps>(page, 'graph'))[0].props
 const caption = (page: Page) => page.getByTestId('play-caption')
@@ -50,7 +50,7 @@ test.beforeEach(({ page }) => open(page))
 test('Dijkstra from a node: distances drop from ∞, best edges green; nothing changes', async ({ page }) => {
 	await knownGraph(page)
 	const before = await graph(page)
-	await page.mouse.click(...(await nodeScreenPosition(page, 'a')), { button: 'right' })
+	await rightClick(page, await nodeScreenPosition(page, 'a'))
 	await page.getByTestId('context-menu-sub.drawds-graph-steps-button').click()
 	await page.getByTestId('context-menu.graph-dijkstra').click()
 	await expect(caption(page)).toHaveText('dist(A) = 0, every other node ∞')
@@ -67,7 +67,7 @@ test('Dijkstra from a node: distances drop from ∞, best edges green; nothing c
 
 test('Prim from a node, and Kruskal on the whole graph: both total 11', async ({ page }) => {
 	await knownGraph(page)
-	await page.mouse.click(...(await nodeScreenPosition(page, 'a')), { button: 'right' })
+	await rightClick(page, await nodeScreenPosition(page, 'a'))
 	await page.getByTestId('context-menu-sub.drawds-graph-steps-button').click()
 	await page.getByTestId('context-menu.graph-prim').click()
 	await page.keyboard.press('ArrowRight')
@@ -75,8 +75,7 @@ test('Prim from a node, and Kruskal on the whole graph: both total 11', async ({
 	await stepToEnd(page)
 	await expect(caption(page)).toHaveText('Every node is in the tree: a minimum spanning tree, total weight 11')
 	await page.keyboard.press('Enter')
-	await page.waitForTimeout(400)
-	await page.mouse.click(...(await nodeScreenPosition(page, 'a')), { button: 'right' })
+	await rightClick(page, await nodeScreenPosition(page, 'a'))
 	await page.getByTestId('context-menu-sub.drawds-graph-steps-button').click()
 	await page.getByTestId('context-menu.graph-kruskal').click()
 	await stepToEnd(page)
@@ -86,7 +85,7 @@ test('Prim from a node, and Kruskal on the whole graph: both total 11', async ({
 
 test('topological sort on a directed graph; spanning trees are offered only when undirected', async ({ page }) => {
 	await knownGraph(page, 'directed')
-	await page.mouse.click(...(await nodeScreenPosition(page, 'a')), { button: 'right' })
+	await rightClick(page, await nodeScreenPosition(page, 'a'))
 	await page.getByTestId('context-menu-sub.drawds-graph-steps-button').click()
 	await expect(page.getByTestId('context-menu.graph-topological-sort')).toBeVisible()
 	await expect(page.getByTestId('context-menu.graph-prim')).toHaveCount(0)

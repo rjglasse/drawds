@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { Pointer } from '../src/pointers/pointers'
-import { CELL, LIST_STEP, hoverNode, open, sketchArray, sketchGraph, sketchList, withEditor } from './helpers'
+import { CELL, hoverNode, LIST_STEP, open, rightClick, sketchArray, sketchGraph, sketchList, withEditor } from './helpers'
 
 /** Pointers on the first shape of a type, as `name@element`. */
 const pointers = (page: Page, type: string) =>
@@ -14,10 +14,7 @@ const pointers = (page: Page, type: string) =>
 
 /** Right-click a point and pick Pointer > name (or 'custom'). */
 async function pointerMenu(page: Page, at: [number, number], name: string) {
-	// A context menu that is still closing swallows the next right-click.
-	await expect(page.getByTestId('context-menu')).toHaveCount(0)
-	await page.waitForTimeout(400)
-	await page.mouse.click(...at, { button: 'right' })
+	await rightClick(page, at)
 	await page.getByTestId('context-menu-sub.drawds-pointer-button').click()
 	await page.getByTestId(`context-menu.pointer-${name}`).click()
 }

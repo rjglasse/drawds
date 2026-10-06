@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { compareKeys } from '../src/data/compare'
 import { bstDelete, bstInsert, bstViolations, inOrder } from '../src/shapes/tree/bst'
 import type { TreeShapeProps } from '../src/shapes/tree/tree-shape-types'
-import { hoverNode, insertKey, nodeScreenPosition, open, shapesOfType, sketchTree } from './helpers'
+import { hoverNode, insertKey, nodeScreenPosition, open, rightClick, shapesOfType, sketchTree } from './helpers'
 
 const tree = async (page: Page) => (await shapesOfType<TreeShapeProps>(page, 'binary-tree'))[0].props
 const pickBst = (page: Page) => page.getByTestId('style.tree-kind.bst').click()
@@ -47,8 +47,11 @@ test('insert a key: it lands where the BST algorithm puts it, after the animatio
 
 test('inserting a key that is already there changes nothing', async ({ page }) => {
 	const before = await sketchBst(page, 3, 0.5)
-	await insertKey(page, before.nodes[0].value)
-	await page.waitForTimeout(2000)
+	const root = before.nodes[0].value
+	await insertKey(page, root)
+	await expect(page.getByTestId('play-caption')).toHaveText(`${root} = ${root}: already in the tree`)
+	await page.keyboard.press('Enter')
+	await expect(page.getByTestId('play-caption')).toHaveCount(0)
 	expect((await tree(page)).nodes).toHaveLength(before.nodes.length)
 })
 
@@ -92,7 +95,7 @@ test('switching a tree to BST keeps its keys and sorts them into in-order positi
 test('search: curr walks down from the root, ruled-out subtrees fade; nothing changes', async ({ page }) => {
 	const before = await sketchBst(page, 3, 1)
 	const leaf = before.nodes.find((n) => n.id === 'nLR')!
-	await page.mouse.click(...(await nodeScreenPosition(page, 'nLR')), { button: 'right' })
+	await rightClick(page, await nodeScreenPosition(page, 'nLR'))
 	await page.getByTestId('context-menu-sub.drawds-tree-steps-button').click()
 	await page.getByTestId('context-menu.bst-search').click()
 	await expect(page.getByTestId('play-caption')).toHaveText(`curr = root (${before.nodes[0].value}). Is it ${leaf.value}?`)
@@ -107,7 +110,7 @@ test('search: curr walks down from the root, ruled-out subtrees fade; nothing ch
 
 test('search for a missing key falls off the tree; traversals are still numbered 0', async ({ page }) => {
 	await sketchBst(page, 2, 1)
-	await page.mouse.click(...(await nodeScreenPosition(page, 'n')), { button: 'right' })
+	await rightClick(page, await nodeScreenPosition(page, 'n'))
 	await page.getByTestId('context-menu-sub.drawds-tree-steps-button').click()
 	await expect(page.getByTestId('context-menu.tree-pre-order')).toContainText('Pre-order from')
 	await page.getByTestId('context-menu.bst-search-value').click()

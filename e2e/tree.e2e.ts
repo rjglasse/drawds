@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { TreeShapeProps } from '../src/shapes/tree/tree-shape-types'
-import { CELL, TREE_LEVEL, focusedLabel, hoverNode, nodeScreenPosition, open, shapesOfType, sketchTree, withEditor } from './helpers'
+import { CELL, focusedLabel, hoverNode, nodeScreenPosition, open, rightClick, shapesOfType, sketchTree, TREE_LEVEL, withEditor } from './helpers'
 
 const tree = async (page: Page) => (await shapesOfType<TreeShapeProps>(page, 'binary-tree'))[0]?.props
 const ids = async (page: Page) => (await tree(page)).nodes.map((n) => n.id)
@@ -120,15 +120,14 @@ test('mirror a tree from its root, or swap a node\'s children; one undo each', a
 	const props = async () => (await shapesOfType<TreeShapeProps>(page, 'binary-tree'))[0].props
 	const children = async () => Object.fromEntries((await props()).nodes.map((n) => [n.id, n.children]))
 	const before = await children()
-	await page.mouse.click(...(await nodeScreenPosition(page, 'n')), { button: 'right' })
+	await rightClick(page, await nodeScreenPosition(page, 'n'))
 	await page.getByTestId('context-menu-sub.drawds-tree-actions-button').click()
 	await page.getByTestId('context-menu.tree-mirror').click()
 	const after = await children()
 	for (const [id, [l, r]] of Object.entries(before)) expect(after[id]).toEqual([r, l])
 	await page.keyboard.press('ControlOrMeta+z')
 	expect(await children()).toEqual(before)
-	await page.waitForTimeout(450) // the menu may still be closing: it would swallow the right-click
-	await page.mouse.click(...(await nodeScreenPosition(page, 'nL')), { button: 'right' })
+	await rightClick(page, await nodeScreenPosition(page, 'nL'))
 	await page.getByTestId('context-menu-sub.drawds-tree-actions-button').click()
 	await page.getByTestId('context-menu.tree-swap-children').click()
 	expect((await children()).nL).toEqual([before.nL[1], before.nL[0]])

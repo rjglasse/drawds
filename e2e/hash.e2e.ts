@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { HashShapeProps } from '../src/shapes/hash/hash-shape-types'
-import { CELL, hoverNode, nodeScreenPosition, open, shapesOfType } from './helpers'
+import { CELL, hoverNode, nodeScreenPosition, open, rightClick, shapesOfType } from './helpers'
 
 const table = async (page: Page) => (await shapesOfType<HashShapeProps>(page, 'hash-table'))[0].props
 const keys = async (page: Page) => (await table(page)).buckets.flat().filter((k) => !k.startsWith('\u0000')).sort()
@@ -58,8 +58,7 @@ test('linear probing: switching keeps the keys; deleting leaves a marker a find 
 	await expect(caption(page)).toContainText('Mark slot 1 deleted, not empty')
 	await page.keyboard.press('Enter')
 	expect(await keys(page)).toEqual(['15', '22'])
-	await page.waitForTimeout(450) // a menu closing would swallow the right-click
-	await page.mouse.click(...(await nodeScreenPosition(page, 's3')), { button: 'right' })
+	await rightClick(page, await nodeScreenPosition(page, 's3'))
 	await page.getByTestId('context-menu-sub.drawds-hash-steps-button').click()
 	await page.getByTestId('context-menu.hash-find').click()
 	await expect(caption(page)).toContainText('a deleted marker: 22 may be further on, keep looking')
@@ -81,7 +80,7 @@ test('a key typed into the wrong slot gets the red ring', async ({ page }) => {
 test('grow and rehash: every key moves to its place in a bigger table', async ({ page }) => {
 	await sketchTable(page, [200, 150], 5)
 	await setBuckets(page, [['10', '5'], ['6'], [], [], []])
-	await page.mouse.click(...(await nodeScreenPosition(page, 'k:6')), { button: 'right' })
+	await rightClick(page, await nodeScreenPosition(page, 'k:6'))
 	await page.getByTestId('context-menu-sub.drawds-hash-steps-button').click()
 	await page.getByTestId('context-menu.hash-rehash').click()
 	await expect(caption(page)).toContainText('A new table of 11 buckets')

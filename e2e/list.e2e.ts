@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { ListShapeProps } from '../src/shapes/list/list-shape-types'
-import { focusedLabel, handlePosition, open, shapesOfType, sketchList, withEditor } from './helpers'
+import { focusedLabel, handlePosition, open, rightClick, shapesOfType, sketchList, withEditor } from './helpers'
 
 const lists = (page: Page) => shapesOfType<ListShapeProps>(page, 'linked-list')
 const values = async (page: Page) => (await lists(page))[0].props.nodes.map((n) => n.value)
@@ -48,7 +48,7 @@ test('drags nodes by their handles; undo and Re-layout restore the layout', asyn
 	await page.keyboard.press('ControlOrMeta+Shift+z')
 	expect(await moved(page)).toEqual(['n1'])
 
-	await page.mouse.click(200, 150, { button: 'right' })
+	await rightClick(page, [200, 150])
 	await page.getByTestId('context-menu.drawds.relayout').click()
 	expect(await moved(page)).toEqual([])
 })

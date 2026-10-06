@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { ListShapeProps } from '../src/shapes/list/list-shape-types'
-import { nodeScreenPosition, open, shapesOfType, sketchList } from './helpers'
+import { nodeScreenPosition, open, rightClick, shapesOfType, sketchList } from './helpers'
 
 const list = async (page: Page) => (await shapesOfType<ListShapeProps>(page, 'linked-list'))[0].props
 const values = async (page: Page) => (await list(page)).nodes.map((n) => n.value)
@@ -8,7 +8,7 @@ const caption = (page: Page) => page.getByTestId('play-caption')
 
 /** Right-click a node: Step by step > the operation. */
 async function listOp(page: Page, key: string, item: string) {
-	await page.mouse.click(...(await nodeScreenPosition(page, key)), { button: 'right' })
+	await rightClick(page, await nodeScreenPosition(page, key))
 	await page.getByTestId('context-menu-sub.drawds-list-steps-button').click()
 	await page.getByTestId(`context-menu.${item}`).click()
 }
@@ -182,7 +182,6 @@ test('print a circular list with a do-while; print a doubly linked one backwards
 	await stepToEnd(page)
 	await expect(caption(page)).toHaveText('print 30; curr = curr.next: the head again, so stop')
 	await page.keyboard.press('Enter')
-	await page.waitForTimeout(450) // the first menu may still be closing: it would swallow the right-click
 	await listOp(page, 'n0', 'list-print-back')
 	await stepToEnd(page)
 	await expect(caption(page)).toHaveText('print 10; curr = curr.prev: 30 again, so stop')
@@ -198,7 +197,6 @@ test("Floyd: slow and fast meet in a cycle, then find where it starts; without o
 	await expect(caption(page)).toHaveText('fast.next is null: fast can\'t take two more steps, so it ran off the end: no cycle')
 	await page.keyboard.press('Enter')
 	await setVariants(page, { cycleTo: 'n1' })
-	await page.waitForTimeout(450) // the first menu may still be closing: it would swallow the right-click
 	await listOp(page, 'n0', 'list-floyd')
 	await stepToEnd(page)
 	await expect(caption(page)).toContainText('They meet at 20: the cycle starts here')

@@ -18,6 +18,32 @@ export async function open(page: Page) {
 	await page.waitForFunction(() => !!window.editor)
 }
 
+/**
+ * Wait until no menu or popover is open and the last one has finished closing. A closing Radix menu
+ * hands focus back (to the canvas, or the button that opened it) in a timer after it unmounts, and
+ * Playwright's quick key presses and clicks can hold that timer back: a menu opened in the meantime
+ * then loses focus to it and closes at once, swallowing the right-click. So flush the page's timers.
+ */
+export async function menusClosed(page: Page) {
+	await expect(page.locator('.tlui-menu, .tlui-popover__content')).toHaveCount(0)
+	await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => setTimeout(() => setTimeout(done)))))
+}
+
+/** Right-click a screen point (opening the context menu there) once any earlier menu has closed. */
+export async function rightClick(page: Page, at: [number, number]) {
+	await menusClosed(page)
+	await page.mouse.click(...at, { button: 'right' })
+}
+
+/** Wait for the page's CSS transitions to end (pointers sliding to a new element, say), from the next frame. */
+export async function transitionsDone(page: Page) {
+	await page.evaluate(async () => {
+		await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))
+		const sliding = document.getAnimations().filter((a) => a instanceof CSSTransition)
+		await Promise.all(sliding.map((a) => a.finished.catch(() => {})))
+	})
+}
+
 /** Run a function against the tldraw editor in the page and return its (serialisable) result. */
 export function withEditor<T>(page: Page, fn: (editor: Editor) => T): Promise<T> {
 	return page.evaluate(`(${fn.toString()})(window.editor)`) as Promise<T>

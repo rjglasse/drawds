@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { TreeShapeProps } from '../src/shapes/tree/tree-shape-types'
-import { insertKey, nodeScreenPosition, open, shapesOfType, sketchArray, sketchGraph, sketchTree } from './helpers'
+import { insertKey, nodeScreenPosition, open, rightClick, shapesOfType, sketchArray, sketchGraph, sketchTree } from './helpers'
 
 const tree = async (page: Page) => (await shapesOfType<TreeShapeProps>(page, 'binary-tree'))[0].props
 const caption = (page: Page) => page.getByTestId('play-caption')
@@ -99,7 +99,7 @@ test('BFS asks which node leaves the queue and, edge by edge, whether the far en
 	await predicting(page)
 	await open(page)
 	await sketchGraph(page, [300, 200], 5)
-	await page.mouse.click(...(await nodeScreenPosition(page, 'v0')), { button: 'right' })
+	await rightClick(page, await nodeScreenPosition(page, 'v0'))
 	await page.getByTestId('context-menu-sub.drawds-graph-steps-button').click()
 	await page.getByTestId('context-menu.graph-bfs').click()
 	await expect(asking(page)).toHaveText('What happens next?')
@@ -143,7 +143,7 @@ async function arrayStep(page: Page, values: string[], i: number, item: string) 
 		const s = e.getOnlySelectedShape()!
 		e.updateShape({ id: s.id, type: 'array', props: { values } } as never)
 	}, values)
-	await page.mouse.click(200 + i * 48, 200, { button: 'right' })
+	await rightClick(page, [200 + i * 48, 200])
 	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
 	await page.getByTestId(`context-menu.${item}`).click()
 }

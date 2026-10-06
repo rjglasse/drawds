@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { TreeShapeProps } from '../src/shapes/tree/tree-shape-types'
-import { insertKey, open, shapesOfType, sketchArray, sketchHeap, sketchTree } from './helpers'
+import { insertKey, open, rightClick, shapesOfType, sketchArray, sketchHeap, sketchTree } from './helpers'
 
 const tree = async (page: Page) => (await shapesOfType<TreeShapeProps>(page, 'binary-tree'))[0].props
 const caption = (page: Page) => page.getByTestId('play-caption')
@@ -20,6 +20,7 @@ test('an operation opens paused on step 1: step back and forward, then cancel: n
 	const before = await sketchBst(page)
 	// 200 is bigger than every key: it walks the right spine (3 comparisons).
 	await insertKey(page, '200')
+	// Paused: still on step 1 well after a step's time.
 	await page.waitForTimeout(1500)
 	await expect(counter(page)).toHaveText('1/3')
 	await expect(caption(page)).toHaveText(`200 > ${before.nodes[0].value}: go right`)
@@ -168,15 +169,14 @@ test('the play bar holds still: its buttons stay put as captions, strips and row
 		}
 	}
 	await sketchArray(page, [200, 250], 6)
-	await page.mouse.click(200, 250, { button: 'right' })
+	await rightClick(page, [200, 250])
 	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
 	await page.getByTestId('context-menu.array-bubble-sort').click()
 	await holdsStill(8)
 	await page.keyboard.press('Escape')
-	await page.waitForTimeout(400)
 	// A fixed array growing: a second row appears under it, then goes.
 	await page.getByTestId('style.array-sizing.fixed').click()
-	await page.mouse.click(200, 250, { button: 'right' })
+	await rightClick(page, [200, 250])
 	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
 	await page.getByTestId('context-menu.array-grow').click()
 	await holdsStill(7)

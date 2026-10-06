@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { ListShapeProps } from '../src/shapes/list/list-shape-types'
-import { nodeScreenPosition, open, shapesOfType, sketchList, withEditor } from './helpers'
+import { nodeScreenPosition, open, rightClick, shapesOfType, sketchList, withEditor } from './helpers'
 
 const list = async (page: Page) => (await shapesOfType<ListShapeProps>(page, 'linked-list'))[0].props
 const toggle = (page: Page, id: string) => page.getByTestId(`style.list-variant.${id}`).click()
@@ -62,7 +62,7 @@ test('new lists take the variants picked with the list tool', async ({ page }) =
 test('make a cycle into a node from its menu, then remove it; one undo each', async ({ page }) => {
 	await sketchList(page, [150, 200], 5)
 	const menu = async (key: string, item: string) => {
-		await page.mouse.click(...(await nodeScreenPosition(page, key)), { button: 'right' })
+		await rightClick(page, await nodeScreenPosition(page, key))
 		await page.getByTestId('context-menu-sub.drawds-list-actions-button').click()
 		await page.getByTestId(`context-menu.${item}`).click()
 	}
@@ -75,7 +75,6 @@ test('make a cycle into a node from its menu, then remove it; one undo each', as
 		return u.getScene(s).edges.find((e) => e.key === 'n4->')
 	})
 	expect(loop).toMatchObject({ to: 'n2', via: expect.any(Array) })
-	await page.waitForTimeout(450) // a menu still closing swallows the next right-click
 	await menu('n0', 'list-remove-cycle')
 	expect((await list(page)).cycleTo).toBe('')
 	expect(await sceneKeys(page)).toContain('#null')

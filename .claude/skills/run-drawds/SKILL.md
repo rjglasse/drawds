@@ -136,6 +136,16 @@ The e2e suite is the regression net for gestures, editing, dragging, the Fill
 picker and migrations; add a `*.e2e.ts` next to the others for new tools
 (helpers in `e2e/helpers.ts`). The driver is for poking and screenshots.
 
+In e2e, open context menus with `rightClick(page, [x, y])`, never
+`page.mouse.click(..., { button: 'right' })`. A closing menu or popover hands
+focus back (to the canvas, or the button that opened it) in a timer after it
+unmounts; Playwright's quick key presses and clicks can hold that timer back
+until a new context menu is open, which then loses focus and closes at once.
+`rightClick` waits for `menusClosed(page)` first (no `.tlui-menu` /
+`.tlui-popover__content` left, then a frame and two timer turns), so no fixed
+sleeps are needed. To wait for pointers to finish sliding, use
+`transitionsDone(page)`.
+
 To exercise internals without the app, import the pure modules in a vitest
 file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
 `npx vitest run src/nodelink`.

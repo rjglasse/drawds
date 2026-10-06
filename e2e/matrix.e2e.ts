@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { MatrixShapeProps } from '../src/shapes/matrix/matrix-shape-types'
-import { CELL, handlePosition, open, shapesOfType } from './helpers'
+import { CELL, handlePosition, open, rightClick, shapesOfType } from './helpers'
 
 const matrix = async (page: Page) => (await shapesOfType<MatrixShapeProps>(page, 'matrix'))[0].props
 const size = async (page: Page) => {
@@ -70,15 +70,14 @@ test('grips add columns and rows; the menu inserts and deletes them, marks movin
 	// Mark cell (1, 1), then insert a row above it: the mark moves down with its value.
 	await page.mouse.move(...(await cellAt(page, 1, 1)))
 	await page.keyboard.press('3')
-	await page.mouse.click(...(await cellAt(page, 1, 1)), { button: 'right' })
+	await rightClick(page, await cellAt(page, 1, 1))
 	await page.getByTestId('context-menu-sub.drawds-matrix-actions-button').click()
 	await page.getByTestId('context-menu.matrix-row-above').click()
 	const after = await matrix(page)
 	expect(after.values.length).toBe(4)
 	expect(after.values[2]).toEqual(before[1])
 	expect(after.marks).toEqual({ '2,1': 'green' })
-	await page.waitForTimeout(450) // the menu may still be closing: it would swallow the right-click
-	await page.mouse.click(...(await cellAt(page, 0, 3)), { button: 'right' })
+	await rightClick(page, await cellAt(page, 0, 3))
 	await page.getByTestId('context-menu-sub.drawds-matrix-actions-button').click()
 	await page.getByTestId('context-menu.matrix-delete-col').click()
 	expect(await size(page)).toEqual([4, 3])
@@ -88,7 +87,7 @@ test('grips add columns and rows; the menu inserts and deletes them, marks movin
 
 test('row-major vs column-major: where each visited cell sits in memory', async ({ page }) => {
 	await sketchMatrix(page, [200, 200], 2, 3)
-	await page.mouse.click(...(await cellAt(page, 0, 0)), { button: 'right' })
+	await rightClick(page, await cellAt(page, 0, 0))
 	await page.getByTestId('context-menu-sub.drawds-matrix-steps-button').click()
 	await page.getByTestId('context-menu.matrix-col-major').click()
 	await page.keyboard.press('ArrowRight')
@@ -101,7 +100,7 @@ test('row-major vs column-major: where each visited cell sits in memory', async 
 test('transpose: step by step on a square matrix, at once on any', async ({ page }) => {
 	await sketchMatrix(page, [200, 200], 3, 3)
 	const before = (await matrix(page)).values
-	await page.mouse.click(...(await cellAt(page, 0, 0)), { button: 'right' })
+	await rightClick(page, await cellAt(page, 0, 0))
 	await page.getByTestId('context-menu-sub.drawds-matrix-steps-button').click()
 	await page.getByTestId('context-menu.matrix-transpose-steps').click()
 	await stepToEnd(page)
@@ -115,8 +114,7 @@ test('staircase search in a sorted matrix finds a value in at most rows + cols -
 	await page.getByTestId('style.fill-mode').click()
 	await page.getByTestId('style.fill-mode.ascending').click()
 	const target = (await matrix(page)).values[2][1]
-	await page.waitForTimeout(450) // the Fill menu may still be closing: it would swallow the right-click
-	await page.mouse.click(...(await cellAt(page, 0, 0)), { button: 'right' })
+	await rightClick(page, await cellAt(page, 0, 0))
 	await page.getByTestId('context-menu-sub.drawds-matrix-steps-button').click()
 	await page.getByTestId('context-menu.matrix-staircase').click()
 	await page.getByTestId('key-prompt').fill(target)
@@ -128,7 +126,7 @@ test('staircase search in a sorted matrix finds a value in at most rows + cols -
 test('transpose at once turns rows x cols into cols x rows; one undo', async ({ page }) => {
 	await sketchMatrix(page, [200, 200], 2, 3)
 	const before = (await matrix(page)).values
-	await page.mouse.click(...(await cellAt(page, 0, 0)), { button: 'right' })
+	await rightClick(page, await cellAt(page, 0, 0))
 	await page.getByTestId('context-menu-sub.drawds-matrix-actions-button').click()
 	await page.getByTestId('context-menu.matrix-transpose').click()
 	expect((await matrix(page)).values).toEqual(before[0].map((_, c) => before.map((row) => row[c])))
