@@ -115,6 +115,7 @@ numbers sorted, and `fill` is `"ascending"`.
 | `export [name]` | export all shapes the way tldraw does (`editor.getSvgString`), write `.svg`, render it to `.png` |
 | `reset` | delete every shape, back to the select tool |
 | `steps [name] [key=value...]` | every step of the open operation as numbered images into `$OUT/<name>/` plus `steps.json` (file, header, caption): `format=png\|svg`, `scale=2`, `aspect=1.7778`, `captions=off`, `background=off`. Puts the result in first, as the play bar's export does |
+| `lesson [name] [key=value...]` | every operation in the board's lesson log, replayed as it was and exported: `$OUT/<name>/01-1042-insert-key/01-caption.png`..., plus `lesson.json` (each operation's times, each step's caption, file and when it was shown live). Options as for `steps`. The board is left as it was |
 | `wait <ms>` | sleep |
 | `errors` | console errors, page errors and HTTP >= 400 seen so far (should be `[]`) |
 
@@ -123,6 +124,12 @@ numbers sorted, and `fill` is `"ascending"`.
 ```bash
 npm run dev -- --port 5179 --strictPort   # open http://localhost:5179; Ctrl-C to stop
 ```
+
+## Notes after a live session
+
+Everything played on a board is in its lesson log (Main menu > Lesson log…: replay or save any of it). After class,
+`lesson <name>` exports it all with `lesson.json`, whose `shownAt` times line up each step with a transcript of the
+session; every operation's folder has a `steps.json`, so `deck.py --section "Title|Line|<folder>"` makes slides of it.
 
 ## Slides from steps
 

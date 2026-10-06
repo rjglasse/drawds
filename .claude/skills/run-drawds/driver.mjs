@@ -12,7 +12,7 @@
 //   EOF
 
 import { spawn } from 'node:child_process'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -318,12 +318,42 @@ const commands = {
 			background: o.background !== 'off',
 		})
 		if (!images.length) throw new Error('no operation open')
+		// A fresh folder: no steps left over from an earlier export.
 		const dir = join(OUT, name)
+		rmSync(dir, { recursive: true, force: true })
 		mkdirSync(dir, { recursive: true })
 		for (const image of images) writeFileSync(join(dir, image.name), Buffer.from(image.base64, 'base64'))
 		const manifest = images.map(({ name, caption, header, width, height }) => ({ file: name, header, caption, width, height }))
 		writeFileSync(join(dir, 'steps.json'), JSON.stringify(manifest, null, 2))
 		return { dir, files: images.map((i) => i.name), size: [images[0].width, images[0].height] }
+	},
+	// Every operation in the board's lesson log, replayed as it was and exported: OUT/<name>/01-1042-insert-key/
+	// 01-caption.png..., plus lesson.json (each operation's times, each step's caption and when it was shown,
+	// to line up with a transcript), and a steps.json in each folder for deck.py. Options as for steps.
+	async lesson(name = 'lesson', ...options) {
+		const o = Object.fromEntries(options.map((kv) => kv.split('=')))
+		const { manifest, files } = await page.evaluate((o) => window.drawdsLesson(o), {
+			format: o.format ?? 'png',
+			scale: +(o.scale ?? 2),
+			aspect: o.aspect ? +o.aspect : undefined,
+			captions: o.captions !== 'off',
+			background: o.background !== 'off',
+		})
+		// A fresh folder: no operations left over from an earlier export.
+		const dir = join(OUT, name)
+		rmSync(dir, { recursive: true, force: true })
+		for (const file of files) {
+			mkdirSync(dirname(join(dir, file.path)), { recursive: true })
+			writeFileSync(join(dir, file.path), Buffer.from(file.base64, 'base64'))
+		}
+		mkdirSync(dir, { recursive: true })
+		writeFileSync(join(dir, 'lesson.json'), JSON.stringify(manifest, null, 2))
+		// Each operation's folder gets the steps.json deck.py reads, as `steps` writes.
+		for (const op of manifest.operations) {
+			const steps = op.steps.map((step) => ({ file: step.file.split('/').pop(), header: step.header, caption: step.caption }))
+			writeFileSync(join(dir, op.folder, 'steps.json'), JSON.stringify(steps, null, 2))
+		}
+		return { dir, operations: manifest.operations.map((op) => `${op.folder} (${op.steps.length} steps, ${op.outcome})`) }
 	},
 	async wait(ms) {
 		await page.waitForTimeout(+ms)

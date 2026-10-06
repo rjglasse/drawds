@@ -213,6 +213,13 @@ interface Operation {
 	keep: boolean
 	withMarks?(update: TLShapePartial | undefined, marks: Marks): TLShapePartial
 	onCancel?(): void
+	onClose?(): void
+	/** Played again from a record (the lesson log): not recorded, and its result stays out of the undo history. */
+	replay: boolean
+	/** When each step came on screen (step, epoch ms), for lining the steps up with a transcript. */
+	shown: [number, number][]
+	/** Told when the operation closes, if it is being recorded. */
+	ended?: (end: OperationEnd) => void
 	step: number
 	/** Predict mode: asking about `step` before showing it. */
 	asking: boolean
@@ -231,6 +238,32 @@ interface Player {
 }
 
 const players = new WeakMap<Editor, Player>()
+
+/** What an operation was, for a record of it (the lesson log). */
+export interface OperationRecord {
+	shapeId: TLShapeId
+	label: string
+	frames: Frame[]
+	final?: TLShapePartial
+	finalFlash?: Marks
+}
+
+/** How an operation ended: its result in or cancelled, and when each step came on screen (step, epoch ms). */
+export interface OperationEnd {
+	outcome: 'done' | 'cancelled'
+	shown: [number, number][]
+}
+
+/** Told about every operation that opens (not replays); returns what to tell when it closes. */
+export type OperationRecorder = (record: OperationRecord) => ((end: OperationEnd) => void) | void
+
+const recorders = new WeakMap<Editor, OperationRecorder>()
+
+/** Record every operation played from now on (the lesson log). Returns the cleanup. */
+export function recordOperations(editor: Editor, recorder: OperationRecorder) {
+	recorders.set(editor, recorder)
+	return () => void recorders.delete(editor)
+}
 let nextViewId = 1
 
 function player(editor: Editor): Player {
@@ -388,6 +421,8 @@ export function playOperation(
 		keep = false,
 		withMarks,
 		onCancel,
+		onClose,
+		replay = false,
 	}: {
 		shapeId: TLShapeId
 		label: string
@@ -399,13 +434,35 @@ export function playOperation(
 		withMarks?(update: TLShapePartial | undefined, marks: Marks): TLShapePartial
 		/** Cancelled before its result was in (Esc): take back what was set up for it (a view it opened). */
 		onCancel?(): void
+		/** Closed, however (done, cancelled, or another operation opened). */
+		onClose?(): void
+		/** Played again from a record: not recorded, and the result stays out of the undo history. */
+		replay?: boolean
 	}
 ) {
 	const p = player(editor)
 	if (p.op) finishPlayback(editor)
 	clearTimeout(p.timer)
 	const paused = !autoplayAtom.get()
-	p.op = { shapeId, label, frames, final, finalFlash, keep, withMarks, onCancel, step: 0, asking: paused && predictAtom.get() && frames[0]?.ask !== false, paused, done: false }
+	const ended = replay || !frames.length ? undefined : recorders.get(editor)?.({ shapeId, label, frames, final, finalFlash })
+	p.op = {
+		shapeId,
+		label,
+		frames,
+		final,
+		finalFlash,
+		keep,
+		withMarks,
+		onCancel,
+		onClose,
+		replay,
+		shown: [],
+		ended: ended || undefined,
+		step: 0,
+		asking: paused && predictAtom.get() && frames[0]?.ask !== false,
+		paused,
+		done: false,
+	}
 	if (!frames.length) {
 		commit(editor, false)
 		return dismiss(editor, false)
@@ -437,6 +494,7 @@ function show(p: Player, { back = false, still = false } = {}) {
 	const swaps = still ? undefined : back ? op.frames[shown + 1]?.swaps : frame?.swaps
 	const moves = still || back ? undefined : frame?.moves
 	const asked = op.asking ? op.frames[op.step] : undefined
+	if (!still && op.shown.at(-1)?.[0] !== shown) op.shown.push([shown, Date.now()])
 	p.view.set({
 		shapeId: op.shapeId,
 		frame: frame && { ...frame, swaps, moves },
@@ -576,7 +634,10 @@ function close(editor: Editor, p: Player) {
 	p.detach = []
 	const op = p.op
 	p.op = undefined
-	if (op) fitRoom(editor, op.shapeId)
+	if (!op) return
+	fitRoom(editor, op.shapeId)
+	op.ended?.({ outcome: op.done ? 'done' : 'cancelled', shown: op.shown })
+	op.onClose?.()
 }
 
 /** Apply the result, as one undo step, and leave the bar up on the last step. */
@@ -591,8 +652,12 @@ function commit(editor: Editor, keepNow: boolean) {
 		// The result goes in (and in the undo history) without the steps' room, which comes back after.
 		fitRoom(editor, op.shapeId)
 		const before = editor.getShape(op.shapeId)
-		editor.markHistoryStoppingPoint(op.label)
-		editor.updateShape(update)
+		// A replay's result is only for show: it stays out of the undo history (and goes when it closes).
+		if (op.replay) editor.run(() => editor.updateShape(update), { history: 'ignore' })
+		else {
+			editor.markHistoryStoppingPoint(op.label)
+			editor.updateShape(update)
+		}
 		const after = editor.getShape(op.shapeId)
 		if (before && after) op.committed = { before, after }
 	}
@@ -626,7 +691,8 @@ function dismiss(editor: Editor, keep: boolean) {
 		editor.markHistoryStoppingPoint('keep highlights')
 		editor.updateShape(op.withMarks(op.final, all))
 	}
-	if (keep || op.keep) {
+	// A replay's highlights go at once: the board is back as it is now.
+	if (keep || op.keep || op.replay) {
 		p.view.set(null)
 		return
 	}

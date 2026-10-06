@@ -221,6 +221,14 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `StepExtrasSvg`: the step's pointers, strips and a wrapped caption under it (`captions: false` leaves it out); a
   graph's views draw it too. A new structure's `toSvg` must do the same. `saveStepImages`: Chrome's directory picker,
   else downloads. `.claude/skills/run-drawds/deck.py` turns exported steps into a 16:9 .pptx (Google Slides imports it).
+- `src/lesson/` - the lesson log: every operation played (not replays) is recorded through `recordOperations`
+  (playback.ts) into the board's document meta (`drawdsLesson`, history-ignored, so undo never drops a record and it is
+  saved with the board): the shape and its views as they were, the frames, the result, the outcome, and when each step
+  was shown. `replayEntry` puts the recorded records back in place (migrated from the schema they were saved with,
+  history-ignored; `drawdsReplay` keeps the current ones to put back on close, or on the next mount after a reload) and
+  plays it with `replay: true` (not recorded; its commit stays out of undo). `exportLesson` replays and exports each in
+  order; `lessonManifest` is the lesson.json beside the images (captions, times shown) to line up with a transcript.
+  Main menu > Lesson log… (`LessonDialog`); dev `window.drawdsLesson`, driver `lesson`.
 - `src/files/` - boards as files: Open board... / Save board / Save board as... first in the main menu (Ctrl+O / Ctrl+S /
   Ctrl+Shift+S), tldraw's `.tldr` JSON (`serializeTldrawJsonBlob` / `parseTldrawJsonFile`, so our shape migrations
   run on open). Chrome's File System Access pickers where present (Save then writes back to the picked file: handles

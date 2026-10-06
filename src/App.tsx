@@ -1,4 +1,6 @@
 import { exportSteps, type StepExportOptions } from './export/steps'
+import { exportLesson, startLessonLog } from './lesson/log'
+import { lessonManifest } from './lesson/manifest'
 import { Tldraw, type Editor } from 'tldraw'
 import 'tldraw/tldraw.css'
 import './drawds.css'
@@ -36,7 +38,16 @@ declare global {
 		editor?: Editor
 		/** Dev: every step of the open operation as images, base64 (the run-drawds driver's `steps`). */
 		drawdsSteps?: (options?: StepExportOptions) => Promise<{ name: string; caption: string; header: string; width: number; height: number; base64: string }[]>
+		/** Dev: every operation in the lesson log, its steps as images (base64) in folders, and the manifest. */
+		drawdsLesson?: (options?: StepExportOptions) => Promise<{ manifest: unknown; files: { path: string; base64: string }[] }>
 	}
+}
+
+async function base64(blob: Blob) {
+	const bytes = new Uint8Array(await blob.arrayBuffer())
+	let binary = ''
+	for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+	return btoa(binary)
 }
 
 // Expose the editor in dev for console poking and browser-driven tests. A graph's views
@@ -46,16 +57,16 @@ function onMount(editor: Editor) {
 	if (import.meta.env.DEV) {
 		window.editor = editor
 		window.drawdsSteps = async (options) =>
-			Promise.all(
-				(await exportSteps(editor, options)).map(async ({ blob, ...image }) => {
-					const bytes = new Uint8Array(await blob.arrayBuffer())
-					let binary = ''
-					for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
-					return { ...image, base64: btoa(binary) }
-				})
+			Promise.all((await exportSteps(editor, options)).map(async ({ blob, ...image }) => ({ ...image, base64: await base64(blob) })))
+		window.drawdsLesson = async (options) => {
+			const exported = await exportLesson(editor, options)
+			const files = await Promise.all(
+				exported.flatMap(({ folder, images }) => images.map(async (image) => ({ path: `${folder}/${image.name}`, base64: await base64(image.blob) })))
 			)
+			return { manifest: lessonManifest(exported), files }
+		}
 	}
-	const cleanups = [deleteViewsWithTheirGraph(editor), showBoardNameInTitle(editor), clearStaleRooms(editor)]
+	const cleanups = [deleteViewsWithTheirGraph(editor), showBoardNameInTitle(editor), clearStaleRooms(editor), startLessonLog(editor)]
 	return () => cleanups.forEach((f) => f())
 }
 

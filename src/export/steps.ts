@@ -92,33 +92,40 @@ export async function exportSteps(
 }
 
 /**
- * Save step images: into a folder the teacher picks (Chrome's directory picker), else as downloads
- * one after another. Returns how many were saved (0: cancelled).
+ * Save files (paths may have folders: `01-1042-insert-key/01-....png`) into a folder the teacher
+ * picks (Chrome's directory picker), else as downloads one after another (folders become a prefix).
+ * Returns how many were saved (0: cancelled).
  */
-export async function saveStepImages(images: readonly StepImage[]): Promise<number> {
+export async function saveFiles(files: readonly { path: string; blob: Blob }[]): Promise<number> {
 	const picker = (window as unknown as { showDirectoryPicker?: (o?: object) => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker
 	if (picker) {
-		let folder: FileSystemDirectoryHandle
+		let root: FileSystemDirectoryHandle
 		try {
-			folder = await picker({ id: 'drawds-steps', mode: 'readwrite' })
+			root = await picker({ id: 'drawds-steps', mode: 'readwrite' })
 		} catch {
 			return 0
 		}
-		for (const image of images) {
-			const file = await folder.getFileHandle(image.name, { create: true })
+		for (const { path, blob } of files) {
+			const parts = path.split('/')
+			let folder = root
+			for (const part of parts.slice(0, -1)) folder = await folder.getDirectoryHandle(part, { create: true })
+			const file = await folder.getFileHandle(parts[parts.length - 1], { create: true })
 			const writable = await file.createWritable()
-			await writable.write(image.blob)
+			await writable.write(blob)
 			await writable.close()
 		}
-		return images.length
+		return files.length
 	}
-	for (const image of images) {
-		const url = URL.createObjectURL(image.blob)
-		const a = Object.assign(document.createElement('a'), { href: url, download: image.name })
+	for (const { path, blob } of files) {
+		const url = URL.createObjectURL(blob)
+		const a = Object.assign(document.createElement('a'), { href: url, download: path.replaceAll('/', '--') })
 		a.click()
 		URL.revokeObjectURL(url)
 		// Browsers drop downloads started too close together.
 		await new Promise((done) => setTimeout(done, 150))
 	}
-	return images.length
+	return files.length
 }
+
+/** Save step images (numbered, named by their captions) into a folder, or as downloads. */
+export const saveStepImages = (images: readonly StepImage[]) => saveFiles(images.map((i) => ({ path: i.name, blob: i.blob })))

@@ -33,6 +33,7 @@ import { CUE_GLYPHS, setColourCues, showsColourCues } from '../cells/cues'
 import { MARK_COLORS, MARK_MEANINGS, type MarkColor } from '../cells/marks'
 import { PlaybackOverlay } from '../controls/PlaybackOverlay'
 import { openBoard, saveBoard } from '../files/board'
+import { LessonDialog } from '../lesson/LessonDialog'
 import type { MenuSection, NodeOperation } from '../cells/CellShapeUtil'
 import { NodeLinkShapeUtil } from '../nodelink/NodeLinkShapeUtil'
 import { placePointer, removePointer, type Pointer } from '../pointers/pointers'
@@ -65,6 +66,9 @@ const RELAYOUT = 'drawds.relayout'
 
 /** Board files, first in the main menu. */
 const BOARD_ACTIONS = ['drawds.open-board', 'drawds.save-board', 'drawds.save-board-as'] as const
+
+/** The operations played on this board, to replay or save after class. */
+const LESSON_ACTION = 'drawds.lesson-log'
 
 const markLabel = (color: MarkColor) => `${color[0].toUpperCase()}${color.slice(1)} (${MARK_MEANINGS[color]})`
 
@@ -159,6 +163,11 @@ export const uiOverrides: TLUiOverrides = {
 			label: 'Save board as…',
 			kbd: 'cmd+shift+s,ctrl+shift+s',
 			onSelect: () => saveBoard(editor, helpers, { as: true }),
+		}
+		actions[LESSON_ACTION] = {
+			id: LESSON_ACTION,
+			label: 'Lesson log…',
+			onSelect: () => void helpers.addDialog({ component: LessonDialog }),
 		}
 		actions[RELAYOUT] = {
 			id: RELAYOUT,
@@ -395,6 +404,7 @@ export const components: TLComponents = {
 				{BOARD_ACTIONS.map((id) => (
 					<TldrawUiMenuActionItem key={id} actionId={id} />
 				))}
+				<TldrawUiMenuActionItem actionId={LESSON_ACTION} />
 			</TldrawUiMenuGroup>
 			{/* tldraw's DefaultMainMenuContent, with our display settings before its preferences. */}
 			<TldrawUiMenuGroup id="basic">
