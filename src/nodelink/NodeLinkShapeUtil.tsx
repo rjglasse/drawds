@@ -20,6 +20,7 @@ import {
 	type VecLike,
 } from 'tldraw'
 import { CellShapeUtil, type CellFont, type PlaybackLayout, type PointerDirection } from '../cells/CellShapeUtil'
+import { showsColourCues } from '../cells/cues'
 import type { EditableCells } from '../cells/editable-cells'
 import type { Marks } from '../cells/marks'
 import { growHandle, isGrowHandle } from '../controls/grow'
@@ -279,6 +280,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 						pulse={playing && !playing.fading ? playing.pulse : undefined}
 						// Not while an operation is open: its steps break the invariant on the way to restoring it.
 						warnings={playing && !playing.fading ? undefined : this.sceneWarnings?.(shape)}
+						cues={showsColourCues()}
 					/>
 
 					{controls &&
@@ -549,6 +551,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 					fontFamily={this.getFontFamily(shape)}
 					marks={this.sceneMarks(shape)}
 					warnings={this.sceneWarnings?.(shape)}
+					cues={showsColourCues()}
 				/>
 				{this.renderPointers(shape, colors, { exporting: true })}
 			</>

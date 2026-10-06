@@ -189,7 +189,10 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `eval editor.getOnlySelectedShape().props.marks`. Digits never switch tools
   (`enableToolbarKeyboardShortcuts` is off). Context menu: `rclick x y`,
   `clicksel [data-testid="context-menu-sub.drawds-mark-button"]`, then
-  `[data-testid="context-menu.mark-green"]`.
+  `[data-testid="context-menu.mark-green"]`. Colour-blind cues (a shape per colour): `clicksel
+  [data-testid="main-menu.button"]`, `clicksel [role="menuitemcheckbox"]` (the only checkbox at the top
+  level; no test id), `key Escape`; or `eval localStorage.setItem('drawds:colour-cues','on')` then `nav`.
+  Badges have `data-cue="<colour>"`.
 - **Tree controls**: `hover <id>` then `[data-testid="add-child-<id>-left|right"]`
   (only for empty slots) or `[data-testid="remove-node-<id>"]` (never on the
   root `n`). Node ids are paths: `n`, `nL`, `nR`, `nLR`... Null children:

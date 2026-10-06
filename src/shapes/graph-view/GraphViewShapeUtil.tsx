@@ -8,6 +8,7 @@ import {
 	type TLShapeId,
 	type TLThemeColors,
 } from 'tldraw'
+import { showsColourCues } from '../../cells/cues'
 import type { Marks } from '../../cells/marks'
 import { playbackFor } from '../../nodelink/playback'
 import { SceneSvg } from '../../nodelink/SceneSvg'
@@ -106,10 +107,21 @@ export class GraphViewShapeUtil extends ShapeUtil<GraphViewShape> {
 					colors={colors}
 					fontFamily={fontFamily}
 					flash={flash}
+					cues={showsColourCues()}
 				/>
 			)
 		}
-		return <SceneSvg scene={content.scene} colors={colors} color={shape.props.color} fontFamily={fontFamily} marks={marks as Marks} flash={flash} />
+		return (
+			<SceneSvg
+				scene={content.scene}
+				colors={colors}
+				color={shape.props.color}
+				fontFamily={fontFamily}
+				marks={marks as Marks}
+				flash={flash}
+				cues={showsColourCues()}
+			/>
+		)
 	}
 
 	getIndicatorPath(shape: GraphViewShape) {

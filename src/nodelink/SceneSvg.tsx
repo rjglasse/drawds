@@ -1,5 +1,7 @@
 import type { CSSProperties, SVGProps } from 'react'
 import { getColorValue, type TLDefaultColorStyle, type TLThemeColors } from 'tldraw'
+import { CueBadge } from '../cells/CueBadge'
+import { cueBadgeAt, cueDash } from '../cells/cues'
 import type { MarkColor, Marks } from '../cells/marks'
 import { arrowHead, badgeDirection, boundaryPoint, labelBox, routeScene, valueBox } from './geometry'
 import type { Strip } from './playback'
@@ -49,6 +51,7 @@ export function SceneSvg({
 	dim,
 	warnings,
 	pulse,
+	cues,
 }: {
 	scene: Scene
 	colors: TLThemeColors
@@ -68,6 +71,8 @@ export function SceneSvg({
 	warnings?: readonly string[]
 	/** Canvas only, in predict mode: what the play bar's question is about (nodes, `edge:<key>`), pulsing violet. */
 	pulse?: readonly string[]
+	/** Colour-blind cues: marked and highlighted nodes get a shape badge, edges a line pattern (`cues.ts`). */
+	cues?: boolean
 }) {
 	const { strokeWidth, fontSize, labelFontSize } = scene.metrics
 	const paint: Paint = {
@@ -126,6 +131,8 @@ export function SceneSvg({
 				const width = mark ? strokeWidth * 2.2 : strokeWidth
 				const flashColor = flash?.marks[labelKey]
 				const flashStroke = flashColor && getColorValue(colors, flashColor, 'solid')
+				// With cues, a marked edge's pattern has gaps: the plain edge runs underneath, so it still joins up.
+				const dash = cues && mark ? cueDash(mark, width) : undefined
 				return (
 					<g key={edge.key} {...fade(dimmed.has(labelKey) || dimmed.has(edge.from) || dimmed.has(edge.to))}>
 						{pulsing.has(labelKey) && (
@@ -140,12 +147,20 @@ export function SceneSvg({
 								strokeLinecap="round"
 							/>
 						)}
-						<path d={route.d} fill="none" stroke={stroke} strokeWidth={width} strokeLinecap="round" />
+						{dash && <path d={route.d} fill="none" stroke={paint.stroke} strokeWidth={strokeWidth} />}
+						<path d={route.d} fill="none" stroke={stroke} strokeWidth={width} strokeLinecap="round" strokeDasharray={dash} />
 						{edge.directed && <polygon points={arrowHead(route.tip, route.angle, width * 3 + 6)} fill={stroke} />}
 						{flash && flashStroke && (
 							// Keyed per step, like node highlights, so the fade restarts when the operation commits.
 							<g key={`flash-${flash.id}`} className={flash.fading ? 'drawds-flash drawds-flash-fade' : 'drawds-flash'}>
-								<path d={route.d} fill="none" stroke={flashStroke} strokeWidth={strokeWidth * 2.2} strokeLinecap="round" />
+								<path
+									d={route.d}
+									fill="none"
+									stroke={flashStroke}
+									strokeWidth={strokeWidth * 2.2}
+									strokeLinecap="round"
+									strokeDasharray={cues && flashColor ? cueDash(flashColor, strokeWidth * 2.2) : undefined}
+								/>
 								{edge.directed && (
 									<polygon points={arrowHead(route.tip, route.angle, strokeWidth * 2.2 * 3 + 6)} fill={flashStroke} />
 								)}
@@ -164,14 +179,30 @@ export function SceneSvg({
 			})}
 			{/* Two passes, shapes then values, so a value in flight is never painted over by a node. */}
 			{scene.nodes.map((node) => {
+				const mark = marks[node.key]
 				const flashColor = flash?.marks[node.key]
+				// Clear of an order badge leaning to the top left (a graph's leftmost node).
+				const right = !!flash?.badges?.[node.key] && badgeDirection(node, scene).x < 0
+				const badge =
+					cues && (mark || flashColor) && hasOutline(node) ? cueBadgeAt(node, node.kind === 'circle', strokeWidth * 1.2, right) : undefined
 				return (
 					<g key={node.key} {...fade(dimmed.has(node.key))}>
 						<NodeShapeSvg
 							node={node}
-							paint={marks[node.key] ? markedPaint(paint, colors, marks[node.key]) : paint}
+							paint={mark ? markedPaint(paint, colors, mark) : paint}
 							flash={flashColor && flash ? { paint: markedPaint(paint, colors, flashColor), fading: flash.fading, id: flash.id } : undefined}
 						/>
+						{badge && mark && <CueBadge color={mark} at={badge} colors={colors} strokeWidth={strokeWidth} />}
+						{badge && flashColor && flash && (
+							<CueBadge
+								key={`cue-${flash.id}`}
+								color={flashColor}
+								at={badge}
+								colors={colors}
+								strokeWidth={strokeWidth}
+								className={flash.fading ? 'drawds-flash drawds-flash-fade' : 'drawds-flash'}
+							/>
+						)}
 					</g>
 				)
 			})}
@@ -307,6 +338,9 @@ function markedPaint(paint: Paint, colors: TLThemeColors, mark: MarkColor): Pain
 	}
 }
 
+/** Whether a node is drawn with an outline (null markers and labels are only text). */
+const hasOutline = (node: SceneNode) => node.kind !== 'null' && node.kind !== 'label'
+
 function NodeShapeSvg({
 	node,
 	paint,
@@ -316,7 +350,7 @@ function NodeShapeSvg({
 	paint: Paint
 	flash?: { paint: Paint; fading: boolean; id: number }
 }) {
-	if (node.kind === 'null' || node.kind === 'label') return null
+	if (!hasOutline(node)) return null
 	// A sentinel (dummy) node is dashed and unfilled: it holds no value.
 	const dash = node.ghost ? `${paint.strokeWidth * 3} ${paint.strokeWidth * 2.5}` : undefined
 	const outline = (p: Paint, className?: string) =>

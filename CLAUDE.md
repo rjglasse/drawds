@@ -244,6 +244,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `CellShapeUtil.getMarks/withMarks`; keys 1-4 / 0 are tldraw actions acting on the element under the pointer
   (`markTargetUnderPointer`), which is why tldraw's numbered toolbar shortcuts are disabled in App.tsx. Prune
   marks when elements are removed (tree ids are paths and get reused); swap them when values swap.
+- Colour-blind cues (`src/cells/cues.ts`, `CueBadge.tsx`; main menu toggle, localStorage `drawds:colour-cues`, off by
+  default): every mark and highlight colour also gets a shape (red triangle, orange diamond, green square, blue
+  circle) as a badge in an element's top-left corner (on a circle's rim), and marked or highlighted edges a line
+  pattern (`cueDash`: green solid, red dashes, orange dots, blue dash-dot, the plain edge underneath). Shapes stand for
+  the colour, not a meaning. Utils read `showsColourCues()` in `component` / `toSvg` and pass `cues` to SceneSvg,
+  ArraySvg and MatrixSvg; a new renderer of marks or highlights must draw them too. The Mark menu shows the glyphs.
 - Random fills are distinct (`random`, `letters`; sorted modes strictly monotone) until the pool runs out;
   growth and insertion skip values already present. `repeats` keeps duplicates.
 - Child slots: implement `getEmptySlots` + `addChildAt`; the base draws a + on the hovered node's lower-left /

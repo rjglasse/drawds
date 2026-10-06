@@ -12,7 +12,9 @@ import {
 	type TLThemeColors,
 } from 'tldraw'
 import { CellShapeUtil, type NodeOperation, type PlaybackLayout } from '../../cells/CellShapeUtil'
-import { pruneMarks, type Marks } from '../../cells/marks'
+import { CueBadge } from '../../cells/CueBadge'
+import { cueBadgeAt, showsColourCues } from '../../cells/cues'
+import { pruneMarks, type MarkColor, type Marks } from '../../cells/marks'
 import { growHandle, grownCount } from '../../controls/grow'
 import { GrowGrip } from '../../controls/GrowGrip'
 import { showsStructureControls } from '../../controls/visibility'
@@ -323,6 +325,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 						dim={playing && !playing.fading ? (playing.dim ?? []) : undefined}
 						pulse={playing && !playing.fading ? playing.pulse : undefined}
 						swaps={frame?.swaps?.length && playing ? { pairs: frame.swaps, id: playing.id, ms: animationMs(SWAP_MS, playing) } : undefined}
+						cues={showsColourCues()}
 					/>
 					{controls && (
 						<>
@@ -347,6 +350,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 				metrics={getMatrixMetrics(shape.props.size)}
 				colors={colors}
 				fontFamily={this.getFontFamily(shape)}
+				cues={showsColourCues()}
 			/>
 		)
 	}
@@ -390,6 +394,7 @@ export function MatrixSvg({
 	swaps,
 	rowLabels,
 	colLabels,
+	cues,
 }: {
 	values: Grid
 	marks: Marks
@@ -406,6 +411,8 @@ export function MatrixSvg({
 	/** Headers in place of the indices. */
 	rowLabels?: readonly string[]
 	colLabels?: readonly string[]
+	/** Colour-blind cues: marked and highlighted cells and headers get a shape badge (`cues.ts`). */
+	cues?: boolean
 }) {
 	const [rows, cols] = [rowsOf(values), colsOf(values)]
 	const layout = getMatrixLayout(rows, cols, metrics)
@@ -415,19 +422,27 @@ export function MatrixSvg({
 	const textSize = (value: string) => metrics.fontSize * Math.min(1, 2.5 / Math.max(1, value.length))
 	const faded = new Set(dim)
 	const all = values.flatMap((row, r) => row.map((value, c) => ({ r, c, value, key: cellKey(r, c), box: layout.cellBox(r, c) })))
-	const tint = (c: string, key: string, className?: string, box = layout.cellBox(...parseCellKey(key)!)) => (
-		<rect
-			key={key}
-			className={className}
-			x={box.x}
-			y={box.y}
-			width={cell}
-			height={cell}
-			fill={getColorValue(colors, c as never, 'semi')}
-			stroke={getColorValue(colors, c as never, 'solid')}
-			strokeWidth={strokeWidth * 1.6}
-			strokeLinejoin="round"
-		/>
+	const tint = (c: MarkColor, key: string, className?: string, box = layout.cellBox(...parseCellKey(key)!)) => (
+		<g key={key} className={className}>
+			<rect
+				x={box.x}
+				y={box.y}
+				width={cell}
+				height={cell}
+				fill={getColorValue(colors, c, 'semi')}
+				stroke={getColorValue(colors, c, 'solid')}
+				strokeWidth={strokeWidth * 1.6}
+				strokeLinejoin="round"
+			/>
+			{cues && (
+				<CueBadge
+					color={c}
+					at={cueBadgeAt({ x: box.x + cell / 2, y: box.y + cell / 2, w: cell, h: cell }, false, strokeWidth * 1.2)}
+					colors={colors}
+					strokeWidth={strokeWidth}
+				/>
+			)}
+		</g>
 	)
 	// A swapped value arcs in from its partner's cell, the two passing on either side.
 	const swapStyle = (key: string): CSSProperties | undefined => {
@@ -525,17 +540,17 @@ export function MatrixSvg({
 				const key = `${side}:${i}`
 				const box = side === 'row' ? layout.rowIndexBox(i) : layout.colIndexBox(i)
 				const tintColor = flash?.marks[key] ?? marks[key]
+				// A header's badge goes beside it, in the room its row or column leaves: under a row index, right of a column's.
+				const r = box.h * 0.42
+				const badge = side === 'row' ? { x: box.x + box.w / 2, y: box.y + box.h + r + 0.5, r } : { x: box.x + box.w + r + 1, y: box.y + box.h / 2, r }
 				return tintColor ? (
-					<rect
+					<g
 						key={`tint-${key}-${flash?.id ?? 0}`}
 						className={flash?.marks[key] ? (flash.fading ? 'drawds-flash drawds-flash-fade' : 'drawds-flash') : undefined}
-						x={box.x}
-						y={box.y}
-						width={box.w}
-						height={box.h}
-						rx={box.h / 3}
-						fill={getColorValue(colors, tintColor as never, 'semi')}
-					/>
+					>
+						<rect x={box.x} y={box.y} width={box.w} height={box.h} rx={box.h / 3} fill={getColorValue(colors, tintColor, 'semi')} />
+						{cues && <CueBadge color={tintColor} at={badge} colors={colors} strokeWidth={strokeWidth} />}
+					</g>
 				) : null
 			})}
 			{Array.from({ length: rows }, (_, r) => {

@@ -4,12 +4,16 @@ import {
 	DefaultKeyboardShortcutsDialog,
 	DefaultKeyboardShortcutsDialogContent,
 	DefaultMainMenu,
-	DefaultMainMenuContent,
+	EditSubmenu,
+	ExportFileContentSubMenu,
+	ExtrasGroup,
+	PreferencesGroup,
 	DefaultStylePanel,
 	DefaultStylePanelContent,
 	DefaultToolbar,
 	DefaultToolbarContent,
 	TldrawUiMenuActionItem,
+	TldrawUiMenuCheckboxItem,
 	TldrawUiMenuGroup,
 	TldrawUiMenuItem,
 	TldrawUiMenuSubmenu,
@@ -18,12 +22,14 @@ import {
 	useIsToolSelected,
 	useTools,
 	useValue,
+	ViewSubmenu,
 	type Editor,
 	type TLComponents,
 	type TLUiOverrides,
 } from 'tldraw'
 import { useState } from 'react'
 import { clearMarks, markElement, markTargetUnderPointer } from '../cells/marking'
+import { CUE_GLYPHS, setColourCues, showsColourCues } from '../cells/cues'
 import { MARK_COLORS, MARK_MEANINGS, type MarkColor } from '../cells/marks'
 import { PlaybackOverlay } from '../controls/PlaybackOverlay'
 import { openBoard, saveBoard } from '../files/board'
@@ -198,11 +204,22 @@ function StructureToolbarItem({ id }: { id: string }) {
  * Mark submenu for the element under the pointer when the menu opened (captured then, because the
  * pointer moves onto the menu afterwards).
  */
+/** Settings for how the board shows things to a class: colour-blind cues on marks and highlights. */
+function DisplayMenuGroup() {
+	const cues = useValue('colour cues', showsColourCues, [])
+	return (
+		<TldrawUiMenuGroup id="drawds-display">
+			<TldrawUiMenuCheckboxItem id="drawds-colour-cues" label="Colour-blind cues" checked={cues} toggle onSelect={() => setColourCues(!cues)} />
+		</TldrawUiMenuGroup>
+	)
+}
+
 function MarkMenu() {
 	const editor = useEditor()
 	const [target] = useState(() => markTargetUnderPointer(editor))
 	if (!target) return null
 	const hasMarks = Object.keys(target.util.getMarks(target.shape)).length > 0
+	const cues = useValue('colour cues', showsColourCues, [])
 	return (
 		<TldrawUiMenuGroup id="drawds-mark">
 			<TldrawUiMenuSubmenu id="drawds-mark" label="Mark">
@@ -212,7 +229,8 @@ function MarkMenu() {
 							<TldrawUiMenuItem
 								key={color}
 								id={`mark-${color}`}
-								label={markLabel(color)}
+								// With colour-blind cues on, each colour's shape is its legend.
+								label={cues ? `${CUE_GLYPHS[color]} ${markLabel(color)}` : markLabel(color)}
 								kbd={String(i + 1)}
 								onSelect={() => markElement(editor, target, color)}
 							/>
@@ -368,7 +386,15 @@ export const components: TLComponents = {
 					<TldrawUiMenuActionItem key={id} actionId={id} />
 				))}
 			</TldrawUiMenuGroup>
-			<DefaultMainMenuContent />
+			{/* tldraw's DefaultMainMenuContent, with our display settings before its preferences. */}
+			<TldrawUiMenuGroup id="basic">
+				<EditSubmenu />
+				<ViewSubmenu />
+				<ExportFileContentSubMenu />
+				<ExtrasGroup />
+			</TldrawUiMenuGroup>
+			<DisplayMenuGroup />
+			<PreferencesGroup />
 		</DefaultMainMenu>
 	),
 	Toolbar: (props) => (

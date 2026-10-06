@@ -14,6 +14,8 @@ import {
 	type VecLike,
 } from 'tldraw'
 import { CellShapeUtil, type NodeOperation, type PlaybackLayout, type PointerDirection } from '../../cells/CellShapeUtil'
+import { CueBadge } from '../../cells/CueBadge'
+import { cueBadgeAt, showsColourCues } from '../../cells/cues'
 import { pruneMarks, type Marks } from '../../cells/marks'
 import { GROW_HANDLE_ID, growHandle, grownCount } from '../../controls/grow'
 import { ControlButton } from '../../controls/ControlButton'
@@ -890,6 +892,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 						offEnd={framePointers ? [] : this.offEndSlots(shape)}
 						aux={aux}
 						cross={cross}
+						cues={showsColourCues()}
 					/>
 					{!framePointers && this.renderPointers(shape, colors)}
 					{showsStructureControls(this.editor, shape) && !isBusy(playing) && (
@@ -915,7 +918,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const colors = this.editor.getCurrentTheme().colors[ctx.colorMode]
 		return (
 			<>
-				<ArraySvg shape={shape} colors={colors} fontFamily={this.getFontFamily(shape)} offEnd={this.offEndSlots(shape)} />
+				<ArraySvg shape={shape} colors={colors} fontFamily={this.getFontFamily(shape)} offEnd={this.offEndSlots(shape)} cues={showsColourCues()} />
 				{this.renderPointers(shape, colors, { exporting: true })}
 			</>
 		)
@@ -984,6 +987,7 @@ function ArraySvg({
 	offEnd = [],
 	aux,
 	cross,
+	cues,
 	metrics = getArrayMetrics(shape.props),
 }: {
 	shape: ArrayShape
@@ -1009,6 +1013,8 @@ function ArraySvg({
 	aux?: AuxRow
 	/** Values moving between the array and the second row this step. */
 	cross?: { toAux: Record<number, number>; toMain: Record<number, number>; id: number }
+	/** Colour-blind cues: marked and highlighted cells get a shape badge (`cues.ts`). */
+	cues?: boolean
 }) {
 	const { values, showIndices, color, marks, sizing, kind } = shape.props
 	const direction = metrics.axis
@@ -1019,6 +1025,10 @@ function ArraySvg({
 	const { cell, strokeWidth } = metrics
 	const stroke = getColorValue(colors, color, 'solid')
 	const textSize = (value: string) => metrics.fontSize * Math.min(1, 2.5 / Math.max(1, value.length))
+	const badgeAt = (i: number) => {
+		const { x, y } = cellAt(i)
+		return cueBadgeAt({ x: x + cell / 2, y: y + cell / 2, w: cell, h: cell }, false, strokeWidth * 1.2)
+	}
 
 	// A value arcs from its old cell into its new one: those moving towards the end over the array,
 	// those moving back under it, so two that swap or cross pass each other. When every value moves
@@ -1130,17 +1140,19 @@ function ArraySvg({
 				if (!mark) return null
 				const { x, y } = cellAt(i)
 				return (
-					<rect
-						key={`mark-${i}`}
-						x={x}
-						y={y}
-						width={cell}
-						height={cell}
-						fill={getColorValue(colors, mark, 'semi')}
-						stroke={getColorValue(colors, mark, 'solid')}
-						strokeWidth={strokeWidth * 1.6}
-						strokeLinejoin="round"
-					/>
+					<g key={`mark-${i}`}>
+						<rect
+							x={x}
+							y={y}
+							width={cell}
+							height={cell}
+							fill={getColorValue(colors, mark, 'semi')}
+							stroke={getColorValue(colors, mark, 'solid')}
+							strokeWidth={strokeWidth * 1.6}
+							strokeLinejoin="round"
+						/>
+						{cues && <CueBadge color={mark} at={badgeAt(i)} colors={colors} strokeWidth={strokeWidth} />}
+					</g>
 				)
 			})}
 			{flash &&
@@ -1149,19 +1161,20 @@ function ArraySvg({
 					if (!color) return null
 					const { x, y } = cellAt(i)
 					return (
-						<rect
-							// A new key per step restarts the element, which (once dismissed) starts the fade.
-							key={`flash-${i}-${flash.id}`}
-							className={flash.fading ? 'drawds-flash drawds-flash-fade' : 'drawds-flash'}
-							x={x}
-							y={y}
-							width={cell}
-							height={cell}
-							fill={getColorValue(colors, color, 'semi')}
-							stroke={getColorValue(colors, color, 'solid')}
-							strokeWidth={strokeWidth * 1.6}
-							strokeLinejoin="round"
-						/>
+						// A new key per step restarts the element, which (once dismissed) starts the fade.
+						<g key={`flash-${i}-${flash.id}`} className={flash.fading ? 'drawds-flash drawds-flash-fade' : 'drawds-flash'}>
+							<rect
+								x={x}
+								y={y}
+								width={cell}
+								height={cell}
+								fill={getColorValue(colors, color, 'semi')}
+								stroke={getColorValue(colors, color, 'solid')}
+								strokeWidth={strokeWidth * 1.6}
+								strokeLinejoin="round"
+							/>
+							{cues && <CueBadge color={color} at={badgeAt(i)} colors={colors} strokeWidth={strokeWidth} />}
+						</g>
 					)
 				})}
 			{dim &&
