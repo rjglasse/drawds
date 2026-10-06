@@ -93,7 +93,7 @@ test('search: curr walks down from the root, ruled-out subtrees fade; nothing ch
 	const before = await sketchBst(page, 3, 1)
 	const leaf = before.nodes.find((n) => n.id === 'nLR')!
 	await page.mouse.click(...(await nodeScreenPosition(page, 'nLR')), { button: 'right' })
-	await page.getByTestId('context-menu-sub.drawds-bst-search-button').click()
+	await page.getByTestId('context-menu-sub.drawds-tree-steps-button').click()
 	await page.getByTestId('context-menu.bst-search').click()
 	await expect(page.getByTestId('play-caption')).toHaveText(`curr = root (${before.nodes[0].value}). Is it ${leaf.value}?`)
 	await page.keyboard.press('ArrowRight')
@@ -108,8 +108,8 @@ test('search: curr walks down from the root, ruled-out subtrees fade; nothing ch
 test('search for a missing key falls off the tree; traversals are still numbered 0', async ({ page }) => {
 	await sketchBst(page, 2, 1)
 	await page.mouse.click(...(await nodeScreenPosition(page, 'n')), { button: 'right' })
-	await expect(page.getByTestId('context-menu-sub.drawds-node-operations-0-button')).toContainText('Traverse from')
-	await page.getByTestId('context-menu-sub.drawds-bst-search-button').click()
+	await page.getByTestId('context-menu-sub.drawds-tree-steps-button').click()
+	await expect(page.getByTestId('context-menu.tree-pre-order')).toContainText('Pre-order from')
 	await page.getByTestId('context-menu.bst-search-value').click()
 	await page.getByTestId('key-prompt').fill('1000')
 	await page.keyboard.press('Enter')

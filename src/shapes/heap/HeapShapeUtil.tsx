@@ -180,18 +180,32 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 		if (i === undefined || key.startsWith('a')) return []
 		return (['pre', 'in', 'post', 'level'] as const).map((order) => ({
 			id: `heap-${order}-order`,
-			label: ORDER_NAMES[order],
-			submenu: `Traverse from ${shape.props.values[i]}`,
+			label: `${ORDER_NAMES[order]} from ${shape.props.values[i]}`,
+			group: 'traverse',
 			run: () => this.traverse(shape.id, key, order),
 		}))
 	}
 
 	/** On the whole heap: build it step by step (Floyd), and shuffle its values to give that work to do. */
 	override shapeOperations(shape: HeapShape): NodeOperation[] {
-		const heap = { submenu: 'Heap', submenuId: 'heap-actions' }
 		return [
-			{ ...heap, id: 'heap-build', label: 'Build heap step by step', run: () => this.buildHeap(shape.id) },
-			{ ...heap, id: 'heap-shuffle', label: 'Shuffle values (not a heap any more)', run: () => this.shuffle(shape.id) },
+			{ group: 'build', id: 'heap-build', label: 'Build the heap (Floyd)', run: () => this.buildHeap(shape.id) },
+			{ section: 'actions', id: 'heap-shuffle', label: 'Shuffle values (not a heap any more)', run: () => this.shuffle(shape.id) },
+		]
+	}
+
+	override menuName() {
+		return 'Heap'
+	}
+
+	override readonly menuId = 'heap'
+
+	override moves() {
+		return [
+			'Double-click a value to type',
+			'The + after the array inserts a value (it sifts up); x on a node removes it (sift down), step by step',
+			'The tree and the array are one heap: index i has children 2i + 1 and 2i + 2',
+			'A dashed red ring marks a value that breaks the heap property',
 		]
 	}
 

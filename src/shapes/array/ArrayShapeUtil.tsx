@@ -239,8 +239,8 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		// Stacks and queues work by their own operations, offered on the whole shape.
 		if (kind !== 'array' || !Number.isInteger(k) || k < 0 || k >= n) return []
 		const v = values[k]
-		const search = { submenu: 'Search', submenuId: 'array-search' }
-		const shift = { submenu: 'Insert / delete step by step', submenuId: 'array-shift' }
+		const search = { group: 'search' }
+		const shift = { group: 'shift' }
 		const find = (id: string, label: string, op: typeof binarySearch): NodeOperation[] => [
 			...(v.trim() ? [{ ...search, id, label: `${label} for ${v}`, run: () => this.play(shape.id, label, (a) => op(a, v)) }] : []),
 			{
@@ -279,9 +279,9 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	}
 
 	override shapeOperations(shape: ArrayShape): NodeOperation[] {
-		const sorts = { submenu: 'Sort step by step', submenuId: 'array-sort' }
-		const actions = { submenu: 'Array', submenuId: 'array-actions' }
-		const capacity = { submenu: 'Capacity', submenuId: 'array-capacity' }
+		const sorts = { group: 'sort' }
+		const actions = { section: 'actions' } as const
+		const capacity = { group: 'capacity' }
 		const sort = (id: string, label: string, op: (a: ArrayState) => ArrayOperation): NodeOperation => ({
 			...sorts,
 			id,
@@ -320,7 +320,6 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 					]
 				: []
 		return [
-			...fixedOnly,
 			// Sorting needs two values in use.
 			...(usedCount(shape.props) < 2
 				? []
@@ -333,17 +332,40 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 						sort('array-hoare-partition', 'Hoare partition around the first value', hoarePartition),
 						sort('array-merge-sort', 'Merge sort', mergeSort),
 					]),
+			...fixedOnly,
 			order('array-sort', 'Sort', (values) => sortedOrder(values)),
 			order('array-sort-descending', 'Sort descending', (values) => sortedOrder(values, true)),
 			order('array-shuffle', 'Shuffle', (values) => shuffledOrder(values.length, mulberry32(newSeed()))),
 			order('array-reverse', 'Reverse', (values) => reversedOrder(values.length)),
 			{ ...actions, id: 'array-reroll', label: 'New values', run: () => this.reroll(shape.id) },
-			{
-				...actions,
-				id: 'array-indices',
-				label: shape.props.showIndices ? 'Hide indices' : 'Show indices',
-				run: () => this.update(shape.id, 'toggle indices', (s) => ({ showIndices: !s.props.showIndices })),
-			},
+			this.indicesToggle(shape),
+		]
+	}
+
+	/** Indices under the cells, or not: Show in the menu. */
+	private indicesToggle(shape: ArrayShape): NodeOperation {
+		return {
+			section: 'show',
+			id: 'array-indices',
+			label: shape.props.showIndices ? 'Hide indices' : 'Show indices',
+			run: () => this.update(shape.id, 'toggle indices', (s) => ({ showIndices: !s.props.showIndices })),
+		}
+	}
+
+	override menuName(shape: ArrayShape) {
+		return { array: 'Array', stack: 'Stack', queue: 'Queue' }[shape.props.kind]
+	}
+
+	override readonly menuId = 'array'
+
+	override moves(shape: ArrayShape) {
+		const { kind } = shape.props
+		return [
+			'Double-click a cell to type; Tab and the arrows move on',
+			...(kind === 'array'
+				? ['Drag the + at the end to add cells; hover a cell for x (delete) and + (insert)', 'Drag the dot under a cell onto another cell to swap them']
+				: [kind === 'stack' ? 'The + and x by the top push and pop, step by step' : 'The + by the rear enqueues and the x by the front dequeues, step by step']),
+			'Style panel: Kind (array, stack, queue) and Length (growing, or a fixed capacity)',
 		]
 	}
 
@@ -402,7 +424,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const id = shape.id
 		const state = (a: ArrayState) => ({ ...a, used: a.used ?? a.values.length, front: a.front ?? 0, fixed })
 		if (kind === 'stack') {
-			const stack = { submenu: 'Stack', submenuId: 'array-stack' }
+			const stack = { group: 'stack' }
 			const pushIt = (value: string) => this.play(id, 'push', (a) => push(state(a), value), { whole: true })
 			return [
 				{ ...stack, id: 'array-push', label: 'Push', run: () => pushIt(this.nextValue(id)) },
@@ -418,7 +440,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 				{ ...stack, id: 'array-peek', label: 'Peek', run: () => this.play(id, 'peek', (a) => peekStack(state(a)), { whole: true }) },
 			]
 		}
-		const queue = { submenu: 'Queue', submenuId: 'array-queue' }
+		const queue = { group: 'queue' }
 		const enqueueIt = (value: string) => this.play(id, 'enqueue', (a) => enqueue(state(a), value), { whole: true })
 		const rear = arrayMarkers(shape.props).find((p) => p.name === 'rear')?.at ?? '0'
 		return [
@@ -438,26 +460,19 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	/** For a stack or queue: growing a fixed one, new values, indices (no sorting or rearranging). */
 	private kindActions(shape: ArrayShape): NodeOperation[] {
-		const actions = { submenu: 'Array', submenuId: 'array-actions' }
 		return [
 			...(shape.props.sizing === 'fixed'
 				? [
 						{
-							submenu: 'Capacity',
-							submenuId: 'array-capacity',
+							group: 'capacity',
 							id: 'array-grow',
 							label: 'Grow: double the capacity',
 							run: () => this.play(shape.id, 'grow', (a) => growFixed(a, a.used!), { whole: true }),
 						},
 					]
 				: []),
-			{ ...actions, id: 'array-reroll', label: 'New values', run: () => this.reroll(shape.id) },
-			{
-				...actions,
-				id: 'array-indices',
-				label: shape.props.showIndices ? 'Hide indices' : 'Show indices',
-				run: () => this.update(shape.id, 'toggle indices', (s) => ({ showIndices: !s.props.showIndices })),
-			},
+			{ section: 'actions', id: 'array-reroll', label: 'New values', run: () => this.reroll(shape.id) },
+			this.indicesToggle(shape),
 		]
 	}
 

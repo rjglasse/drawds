@@ -8,10 +8,10 @@ import { nodeScreenPosition, open, shapesOfType, sketchHeap, sketchTree } from '
 const tree = async (page: Page) => (await shapesOfType<TreeShapeProps>(page, 'binary-tree'))[0].props
 const heap = async (page: Page) => (await shapesOfType<HeapShapeProps>(page, 'heap'))[0].props
 
-/** Right-click a node: Traverse from ... > the order. */
+/** Right-click a node: Step by step > the order (a tree's, or a heap's). */
 async function traverseFrom(page: Page, key: string, item: string) {
 	await page.mouse.click(...(await nodeScreenPosition(page, key)), { button: 'right' })
-	await page.getByTestId('context-menu-sub.drawds-node-operations-0-button').click()
+	await page.getByTestId(`context-menu-sub.drawds-${item.split('-')[0]}-steps-button`).click()
 	await page.getByTestId(`context-menu.${item}`).click()
 }
 

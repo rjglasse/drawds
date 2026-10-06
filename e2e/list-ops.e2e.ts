@@ -9,7 +9,7 @@ const caption = (page: Page) => page.getByTestId('play-caption')
 /** Right-click a node: Step by step > the operation. */
 async function listOp(page: Page, key: string, item: string) {
 	await page.mouse.click(...(await nodeScreenPosition(page, key)), { button: 'right' })
-	await page.getByTestId('context-menu-sub.drawds-node-operations-0-button').click()
+	await page.getByTestId('context-menu-sub.drawds-list-steps-button').click()
 	await page.getByTestId(`context-menu.${item}`).click()
 }
 

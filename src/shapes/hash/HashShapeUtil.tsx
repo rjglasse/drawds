@@ -145,7 +145,7 @@ export class HashShapeUtil extends NodeLinkShapeUtil<HashShape> implements Refil
 	override nodeOperations(shape: HashShape, key: string): NodeOperation[] {
 		const entry = this.entryAt(shape, key)
 		if (entry === undefined) return []
-		const steps = { submenu: 'Step by step', submenuId: 'hash-steps' }
+		const steps = { group: 'key' }
 		const k = keyOf(entry)
 		return [
 			{ ...steps, id: 'hash-find', label: `Find ${k}`, run: () => this.run(shape.id, 'find', (s) => findKey(s.props.buckets, s.props.strategy, k)) },
@@ -154,7 +154,7 @@ export class HashShapeUtil extends NodeLinkShapeUtil<HashShape> implements Refil
 	}
 
 	override shapeOperations(shape: HashShape): NodeOperation[] {
-		const table = { submenu: 'Hash table', submenuId: 'hash-actions' }
+		const table = { group: 'table' }
 		const id = shape.id
 		return [
 			{
@@ -168,7 +168,22 @@ export class HashShapeUtil extends NodeLinkShapeUtil<HashShape> implements Refil
 			...(shape.props.buckets.length < MAX_BUCKETS
 				? [{ ...table, id: 'hash-rehash', label: 'Grow and rehash', run: () => this.run(id, 'rehash', (s) => rehash(s.props.buckets, s.props.strategy)) }]
 				: []),
-			{ ...table, id: 'hash-reroll', label: 'New keys', run: () => this.reroll(id) },
+			{ section: 'actions', id: 'hash-reroll', label: 'New keys', run: () => this.reroll(id) },
+		]
+	}
+
+	override menuName() {
+		return 'Hash table'
+	}
+
+	override readonly menuId = 'hash'
+
+	override moves() {
+		return [
+			'The + by the load factor inserts a key; x on a key deletes it, step by step',
+			'Grow and rehash, and find a key, from the right-click menu',
+			'Style panel: Collisions (separate chaining or linear probing)',
+			'A red ring marks a key a find would miss',
 		]
 	}
 

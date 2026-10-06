@@ -63,6 +63,7 @@ test('make a cycle into a node from its menu, then remove it; one undo each', as
 	await sketchList(page, [150, 200], 5)
 	const menu = async (key: string, item: string) => {
 		await page.mouse.click(...(await nodeScreenPosition(page, key)), { button: 'right' })
+		await page.getByTestId('context-menu-sub.drawds-list-actions-button').click()
 		await page.getByTestId(`context-menu.${item}`).click()
 	}
 	await menu('n2', 'list-make-cycle')

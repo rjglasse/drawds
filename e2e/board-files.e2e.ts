@@ -82,7 +82,7 @@ test('a board with every structure saved and opened in a fresh browser comes bac
 	await page.mouse.up()
 	await sketchGraph(page, [950, 450], 4)
 	await page.mouse.click(...(await nodeScreenPosition(page, 'v0')), { button: 'right' })
-	await page.getByTestId('context-menu-sub.drawds-graph-views-button').click()
+	await page.getByTestId('context-menu-sub.drawds-graph-show-button').click()
 	await page.getByTestId('context-menu.graph-show-matrix').click()
 	// Marks, a pointer and a style on the array.
 	await withEditor(page, (editor) => {

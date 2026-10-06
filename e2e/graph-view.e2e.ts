@@ -9,7 +9,7 @@ const ones = (page: Page, id: string) => page.locator(`[data-shape-id="${id}"] t
 
 async function showView(page: Page, view: 'matrix' | 'lists') {
 	await page.mouse.click(...(await nodeScreenPosition(page, 'v0')), { button: 'right' })
-	await page.getByTestId('context-menu-sub.drawds-graph-views-button').click()
+	await page.getByTestId('context-menu-sub.drawds-graph-show-button').click()
 	await page.getByTestId(`context-menu.graph-show-${view}`).click()
 }
 

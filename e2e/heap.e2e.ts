@@ -80,7 +80,7 @@ test('shuffle breaks the heap; build heap step by step restores it (Floyd), one 
 	await sketchHeap(page, [600, 120], 7)
 	const heapMenu = async (item: string) => {
 		await page.mouse.click(...(await nodeScreenPosition(page, '0')), { button: 'right' })
-		await page.getByTestId('context-menu-sub.drawds-heap-actions-button').click()
+		await page.getByTestId(`context-menu-sub.drawds-heap-${item === 'heap-build' ? 'steps' : 'actions'}-button`).click()
 		await page.getByTestId(`context-menu.${item}`).click()
 	}
 	// Shuffles until it isn't a heap (a shuffle can land on another heap).

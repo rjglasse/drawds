@@ -100,6 +100,7 @@ test('BFS asks which node leaves the queue and, edge by edge, whether the far en
 	await open(page)
 	await sketchGraph(page, [300, 200], 5)
 	await page.mouse.click(...(await nodeScreenPosition(page, 'v0')), { button: 'right' })
+	await page.getByTestId('context-menu-sub.drawds-graph-steps-button').click()
 	await page.getByTestId('context-menu.graph-bfs').click()
 	await expect(asking(page)).toHaveText('What happens next?')
 	await page.keyboard.press('ArrowRight')

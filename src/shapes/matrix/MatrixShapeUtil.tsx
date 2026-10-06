@@ -122,7 +122,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 		if (!at) return []
 		const [r, c] = at
 		const [rows, cols] = [rowsOf(shape.props.values), colsOf(shape.props.values)]
-		const edit = { submenu: 'Rows and columns', submenuId: 'matrix-edit' }
+		const edit = { section: 'actions', group: 'rows' } as const
 		const id = shape.id
 		return [
 			...(rows < MAX_MATRIX
@@ -145,17 +145,17 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 	override shapeOperations(shape: MatrixShape): NodeOperation[] {
 		const { values } = shape.props
 		const id = shape.id
-		const steps = { submenu: 'Step by step', submenuId: 'matrix-steps' }
+		const steps = { group: 'visit' }
 		const square = rowsOf(values) === colsOf(values) && rowsOf(values) > 1
 		const run = (label: string, op: (values: Grid) => MatrixOperation) => () => this.play(id, label, op)
 		return [
 			{ ...steps, id: 'matrix-row-major', label: 'Visit row by row (row-major)', run: run('traverse', (v) => traverse(v, 'row')) },
-			{ ...steps, id: 'matrix-col-major', label: 'Visit column by column', run: run('traverse', (v) => traverse(v, 'col')) },
+			{ ...steps, id: 'matrix-col-major', label: 'Visit column by column (column-major)', run: run('traverse', (v) => traverse(v, 'col')) },
 			...(square ? [{ ...steps, id: 'matrix-transpose-steps', label: 'Transpose (swap across the diagonal)', run: run('transpose', transposeSteps) }] : []),
 			...(isSortedMatrix(values)
 				? [
 						{
-							...steps,
+							group: 'search',
 							id: 'matrix-staircase',
 							label: 'Find a value (staircase search)',
 							prompt: 'Value to find',
@@ -164,8 +164,22 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 						},
 					]
 				: []),
-			{ submenu: 'Matrix', submenuId: 'matrix-actions', id: 'matrix-transpose', label: 'Transpose', run: () => this.transposeNow(id) },
-			{ submenu: 'Matrix', submenuId: 'matrix-actions', id: 'matrix-reroll', label: 'New values', run: () => this.reroll(id) },
+			{ section: 'actions', id: 'matrix-transpose', label: 'Transpose', run: () => this.transposeNow(id) },
+			{ section: 'actions', id: 'matrix-reroll', label: 'New values', run: () => this.reroll(id) },
+		]
+	}
+
+	override menuName() {
+		return 'Matrix'
+	}
+
+	override readonly menuId = 'matrix'
+
+	override moves() {
+		return [
+			'Double-click a cell to type; Tab and the arrows move on',
+			'Drag the grips on the right and at the bottom to add columns and rows',
+			'Right-click a cell to insert or delete its row or column',
 		]
 	}
 

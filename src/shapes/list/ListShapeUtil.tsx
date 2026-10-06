@@ -188,7 +188,8 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		const node = nodes.find((n) => n.id === key)
 		// A stack or queue offers only its own operations (shapeOperations), wherever it is clicked.
 		if (!node || kind !== 'list') return []
-		const submenu = 'Step by step'
+		// Step by step: finding, then changing the list, then walks over the whole of it.
+		const [search, change, walk] = [{ group: 'search' }, { group: 'change' }, { group: 'walk' }]
 		const run = (label: string, op: () => ListOperation) => () => this.play(shape.id, label, op)
 		const props = () => (this.editor.getShape(shape.id) as ListShape | undefined)?.props ?? shape.props
 		const v = listVariant(shape.props, nodes)
@@ -199,39 +200,43 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		const cycle: NodeOperation[] = v.circular
 			? []
 			: [
-					...(v.cycleTo === key ? [] : [{ id: 'list-make-cycle', label: `Make a cycle: last.next = ${node.value}`, run: () => this.setCycle(shape.id, key) }]),
-					...(v.cycleTo ? [{ id: 'list-remove-cycle', label: 'Remove the cycle: last.next = null', run: () => this.setCycle(shape.id, '') }] : []),
+					...(v.cycleTo === key
+						? []
+						: [{ section: 'actions' as const, id: 'list-make-cycle', label: `Make a cycle: last.next = ${node.value}`, run: () => this.setCycle(shape.id, key) }]),
+					...(v.cycleTo
+						? [{ section: 'actions' as const, id: 'list-remove-cycle', label: 'Remove the cycle: last.next = null', run: () => this.setCycle(shape.id, '') }]
+						: []),
 				]
 		return [
 			...cycle,
-			{ id: 'list-find', label: `Find ${node.value}`, submenu, run: run('find', () => findInList(props(), node.value)) },
+			{ id: 'list-find', label: `Find ${node.value}`, ...search, run: run('find', () => findInList(props(), node.value)) },
 			{
 				id: 'list-find-value',
 				label: 'Find a value',
 				prompt: 'Value to find',
-				submenu,
+				...search,
 				run: (value) => value !== undefined && this.play(shape.id, 'find', () => findInList(props(), value)),
 			},
-			...(ends ? [{ id: 'list-middle', label: 'Find the middle (slow and fast)', submenu, run: run('find the middle', () => findMiddle(props())) }] : []),
-			{ id: 'list-floyd', label: 'Is there a cycle? (slow and fast)', submenu, run: run('cycle detection', () => detectCycle(props())) },
-			{ id: 'list-insert-after', label: `Insert after ${node.value}`, submenu, run: run('insert', () => this.insertOp(props(), key)) },
+			...(ends ? [{ id: 'list-middle', label: 'Find the middle (slow and fast)', ...search, run: run('find the middle', () => findMiddle(props())) }] : []),
+			{ id: 'list-floyd', label: 'Is there a cycle? (slow and fast)', ...search, run: run('cycle detection', () => detectCycle(props())) },
+			{ id: 'list-insert-after', label: `Insert after ${node.value}`, ...change, run: run('insert', () => this.insertOp(props(), key)) },
 			{
 				id: 'list-insert-sorted',
 				label: 'Insert in order',
 				prompt: 'Value to insert',
-				submenu,
+				...change,
 				run: (value) => value !== undefined && this.play(shape.id, 'insert', () => insertSorted(props(), this.newId(props()), value)),
 			},
 			{
 				id: 'list-insert-head',
 				label: v.sentinel ? 'Insert at the front (after the sentinel)' : 'Insert at the head',
-				submenu,
+				...change,
 				run: run('insert', () => this.insertOp(props(), undefined)),
 			},
 			...(nodes.length > 1
-				? [{ id: 'list-delete', label: `Delete ${node.value}`, submenu, run: run('delete', () => deleteFromList(props(), key)) }]
+				? [{ id: 'list-delete', label: `Delete ${node.value}`, ...change, run: run('delete', () => deleteFromList(props(), key)) }]
 				: []),
-			...(nodes.length > 1 && ends ? [{ id: 'list-reverse', label: 'Reverse the list', submenu, run: run('reverse', () => reverseList(props())) }] : []),
+			...(nodes.length > 1 && ends ? [{ id: 'list-reverse', label: 'Reverse the list', ...walk, run: run('reverse', () => reverseList(props())) }] : []),
 			// A list with a cycle has no end to append at or print to.
 			...(v.cycleTo
 				? []
@@ -239,12 +244,29 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 						{
 							id: 'list-append',
 							label: v.tail ? 'Append at the end (with the tail)' : 'Append at the end (walk there)',
-							submenu,
+							...change,
 							run: run('append', () => this.appendOp(props())),
 						},
-						{ id: 'list-print', label: 'Print the list', submenu, run: run('print', () => printList(props())) },
-						...(v.doubly ? [{ id: 'list-print-back', label: 'Print backwards', submenu, run: run('print backwards', () => printBackwards(props())) }] : []),
+						{ id: 'list-print', label: 'Print the list', ...walk, run: run('print', () => printList(props())) },
+						...(v.doubly ? [{ id: 'list-print-back', label: 'Print backwards', ...walk, run: run('print backwards', () => printBackwards(props())) }] : []),
 					]),
+		]
+	}
+
+	override menuName(shape: ListShape) {
+		return { list: 'Linked list', stack: 'Stack', queue: 'Queue' }[shape.props.kind]
+	}
+
+	override readonly menuId = 'list'
+
+	override moves(shape: ListShape) {
+		const { kind } = shape.props
+		return [
+			'Double-click a node to type its value',
+			...(kind === 'list'
+				? ['Drag the grip at either end to add nodes', 'Hover a node for x (remove); the + on an arrow inserts a node there', 'Drag the dot under a node to move it']
+				: [kind === 'stack' ? 'The + and x by the top push and pop, step by step' : 'The + by the rear enqueues and the x by the front dequeues, step by step']),
+			'Style panel: Kind (list, stack, queue) and the variants (doubly linked, tail, circular, sentinel)',
 		]
 	}
 
@@ -260,7 +282,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		const run = (label: string, op: () => ListOperation) => () => this.play(id, label, op)
 		const promptAt = nodes[0]?.id ?? NULL_KEY
 		if (kind === 'stack') {
-			const stack = { submenu: 'Stack', submenuId: 'list-stack' }
+			const stack = { group: 'stack' }
 			const push = (value: string) => this.play(id, 'push', () => pushOnto(props(), this.newId(props()), value))
 			return [
 				{ ...stack, id: 'list-push', label: 'Push', run: () => push(this.endValue(props(), 'front')) },
@@ -269,7 +291,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 				{ ...stack, id: 'list-peek', label: 'Peek', run: run('peek', () => peekAt(props())) },
 			]
 		}
-		const queue = { submenu: 'Queue', submenuId: 'list-queue' }
+		const queue = { group: 'queue' }
 		const enqueue = (value: string) => this.play(id, 'enqueue', () => enqueueOnto(props(), this.newId(props()), value))
 		return [
 			{ ...queue, id: 'list-enqueue', label: 'Enqueue', run: () => enqueue(this.endValue(props(), 'end')) },

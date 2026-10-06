@@ -232,10 +232,12 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		const node = shape.props.nodes.find((n) => n.id === key)
 		if (!node) return []
 		const directed = shape.props.direction === 'directed'
+		const algorithm = { group: 'algorithms' }
 		return [
-			{ id: 'graph-bfs', label: `Breadth-first search from ${node.value}`, run: () => this.traverse(shape.id, key, 'bfs') },
-			{ id: 'graph-dfs', label: `Depth-first search from ${node.value}`, run: () => this.traverse(shape.id, key, 'dfs') },
+			{ group: 'traverse', id: 'graph-bfs', label: `Breadth-first search from ${node.value}`, run: () => this.traverse(shape.id, key, 'bfs') },
+			{ group: 'traverse', id: 'graph-dfs', label: `Depth-first search from ${node.value}`, run: () => this.traverse(shape.id, key, 'dfs') },
 			{
+				...algorithm,
 				id: 'graph-dijkstra',
 				label: `Shortest paths from ${node.value} (Dijkstra)`,
 				run: () => this.runAlgorithm(shape.id, 'shortest paths', (s) => dijkstra(s.props, key, this.algorithmOptions(s)).frames),
@@ -245,6 +247,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 				? []
 				: [
 						{
+							...algorithm,
 							id: 'graph-prim',
 							label: `Minimum spanning tree from ${node.value} (Prim)`,
 							run: () => this.runAlgorithm(shape.id, 'minimum spanning tree', (s) => prim(s.props, key, this.algorithmOptions(s)).frames),
@@ -256,10 +259,10 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 	/** Algorithms on the whole graph: Kruskal's spanning tree (undirected), topological sort (directed). */
 	override shapeOperations(shape: GraphShape): NodeOperation[] {
 		// Views beside the graph that follow it as it changes.
-		const show = { submenu: 'Show beside it', submenuId: 'graph-views' }
+		const show = { section: 'show' } as const
 		const views: NodeOperation[] = [
-			{ ...show, id: 'graph-show-matrix', label: 'Adjacency matrix', run: () => this.showView(shape.id, 'matrix') },
-			{ ...show, id: 'graph-show-lists', label: 'Adjacency lists', run: () => this.showView(shape.id, 'lists') },
+			{ ...show, id: 'graph-show-matrix', label: 'Adjacency matrix beside it', run: () => this.showView(shape.id, 'matrix') },
+			{ ...show, id: 'graph-show-lists', label: 'Adjacency lists beside it', run: () => this.showView(shape.id, 'lists') },
 		]
 		return [...views, ...this.algorithmOperations(shape)]
 	}
@@ -270,7 +273,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 	}
 
 	private algorithmOperations(shape: GraphShape): NodeOperation[] {
-		const algorithms = { submenu: 'Graph algorithms', submenuId: 'graph-algorithms' }
+		const algorithms = { group: 'algorithms' }
 		return shape.props.direction === 'directed'
 			? [
 					{
@@ -288,6 +291,22 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 						run: () => this.runAlgorithm(shape.id, 'minimum spanning tree', (s) => kruskal(s.props, this.algorithmOptions(s)).frames),
 					},
 				]
+	}
+
+	override menuName() {
+		return 'Graph'
+	}
+
+	override readonly menuId = 'graph'
+
+	override moves() {
+		return [
+			'Double-click a node or a weight to type',
+			"Drag from the dot on a node's right edge to another node to join them, or into space for a new node",
+			'Hover a node or an edge for x (remove); drag the dot under a node to move it',
+			'Right-click a node: Step by step has BFS, DFS, Dijkstra, Prim; Show puts its adjacency matrix or lists beside it',
+			'Style panel: Edges (directed or not), Weights, Labels, and Density, Pieces, Order for a new sketch',
+		]
 	}
 
 	private algorithmOptions(shape: GraphShape) {

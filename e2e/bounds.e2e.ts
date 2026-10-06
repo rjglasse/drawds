@@ -147,7 +147,7 @@ async function checkEveryStep(page: Page, still?: string) {
 
 async function listOp(page: Page, key: string, item: string) {
 	await page.mouse.click(...(await nodeScreenPosition(page, key)), { button: 'right' })
-	await page.getByTestId('context-menu-sub.drawds-node-operations-0-button').click()
+	await page.getByTestId('context-menu-sub.drawds-list-steps-button').click()
 	await page.getByTestId(`context-menu.${item}`).click()
 }
 
@@ -189,7 +189,7 @@ test('hash rehash: the bigger table stays inside the box, the first bucket where
 		e.updateShape({ id: s.id, type: s.type, props: { buckets: [['10', '5'], ['6'], [], [], []] } } as never)
 	})
 	await page.mouse.click(...(await nodeScreenPosition(page, 'k:6')), { button: 'right' })
-	await page.getByTestId('context-menu-sub.drawds-hash-actions-button').click()
+	await page.getByTestId('context-menu-sub.drawds-hash-steps-button').click()
 	await page.getByTestId('context-menu.hash-rehash').click()
 	await checkEveryStep(page, 'b0')
 })

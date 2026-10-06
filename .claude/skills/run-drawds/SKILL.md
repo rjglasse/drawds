@@ -184,22 +184,22 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   (only for empty slots) or `[data-testid="remove-node-<id>"]` (never on the
   root `n`). Node ids are paths: `n`, `nL`, `nR`, `nLR`... Null children:
   `[data-testid="style.nulls.show"]` with a tree selected. A plain tree's node menu has
-  `context-menu.tree-swap-children` and `tree-mirror`. BSTs and heaps ring rule-breaking values
+  `context-menu.tree-swap-children` and `tree-mirror` under `context-menu-sub.drawds-tree-actions-button`. BSTs and heaps ring rule-breaking values
   (`[data-warning]` in the DOM); `style.invariant.off` / `.check` toggles it.
 - **Matrix**: `key Shift+M` then `drag x1 y1 x2 y2` (a row / column per 48 px); cell keys `r,c`
   (`dblclick` a cell to edit). Grips: `dragnode grow-cols dx 0`, `dragnode grow-rows 0 dy`. A cell's
-  menu: `context-menu-sub.drawds-matrix-edit-button` (`matrix-row-above|below`, `matrix-col-left|right`,
-  `matrix-delete-row|col`), `drawds-matrix-steps` (`matrix-row-major`, `matrix-col-major`,
+  menu: `context-menu-sub.drawds-matrix-steps-button` (`matrix-row-major`, `matrix-col-major`,
   `matrix-transpose-steps` when square, `matrix-staircase` when sorted: opens `key-prompt`),
-  `drawds-matrix-actions` (`matrix-transpose`, `matrix-reroll`).
-- **Graph views**: `rclick` a graph node, `context-menu-sub.drawds-graph-views-button`, then
+  `drawds-matrix-actions` (`matrix-row-above|below`, `matrix-col-left|right`, `matrix-delete-row|col`,
+  `matrix-transpose`, `matrix-reroll`).
+- **Graph views**: `rclick` a graph node, `context-menu-sub.drawds-graph-show-button`, then
   `context-menu.graph-show-matrix` or `graph-show-lists`: a `graph-view` shape appears to the graph's right
   and follows it (marks and BFS / DFS highlights too). With a view selected, `style.graph-view.matrix|lists`.
 - **Hash table**: `key Shift+B` then `drag x y x y+dy` (a bucket per 48 px, at least 3), filled to a
   load of about 0.6. `style.hash-strategy.chaining|probing`. Insert: `clicksel [data-testid="insert-key"]`,
   `type 22`, `key Enter`. A key's x deletes it (`hover k:22` or `hover s3`, then `remove-node-<key>`); its
-  menu `context-menu-sub.drawds-hash-steps-button` has `hash-find`, `hash-delete`; anywhere,
-  `drawds-hash-actions` has `hash-find-key` (prompt), `hash-rehash`, `hash-reroll`.
+  menu `context-menu-sub.drawds-hash-steps-button` has `hash-find`, `hash-delete`, and (anywhere)
+  `hash-find-key` (prompt), `hash-rehash`; `drawds-hash-actions` has `hash-reroll`.
 - **Value range**: `style.fill-range.small` (0-9), `medium`, `large` (0-999), `signed` (-50..50)
   under Fill, for arrays, lists, trees and heaps; redraws the selected values.
 - **Graphs**: `shapes` lists graph edges as `A-B:7` (`A->B:7` when directed; `:7` is the
@@ -224,14 +224,14 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   Operations open **paused on step 1** (`key Enter` to finish at once, `key Space` to play):
   the autoplay toggle (`play-autoplay`, remembered in localStorage) plays them straight away; `play-speed`
   cycles 1x, 2x, 4x, ½x (localStorage `drawds:speed`).
-- **Graph traversals**: `rclick` a node, then `[data-testid="context-menu.graph-bfs"]` or
-  `graph-dfs`. **Tree / heap traversals**: `rclick` a node, `clicksel
-  [data-testid="context-menu-sub.drawds-node-operations-0-button"]` (Traverse from ...), then
+- **Graph traversals**: `rclick` a node, `clicksel [data-testid="context-menu-sub.drawds-graph-steps-button"]`,
+  then `context-menu.graph-bfs` or `graph-dfs`. **Tree / heap traversals**: `rclick` a node, `clicksel
+  [data-testid="context-menu-sub.drawds-tree-steps-button"]` (`drawds-heap-steps` on heaps), then
   `context-menu.tree-in-order` (`tree-pre-order`, `tree-post-order`, `tree-level-order`; `heap-...`
   on heaps). Strips (call stack or queue, then the output) are each a
   `[data-testid="playback-strip"]`; pick one by its title text.
 - **List operations**: `rclick` a list node, `clicksel
-  [data-testid="context-menu-sub.drawds-node-operations-0-button"]` (Step by step), then
+  [data-testid="context-menu-sub.drawds-list-steps-button"]` (Step by step), then
   `context-menu.list-find`, `list-find-value` (opens `key-prompt`), `list-insert-after`,
   `list-insert-head`, `list-delete`, `list-reverse`, `list-middle`, `list-insert-sorted` (opens `key-prompt`),
   `list-append`, `list-print`, `list-floyd` (cycle detection) or (doubly) `list-print-back`. Step with `key ArrowRight` (they open
@@ -240,37 +240,40 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `circular`, `sentinel`) toggles each (one undo step each), or set props directly: `eval (() => { const s =
   editor.getOnlySelectedShape(); editor.updateShape({ id: s.id, type: s.type, props: { links: 'doubly', tail:
   'tail', ends: 'circular', sentinel: 'sentinel' } }); return 1 })()` (wrap calls that return the editor, or
-  `eval` fails on circular JSON). A node's menu has `context-menu.list-make-cycle` (top level, not under Step
-  by step) and, with a cycle, `list-remove-cycle`. Edge keys: `n1->` next, `n1<-` prev, `#head->`, `#tail->`.
+  `eval` fails on circular JSON). A node's menu has `context-menu.list-make-cycle` (under
+  `context-menu-sub.drawds-list-actions-button`, "Linked list") and, with a cycle, `list-remove-cycle`. Edge keys: `n1->` next, `n1<-` prev, `#head->`, `#tail->`.
 - **Linked stack / queue**: `clicksel [data-testid="style.list-kind.stack"]` (`queue`, `list`). Buttons while it
   is selected: `stack-push`, `stack-pop`, `queue-enqueue`, `queue-dequeue` (each opens a play bar); or `rclick`,
-  `context-menu-sub.drawds-list-stack-button` (`list-queue`), then `context-menu.list-push` (`list-push-value`,
+  `context-menu-sub.drawds-list-steps-button`, then `context-menu.list-push` (`list-push-value`,
   `list-pop`, `list-peek`, `list-enqueue`, `list-enqueue-value`, `list-dequeue`). They can be popped to empty.
-- **Graph algorithms**: `rclick` a node, then `context-menu.graph-dijkstra` or (undirected) `graph-prim`; on
-  the whole graph `context-menu-sub.drawds-graph-algorithms-button` then `graph-kruskal` (undirected) or
-  `graph-topological-sort` (directed). Distances / in-degrees are node badges; `play-counts` shows updates or
+- **Graph algorithms**: `rclick` a node, `context-menu-sub.drawds-graph-steps-button`, then
+  `context-menu.graph-dijkstra`, (undirected) `graph-prim` and `graph-kruskal`, or (directed)
+  `graph-topological-sort`. Distances / in-degrees are node badges; `play-counts` shows updates or
   total weight. Weights count only with `style.graph-weights.weighted` (else every edge is 1).
-- **BST search / build heap**: `rclick` a BST node, `context-menu-sub.drawds-bst-search-button`, then
+- **BST search / build heap**: `rclick` a BST node, `context-menu-sub.drawds-tree-steps-button`, then
   `context-menu.bst-search` or `bst-search-value` (opens `key-prompt`). Heaps: `rclick` the heap,
-  `context-menu-sub.drawds-heap-actions-button`, then `heap-build` or `heap-shuffle`.
+  `context-menu-sub.drawds-heap-steps-button` then `heap-build`, or `drawds-heap-actions` then `heap-shuffle`.
+- **Context menus** have one layout on every structure: `context-menu-sub.drawds-<array|matrix|list|tree|heap|hash|graph>-steps-button`
+  (Step by step: animated), `-actions-` (named after the structure: instant changes), `-show-` (views, indices),
+  then the shared `drawds-mark` and `drawds-pointer`; each only when it has items. The style panel's
+  `[data-testid="structure-hint"]` opens "What can I do?" (`structure-hint-content`) for the selected structure.
 - **Array operations**: `rclick` a cell, `clicksel` a submenu (stable ids):
-  `[data-testid="context-menu-sub.drawds-array-search-button"]` (items `context-menu.array-binary-search`,
-  `array-binary-search-value` (opens `key-prompt`), `array-linear-search`, `array-linear-search-value`),
-  `drawds-array-shift` (`array-insert`, `array-delete`), `drawds-array-sort` (`array-insertion-sort`,
-  `array-selection-sort`, `array-bubble-sort`, `array-partition`, `array-quicksort`, `array-hoare-partition`,
-  `array-merge-sort`) or `drawds-array-actions`
-  (instant: `array-sort`, `array-sort-descending`, `array-shuffle`, `array-reverse`, `array-reroll`,
-  `array-indices`). The step's pointers (lo, mid, hi, i, j, min) are drawn in front of the canvas:
+  `[data-testid="context-menu-sub.drawds-array-steps-button"]` (items `context-menu.array-binary-search`,
+  `array-binary-search-value` (opens `key-prompt`), `array-linear-search`, `array-linear-search-value`,
+  `array-insert`, `array-delete`, `array-insertion-sort`, `array-selection-sort`, `array-bubble-sort`,
+  `array-partition`, `array-quicksort`, `array-hoare-partition`, `array-merge-sort`), `drawds-array-actions`
+  (instant: `array-sort`, `array-sort-descending`, `array-shuffle`, `array-reverse`, `array-reroll`) or
+  `drawds-array-show` (`array-indices`). The step's pointers (lo, mid, hi, i, j, min) are drawn in front of the canvas:
   `[data-pointer="lo"]`; running totals are `[data-testid="play-counts"]` ("comparisons 3 · swaps 1").
   Fixed capacity: `[data-testid="style.array-sizing.fixed"]` with the array selected (the grip then adds
   blank spare slots; `[data-testid="array-capacity"]` reads "size 3 · capacity 6"); props `sizing`, `used`.
-  `drawds-array-capacity` submenu: `array-append`, `array-grow`, `array-append-many-double`,
+  In `drawds-array-steps` too: `array-append`, `array-grow`, `array-append-many-double`,
   `array-append-many-plus-one`; a step's new array is `[data-testid="array-aux"]`.
   Stacks and queues: `key Shift+A`, `clicksel [data-testid="style.array-kind.stack"]` (or `.queue`), then
   `array x y n up` (a stack grows up from the press point; index 0 at the bottom). Props `kind`, `front` (a
-  fixed queue's circular-buffer front). Markers `[data-pointer="top"]`, `front`, `rear`. Menus
-  `drawds-array-stack` (`array-push`, `array-push-value`, `array-pop`, `array-peek`) and `drawds-array-queue`
-  (`array-enqueue`, `array-enqueue-value`, `array-dequeue`, `array-peek`); buttons `stack-push`, `stack-pop`,
+  fixed queue's circular-buffer front). Markers `[data-pointer="top"]`, `front`, `rear`. Menu
+  `drawds-array-steps`: `array-push`, `array-push-value`, `array-pop`, `array-peek` (a queue: `array-enqueue`,
+  `array-enqueue-value`, `array-dequeue`, `array-peek`); buttons `stack-push`, `stack-pop`,
   `queue-enqueue`, `queue-dequeue` while selected.
   Set known values first with `eval (editor.updateShape({id: editor.getOnlySelectedShape().id, type: 'array',
   props: {values: ['3','8','15']}}), 1)` (wrap in `(..., 1)`: the update returns something unserialisable).

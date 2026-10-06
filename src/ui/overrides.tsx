@@ -27,7 +27,7 @@ import { clearMarks, markElement, markTargetUnderPointer } from '../cells/markin
 import { MARK_COLORS, MARK_MEANINGS, type MarkColor } from '../cells/marks'
 import { PlaybackOverlay } from '../controls/PlaybackOverlay'
 import { openBoard, saveBoard } from '../files/board'
-import type { NodeOperation } from '../cells/CellShapeUtil'
+import type { MenuSection, NodeOperation } from '../cells/CellShapeUtil'
 import { NodeLinkShapeUtil } from '../nodelink/NodeLinkShapeUtil'
 import { placePointer, removePointer, type Pointer } from '../pointers/pointers'
 import { operationPrompt } from '../controls/prompt'
@@ -48,6 +48,7 @@ import matrixIconUrl from './icons/matrix.svg'
 import hashIconUrl from './icons/hash.svg'
 import { HashPickers, hashPickerTranslations } from './HashPickers'
 import { TreePickers, treePickerTranslations } from './TreePickers'
+import { StructureHint } from './StructureHint'
 
 /** Our structure tools, in toolbar order. */
 const STRUCTURE_TOOLS = ['array', 'matrix', 'linked-list', 'binary-tree', 'heap', 'hash-table', 'graph'] as const
@@ -245,7 +246,8 @@ function NodeOperationsMenu() {
 		const { util, shape, key } = target
 		return [...(key !== undefined ? (util.nodeOperations?.(shape, key) ?? []) : []), ...(util.shapeOperations?.(shape) ?? [])]
 	})
-	if (!operations.length) return null
+	if (!target || !operations.length) return null
+	const { util, shape } = target
 	const item = (op: NodeOperation) => (
 		<TldrawUiMenuItem
 			key={op.id}
@@ -261,24 +263,30 @@ function NodeOperationsMenu() {
 			}}
 		/>
 	)
-	const submenus = [...new Set(operations.flatMap((op) => (op.submenu ? [op.submenu] : [])))]
-	// Submenus without a stable id are numbered among themselves, in menu order.
-	const named = (label: string) => operations.find((op) => op.submenu === label && op.submenuId)?.submenuId
-	const unnamed = submenus.filter((label) => !named(label))
-	const submenuId = (label: string) => {
-		const id = named(label)
-		return id ? `drawds-${id}` : `drawds-node-operations-${unnamed.indexOf(label)}`
-	}
+	// The same layout for every structure: Step by step, then its own name (instant changes), then
+	// Show; families of operations divided within each. Test ids follow the sections, not the labels.
+	const sections: [MenuSection, string][] = [
+		['steps', 'Step by step'],
+		['actions', util.menuName?.(shape) ?? shape.type],
+		['show', 'Show'],
+	]
 	return (
 		<TldrawUiMenuGroup id="drawds-node-operations">
-			{operations.filter((op) => !op.submenu).map(item)}
-			{submenus.map((label) => (
-				<TldrawUiMenuSubmenu key={label} id={submenuId(label)} label={label}>
-					<TldrawUiMenuGroup id={`${submenuId(label)}-items`}>
-						{operations.filter((op) => op.submenu === label).map(item)}
-					</TldrawUiMenuGroup>
-				</TldrawUiMenuSubmenu>
-			))}
+			{sections.map(([section, label]) => {
+				const ops = operations.filter((op) => (op.section ?? 'steps') === section)
+				if (!ops.length) return null
+				const id = `drawds-${util.menuId ?? shape.type}-${section}`
+				const groups = [...new Set(ops.map((op) => op.group ?? ''))]
+				return (
+					<TldrawUiMenuSubmenu key={section} id={id} label={label}>
+						{groups.map((group) => (
+							<TldrawUiMenuGroup key={group} id={`${id}-${group || 'items'}`}>
+								{ops.filter((op) => (op.group ?? '') === group).map(item)}
+							</TldrawUiMenuGroup>
+						))}
+					</TldrawUiMenuSubmenu>
+				)
+			})}
 		</TldrawUiMenuGroup>
 	)
 }
@@ -398,6 +406,7 @@ export const components: TLComponents = {
 			<HashPickers />
 			<GraphPickers />
 			<GraphViewPickers />
+			<StructureHint />
 		</DefaultStylePanel>
 	),
 	ContextMenu: (props) => (

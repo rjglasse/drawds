@@ -113,7 +113,7 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   (`renderKindButtons`). A `recorder` turns what
   each step lights into flash changes and stamps values, pointers, `dim` and `counts` on every frame.
   `rearrange.ts` has the instant orders (sorted, reversed, shuffled). Offered from the context menu
-  (`nodeOperations`: Search, Insert / delete step by step; `shapeOperations`: Sort step by step, Array), plus
+  (Step by step: searches, insert / delete, sorts, capacity; Array: the instant orders; Show: indices), plus
   hover controls (x on the hovered cell's corner, + on the nearest boundary; `hoveredCell` in `layout.ts`).
 - `src/shapes/matrix/` - matrices (2D arrays): `values: string[][]`, cell keys `r,c`, row indices left and column
   indices above inside the box (`getMatrixLayout`). Sketch by dragging a rectangle (`MatrixShapeTool`, Shift+M);
@@ -200,7 +200,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   run on open). Chrome's File System Access pickers where present (Save then writes back to the picked file: handles
   are keyed by `document.meta.drawdsFile`, so undoing an Open never saves the old board over the file just opened),
   else a download and a file input. Opening is one undo step (its toast offers Undo); the board takes its file's
-  name (`names.ts`, pure) and the tab title follows it. e2e stubs the pickers (`e2e/board-files.e2e.ts`).
+  name (`names.ts`, pure) and the tab title follows it. While typing on the board tldraw's shortcuts are off, so
+  `BoardFileKeys` (a child of `<Tldraw>`, inside its UI) catches Ctrl+S / Ctrl+O there. e2e stubs the pickers
+  (`e2e/board-files.e2e.ts`).
 - `src/ui/` - toolbar/shortcuts/context menu (`overrides.tsx`), style panel Fill picker, icons. tldraw's UI
   inherits the page font: `drawds.css` sets the system sans-serif and 13px menus.
 
@@ -251,9 +253,16 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   mode's default question is weak, give a frame an `ask` worded so it doesn't give the answer away (BFS / DFS "A–B: is
   B new?", BST "30 vs 21: which way?", hashing "which bucket does h(22) give?").
 - Operations from a node (BFS / DFS on graphs, pre/in/post/level-order on trees and heaps, an array's searches):
-  implement `nodeOperations(shape, key)` (on `CellShapeUtil`); they appear in that element's context menu,
-  grouped by `submenu` if given (`submenuId` makes its test id stable: `context-menu-sub.drawds-<id>-button`).
+  implement `nodeOperations(shape, key)` (on `CellShapeUtil`); they appear in that element's context menu.
   Whole-structure operations (an array's sorts) go in `shapeOperations(shape)`, shown wherever it is clicked.
+  Every structure's menu has one layout (`NodeOperationsMenu`): **Step by step** (animated operations, the
+  default `section`), then a submenu named by `menuName(shape)` (`section: 'actions'`: instant changes, e.g. Sort,
+  Mirror, Insert a row, New values), then **Show** (`section: 'show'`: views beside it, indices), then the shared
+  Mark and Pointer; empty ones are left out. A `group` keeps a family (searches, sorts, traversals) together
+  behind a divider; element operations come before whole-structure ones and name the element ("Pre-order from
+  42"). Submenu test ids follow the sections: `context-menu-sub.drawds-<menuId>-<steps|actions|show>-button`.
+  `moves(shape)` lists the structure's gestures, buttons and settings for the style panel's "What can I do?"
+  (`src/ui/StructureHint.tsx`, a popover; the shared moves are added there).
   Traversals are pure frame generators (`src/shapes/graph/traverse.ts`, `src/shapes/tree/traverse.ts`) with
   `strips` (several: stack or queue, plus the output). Heaps reuse the tree one and light both views. An
   operation can ask for a value first (`prompt`; e.g. a list's "Find a value...").

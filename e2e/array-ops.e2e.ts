@@ -36,7 +36,7 @@ test('binary search: lo, mid and hi close in, the discarded half fades; nothing 
 	await sketchArray(page, [200, 200], 7)
 	await setValues(page, ['3', '8', '15', '21', '34', '42', '57'])
 	const before = await props(page)
-	await arrayOp(page, 5, 'array-search', 'array-binary-search')
+	await arrayOp(page, 5, 'array-steps', 'array-binary-search')
 	await expect(caption(page)).toHaveText('lo = 0, hi = 6: 42 could be anywhere in a[0..6]')
 	// The step's pointers are drawn in front of the canvas.
 	await expect(page.locator('[data-pointer="lo"]')).toHaveCount(1)
@@ -57,7 +57,7 @@ test('binary search: lo, mid and hi close in, the discarded half fades; nothing 
 test('binary search for a missing value: the pointers cross', async ({ page }) => {
 	await sketchArray(page, [200, 200], 5)
 	await setValues(page, ['10', '20', '30', '40', '50'])
-	await arrayOp(page, 0, 'array-search', 'array-binary-search-value')
+	await arrayOp(page, 0, 'array-steps', 'array-binary-search-value')
 	await page.getByTestId('key-prompt').fill('35')
 	await page.keyboard.press('Enter')
 	await stepToEnd(page)
@@ -67,14 +67,14 @@ test('binary search for a missing value: the pointers cross', async ({ page }) =
 test('binary search on an unsorted array warns first', async ({ page }) => {
 	await sketchArray(page, [200, 200], 4)
 	await setValues(page, ['9', '1', '5', '7'])
-	await arrayOp(page, 2, 'array-search', 'array-binary-search')
+	await arrayOp(page, 2, 'array-steps', 'array-binary-search')
 	await expect(caption(page)).toHaveText("Careful: a[0] = 9 > a[1] = 1, so the array isn't sorted and binary search can miss 5")
 })
 
 test('linear search counts every comparison', async ({ page }) => {
 	await sketchArray(page, [200, 200], 4)
 	await setValues(page, ['4', '8', '15', '16'])
-	await arrayOp(page, 3, 'array-search', 'array-linear-search')
+	await arrayOp(page, 3, 'array-steps', 'array-linear-search')
 	await stepToEnd(page)
 	await expect(caption(page)).toHaveText('i = 3: a[3] = 16. Found 16 at index 3')
 	await expect(page.getByTestId('play-counts')).toHaveText('comparisons 4')
@@ -83,7 +83,7 @@ test('linear search counts every comparison', async ({ page }) => {
 test('insertion sort, step by step: sorted at the end, marks travel, one undo', async ({ page }) => {
 	await sketchArray(page, [200, 200], 6)
 	await setValues(page, ['5', '2', '4', '6', '1', '3'], { 4: 'blue' })
-	await arrayOp(page, 0, 'array-sort', 'array-insertion-sort')
+	await arrayOp(page, 0, 'array-steps', 'array-insertion-sort')
 	await expect(caption(page)).toHaveText('a[0] on its own is sorted')
 	await stepToEnd(page)
 	await expect(caption(page)).toHaveText('Sorted: 12 comparisons, 9 swaps')
@@ -97,11 +97,11 @@ test('insertion sort, step by step: sorted at the end, marks travel, one undo', 
 test('selection and bubble sort: Enter finishes at once; Esc cancels', async ({ page }) => {
 	await sketchArray(page, [200, 200], 5)
 	await setValues(page, ['50', '10', '40', '20', '30'])
-	await arrayOp(page, 0, 'array-sort', 'array-bubble-sort')
+	await arrayOp(page, 0, 'array-steps', 'array-bubble-sort')
 	await page.keyboard.press('Escape')
 	expect(await values(page)).toEqual(['50', '10', '40', '20', '30'])
 	await page.waitForTimeout(400)
-	await arrayOp(page, 0, 'array-sort', 'array-selection-sort')
+	await arrayOp(page, 0, 'array-steps', 'array-selection-sort')
 	await expect(caption(page)).toHaveText('i = 0: find the smallest of a[0..4]. min = 0 (50) so far')
 	await page.keyboard.press('Enter')
 	expect(await values(page)).toEqual(['10', '20', '30', '40', '50'])
@@ -110,7 +110,7 @@ test('selection and bubble sort: Enter finishes at once; Esc cancels', async ({ 
 test('delete step by step: later values shift left one at a time', async ({ page }) => {
 	await sketchArray(page, [200, 200], 5)
 	await setValues(page, ['a', 'b', 'c', 'd', 'e'], { 3: 'red' })
-	await arrayOp(page, 1, 'array-shift', 'array-delete')
+	await arrayOp(page, 1, 'array-steps', 'array-delete')
 	await expect(caption(page)).toHaveText('Delete a[1] = b: every value after it moves one cell left')
 	await page.keyboard.press('ArrowRight')
 	await expect(caption(page)).toHaveText('a[1] = a[2] (c)')
@@ -122,7 +122,7 @@ test('delete step by step: later values shift left one at a time', async ({ page
 test('insert step by step: room is made from the end, then the value goes in', async ({ page }) => {
 	await sketchArray(page, [200, 200], 3)
 	await setValues(page, ['10', '20', '30'])
-	await arrayOp(page, 1, 'array-shift', 'array-insert')
+	await arrayOp(page, 1, 'array-steps', 'array-insert')
 	await expect(caption(page)).toContainText('at index 1. First the array grows by one cell, to make room')
 	// The array shows the extra cell while the operation runs, inside the shape's bounds.
 	const width = () => withEditor(page, (editor) => editor.getShapePageBounds(editor.getOnlySelectedShape()!)!.w)
@@ -155,7 +155,7 @@ test('instant actions: sort, reverse, shuffle, new values, indices', async ({ pa
 	expect((await props(page)).seed).not.toBe(seed)
 	expect(await values(page)).toHaveLength(5)
 	await page.waitForTimeout(400)
-	await arrayOp(page, 0, 'array-actions', 'array-indices')
+	await arrayOp(page, 0, 'array-show', 'array-indices')
 	expect((await props(page)).showIndices).toBe(false)
 	// Each action is one undo step.
 	await page.keyboard.press('ControlOrMeta+z')
@@ -165,7 +165,7 @@ test('instant actions: sort, reverse, shuffle, new values, indices', async ({ pa
 test('quicksort: the call stack strip grows and empties; sorted at the end', async ({ page }) => {
 	await sketchArray(page, [200, 200], 6)
 	await setValues(page, ['5', '2', '6', '1', '3', '4'])
-	await arrayOp(page, 0, 'array-sort', 'array-quicksort')
+	await arrayOp(page, 0, 'array-steps', 'array-quicksort')
 	await expect(caption(page)).toHaveText('quicksort(0, 5): partition a[0..5]')
 	const strip = page.getByTestId('playback-strip')
 	await expect(strip).toContainText('call stack')
@@ -181,7 +181,7 @@ test('quicksort: the call stack strip grows and empties; sorted at the end', asy
 test('partition: the pivot lands in its final place', async ({ page }) => {
 	await sketchArray(page, [200, 200], 5)
 	await setValues(page, ['7', '2', '9', '1', '5'])
-	await arrayOp(page, 0, 'array-sort', 'array-partition')
+	await arrayOp(page, 0, 'array-steps', 'array-partition')
 	await page.keyboard.press('Enter')
 	expect(await values(page)).toEqual(['2', '1', '5', '7', '9'])
 })
@@ -219,7 +219,7 @@ test('a lone cell has no x; there is no + past the end (the grow grip adds there
 test('merge sort: the merged run fills a strip, then the array is sorted', async ({ page }) => {
 	await sketchArray(page, [200, 200], 6)
 	await setValues(page, ['5', '2', '4', '6', '1', '3'])
-	await arrayOp(page, 0, 'array-sort', 'array-merge-sort')
+	await arrayOp(page, 0, 'array-steps', 'array-merge-sort')
 	await expect(caption(page)).toHaveText('mergeSort(0, 5): sort a[0..2] and a[3..5], then merge them')
 	await expect(page.getByTestId('playback-strip').filter({ hasText: 'merged' })).toHaveCount(1)
 	await stepToEnd(page)
@@ -230,7 +230,7 @@ test('merge sort: the merged run fills a strip, then the array is sorted', async
 test('Hoare partition: i and j start just off either end and cross', async ({ page }) => {
 	await sketchArray(page, [200, 200], 6)
 	await setValues(page, ['5', '8', '1', '9', '3', '7'])
-	await arrayOp(page, 0, 'array-sort', 'array-hoare-partition')
+	await arrayOp(page, 0, 'array-steps', 'array-hoare-partition')
 	await expect(caption(page)).toHaveText('pivot = a[0] = 5. i starts before the array, j after it')
 	await stepToEnd(page)
 	await expect(caption(page)).toContainText('the pointers have crossed')

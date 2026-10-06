@@ -8,6 +8,7 @@ const graph = async (page: Page) => (await shapesOfType<GraphShapeProps>(page, '
 /** Right-click a node and pick a traversal from its context menu. */
 async function traverseFrom(page: Page, key: string, kind: 'bfs' | 'dfs') {
 	await page.mouse.click(...(await nodeScreenPosition(page, key)), { button: 'right' })
+	await page.getByTestId('context-menu-sub.drawds-graph-steps-button').click()
 	await page.getByTestId(`context-menu.graph-${kind}`).click()
 }
 

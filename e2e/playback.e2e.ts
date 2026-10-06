@@ -169,7 +169,7 @@ test('the play bar holds still: its buttons stay put as captions, strips and row
 	}
 	await sketchArray(page, [200, 250], 6)
 	await page.mouse.click(200, 250, { button: 'right' })
-	await page.getByTestId('context-menu-sub.drawds-array-sort-button').click()
+	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
 	await page.getByTestId('context-menu.array-bubble-sort').click()
 	await holdsStill(8)
 	await page.keyboard.press('Escape')
@@ -177,7 +177,7 @@ test('the play bar holds still: its buttons stay put as captions, strips and row
 	// A fixed array growing: a second row appears under it, then goes.
 	await page.getByTestId('style.array-sizing.fixed').click()
 	await page.mouse.click(200, 250, { button: 'right' })
-	await page.getByTestId('context-menu-sub.drawds-array-capacity-button').click()
+	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
 	await page.getByTestId('context-menu.array-grow').click()
 	await holdsStill(7)
 })

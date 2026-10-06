@@ -38,14 +38,20 @@ export interface CellFont {
 /** Which way an arrow key steps a picked-up pointer. */
 export type PointerDirection = 'left' | 'right' | 'up' | 'down'
 
+/**
+ * Where an operation sits in a structure's context menu, the same for every structure: 'steps'
+ * (Step by step: animated operations, the default), 'actions' (the submenu named after the
+ * structure: instant changes) or 'show' (what is drawn on or beside it).
+ */
+export type MenuSection = 'steps' | 'actions' | 'show'
+
 /** An operation offered from a structure's context menu (a graph's BFS from a node, an array's sort). */
 export interface NodeOperation {
 	id: string
 	label: string
-	/** Operations with the same submenu label are grouped under it (e.g. "Traverse from 42"). */
-	submenu?: string
-	/** A stable id for the submenu (else it is numbered in menu order). */
-	submenuId?: string
+	section?: MenuSection
+	/** A family of operations (searches, sorts, traversals): kept together, divided from the others. */
+	group?: string
 	/** Ask for a value first (the prompt's placeholder); `run` gets it. */
 	prompt?: string
 	/** The element the prompt sits over when the operation isn't started from one (a stack's top). */
@@ -106,6 +112,15 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 
 	/** Operations that start from an element, offered in its context menu (e.g. a graph's BFS from it). */
 	nodeOperations?(shape: S, key: string): NodeOperation[]
+	/** The structure's name, which its menu's actions submenu takes ('Array', 'Stack', 'Binary tree'...). */
+	menuName?(shape: S): string
+	/** The stable middle of its submenus' test ids: `context-menu-sub.drawds-<menuId>-<section>-button`. */
+	readonly menuId?: string
+	/**
+	 * What a teacher can do with it, one short line each: gestures, buttons, style panel settings
+	 * (the style panel's "What can I do here?"; moves every structure shares are added there).
+	 */
+	moves?(shape: S): string[]
 	/** Operations on the whole structure, offered wherever it is right-clicked (e.g. an array's sorts). */
 	shapeOperations?(shape: S): NodeOperation[]
 	/** What a step (or, without one, the shape itself) draws; shapes without it can't show operations. */

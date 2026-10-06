@@ -82,7 +82,7 @@ test('grow and rehash: every key moves to its place in a bigger table', async ({
 	await sketchTable(page, [200, 150], 5)
 	await setBuckets(page, [['10', '5'], ['6'], [], [], []])
 	await page.mouse.click(...(await nodeScreenPosition(page, 'k:6')), { button: 'right' })
-	await page.getByTestId('context-menu-sub.drawds-hash-actions-button').click()
+	await page.getByTestId('context-menu-sub.drawds-hash-steps-button').click()
 	await page.getByTestId('context-menu.hash-rehash').click()
 	await expect(caption(page)).toContainText('A new table of 11 buckets')
 	await stepToEnd(page)

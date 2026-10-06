@@ -71,7 +71,7 @@ test('grips add columns and rows; the menu inserts and deletes them, marks movin
 	await page.mouse.move(...(await cellAt(page, 1, 1)))
 	await page.keyboard.press('3')
 	await page.mouse.click(...(await cellAt(page, 1, 1)), { button: 'right' })
-	await page.getByTestId('context-menu-sub.drawds-matrix-edit-button').click()
+	await page.getByTestId('context-menu-sub.drawds-matrix-actions-button').click()
 	await page.getByTestId('context-menu.matrix-row-above').click()
 	const after = await matrix(page)
 	expect(after.values.length).toBe(4)
@@ -79,7 +79,7 @@ test('grips add columns and rows; the menu inserts and deletes them, marks movin
 	expect(after.marks).toEqual({ '2,1': 'green' })
 	await page.waitForTimeout(450) // the menu may still be closing: it would swallow the right-click
 	await page.mouse.click(...(await cellAt(page, 0, 3)), { button: 'right' })
-	await page.getByTestId('context-menu-sub.drawds-matrix-edit-button').click()
+	await page.getByTestId('context-menu-sub.drawds-matrix-actions-button').click()
 	await page.getByTestId('context-menu.matrix-delete-col').click()
 	expect(await size(page)).toEqual([4, 3])
 	await page.keyboard.press('ControlOrMeta+z')

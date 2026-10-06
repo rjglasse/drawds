@@ -157,7 +157,7 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 	nodeOperations(shape: TreeShape, key: string): NodeOperation[] {
 		const node = shape.props.nodes.find((n) => n.id === key)
 		if (!node) return []
-		const search = { submenu: 'Search', submenuId: 'bst-search' }
+		const search = { group: 'search' }
 		// Swapping children or mirroring reorders a plain tree; a BST would lose its order.
 		const parent = shape.props.kind === 'tree' && node.children.some(Boolean)
 		const root = shape.props.nodes[0]?.id === key
@@ -165,11 +165,13 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 			...(parent
 				? [
 						{
+							section: 'actions' as const,
 							id: 'tree-swap-children',
 							label: node.value ? `Swap ${node.value}'s children` : 'Swap its children',
 							run: () => this.restructure(shape.id, 'swap children', (nodes) => swapChildren(nodes, key)),
 						},
 						{
+							section: 'actions' as const,
 							id: 'tree-mirror',
 							label: root ? 'Mirror the tree' : node.value ? `Mirror ${node.value}'s subtree` : 'Mirror this subtree',
 							run: () => this.restructure(shape.id, 'mirror', (nodes) => mirrorSubtree(nodes, key)),
@@ -192,10 +194,27 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 				: []),
 			...(['pre', 'in', 'post', 'level'] as const).map((order) => ({
 				id: `tree-${order}-order`,
-				label: ORDER_NAMES[order],
-				submenu: `Traverse from ${node.value}`,
+				label: `${ORDER_NAMES[order]} from ${node.value || 'here'}`,
+				group: 'traverse',
 				run: () => this.traverse(shape.id, key, order),
 			})),
+		]
+	}
+
+	override menuName(shape: TreeShape) {
+		return shape.props.kind === 'bst' ? 'Binary search tree' : 'Binary tree'
+	}
+
+	override readonly menuId = 'tree'
+
+	override moves(shape: TreeShape) {
+		return [
+			'Double-click a node to type its value',
+			...(shape.props.kind === 'bst'
+				? ['The + above the root inserts a key and x on a node deletes it, step by step', 'A dashed red ring marks a key out of order']
+				: ['Hover a node: the + at its lower corners adds a child, x removes it and its subtree']),
+			'Drag the dot under a node to move it',
+			'Style panel: Tree kind (binary tree or binary search tree) and Null children',
 		]
 	}
 
