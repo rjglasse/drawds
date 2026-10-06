@@ -103,7 +103,7 @@ test('+ on an arrow inserts a node after its source and opens it for editing', a
 	const before = await values(page)
 	await hoverNode(page, 'n0', 'n1')
 	await page.getByTestId('insert-on-n0->').click()
-	expect(await focusedLabel(page)).toBe('Cell n3')
+	await expect.poll(() => focusedLabel(page)).toBe('Cell n3')
 	const generated = (await values(page))[1]
 	await page.keyboard.type('42')
 	await page.keyboard.press('Enter')

@@ -40,7 +40,7 @@ test('edits cells in place', async ({ page }) => {
 	const [before] = await arrays(page)
 
 	await page.mouse.dblclick(300, 200)
-	expect(await focusedLabel(page)).toBe('Cell 0')
+	await expect.poll(() => focusedLabel(page)).toBe('Cell 0')
 	// Letters that are tldraw shortcuts (h = hand, d = draw) must land in the cell.
 	await page.keyboard.type('hd')
 	await page.keyboard.press('Tab')

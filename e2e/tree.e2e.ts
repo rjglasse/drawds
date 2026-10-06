@@ -57,7 +57,7 @@ test('build a tree live: add children, type values, remove a subtree, undo', asy
 	await sketchTree(page, [600, 150], 1)
 	await hoverNode(page, 'n')
 	await page.getByTestId('add-child-n-left').click()
-	expect(await focusedLabel(page)).toBe('Cell nL')
+	await expect.poll(() => focusedLabel(page)).toBe('Cell nL')
 	await page.keyboard.type('42')
 	await page.keyboard.press('Enter')
 	await addChild(page, 'n', 'right')
@@ -89,7 +89,7 @@ test('build a tree live: add children, type values, remove a subtree, undo', asy
 test('double-click a node to edit its value', async ({ page }) => {
 	await sketchTree(page, [400, 200], 2, 1)
 	await page.mouse.dblclick(400, 200)
-	expect(await focusedLabel(page)).toBe('Cell n')
+	await expect.poll(() => focusedLabel(page)).toBe('Cell n')
 	await page.keyboard.type('99')
 	await page.keyboard.press('Enter')
 	expect((await tree(page)).nodes[0].value).toBe('99')

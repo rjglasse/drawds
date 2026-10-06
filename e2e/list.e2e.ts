@@ -25,10 +25,10 @@ test('edits node values in place', async ({ page }) => {
 	const before = await values(page)
 	// The value compartment is left of the node centre.
 	await page.mouse.dblclick(188, 150)
-	expect(await focusedLabel(page)).toBe('Cell n0')
+	await expect.poll(() => focusedLabel(page)).toBe('Cell n0')
 	await page.keyboard.type('42')
 	await page.keyboard.press('Tab')
-	expect(await focusedLabel(page)).toBe('Cell n1')
+	await expect.poll(() => focusedLabel(page)).toBe('Cell n1')
 	await page.keyboard.type('7')
 	await page.keyboard.press('Enter')
 	expect(await values(page)).toEqual(['42', '7', before[2]])

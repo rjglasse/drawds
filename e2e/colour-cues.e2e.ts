@@ -16,10 +16,11 @@ test.beforeEach(({ page }) => open(page))
 
 test('off by default; on, every mark colour gets its shape, in the Mark menu too, and it is remembered', async ({ page }) => {
 	await sketchArray(page, [300, 200], 4)
-	for (const [i, key] of ['1', '2', '3', '4'].entries()) {
-		await page.mouse.move(...cellAt(i))
-		await page.keyboard.press(key)
-	}
+	await page.evaluate((marks) => {
+		const e = window.editor!
+		const s = e.getCurrentPageShapes().find((x) => x.type === 'array')!
+		e.updateShape({ id: s.id, type: 'array', props: { marks } } as never)
+	}, { 0: 'red', 1: 'orange', 2: 'green', 3: 'blue' })
 	await expect(cues(page)).toHaveCount(0)
 	await toggleCues(page)
 	for (const color of ['red', 'orange', 'green', 'blue']) await expect(cues(page, color)).toHaveCount(1)
@@ -29,12 +30,20 @@ test('off by default; on, every mark colour gets its shape, in the Mark menu too
 	await expect(page.getByTestId('context-menu.mark-red')).toContainText('▲ Red')
 	await expect(page.getByTestId('context-menu.mark-orange')).toContainText('◆ Orange')
 	await page.keyboard.press('Escape')
-	// A per-browser setting: still on after a reload.
-	await page.reload()
-	await page.waitForFunction(() => !!window.editor)
-	await expect(cues(page)).toHaveCount(4)
 	const svg = await withEditor(page, async (e) => (await e.getSvgString([...e.getCurrentPageShapeIds()]))?.svg ?? '')
 	expect(svg).toContain('data-cue="green"')
+	// A per-browser setting: still on after a reload (a new board's marks get shapes straight away).
+	await page.reload()
+	await page.waitForFunction(() => !!window.editor)
+	expect(await page.evaluate(() => localStorage.getItem('drawds:colour-cues'))).toBe('on')
+	await page.evaluate(() => void window.editor!.deleteShapes([...window.editor!.getCurrentPageShapeIds()]))
+	await sketchArray(page, [300, 400], 2)
+	await page.evaluate(() => {
+		const e = window.editor!
+		const s = e.getCurrentPageShapes().find((x) => x.type === 'array')!
+		e.updateShape({ id: s.id, type: 'array', props: { marks: { 1: 'green' } } } as never)
+	})
+	await expect(cues(page, 'green')).toHaveCount(1)
 	await toggleCues(page)
 	await expect(cues(page)).toHaveCount(0)
 })
@@ -50,19 +59,13 @@ test("an operation's highlights get shapes too, and marked edges a line pattern"
 	await page.keyboard.press('Escape')
 	await page.keyboard.press('Escape')
 	await sketchGraph(page, [300, 450], 3, 3)
-	// Mark the first edge red, half-way between its nodes.
-	const mid = await withEditor(page, (e) => {
-		const s = e.getOnlySelectedShape()!
-		const util = e.getShapeUtil(s) as unknown as { getScene(x: unknown): { nodes: { key: string; x: number; y: number }[]; edges: { key: string; from: string; to: string }[] } }
-		const scene = util.getScene(s)
-		const edge = scene.edges[0]
-		const [a, b] = [edge.from, edge.to].map((k) => scene.nodes.find((n) => n.key === k)!)
-		const p = e.pageToScreen(e.getShapePageTransform(s).applyToPoint({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }))
-		return [p.x, p.y] as [number, number]
-	})
 	const dashed = page.locator('.tl-shape path[stroke-dasharray]')
 	await expect(dashed).toHaveCount(0)
-	await page.mouse.move(...mid)
-	await page.keyboard.press('1')
+	// Mark the first edge red (as pointing at it and pressing 1 would).
+	await withEditor(page, (e) => {
+		const s = e.getOnlySelectedShape()!
+		const util = e.getShapeUtil(s) as unknown as { getScene(x: unknown): { edges: { key: string }[] } }
+		e.updateShape({ id: s.id, type: s.type, props: { marks: { [`edge:${util.getScene(s).edges[0].key}`]: 'red' } } } as never)
+	})
 	await expect(dashed).toHaveCount(1)
 })

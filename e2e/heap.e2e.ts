@@ -59,7 +59,7 @@ test('switching to max rebuilds the heap', async ({ page }) => {
 test('editing a cell in the array view edits the tree node too, without re-heapifying', async ({ page }) => {
 	await sketchHeap(page, [600, 120], 5)
 	await page.mouse.dblclick(...(await nodeScreenPosition(page, 'a4')))
-	expect(await focusedLabel(page)).toBe('Cell a4')
+	await expect.poll(() => focusedLabel(page)).toBe('Cell a4')
 	await page.keyboard.type('-5')
 	await page.keyboard.press('Enter')
 	const props = await heap(page)
