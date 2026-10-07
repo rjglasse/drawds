@@ -1,6 +1,6 @@
 import type { MarkColor, Marks } from '../../cells/marks'
 import { compareKeys } from '../../data/compare'
-import type { Frame, Strip } from '../../nodelink/playback'
+import type { CallEvent, Frame, Strip } from '../../nodelink/playback'
 import type { Pointer } from '../../pointers/pointers'
 import { swapCells } from './swap'
 
@@ -64,6 +64,8 @@ interface Step {
 	/** Predict mode's question before this step (false: nothing to guess), and the cells it is about. */
 	ask?: string | false
 	askFocus?: (number | string)[]
+	/** Recursive calls made and returned at this step, for the recursion tree beside the array. */
+	calls?: CallEvent[]
 }
 
 /**
@@ -84,7 +86,7 @@ export function recorder(start: ArrayState, counts: Record<string, number>) {
 		set(next: ArrayState) {
 			state = next
 		},
-		step(caption: string, { lit: next = {}, pointers = [], dim = [], swaps, moves, strips, ask, askFocus }: Step = {}) {
+		step(caption: string, { lit: next = {}, pointers = [], dim = [], swaps, moves, strips, ask, askFocus, calls }: Step = {}) {
 			const flash: Record<string, MarkColor | null> = {}
 			for (const key of Object.keys(shown)) if (!next[key]) flash[key] = null
 			for (const [key, color] of Object.entries(next)) if (shown[key] !== color) flash[key] = color
@@ -103,6 +105,7 @@ export function recorder(start: ArrayState, counts: Record<string, number>) {
 				counts: { ...counts },
 				...(ask === undefined ? {} : { ask }),
 				...(askFocus ? { askFocus: askFocus.map(String) } : {}),
+				...(calls ? { calls } : {}),
 			})
 		},
 	}
@@ -628,6 +631,145 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 		ask: false,
 	})
 	return { frames: r.frames, result: r.state }
+}
+
+// Summing recursively (lecture 1's recursive strategies): the last value plus the sum of the rest
+// makes one call per value, so the stack grows n deep; summing each half and adding makes more
+// calls (2n - 1) but never more than log n on the stack. The same additions either way. Each call
+// is made and returned in the frames' `calls`, for the recursion tree beside the array.
+
+/** Every value in use is a number, so the array can be summed. */
+export const allNumbers = (values: readonly string[]) => values.every((v) => v.trim() !== '' && Number.isFinite(Number(v)))
+
+/** A sum as it reads on the board: whole numbers as they are, others without float noise. */
+const total = (x: number) => String(Number.isInteger(x) ? x : Number(x.toFixed(10)))
+
+const sumCall = (lo: number, hi: number) => `sum(${lo}, ${hi})`
+
+/** A recorder for a recursive sum: counts calls, the deepest the stack goes, and additions. */
+function sumRecorder(start: ArrayState) {
+	const r = recorder(start, { calls: 0, 'max depth': 0, additions: 0 })
+	let depth = 0
+	const n = start.values.length
+	const outside = (lo: number, hi: number) => span(0, n - 1).filter((k) => Number(k) < lo || Number(k) > hi)
+	return {
+		r,
+		value: (i: number) => Number(r.state.values[i]),
+		/** Make the call sum(lo, hi): it goes on the stack. */
+		enter() {
+			r.counts.calls++
+			depth++
+			r.counts['max depth'] = Math.max(r.counts['max depth'], depth)
+		},
+		/** It returns: off the stack. */
+		leave() {
+			depth--
+		},
+		around: (lo: number, hi: number) => ({ dim: outside(lo, hi) }),
+	}
+}
+
+/** sum(lo, hi) = sum(lo, hi - 1) + a[hi]: the last value plus the sum of the rest, one call per value. */
+export function sumByRest(start: ArrayState): ArrayOperation {
+	const s = sumRecorder(start)
+	const { r } = s
+	const sum = (hi: number): number => {
+		const call = sumCall(0, hi)
+		s.enter()
+		if (hi === 0) {
+			const v = s.value(0)
+			r.step(`${call}: one value, so return a[0] = ${total(v)}`, {
+				...s.around(0, 0),
+				lit: { 0: LOOK },
+				pointers: [ptr('lo', 0), ptr('hi', 0)],
+				calls: [{ call }, { returns: total(v) }],
+				ask: NEXT_CALL,
+			})
+			s.leave()
+			return v
+		}
+		r.step(`${call}: more than one value, so ${sumCall(0, hi - 1)} + a[${hi}]`, {
+			...s.around(0, hi),
+			lit: lit(0, hi, LOOK),
+			pointers: [ptr('lo', 0), ptr('hi', hi)],
+			calls: [{ call }],
+			ask: NEXT_CALL,
+		})
+		const rest = sum(hi - 1)
+		const v = s.value(hi)
+		r.counts.additions++
+		const result = rest + v
+		r.step(`${call} = ${sumCall(0, hi - 1)} + a[${hi}] = ${total(rest)} + ${total(v)} = ${total(result)}: return ${total(result)}`, {
+			...s.around(0, hi),
+			lit: lit(0, hi, DONE),
+			pointers: [ptr('lo', 0), ptr('hi', hi)],
+			calls: [{ returns: total(result) }],
+			ask: `What does ${call} return?`,
+			askFocus: span(0, hi),
+		})
+		s.leave()
+		return result
+	}
+	const n = start.values.length
+	const result = sum(n - 1)
+	const { calls, additions } = r.counts
+	r.step(`${sumCall(0, n - 1)} = ${total(result)}: ${plural(calls, 'call')}, all on the stack at once (one per value), and ${plural(additions, 'addition')}`, {
+		lit: lit(0, n - 1, DONE),
+		ask: false,
+	})
+	return { frames: r.frames }
+}
+
+/** sum(lo, hi) = sum(lo, mid) + sum(mid + 1, hi): divide and conquer, never more than log n calls deep. */
+export function sumByHalves(start: ArrayState): ArrayOperation {
+	const s = sumRecorder(start)
+	const { r } = s
+	const sum = (lo: number, hi: number): number => {
+		const call = sumCall(lo, hi)
+		s.enter()
+		if (lo === hi) {
+			const v = s.value(lo)
+			r.step(`${call}: one value, so return a[${lo}] = ${total(v)}`, {
+				...s.around(lo, hi),
+				lit: { [lo]: LOOK },
+				pointers: [ptr('lo', lo), ptr('hi', hi)],
+				calls: [{ call }, { returns: total(v) }],
+				ask: NEXT_CALL,
+			})
+			s.leave()
+			return v
+		}
+		const mid = Math.floor((lo + hi) / 2)
+		r.step(`${call}: mid = (${lo} + ${hi}) / 2 = ${mid}, so ${sumCall(lo, mid)} + ${sumCall(mid + 1, hi)}`, {
+			...s.around(lo, hi),
+			lit: lit(lo, hi, LOOK),
+			pointers: [ptr('lo', lo), ptr('mid', mid), ptr('hi', hi)],
+			calls: [{ call }],
+			ask: NEXT_CALL,
+		})
+		const left = sum(lo, mid)
+		const right = sum(mid + 1, hi)
+		r.counts.additions++
+		const result = left + right
+		r.step(`${call} = ${sumCall(lo, mid)} + ${sumCall(mid + 1, hi)} = ${total(left)} + ${total(right)} = ${total(result)}: return ${total(result)}`, {
+			...s.around(lo, hi),
+			lit: lit(lo, hi, DONE),
+			pointers: [ptr('lo', lo), ptr('mid', mid), ptr('hi', hi)],
+			calls: [{ returns: total(result) }],
+			ask: `What does ${call} return?`,
+			askFocus: span(lo, hi),
+		})
+		s.leave()
+		return result
+	}
+	const n = start.values.length
+	const result = sum(0, n - 1)
+	const { calls, additions } = r.counts
+	r.step(
+		`${sumCall(0, n - 1)} = ${total(result)}: ${plural(calls, 'call')}, but never more than ${r.counts['max depth']} on the stack at once, and ${plural(additions, 'addition')}`,
+		{ lit: lit(0, n - 1, DONE), ask: false }
+	)
+	return { frames: r.frames }
 }
 
 // Inserting and deleting, shifting the values after the index: one copy per value, where a linked

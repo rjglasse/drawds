@@ -32,7 +32,10 @@ import { placePointers, type PointerAnchor } from '../../pointers/layout'
 import { prunePointers, type Pointer } from '../../pointers/pointers'
 import { ARRAY_SHAPE_TYPE, arrayShapeMigrations, arrayShapeProps, usedCount, type ArrayShape } from './array-shape-types'
 import { arrayCells } from './cells'
+import { bottomBeside } from '../../cells/followers'
+import { openRecursionTree } from '../recursion/RecursionTreeShapeUtil'
 import {
+	allNumbers,
 	appendFixed,
 	appendMany,
 	binarySearch,
@@ -49,6 +52,8 @@ import {
 	partitionArray,
 	quicksort,
 	selectionSort,
+	sumByHalves,
+	sumByRest,
 	withCell,
 	withoutCell,
 	withoutUsedCell,
@@ -285,6 +290,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	override shapeOperations(shape: ArrayShape): NodeOperation[] {
 		const sorts = { group: 'sort' }
+		const sums = { group: 'sum' }
 		const actions = { section: 'actions' } as const
 		const capacity = { group: 'capacity' }
 		const sort = (id: string, label: string, op: (a: ArrayState) => ArrayOperation): NodeOperation => ({
@@ -336,6 +342,13 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 						sort('array-quicksort', 'Quicksort', quicksort),
 						sort('array-hoare-partition', 'Hoare partition around the first value', hoarePartition),
 						sort('array-merge-sort', 'Merge sort', mergeSort),
+					]),
+			// Summing recursively, two ways, each with its recursion tree beside the array.
+			...(usedCount(shape.props) < 1 || !allNumbers(shape.props.values.slice(0, usedCount(shape.props)))
+				? []
+				: [
+						{ ...sums, id: 'array-sum-rest', label: 'Sum: last value + sum of the rest', run: () => this.play(shape.id, 'sum by last + rest', sumByRest) },
+						{ ...sums, id: 'array-sum-halves', label: 'Sum by halves (divide and conquer)', run: () => this.play(shape.id, 'sum by halves', sumByHalves) },
 					]),
 			...fixedOnly,
 			order('array-sort', 'Sort', (values) => sortedOrder(values)),
@@ -398,12 +411,15 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const { finalFlash } = op
 		const result = op.result && { ...op.result, values: padded(op.result.values, capacity) }
 		const final = result && this.withValues(shape, result, result.used, result.front)
+		// A recursive operation's calls go in a tree beside the array (Esc before the result takes it away).
+		const onCancel = openRecursionTree(this.editor, shape, frames, label)
 		playOperation(this.editor, {
 			shapeId: id,
 			label,
 			frames,
 			final,
 			finalFlash,
+			onCancel,
 			// Shift: the highlights become marks, on the cells there are afterwards.
 			withMarks: (_update, highlights) => {
 				const after = result ?? { values, marks }
@@ -846,9 +862,11 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const sceneMetrics = { fontSize: metrics.fontSize, labelFontSize: metrics.indexFontSize, strokeWidth: metrics.strokeWidth }
 		const aux = this.displayAux(shape, frame)
 		const auxBounds = aux && getAuxLayout(aux.values.length, metrics, layout).bounds
+		const bottom = Math.max(layout.box.y + layout.box.h, ...slots.map((b) => b.y + b.h), auxBounds ? auxBounds.y + auxBounds.h : -Infinity)
 		return {
 			left: layout.box.x,
-			bottom: Math.max(layout.box.y + layout.box.h, ...slots.map((b) => b.y + b.h), auxBounds ? auxBounds.y + auxBounds.h : -Infinity),
+			// Under a recursion tree beside the array too.
+			bottom: bottomBeside(this.editor, shape, bottom),
 			metrics: sceneMetrics,
 			color: shape.props.color,
 			fontFamily: this.getFontFamily(shape),

@@ -128,11 +128,25 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   each node's parent and size, keyed by node, plus what to light) while Kruskal plays, else where Kruskal ends
   (`kruskalSets`); laid out from the widest arrangement with room for the deepest step, so it holds still. Kruskal opens
   one if the graph has none (`playOperation`'s `onCancel` takes it back on Esc). A graph's strips and play bar go under
-  any view beside it (`GraphShapeUtil.playbackLayout`). The graph's marks and an operation's highlights map onto it
+  any view beside it (`bottomBeside`). The graph's marks and an operation's highlights map onto it
   (`viewHighlights`: a node to its row / column headers or list head, `edge:<id>` to its cells or list entries).
-  Created from the graph's menu (`showGraphView`, to its right); deleted with its graph (`deleteViewsWithTheirGraph`,
-  an after-delete side effect registered in App's onMount). The matrix reuses `MatrixSvg` with `rowLabels` /
+  Created from the graph's menu (`showGraphView`, to its right). The matrix reuses `MatrixSvg` with `rowLabels` /
   `colLabels` and `row:<r>` / `col:<c>` header tints.
+- `src/cells/followers.ts` - shapes that follow a structure (`graphId` on graph views, `structureId` on recursion trees):
+  `followersOf` is what the lesson log records and replays with an operation and what step export draws; strips and
+  the play bar go under followers beside a structure (`bottomBeside` in a `playbackLayout`); they are deleted with it
+  (`deleteFollowersWithTheirStructure`, an after-delete side effect registered in App's onMount).
+- `src/shapes/recursion/` - recursion trees (dds-szw.13): a recursive operation's frames carry `calls` (`{ call:
+  'sum(0, 3)' }` made by the call running, `{ returns: '9' }` by it), `calls.ts` (pure) replays them into a `CallRun`
+  (each call's caller, result, the steps it opened and returned at), `callStates` per step (running red: the call
+  returning now, else the newest open; waiting orange, with the edge up to its caller: the stack; returned blue) and a
+  tidy layout of the whole run (`callTreeLayout`, text widths per font), so the tree holds still while it grows. The
+  `recursion-tree` shape stores the run's calls and follows the playing operation whose calls match its own
+  (`callsSignature`); else it shows the whole run, every result, and its heading counts calls and depth (held back
+  while playing, so the class can guess). `openRecursionTree` (before `playOperation`, its take-back as `onCancel`)
+  puts one to the structure's right unless one there already shows the same calls, so two runs can be compared side
+  by side. Arrays: Sum: last value + sum of the rest (a stick n deep) and Sum by halves (`sumByRest` / `sumByHalves`,
+  shown when every value is a number), counts calls, max depth and additions.
 - `src/shapes/hash/` - hash tables (node-link): `buckets: string[][]` (a chain per bucket, or one entry per slot with
   `TOMBSTONE` for deleted), strategy style `drawds:hash-strategy` chaining / probing (switching re-inserts the
   keys). `hash.ts` is pure: `hashOf` (k mod m, or character codes added; with how, for captions), `buildTable`,

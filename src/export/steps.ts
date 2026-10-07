@@ -1,5 +1,6 @@
-import { Box, type Editor, type TLShape, type TLShapeId } from 'tldraw'
+import { Box, type Editor, type TLShape } from 'tldraw'
 import { CellShapeUtil } from '../cells/CellShapeUtil'
+import { followersOf } from '../cells/followers'
 import { completeOperation, currentPlayback, openOperation, showStep } from '../nodelink/playback'
 import { stepFileName } from './caption'
 import { whileExportingSteps } from './exporting'
@@ -33,10 +34,6 @@ export function toAspect(box: Box, aspect: number): Box {
 	return new Box(box.midX - w / 2, box.midY - h / 2, w, h)
 }
 
-/** Shapes that follow `id` and draw its steps too: a graph's views. */
-const followers = (editor: Editor, id: TLShapeId) =>
-	editor.getCurrentPageShapes().filter((s) => (s.props as { graphId?: string }).graphId === id)
-
 /**
  * Every step of the open operation as an image, for slides and notes: the structure (with the views
  * that follow it) as the canvas shows the step, plus the step's pointers, strips and caption. The
@@ -56,7 +53,7 @@ export async function exportSteps(
 	const util = first && editor.getShapeUtil(first)
 	if (!first || !(util instanceof CellShapeUtil) || !util.playbackLayout) return []
 	const cellUtil = util as CellShapeUtil<TLShape>
-	const ids = [first.id, ...followers(editor, first.id).map((s) => s.id)]
+	const ids = [first.id, ...followersOf(editor, first.id).map((s) => s.id)]
 	/** The page area step `k` takes: the shapes, and what the step adds beyond them. */
 	const area = () => {
 		const shape = shapeOf()!

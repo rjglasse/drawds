@@ -19,8 +19,11 @@ import {
 	partitionArray,
 	quicksort,
 	selectionSort,
+	sumByHalves,
+	sumByRest,
 	type ArrayOperation,
 } from './operations'
+import { callRun } from '../recursion/calls'
 import { rearrange, reversedOrder, shuffledOrder, sortedOrder } from './rearrange'
 import { mulberry32 } from '../../data/random'
 
@@ -382,5 +385,54 @@ describe("predict mode's questions", () => {
 			'Which value moves next, and where to?',
 			'Every value from index 0 on has moved: what now?',
 		])
+	})
+})
+
+describe('recursive sums', () => {
+	const values = arr(3, 1, 4, 1, 5, 9, 2, 6)
+
+	it('last + rest: one call per value, all on the stack at once', () => {
+		const op = sumByRest(values)
+		expect(counts(op)).toEqual({ calls: 8, 'max depth': 8, additions: 7 })
+		expect(last(op).caption).toBe('sum(0, 7) = 31: 8 calls, all on the stack at once (one per value), and 7 additions')
+		const { calls, returned } = callRun(op.frames)
+		expect(calls.map((c) => c.label)).toEqual(['sum(0, 7)', 'sum(0, 6)', 'sum(0, 5)', 'sum(0, 4)', 'sum(0, 3)', 'sum(0, 2)', 'sum(0, 1)', 'sum(0, 0)'])
+		// A stick: each call made by the one before.
+		expect(calls.map((c) => c.parent)).toEqual([-1, 0, 1, 2, 3, 4, 5, 6])
+		expect(calls.map((c) => c.result)).toEqual(['31', '25', '23', '14', '9', '8', '4', '3'])
+		expect(returned.every((r) => r !== undefined)).toBe(true)
+		// The array doesn't change.
+		expect(op.result).toBeUndefined()
+	})
+
+	it('by halves: 2n - 1 calls, never more than log n + 1 deep, the same additions', () => {
+		const op = sumByHalves(values)
+		expect(counts(op)).toEqual({ calls: 15, 'max depth': 4, additions: 7 })
+		const { calls } = callRun(op.frames)
+		expect(calls[0]).toEqual({ label: 'sum(0, 7)', parent: -1, result: '31' })
+		expect(calls.filter((c) => c.parent === 0).map((c) => [c.label, c.result])).toEqual([
+			['sum(0, 3)', '9'],
+			['sum(4, 7)', '22'],
+		])
+		expect(op.frames[0].caption).toBe('sum(0, 7): mid = (0 + 7) / 2 = 3, so sum(0, 3) + sum(4, 7)')
+		expect(op.frames[0].pointers?.map((p) => `${p.name}=${p.at}`)).toEqual(['lo=0', 'mid=3', 'hi=7'])
+	})
+
+	it('a base case is made and returns in one step; a return step asks what it returns', () => {
+		const op = sumByHalves(arr(2, 5))
+		expect(op.frames.map((f) => f.calls)).toEqual([
+			[{ call: 'sum(0, 1)' }],
+			[{ call: 'sum(0, 0)' }, { returns: '2' }],
+			[{ call: 'sum(1, 1)' }, { returns: '5' }],
+			[{ returns: '7' }],
+			undefined,
+		])
+		expect(op.frames[3].ask).toBe('What does sum(0, 1) return?')
+		expect(last(op).ask).toBe(false)
+	})
+
+	it('one value is a single base case; decimals add without float noise', () => {
+		expect(callRun(sumByRest(arr(4)).frames).calls).toEqual([{ label: 'sum(0, 0)', parent: -1, result: '4' }])
+		expect(callRun(sumByHalves(arr(0.1, 0.2)).frames).calls[0].result).toBe('0.3')
 	})
 })

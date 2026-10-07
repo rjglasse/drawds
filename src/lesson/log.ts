@@ -1,5 +1,6 @@
 import type { Editor, JsonObject, SerializedSchema, TLRecord, TLShape, TLShapeId } from 'tldraw'
 import type { Marks } from '../cells/marks'
+import { followersOf } from '../cells/followers'
 import { cancelPlayback, openOperation, playOperation, recordOperations, type Frame } from '../nodelink/playback'
 import { exportSteps, type StepExportOptions, type StepImage } from '../export/steps'
 import { entryFolder, type ExportedEntry, type LessonEntry } from './manifest'
@@ -38,10 +39,6 @@ function writeLesson(editor: Editor, entries: LessonEntry[]) {
 export function clearLesson(editor: Editor) {
 	writeLesson(editor, [])
 }
-
-/** Shapes that follow `id` (a graph's views): recorded and replayed with it. */
-const followersOf = (editor: Editor, id: TLShapeId) =>
-	editor.getCurrentPageShapes().filter((s) => (s.props as { graphId?: string }).graphId === id)
 
 /**
  * Start recording every operation played (not replays). Also puts back the shapes a replay left

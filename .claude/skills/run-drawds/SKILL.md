@@ -301,7 +301,9 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `[data-testid="context-menu-sub.drawds-array-steps-button"]` (items `context-menu.array-binary-search`,
   `array-binary-search-value` (opens `key-prompt`), `array-linear-search`, `array-linear-search-value`,
   `array-insert`, `array-delete`, `array-insertion-sort`, `array-selection-sort`, `array-bubble-sort`,
-  `array-partition`, `array-quicksort`, `array-hoare-partition`, `array-merge-sort`), `drawds-array-actions`
+  `array-partition`, `array-quicksort`, `array-hoare-partition`, `array-merge-sort`, and when every value is a number
+  `array-sum-rest`, `array-sum-halves`: these open a `recursion-tree` shape to the array's right, `[data-testid="recursion-tree"]`,
+  each call a `[data-call="sum(0, 3)"]` group), `drawds-array-actions`
   (instant: `array-sort`, `array-sort-descending`, `array-shuffle`, `array-reverse`, `array-reroll`) or
   `drawds-array-show` (`array-indices`). The step's pointers (lo, mid, hi, i, j, min) are drawn in front of the canvas:
   `[data-pointer="lo"]`; running totals are `[data-testid="play-counts"]` ("comparisons 3 · swaps 1").

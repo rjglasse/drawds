@@ -50,7 +50,18 @@ export interface Frame {
 	askFocus?: string[]
 	/** Disjoint sets at this step (a graph's Kruskal), for the union-find drawn beside the structure. */
 	sets?: FrameSets
+	/**
+	 * Recursive calls made and returned at this step, in order, for the recursion tree drawn beside
+	 * the structure (see `src/shapes/recursion/`).
+	 */
+	calls?: CallEvent[]
 }
+
+/**
+ * A recursive call being made (`call`: what it is called with, e.g. "sum(0, 3)"; it is made by the
+ * call running then), or the running call returning (`returns`: its value, '' for nothing).
+ */
+export type CallEvent = { call: string } | { returns: string }
 
 /**
  * Disjoint sets as a step leaves them: each node's parent and each node's set size (meaningful at

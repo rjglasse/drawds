@@ -183,14 +183,3 @@ export function showGraphView(editor: Editor, graph: GraphShape, view: GraphView
 	})
 	return mark
 }
-
-/** A graph's views go with it. */
-export function deleteViewsWithTheirGraph(editor: Editor) {
-	return editor.sideEffects.registerAfterDeleteHandler('shape', (deleted) => {
-		if (deleted.type !== GRAPH_SHAPE_TYPE) return
-		const views = editor
-			.getCurrentPageShapes()
-			.filter((s) => s.type === GRAPH_VIEW_TYPE && (s as GraphViewShape).props.graphId === deleted.id)
-		if (views.length) editor.deleteShapes(views.map((s) => s.id))
-	})
-}

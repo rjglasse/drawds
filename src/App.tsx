@@ -8,7 +8,8 @@ import { ArrayShapeTool } from './shapes/array/ArrayShapeTool'
 import { ArrayShapeUtil } from './shapes/array/ArrayShapeUtil'
 import { GraphShapeTool } from './shapes/graph/GraphShapeTool'
 import { GraphShapeUtil } from './shapes/graph/GraphShapeUtil'
-import { GraphViewShapeUtil, deleteViewsWithTheirGraph } from './shapes/graph-view/GraphViewShapeUtil'
+import { GraphViewShapeUtil } from './shapes/graph-view/GraphViewShapeUtil'
+import { RecursionTreeShapeUtil } from './shapes/recursion/RecursionTreeShapeUtil'
 import { HashShapeTool } from './shapes/hash/HashShapeTool'
 import { HashShapeUtil } from './shapes/hash/HashShapeUtil'
 import { HeapShapeTool } from './shapes/heap/HeapShapeTool'
@@ -21,13 +22,14 @@ import { MatrixShapeTool } from './shapes/matrix/MatrixShapeTool'
 import { MatrixShapeUtil } from './shapes/matrix/MatrixShapeUtil'
 import { TreeShapeTool } from './shapes/tree/TreeShapeTool'
 import { TreeShapeUtil } from './shapes/tree/TreeShapeUtil'
+import { deleteFollowersWithTheirStructure } from './cells/followers'
 import { showBoardNameInTitle } from './files/board'
 import { BoardFileKeys } from './files/BoardFileKeys'
 import { clearStaleRooms } from './nodelink/playback'
 import { components, uiOverrides } from './ui/overrides'
 
 // Defined at module level so they aren't recreated on every render.
-const shapeUtils = [ArrayShapeUtil, MatrixShapeUtil, ListShapeUtil, TreeShapeUtil, HeapShapeUtil, UnionFindShapeUtil, HashShapeUtil, GraphShapeUtil, GraphViewShapeUtil]
+const shapeUtils = [ArrayShapeUtil, MatrixShapeUtil, ListShapeUtil, TreeShapeUtil, HeapShapeUtil, UnionFindShapeUtil, HashShapeUtil, GraphShapeUtil, GraphViewShapeUtil, RecursionTreeShapeUtil]
 const tools = [ArrayShapeTool, MatrixShapeTool, ListShapeTool, TreeShapeTool, HeapShapeTool, UnionFindShapeTool, HashShapeTool, GraphShapeTool]
 // Digits mark the element under the pointer (1-4, 0 clears), so tldraw's "press n for the nth
 // toolbar tool" shortcuts are off; every tool still has its letter shortcut.
@@ -66,7 +68,7 @@ function onMount(editor: Editor) {
 			return { manifest: lessonManifest(exported), files }
 		}
 	}
-	const cleanups = [deleteViewsWithTheirGraph(editor), showBoardNameInTitle(editor), clearStaleRooms(editor), startLessonLog(editor)]
+	const cleanups = [deleteFollowersWithTheirStructure(editor), showBoardNameInTitle(editor), clearStaleRooms(editor), startLessonLog(editor)]
 	return () => cleanups.forEach((f) => f())
 }
 

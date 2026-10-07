@@ -14,6 +14,7 @@ import { GrowGrip } from '../../controls/GrowGrip'
 import { showsStructureControls } from '../../controls/visibility'
 import { arrowHead, routeEdge } from '../../nodelink/geometry'
 import type { PlaybackLayout, PointerDirection } from '../../cells/CellShapeUtil'
+import { bottomBeside } from '../../cells/followers'
 import { spatialNeighbor } from '../../nodelink/geometry'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import { prunePointers } from '../../pointers/pointers'
@@ -330,13 +331,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 	 */
 	override playbackLayout(shape: GraphShape, frame: Frame | undefined): PlaybackLayout {
 		const layout = super.playbackLayout(shape, frame)
-		const graph = this.editor.getShapePageBounds(shape)
-		if (!graph) return layout
-		const beside = viewsOf(this.editor, shape).flatMap((v) => {
-			const b = this.editor.getShapePageBounds(v)
-			return b && b.minY < graph.maxY && b.maxY > graph.minY ? [this.editor.getPointInShapeSpace(shape, { x: b.minX, y: b.maxY }).y] : []
-		})
-		return { ...layout, bottom: Math.max(layout.bottom, ...beside) }
+		return { ...layout, bottom: bottomBeside(this.editor, shape, layout.bottom) }
 	}
 
 	private algorithmOptions(shape: GraphShape) {
