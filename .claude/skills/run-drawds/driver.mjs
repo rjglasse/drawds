@@ -289,6 +289,46 @@ const commands = {
 		await page.screenshot({ path: file, ...(h === undefined ? {} : { clip: { x: +x, y: +y, width: +w, height: +h } }) })
 		return file
 	},
+	// Just the drawing: a screenshot clipped to every shape on the page (plus the play bar, strips and
+	// step pointers while an operation is open), `pad` px around it. Deselects first, moves the pointer
+	// out of the way and hides tldraw's UI, so no selection box, hover buttons or panels show. With
+	// SCALE=2 for crisp images.
+	async shot(name = 'shot', pad = '16') {
+		await page.evaluate(() => void window.editor.selectNone())
+		await page.mouse.move(2, 2)
+		await page.waitForTimeout(400)
+		const box = await page.evaluate(() => {
+			const e = window.editor
+			const rects = [...e.getCurrentPageShapeIds()].flatMap((id) => {
+				const b = e.getShapePageBounds(id)
+				if (!b) return []
+				const a = e.pageToViewport({ x: b.minX, y: b.minY })
+				const z = e.pageToViewport({ x: b.maxX, y: b.maxY })
+				return [{ x: a.x, y: a.y, r: z.x, b: z.y }]
+			})
+			for (const el of document.querySelectorAll('[data-testid="play-bar"], [data-testid="playback-strip"], [data-pointer]')) {
+				const r = el.getBoundingClientRect()
+				if (r.width && r.height) rects.push({ x: r.left, y: r.top, r: r.right, b: r.bottom })
+			}
+			if (!rects.length) return undefined
+			return {
+				x: Math.min(...rects.map((r) => r.x)),
+				y: Math.min(...rects.map((r) => r.y)),
+				r: Math.max(...rects.map((r) => r.r)),
+				b: Math.max(...rects.map((r) => r.b)),
+			}
+		})
+		if (!box) throw new Error('nothing to shoot (page is empty)')
+		const p = +pad
+		const x = Math.max(0, box.x - p)
+		const y = Math.max(0, box.y - p)
+		const file = join(OUT, `${name}.png`)
+		// tldraw's own UI (style panel, toolbar, menus) hidden, so a wide drawing never has it in the picture.
+		const hide = await page.addStyleTag({ content: '.tlui-layout { visibility: hidden !important; }' })
+		await page.screenshot({ path: file, clip: { x, y, width: box.r + p - x, height: box.b + p - y } })
+		await hide.evaluate((el) => el.remove())
+		return file
+	},
 	async export(name = 'export') {
 		const svg = await page.evaluate(async () => {
 			const e = window.editor

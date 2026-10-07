@@ -112,6 +112,7 @@ numbers sorted, and `fill` is `"ascending"`.
 | `state` | tool path (`select.idle`, `array.sketching`, `select.editing_shape`...), editing shape, selection, focused element |
 | `eval <js>` | evaluate an expression with `editor` (the tldraw Editor) in scope; prints the JSON result |
 | `screenshot [name] [x y w h]` | full-page PNG, or just that clip; run the driver with `SCALE=3` in the environment for a 3x crop of small controls |
+| `shot [name] [pad]` | just the drawing: a PNG clipped to every shape on the page, plus the play bar, strips and step pointers while an operation is open, `pad` px around (default 16); deselects and moves the pointer away first. `SCALE=2` for crisp README / slide images |
 | `export [name]` | export all shapes the way tldraw does (`editor.getSvgString`), write `.svg`, render it to `.png` |
 | `reset` | delete every shape, back to the select tool |
 | `steps [name] [key=value...]` | every step of the open operation as numbered images into `$OUT/<name>/` plus `steps.json` (file, header, caption): `format=png\|svg`, `scale=2`, `aspect=1.7778`, `captions=off`, `background=off`. Puts the result in first, as the play bar's export does |
