@@ -23,6 +23,7 @@ import {
 	callsSignature,
 	callsTitle,
 	hasCalls,
+	repeatMarks,
 	resultText,
 	type Call,
 	type CallTreeLayout,
@@ -134,6 +135,7 @@ export class RecursionTreeShapeUtil extends ShapeUtil<RecursionTreeShape> {
 					colors={colors}
 					color={shape.props.color}
 					fontFamily={fontFamily}
+					marks={follow ? undefined : repeatMarks(calls)}
 					flash={follow && { marks: callHighlights(follow.run, follow.states), fading: false, id: follow.id }}
 					cues={showsColourCues()}
 				/>

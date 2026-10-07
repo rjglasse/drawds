@@ -52,15 +52,17 @@ import treeIconUrl from './icons/tree.svg'
 import { HeapPickers, heapPickerTranslations } from './HeapPickers'
 import heapIconUrl from './icons/heap.svg'
 import unionFindIconUrl from './icons/union-find.svg'
+import recursionIconUrl from './icons/recursion.svg'
 import matrixIconUrl from './icons/matrix.svg'
 import hashIconUrl from './icons/hash.svg'
 import { HashPickers, hashPickerTranslations } from './HashPickers'
 import { TreePickers, treePickerTranslations } from './TreePickers'
 import { UnionFindPickers, unionFindPickerTranslations } from './UnionFindPickers'
+import { TracerPickers, tracerPickerTranslations } from './TracerPickers'
 import { StructureHint } from './StructureHint'
 
 /** Our structure tools, in toolbar order. */
-const STRUCTURE_TOOLS = ['array', 'matrix', 'linked-list', 'binary-tree', 'heap', 'union-find', 'hash-table', 'graph'] as const
+const STRUCTURE_TOOLS = ['array', 'matrix', 'linked-list', 'binary-tree', 'heap', 'union-find', 'hash-table', 'graph', 'recursion-tracer'] as const
 
 const RELAYOUT = 'drawds.relayout'
 
@@ -143,6 +145,14 @@ export const uiOverrides: TLUiOverrides = {
 			kbd: 'shift+g',
 			onSelect: () => editor.setCurrentTool('graph'),
 		}
+		tools['recursion-tracer'] = {
+			id: 'recursion-tracer',
+			icon: maskIcon(recursionIconUrl),
+			label: 'Recursion (call stack)',
+			// "r" for recursion; plain "r" is the rectangle tool.
+			kbd: 'shift+r',
+			onSelect: () => editor.setCurrentTool('recursion-tracer'),
+		}
 		return tools
 	},
 	actions(editor, actions, helpers) {
@@ -206,6 +216,7 @@ export const uiOverrides: TLUiOverrides = {
 			...treePickerTranslations,
 			...heapPickerTranslations,
 			...unionFindPickerTranslations,
+			...tracerPickerTranslations,
 			...invariantPickerTranslations,
 			...graphPickerTranslations,
 			...graphViewPickerTranslations,
@@ -450,6 +461,7 @@ export const components: TLComponents = {
 			<TreePickers />
 			<HeapPickers />
 			<UnionFindPickers />
+			<TracerPickers />
 			<HashPickers />
 			<GraphPickers />
 			<GraphViewPickers />

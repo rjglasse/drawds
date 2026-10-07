@@ -40,6 +40,22 @@
 	}
 }
 
+/* A value returned down the call stack: from the frame that returned into the one below, then gone (TracerShapeUtil). */
+@keyframes drawds-drop {
+	from {
+		transform: translate(0, var(--from-y));
+		opacity: 1;
+	}
+	70% {
+		transform: translate(0, 0);
+		opacity: 1;
+	}
+	to {
+		transform: translate(0, 0);
+		opacity: 0;
+	}
+}
+
 /* Highlights from an animated operation fade out once it has committed (src/nodelink/playback.ts). */
 .drawds-flash-fade {
 	animation: drawds-fade 1.6s ease-in 0.5s forwards;

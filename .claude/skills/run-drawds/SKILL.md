@@ -322,6 +322,13 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   Hover controls: `move` onto a cell, then `[data-testid="remove-cell-<k>"]` (x on its top-right corner) or
   `insert-cell-<b>` (+ on the nearest boundary b, its lower end; none past the end); an inserted cell opens
   for typing.
+- **Recursion tracer**: `key Shift+R`, `click x y` (main's frame, left end, at the press; the stack above, the code
+  below). Function picker `style.recursion-fn.gcd|fact|fib|sum|hello|stuck` (with the tool or a tracer selected);
+  or `dblclick` main's call (right part of the bottom frame) and `type fib(6)`. `rclick` it,
+  `context-menu-sub.drawds-tracer-steps-button`, `context-menu.tracer-run`. Frames are `[data-frame="fact(2)"]`
+  (`data-state` red / orange / green / plain), the lit code line `[data-lit]` (`data-line` base / recursive / print),
+  a value dropping down `[data-flowing]`, overflow `[data-testid="tracer-stack"][data-overflow]`. fib opens a
+  `recursion-tree` beside it; chains (gcd, fact, sum, sayHello) don't.
 - **Pointers**: `rclick` an element, `clicksel [data-testid="context-menu-sub.drawds-pointer-button"]`,
   then `[data-testid="context-menu.pointer-i"]` (names depend on the structure; `pointer-custom`
   opens a name prompt, `key-prompt`). **Wait ~400 ms between context menus**: a menu that is

@@ -146,7 +146,19 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   while playing, so the class can guess). `openRecursionTree` (before `playOperation`, its take-back as `onCancel`)
   puts one to the structure's right unless one there already shows the same calls, so two runs can be compared side
   by side. Arrays: Sum: last value + sum of the rest (a stick n deep) and Sum by halves (`sumByRest` / `sumByHalves`,
-  shown when every value is a number), counts calls, max depth and additions.
+  shown when every value is a number), counts calls, max depth and additions. Repeated calls (`repeatedCalls`: the
+  same call already finished elsewhere, not an ancestor) are green and counted in the heading (fib's overlap).
+- Recursion tracer (dds-szw.13.4, `recursion-tracer`, Shift+R, a click places it): a function traced on the call
+  stack. Props `fn` (style `drawds:recursion-fn`: gcd, fact, fib, sum, hello = sayHello with no base case, stuck = a
+  sum whose n never shrinks) and `call`, main's one editable cell (typing another function's name picks it; the
+  picker types its example call; `onBeforeCreate` / `onBeforeUpdate` keep the two in step). `tracer.ts` is pure:
+  `parseCall` (or why it can't be traced), `traceCall` frames whose props carry `trace` (the stack from main up, the
+  code line, overflow, done) plus `calls` for the tree and `moves` `slot:<i>` with `flowing` values (a returned value
+  drops into the frame below: `drawds-drop` keyframes). A frame that returns stays for its step and goes at the next.
+  The never-ending ones overflow at `STACK_ROOM` frames (output strip for sayHello). `tracer-layout.ts`: sized for the
+  whole run (a spare slot unless it overflows), main's slot kept still via `layoutOffset`; Java code under the stack,
+  the step's line lit (base green, recursive orange, print blue). Its recursion tree opens only when calls branch
+  (`branches`: fib); a chain is what the stack shows.
 - `src/shapes/hash/` - hash tables (node-link): `buckets: string[][]` (a chain per bucket, or one entry per slot with
   `TOMBSTONE` for deleted), strategy style `drawds:hash-strategy` chaining / probing (switching re-inserts the
   keys). `hash.ts` is pure: `hashOf` (k mod m, or character codes added; with how, for captions), `buildTable`,

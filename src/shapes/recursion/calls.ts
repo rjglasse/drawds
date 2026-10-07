@@ -83,6 +83,8 @@ export function callStates(run: CallRun, step: number): Map<number, CallState> {
 }
 
 const STATE_COLORS: Record<CallState, MarkColor> = { running: 'red', waiting: 'orange', returned: 'blue' }
+/** A repeated call, once it has returned (and on the whole run): work done again. */
+const REPEAT: MarkColor = 'green'
 
 export const callKey = (i: number) => `c${i}`
 export const callEdgeKey = (i: number) => `e${i}`
@@ -90,12 +92,40 @@ export const callEdgeKey = (i: number) => `e${i}`
 /** Highlights for the states: on the calls' boxes, and on the stack's edges (the path up to the first call). */
 export function callHighlights(run: CallRun, states: Map<number, CallState>): Marks {
 	const marks: Marks = {}
+	const repeats = repeatedCalls(run.calls)
 	for (const [i, state] of states) {
-		marks[callKey(i)] = STATE_COLORS[state]
+		marks[callKey(i)] = state === 'returned' && repeats.has(i) ? REPEAT : STATE_COLORS[state]
 		if (state !== 'returned' && run.calls[i].parent >= 0) marks[edgeCellKey(callEdgeKey(i))] = 'orange'
 	}
 	return marks
 }
+
+/**
+ * Calls made again: the same call (same arguments) already made and finished elsewhere in the tree,
+ * not one still waiting further up the stack (sayHello calling itself is recursion, not a repeat).
+ * fib's overlapping subproblems: work done twice.
+ */
+export function repeatedCalls(calls: readonly Call[]): Set<number> {
+	const repeats = new Set<number>()
+	const seen = new Map<string, number[]>()
+	calls.forEach((c, i) => {
+		const ancestors = new Set<number>()
+		for (let p = c.parent; p >= 0; p = calls[p].parent) ancestors.add(p)
+		if ((seen.get(c.label) ?? []).some((j) => !ancestors.has(j))) repeats.add(i)
+		seen.set(c.label, [...(seen.get(c.label) ?? []), i])
+	})
+	return repeats
+}
+
+/** Whether some call makes more than one call: the run is a tree, not a chain (a chain is just the stack). */
+export function branches(calls: readonly Call[]): boolean {
+	const made = new Map<number, number>()
+	for (const c of calls) if (c.parent >= 0) made.set(c.parent, (made.get(c.parent) ?? 0) + 1)
+	return [...made.values()].some((n) => n > 1)
+}
+
+/** The whole run's repeats, marked (the tree when it isn't following a run). */
+export const repeatMarks = (calls: readonly Call[]): Marks => Object.fromEntries([...repeatedCalls(calls)].map((i) => [callKey(i), REPEAT]))
 
 /** How many calls deep the run goes: the most on the stack at once. */
 export function callDepth(calls: readonly Call[]): number {
@@ -104,10 +134,11 @@ export function callDepth(calls: readonly Call[]): number {
 	return Math.max(0, ...depth)
 }
 
-/** The tree's heading: the operation, how many calls it made and how deep they went. */
+/** The tree's heading: the operation, how many calls it made, how deep they went, how many were repeats. */
 export function callsTitle(title: string, calls: readonly Call[]) {
 	const n = calls.length
-	return `${title}: ${n} call${n === 1 ? '' : 's'}, ${callDepth(calls)} deep`
+	const repeats = repeatedCalls(calls).size
+	return `${title}: ${n} call${n === 1 ? '' : 's'}, ${callDepth(calls)} deep${repeats ? `, ${repeats} repeated` : ''}`
 }
 
 export interface CallBox {
@@ -133,7 +164,7 @@ export interface CallTreeLayout {
 export const resultText = (result: string | undefined) => (result === undefined ? '= ?' : result === '' ? 'done' : `= ${result}`)
 
 /** About how wide a character is in each font, as a fraction of the font size (a little over, to be safe). */
-const CHAR_WIDTH: Record<TLDefaultFontStyle, number> = { mono: 0.62, sans: 0.57, serif: 0.55, draw: 0.56 }
+export const CHAR_WIDTH: Record<TLDefaultFontStyle, number> = { mono: 0.62, sans: 0.57, serif: 0.55, draw: 0.56 }
 
 /**
  * The whole run's tree, laid out once so it holds still while it grows: each call centred over the
