@@ -1,6 +1,7 @@
 import type { Marks } from '../../cells/marks'
 import { extendValues, fillValues, type FillMode, type FillRange } from '../../data/fill'
 import { cellKey, parseCellKey } from './layout'
+import { headerTexts } from './numbering'
 
 export type Grid = string[][]
 
@@ -86,8 +87,13 @@ export function moveMarks(marks: Marks, move: (r: number, c: number) => [number,
 /** Where cells go when a row (or column) is inserted at `at`, or deleted from it. */
 export const shiftAt = (at: number, by: 1 | -1) => (i: number) => (i < at ? i : by > 0 ? i + 1 : i === at ? undefined : i - 1)
 
-/** Row (or column) labels moved with their rows: a blank one where a row is inserted at `at`, or the deleted row's gone. */
-export function shiftLabels(labels: readonly string[], at: number, by: 1 | -1): string[] {
+/**
+ * Row (or column) labels when one of `count` rows is inserted at `at` (by 1) or deleted from it (-1).
+ * Labels move with their rows (a blank one for a new row), unless every header is numbered
+ * (addresses 0x0, 0x1...): then they number the places, so they stay, and a new last one carries on.
+ */
+export function shiftLabels(labels: readonly string[], count: number, at: number, by: 1 | -1): string[] {
+	if (headerTexts(labels, count).every((h) => h.numbered)) return labels.slice(0, count + by)
 	if (by < 0) return labels.filter((_, i) => i !== at)
 	return at < labels.length ? [...labels.slice(0, at), '', ...labels.slice(at)] : [...labels]
 }

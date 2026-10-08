@@ -134,35 +134,42 @@ test('transpose at once turns rows x cols into cols x rows; one undo', async ({ 
 	expect((await matrix(page)).values).toEqual(before)
 })
 
-test('label the rows (addresses) and columns in place of the indices; the cells stay put', async ({ page }) => {
+test('label the rows (addresses) and columns in place of the indices; numbers carry on, the cells stay put', async ({ page }) => {
 	await sketchMatrix(page, [200, 200], 3, 2)
+	const rowTexts = () => page.locator('[data-row-index]').allTextContents()
 	await page.mouse.dblclick(...(await centreOf(page, 'row:0')))
 	await expect(page.getByLabel('Cell row:0')).toHaveValue('0')
-	await page.keyboard.type('0x0')
+	await page.keyboard.type('0x00')
 	await page.keyboard.press('Tab')
-	await page.keyboard.type('0x1')
-	await page.keyboard.press('Tab')
-	await page.keyboard.type('0x2')
+	// The next row carries on the numbering; a second label sets the step.
+	await expect(page.getByLabel('Cell row:1')).toHaveValue('0x01')
+	await page.keyboard.type('0x04')
 	await page.keyboard.press('Enter')
-	expect((await matrix(page)).rowLabels).toEqual(['0x0', '0x1', '0x2'])
+	expect((await matrix(page)).rowLabels).toEqual(['0x00', '0x04', ''])
+	expect(await rowTexts()).toEqual(['0x00', '0x04', '0x08'])
 	expect(await cellAt(page, 0, 0)).toEqual([200, 200])
-	await expect(page.locator('[data-row-index="2"]')).toHaveText('0x2')
 
+	// Addresses number the places: a row inserted in the middle leaves them in order.
+	await rightClick(page, await cellAt(page, 1, 0))
+	await page.getByTestId('context-menu-sub.drawds-matrix-actions-button').click()
+	await page.getByTestId('context-menu.matrix-row-above').click()
+	expect(await rowTexts()).toEqual(['0x00', '0x04', '0x08', '0x0C'])
+
+	// Names move with their columns.
 	await page.mouse.dblclick(...(await centreOf(page, 'col:1')))
 	await page.keyboard.type('next')
 	await page.keyboard.press('Enter')
 	expect((await matrix(page)).colLabels).toEqual(['', 'next'])
-	await expect(page.locator('[data-col-index="0"]')).toHaveText('0')
-
-	// Labels move with their rows; clearing them brings the indices back, the cells where they were.
-	await rightClick(page, await cellAt(page, 1, 0))
+	await rightClick(page, await cellAt(page, 0, 1))
 	await page.getByTestId('context-menu-sub.drawds-matrix-actions-button').click()
-	await page.getByTestId('context-menu.matrix-row-above').click()
-	expect((await matrix(page)).rowLabels).toEqual(['0x0', '', '0x1', '0x2'])
+	await page.getByTestId('context-menu.matrix-col-left').click()
+	expect(await page.locator('[data-col-index]').allTextContents()).toEqual(['0', '1', 'next'])
+
+	// Clearing them brings the indices back, the cells where they were.
 	await rightClick(page, await cellAt(page, 0, 0))
 	await page.getByTestId('context-menu-sub.drawds-matrix-actions-button').click()
 	await page.getByTestId('context-menu.matrix-clear-labels').click()
 	expect(await matrix(page)).toMatchObject({ rowLabels: [], colLabels: [] })
 	expect(await cellAt(page, 0, 0)).toEqual([200, 200])
-	await expect(page.locator('[data-row-index="0"]')).toHaveText('0')
+	expect(await rowTexts()).toEqual(['0', '1', '2', '3'])
 })

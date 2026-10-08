@@ -1,6 +1,7 @@
 import type { TLDefaultSizeStyle, VecLike } from 'tldraw'
 import type { Box } from '../../nodelink/geometry'
 import { CELL_SIZES } from '../sizes'
+import { headerTexts, type HeaderText } from './numbering'
 
 // A matrix is a grid of cells with its column indices above and its row indices to the left, all
 // inside the shape's box: the cells start at `origin`, past the indices.
@@ -19,13 +20,16 @@ export function getMatrixMetrics(size: TLDefaultSizeStyle) {
 }
 export type MatrixMetrics = ReturnType<typeof getMatrixMetrics>
 
-/** Text in place of the indices: row r's left of it, column c's above it ('' or missing: the index). */
+/**
+ * Text in place of the indices: row r's left of it, column c's above it ('' or missing: the index, or
+ * the numbering of a numbered label above it continued, `numbering.ts`).
+ */
 export interface MatrixHeaders {
 	rows?: readonly string[]
 	cols?: readonly string[]
 }
 
-/** What a row's or column's header says: its label, else its index (smaller, fainter). */
+/** What a row's or column's header says: its label (typed or continued), else its index (smaller, fainter). */
 export interface MatrixHeader {
 	text: string
 	labelled: boolean
@@ -69,15 +73,15 @@ export function getMatrixLayout(rows: number, cols: number, metrics: MatrixMetri
 	const { cell, indexFontSize } = metrics
 	const indexW = indexFontSize * 1.6
 	const pad = indexFontSize * 0.6
-	const header = (labels: readonly string[] | undefined, i: number, room = Infinity): MatrixHeader => {
-		const label = labels?.[i]
-		const text = label || String(i)
-		const fontSize = label ? Math.min(metrics.fontSize * 0.8, (room - pad) / (text.length * CHAR_W)) : indexFontSize
-		return { text, labelled: !!label, fontSize }
+	const [rowTexts, colTexts] = [headerTexts(headers.rows, rows), headerTexts(headers.cols, cols)]
+	const header = (texts: HeaderText[], i: number, room = Infinity): MatrixHeader => {
+		const { text, labelled } = texts[i] ?? { text: String(i), labelled: false }
+		const fontSize = labelled ? Math.min(metrics.fontSize * 0.8, (room - pad) / (text.length * CHAR_W)) : indexFontSize
+		return { text, labelled, fontSize }
 	}
 	const textW = ({ text, fontSize }: MatrixHeader) => Math.max(indexW, text.length * fontSize * CHAR_W + pad)
-	const rowHeader = (r: number) => header(headers.rows, r)
-	const colHeader = (c: number) => header(headers.cols, c, cell)
+	const rowHeader = (r: number) => header(rowTexts, r)
+	const colHeader = (c: number) => header(colTexts, c, cell)
 	// The strip left of the rows: room for the widest header, as much either side of it as an index has.
 	const gap = (metrics.origin.x - indexW) / 2
 	const widest = Math.max(indexW, ...Array.from({ length: rows }, (_, r) => textW(rowHeader(r))))

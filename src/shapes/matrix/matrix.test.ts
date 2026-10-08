@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { matrixCells, setLabel, step } from './cells'
 import { cellKey, getMatrixLayout, getMatrixMetrics, parseCellKey, parseHeaderKey, sketchPosition, sketchSize } from './layout'
 import { matrixShapeMigrations, type MatrixShape } from './matrix-shape-types'
+import { headerTexts, parseNumbered, withNumber } from './numbering'
 import { deleteCol, deleteRow, insertCol, insertRow, matrixValues, moveMarks, resize, shellIndex, shiftAt, shiftLabels, transpose } from './model'
 import { isSortedMatrix, staircaseSearch, transposeSteps, traverse } from './operations'
 
@@ -41,11 +42,11 @@ describe('matrix layout', () => {
 	it('labels take the indices\' place; the row strip widens for the widest, a column label shrinks to fit', () => {
 		const plain = getMatrixLayout(3, 2, m)
 		expect(plain.rowHeader(1)).toEqual({ text: '1', labelled: false, fontSize: m.indexFontSize })
-		const labelled = getMatrixLayout(3, 2, m, { rows: ['0x0000', '', '0x0002'], cols: ['a very long name'] })
-		expect(labelled.rowHeader(0)).toMatchObject({ text: '0x0000', labelled: true })
+		const labelled = getMatrixLayout(3, 2, m, { rows: ['top', '', '0x0002'], cols: ['a very long name'] })
+		expect(labelled.rowHeader(2)).toMatchObject({ text: '0x0002', labelled: true })
 		expect(labelled.rowHeader(1)).toMatchObject({ text: '1', labelled: false })
 		expect(labelled.cells.x).toBeGreaterThan(plain.cells.x)
-		const box = labelled.rowIndexBox(0)
+		const box = labelled.rowIndexBox(2)
 		expect(box.x).toBeGreaterThan(0)
 		expect(box.x + box.w).toBeLessThan(labelled.cells.x)
 		expect(labelled.colHeader(0).fontSize).toBeLessThan(m.fontSize * 0.8)
@@ -64,6 +65,7 @@ describe('matrix layout', () => {
 })
 
 describe('matrix labels', () => {
+	const m = getMatrixMetrics('m')
 	const shape = (props: Partial<MatrixShape['props']> = {}) =>
 		({ id: 'shape:m', type: 'matrix', props: { values: grid(3, 2), size: 'm', rowLabels: [], colLabels: [], ...props } }) as unknown as MatrixShape
 
@@ -86,10 +88,54 @@ describe('matrix labels', () => {
 		expect(matrixCells.neighbor(s, 'col:1', 'next')).toBeUndefined()
 	})
 
-	it('labels move with their rows', () => {
-		expect(shiftLabels(['a', 'b', 'c'], 1, 1)).toEqual(['a', '', 'b', 'c'])
-		expect(shiftLabels(['a', 'b'], 5, 1)).toEqual(['a', 'b'])
-		expect(shiftLabels(['a', 'b', 'c'], 1, -1)).toEqual(['a', 'c'])
+	it('names move with their rows; numbered headers number the places, so they stay', () => {
+		expect(shiftLabels(['a', 'b', 'c'], 3, 1, 1)).toEqual(['a', '', 'b', 'c'])
+		expect(shiftLabels(['a', 'b'], 6, 5, 1)).toEqual(['a', 'b'])
+		expect(shiftLabels(['a', 'b', 'c'], 3, 1, -1)).toEqual(['a', 'c'])
+		// 0x00, 0x04, 0x08...: a row inserted or deleted anywhere leaves the addresses in order.
+		expect(shiftLabels(['0x00', '0x04'], 4, 0, 1)).toEqual(['0x00', '0x04'])
+		expect(shiftLabels(['0x00', '0x04'], 4, 0, -1)).toEqual(['0x00', '0x04'])
+		expect(shiftLabels(['0x0', '0x1', '0x2'], 3, 1, -1)).toEqual(['0x0', '0x1'])
+		// Not every row numbered (row 0 shows its index): they move.
+		expect(shiftLabels(['', '0x4'], 3, 0, 1)).toEqual(['', '', '0x4'])
+	})
+
+	it('a numbered label carries on: by one, or by the step two in a row set', () => {
+		const texts = (labels: string[], n = 5) => headerTexts(labels, n).map((h) => h.text)
+		expect(texts(['0x0'])).toEqual(['0x0', '0x1', '0x2', '0x3', '0x4'])
+		expect(texts(['0x00', '0x04'])).toEqual(['0x00', '0x04', '0x08', '0x0C', '0x10'])
+		expect(texts(['0xff', '0xfe'], 3)).toEqual(['0xff', '0xfe', '0xfd'])
+		expect(texts(['', '', 'Q1'])).toEqual(['0', '1', 'Q1', 'Q2', 'Q3'])
+		expect(texts(['1'])).toEqual(['1', '2', '3', '4', '5'])
+		expect(texts(['007'], 2)).toEqual(['007', '008'])
+		expect(texts(['row 1:'], 2)).toEqual(['row 1:', 'row 2:'])
+		// Names don't carry on; a count down stops at zero.
+		expect(texts(['Alice', 'Bob'], 3)).toEqual(['Alice', 'Bob', '2'])
+		expect(texts(['2', '1'], 4)).toEqual(['2', '1', '0', '3'])
+		// A label typed after a continued one counts on by one from there; different kinds don't set a step.
+		expect(texts(['0x0', '', '0x10'])).toEqual(['0x0', '0x1', '0x10', '0x11', '0x12'])
+		expect(texts(['A1', '0x4'], 3)).toEqual(['A1', '0x4', '0x5'])
+		expect(headerTexts(['0x0', '', 'x'], 4).map((h) => [h.labelled, h.numbered])).toEqual([
+			[true, true],
+			[true, true],
+			[true, false],
+			[false, false],
+		])
+	})
+
+	it('parses hex after 0x, else the last run of digits; writes it back the same way', () => {
+		expect(parseNumbered('0x1f')).toMatchObject({ prefix: '0x', n: 31, suffix: '', hex: true, upper: false })
+		expect(parseNumbered('a[12]')).toMatchObject({ prefix: 'a[', n: 12, suffix: ']', hex: false })
+		expect(parseNumbered('top')).toBeUndefined()
+		expect(withNumber(parseNumbered('0x0A')!, 255)).toBe('0xFF')
+		expect(withNumber(parseNumbered('0x00')!, 4)).toBe('0x04')
+		expect(withNumber(parseNumbered('5')!, -1)).toBeUndefined()
+	})
+
+	it('the matrix shows continued labels, and an unlabelled header after one starts editing from it', () => {
+		const layout = getMatrixLayout(3, 2, m, { rows: ['0x0'] })
+		expect(layout.rowHeader(2)).toMatchObject({ text: '0x2', labelled: true })
+		expect(matrixCells.getValue(shape({ rowLabels: ['0x0'] }), 'row:1')).toBe('0x1')
 	})
 
 	it('matrices saved before labels existed get none', () => {

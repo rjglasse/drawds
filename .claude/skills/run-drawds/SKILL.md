@@ -228,7 +228,8 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `drawds-matrix-actions` (`matrix-row-above|below`, `matrix-col-left|right`, `matrix-delete-row|col`,
   `matrix-transpose`, `matrix-reroll`, `matrix-clear-labels` once a header is labelled). `dblclick` a row index
   (left) or column index (above) to label it (input `Cell row:<r>` / `Cell col:<c>`; Tab runs down / along the headers);
-  props `rowLabels`, `colLabels`; drawn as `[data-row-index]` / `[data-col-index]` text.
+  props `rowLabels`, `colLabels` (typed ones only: `0x0` alone shows 0x0, 0x1, 0x2... down the rows); drawn as
+  `[data-row-index]` / `[data-col-index]` text.
 - **Graph views**: `rclick` a graph node, `context-menu-sub.drawds-graph-show-button`, then
   `context-menu.graph-show-matrix`, `graph-show-lists` or `graph-show-union-find` (undirected): a `graph-view` shape
   appears to the graph's right (past any views it has; Kruskal opens the union-find one itself)

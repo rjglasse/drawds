@@ -203,6 +203,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 			'Drag the grips on the right and at the bottom to add columns and rows',
 			'Right-click a cell to insert or delete its row or column',
 			'Double-click an index to label its row or column (e.g. an address, 0x0); clear it to get the index back',
+			'A numbered label carries on down the rows (0x0: 0x1, 0x2...); label the next one too to set the step (0x00, 0x04: 0x08...)',
 		]
 	}
 
@@ -244,7 +245,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 		this.change(id, 'insert row', (s) => ({
 			values: insertRow(s.props.values, at, this.fresh(s, colsOf(s.props.values))),
 			marks: moveMarks(s.props.marks, (r, c) => [shiftAt(at, 1)(r)!, c]),
-			rowLabels: shiftLabels(s.props.rowLabels, at, 1),
+			rowLabels: shiftLabels(s.props.rowLabels, rowsOf(s.props.values), at, 1),
 		}))
 	}
 
@@ -252,14 +253,14 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 		this.change(id, 'insert column', (s) => ({
 			values: insertCol(s.props.values, at, this.fresh(s, rowsOf(s.props.values))),
 			marks: moveMarks(s.props.marks, (r, c) => [r, shiftAt(at, 1)(c)!]),
-			colLabels: shiftLabels(s.props.colLabels, at, 1),
+			colLabels: shiftLabels(s.props.colLabels, colsOf(s.props.values), at, 1),
 		}))
 	}
 
 	private removeRow(id: MatrixShape['id'], at: number) {
 		this.change(id, 'delete row', (s) => ({
 			values: deleteRow(s.props.values, at),
-			rowLabels: shiftLabels(s.props.rowLabels, at, -1),
+			rowLabels: shiftLabels(s.props.rowLabels, rowsOf(s.props.values), at, -1),
 			marks: moveMarks(s.props.marks, (r, c) => {
 				const to = shiftAt(at, -1)(r)
 				return to === undefined ? undefined : [to, c]
@@ -270,7 +271,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 	private removeCol(id: MatrixShape['id'], at: number) {
 		this.change(id, 'delete column', (s) => ({
 			values: deleteCol(s.props.values, at),
-			colLabels: shiftLabels(s.props.colLabels, at, -1),
+			colLabels: shiftLabels(s.props.colLabels, colsOf(s.props.values), at, -1),
 			marks: moveMarks(s.props.marks, (r, c) => {
 				const to = shiftAt(at, -1)(c)
 				return to === undefined ? undefined : [r, to]
