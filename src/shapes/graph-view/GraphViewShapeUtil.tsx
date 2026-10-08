@@ -56,7 +56,7 @@ export class GraphViewShapeUtil extends ShapeUtil<GraphViewShape> {
 		}
 		if (shape.props.view === 'matrix') {
 			const { labels, values } = adjacencyMatrix(graph.props)
-			const layout = getMatrixLayout(values.length, values.length, getMatrixMetrics(shape.props.size))
+			const layout = getMatrixLayout(values.length, values.length, getMatrixMetrics(shape.props.size), { rows: labels, cols: labels })
 			return { kind: 'matrix' as const, graph, labels, values, box: layout.box }
 		}
 		// The lists start at the origin: head cells at x = 0, the first row at the top.

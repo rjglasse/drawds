@@ -3,6 +3,7 @@ import {
 	DefaultFontStyle,
 	DefaultSizeStyle,
 	T,
+	createShapePropsMigrationIds,
 	createShapePropsMigrationSequence,
 	type RecordProps,
 	type TLDefaultColorStyle,
@@ -31,6 +32,9 @@ export interface MatrixShapeProps {
 	marks: Marks
 	/** Named pointers at cells (`r,c`). */
 	pointers: Pointer[]
+	/** Labels in place of the row indices (left) and column indices (above), e.g. addresses; '' shows the index. */
+	rowLabels: string[]
+	colLabels: string[]
 	color: TLDefaultColorStyle
 	size: TLDefaultSizeStyle
 	font: TLDefaultFontStyle
@@ -51,10 +55,30 @@ export const matrixShapeProps: RecordProps<MatrixShape> = {
 	seed: T.number,
 	marks: marksValidator,
 	pointers: pointersValidator,
+	rowLabels: T.arrayOf(T.string),
+	colLabels: T.arrayOf(T.string),
 	color: DefaultColorStyle,
 	size: DefaultSizeStyle,
 	font: DefaultFontStyle,
 }
 
+const versions = createShapePropsMigrationIds(MATRIX_SHAPE_TYPE, {
+	AddLabels: 1,
+})
+
 /** Matrices are persisted in the browser, so every props change needs a step here. */
-export const matrixShapeMigrations = createShapePropsMigrationSequence({ sequence: [] })
+export const matrixShapeMigrations = createShapePropsMigrationSequence({
+	sequence: [
+		{
+			id: versions.AddLabels,
+			up(props) {
+				props.rowLabels = []
+				props.colLabels = []
+			},
+			down(props) {
+				delete props.rowLabels
+				delete props.colLabels
+			},
+		},
+	],
+})

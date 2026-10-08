@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { open, sketchArray, sketchGraph, sketchHeap, sketchList, sketchTree, withEditor } from './helpers'
+import { CELL, open, sketchArray, sketchGraph, sketchHeap, sketchList, sketchTree, withEditor } from './helpers'
 
 test('arrays saved before fill modes existed still load', async ({ page }) => {
 	await open(page)
@@ -138,4 +138,26 @@ test('lists saved before kinds existed load as plain lists', async ({ page }) =>
 		return editor.getCurrentPageShapes().map((s) => s.props)
 	})
 	expect(loaded).toEqual([expect.objectContaining({ kind: 'list' })])
+})
+
+test('matrices saved before labels existed load with their indices', async ({ page }) => {
+	await open(page)
+	await page.keyboard.press('Shift+M')
+	await page.mouse.move(300, 200)
+	await page.mouse.down()
+	await page.mouse.move(300 + CELL + 10, 200 + CELL + 10, { steps: 10 })
+	await page.mouse.up()
+	const loaded = await withEditor(page, (editor) => {
+		const doc = structuredClone(editor.getSnapshot().document)
+		;(doc.schema as { sequences: Record<string, number> }).sequences['com.tldraw.shape.matrix'] = 0
+		for (const record of Object.values(doc.store) as { typeName: string; type?: string; props?: Record<string, unknown> }[]) {
+			if (record.typeName !== 'shape' || record.type !== 'matrix' || !record.props) continue
+			delete record.props.rowLabels
+			delete record.props.colLabels
+		}
+		editor.loadSnapshot({ document: doc })
+		return editor.getCurrentPageShapes().map((s) => s.props)
+	})
+	expect(loaded).toEqual([expect.objectContaining({ rowLabels: [], colLabels: [] })])
+	await expect(page.locator('[data-row-index="1"]')).toHaveText('1')
 })

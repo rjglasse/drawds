@@ -88,8 +88,8 @@ export interface PlaybackLayout {
 export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 	abstract readonly cells: EditableCells<S>
 
-	/** Font for the inline input, so typing looks like the rendered value. */
-	abstract getCellFont(shape: S): CellFont
+	/** Font for the inline input, so typing looks like the rendered value (of cell `key`, when given). */
+	abstract getCellFont(shape: S, key?: CellKey): CellFont
 
 	/** Marks on this shape's cells. Every cell shape stores them as `props.marks`. */
 	getMarks(shape: S): Marks {
@@ -426,7 +426,7 @@ function CellInput<S extends TLShape>({
 
 	const box = cells.cellBox(shape, cellKey)
 	const bounds = editor.getShapeGeometry(shape).bounds
-	const { fontFamily, fontSize } = util.getCellFont(shape)
+	const { fontFamily, fontSize } = util.getCellFont(shape, cellKey)
 
 	return (
 		<>

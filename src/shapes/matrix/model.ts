@@ -85,3 +85,9 @@ export function moveMarks(marks: Marks, move: (r: number, c: number) => [number,
 
 /** Where cells go when a row (or column) is inserted at `at`, or deleted from it. */
 export const shiftAt = (at: number, by: 1 | -1) => (i: number) => (i < at ? i : by > 0 ? i + 1 : i === at ? undefined : i - 1)
+
+/** Row (or column) labels moved with their rows: a blank one where a row is inserted at `at`, or the deleted row's gone. */
+export function shiftLabels(labels: readonly string[], at: number, by: 1 | -1): string[] {
+	if (by < 0) return labels.filter((_, i) => i !== at)
+	return at < labels.length ? [...labels.slice(0, at), '', ...labels.slice(at)] : [...labels]
+}

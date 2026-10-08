@@ -11,6 +11,7 @@ import {
 	type TLShape,
 	type TLShapePartial,
 	type TLThemeColors,
+	type VecLike,
 } from 'tldraw'
 import { CellShapeUtil, type NodeOperation, type PlaybackLayout } from '../../cells/CellShapeUtil'
 import { CueBadge } from '../../cells/CueBadge'
@@ -25,8 +26,8 @@ import type { Refillable } from '../../data/fill-style'
 import { newSeed } from '../../data/random'
 import { animationMs, isBusy, playOperation, playbackFor, type Frame } from '../../nodelink/playback'
 import { placePointers, type PointerAnchor } from '../../pointers/layout'
-import { matrixCells } from './cells'
-import { cellKey, getMatrixLayout, getMatrixMetrics, parseCellKey, type MatrixMetrics } from './layout'
+import { layoutOf, matrixCells } from './cells'
+import { cellKey, getMatrixLayout, getMatrixMetrics, parseCellKey, parseHeaderKey, type MatrixHeaders, type MatrixMetrics } from './layout'
 import { MATRIX_SHAPE_TYPE, MAX_MATRIX, matrixShapeMigrations, matrixShapeProps, type MatrixShape } from './matrix-shape-types'
 import {
 	colsOf,
@@ -40,6 +41,7 @@ import {
 	resize,
 	rowsOf,
 	shiftAt,
+	shiftLabels,
 	transpose,
 	type Grid,
 } from './model'
@@ -70,6 +72,8 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 			seed: 0,
 			marks: {},
 			pointers: [],
+			rowLabels: [],
+			colLabels: [],
 			color: 'black',
 			size: 'm',
 			font: 'mono',
@@ -82,7 +86,12 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 	}
 
 	private layout(shape: MatrixShape, values: Grid = shape.props.values) {
-		return getMatrixLayout(rowsOf(values), colsOf(values), getMatrixMetrics(shape.props.size))
+		return getMatrixLayout(rowsOf(values), colsOf(values), getMatrixMetrics(shape.props.size), headersOf(shape))
+	}
+
+	/** Labelled rows widen the strip on their left; the cells stay put on the page (see `onBeforeUpdate`). */
+	override layoutOffset(shape: MatrixShape): VecLike {
+		return { x: layoutOf(shape).cells.x - getMatrixMetrics(shape.props.size).origin.x, y: 0 }
 	}
 
 	getGeometry(shape: MatrixShape) {
@@ -109,7 +118,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 
 	override onHandleDrag(shape: MatrixShape, { handle, initial = shape }: TLHandleDragInfo<MatrixShape>): TLShapePartial<MatrixShape> | void {
 		if (handle.id !== GROW_COLS && handle.id !== GROW_ROWS) return
-		const { values, fill, seed, range, marks } = initial.props
+		const { values, fill, seed, range, marks, rowLabels, colLabels } = initial.props
 		const layout = this.layout(initial)
 		const { cell } = getMatrixMetrics(initial.props.size)
 		const [rows, cols] = [rowsOf(values), colsOf(values)]
@@ -117,7 +126,12 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 			Math.min(MAX_MATRIX, grownCount(n, from, handle, axis, cell))
 		const [r, c] = handle.id === GROW_COLS ? [rows, grow(cols, layout.growCols, { x: 1, y: 0 })] : [grow(rows, layout.growRows, { x: 0, y: 1 }), cols]
 		const grid = resize(values, r, c, (count) => freshValues(values, fill, seed, range, count))
-		return this.update(shape, { values: grid, marks: moveMarks(marks, (i, j) => (i < r && j < c ? [i, j] : undefined)) })
+		return this.update(shape, {
+			values: grid,
+			marks: moveMarks(marks, (i, j) => (i < r && j < c ? [i, j] : undefined)),
+			rowLabels: rowLabels.slice(0, r),
+			colLabels: colLabels.slice(0, c),
+		})
 	}
 
 	// A cell's menu: rows and columns through it. Wherever it is right-clicked: the steps, transpose.
@@ -171,6 +185,9 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 				: []),
 			{ section: 'actions', id: 'matrix-transpose', label: 'Transpose', run: () => this.transposeNow(id) },
 			{ section: 'actions', id: 'matrix-reroll', label: 'New values', run: () => this.reroll(id) },
+			...(shape.props.rowLabels.some(Boolean) || shape.props.colLabels.some(Boolean)
+				? [{ section: 'actions' as const, id: 'matrix-clear-labels', label: 'Back to indices (clear labels)', run: () => this.clearLabels(id) }]
+				: []),
 		]
 	}
 
@@ -185,6 +202,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 			'Double-click a cell to type; Tab and the arrows move on',
 			'Drag the grips on the right and at the bottom to add columns and rows',
 			'Right-click a cell to insert or delete its row or column',
+			'Double-click an index to label its row or column (e.g. an address, 0x0); clear it to get the index back',
 		]
 	}
 
@@ -226,6 +244,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 		this.change(id, 'insert row', (s) => ({
 			values: insertRow(s.props.values, at, this.fresh(s, colsOf(s.props.values))),
 			marks: moveMarks(s.props.marks, (r, c) => [shiftAt(at, 1)(r)!, c]),
+			rowLabels: shiftLabels(s.props.rowLabels, at, 1),
 		}))
 	}
 
@@ -233,12 +252,14 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 		this.change(id, 'insert column', (s) => ({
 			values: insertCol(s.props.values, at, this.fresh(s, rowsOf(s.props.values))),
 			marks: moveMarks(s.props.marks, (r, c) => [r, shiftAt(at, 1)(c)!]),
+			colLabels: shiftLabels(s.props.colLabels, at, 1),
 		}))
 	}
 
 	private removeRow(id: MatrixShape['id'], at: number) {
 		this.change(id, 'delete row', (s) => ({
 			values: deleteRow(s.props.values, at),
+			rowLabels: shiftLabels(s.props.rowLabels, at, -1),
 			marks: moveMarks(s.props.marks, (r, c) => {
 				const to = shiftAt(at, -1)(r)
 				return to === undefined ? undefined : [to, c]
@@ -249,6 +270,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 	private removeCol(id: MatrixShape['id'], at: number) {
 		this.change(id, 'delete column', (s) => ({
 			values: deleteCol(s.props.values, at),
+			colLabels: shiftLabels(s.props.colLabels, at, -1),
 			marks: moveMarks(s.props.marks, (r, c) => {
 				const to = shiftAt(at, -1)(c)
 				return to === undefined ? undefined : [r, to]
@@ -256,9 +278,18 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 		}))
 	}
 
-	/** Transpose at once (any shape: rows x cols becomes cols x rows); marks go with their values. */
+	/** Transpose at once (any shape: rows x cols becomes cols x rows); marks and labels go with their values. */
 	private transposeNow(id: MatrixShape['id']) {
-		this.change(id, 'transpose', (s) => ({ values: transpose(s.props.values), marks: moveMarks(s.props.marks, (r, c) => [c, r]) }))
+		this.change(id, 'transpose', (s) => ({
+			values: transpose(s.props.values),
+			marks: moveMarks(s.props.marks, (r, c) => [c, r]),
+			rowLabels: s.props.colLabels,
+			colLabels: s.props.rowLabels,
+		}))
+	}
+
+	private clearLabels(id: MatrixShape['id']) {
+		this.change(id, 'clear labels', () => ({ rowLabels: [], colLabels: [] }))
 	}
 
 	private reroll(id: MatrixShape['id']) {
@@ -289,7 +320,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 	override playbackLayout(shape: MatrixShape, frame: Frame | undefined): PlaybackLayout {
 		const values = this.displayValues(shape, frame)
 		const metrics = getMatrixMetrics(shape.props.size)
-		const { box } = getMatrixLayout(rowsOf(values), colsOf(values), metrics)
+		const { box } = this.layout(shape, values)
 		const fontSize = this.getPointerFontSize(shape)
 		return {
 			left: box.x,
@@ -318,6 +349,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 				<SVGContainer>
 					<MatrixSvg
 						values={this.displayValues(shape)}
+						{...labelsOf(shape)}
 						marks={shape.props.marks}
 						color={shape.props.color}
 						metrics={getMatrixMetrics(shape.props.size)}
@@ -352,6 +384,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 				<>
 					<MatrixSvg
 						values={this.displayValues(shape)}
+						{...labelsOf(shape)}
 						marks={shape.props.marks}
 						color={shape.props.color}
 						metrics={getMatrixMetrics(shape.props.size)}
@@ -368,6 +401,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 		return (
 			<MatrixSvg
 				values={shape.props.values}
+				{...labelsOf(shape)}
 				marks={shape.props.marks}
 				color={shape.props.color}
 				metrics={getMatrixMetrics(shape.props.size)}
@@ -389,14 +423,19 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 		return this.editor.getCurrentTheme().fonts[shape.props.font].faces ?? []
 	}
 
-	getCellFont(shape: MatrixShape) {
-		return { fontFamily: this.getFontFamily(shape), fontSize: getMatrixMetrics(shape.props.size).fontSize }
+	getCellFont(shape: MatrixShape, key?: string) {
+		const header = key === undefined ? undefined : parseHeaderKey(key)
+		const fontSize = header ? getMatrixMetrics(shape.props.size).fontSize * 0.8 : getMatrixMetrics(shape.props.size).fontSize
+		return { fontFamily: this.getFontFamily(shape), fontSize }
 	}
 
 	private getFontFamily(shape: MatrixShape) {
 		return this.editor.getCurrentTheme().fonts[shape.props.font].fontFamily
 	}
 }
+
+const headersOf = (shape: MatrixShape): MatrixHeaders => ({ rows: shape.props.rowLabels, cols: shape.props.colLabels })
+const labelsOf = (shape: MatrixShape) => ({ rowLabels: shape.props.rowLabels, colLabels: shape.props.colLabels })
 
 /**
  * The grid: cells, marks and a step's highlights, faded cells, values (swapping ones arc), and the
@@ -431,14 +470,14 @@ export function MatrixSvg({
 	/** Canvas only, in predict mode: cells the play bar's question is about (`r,c`), ringed in pulsing violet. */
 	pulse?: readonly string[]
 	swaps?: { pairs: [string, string][]; id: number; ms: number }
-	/** Headers in place of the indices. */
+	/** Headers in place of the indices ('' keeps the index). */
 	rowLabels?: readonly string[]
 	colLabels?: readonly string[]
 	/** Colour-blind cues: marked and highlighted cells and headers get a shape badge (`cues.ts`). */
 	cues?: boolean
 }) {
 	const [rows, cols] = [rowsOf(values), colsOf(values)]
-	const layout = getMatrixLayout(rows, cols, metrics)
+	const layout = getMatrixLayout(rows, cols, metrics, { rows: rowLabels, cols: colLabels })
 	const { cells } = layout
 	const { cell, strokeWidth } = metrics
 	const stroke = getColorValue(colors, color, 'solid')
@@ -577,36 +616,22 @@ export function MatrixSvg({
 				) : null
 			})}
 			{Array.from({ length: rows }, (_, r) => {
+				if (hiddenKey === rowKey(r)) return null
 				const at = layout.rowIndexAt(r)
-				const label = rowLabels?.[r]
+				const { text, labelled, fontSize } = layout.rowHeader(r)
 				return (
-					<text
-						key={`ri${r}`}
-						data-row-index={r}
-						x={at.x}
-						y={at.y}
-						fontSize={label === undefined ? metrics.indexFontSize : metrics.fontSize * 0.8}
-						fill={colors.text}
-						opacity={label === undefined ? 0.5 : 0.9}
-					>
-						{label ?? r}
+					<text key={`ri${r}`} data-row-index={r} x={at.x} y={at.y} fontSize={fontSize} fill={colors.text} opacity={labelled ? 0.9 : 0.5}>
+						{text}
 					</text>
 				)
 			})}
 			{Array.from({ length: cols }, (_, c) => {
+				if (hiddenKey === colKey(c)) return null
 				const at = layout.colIndexAt(c)
-				const label = colLabels?.[c]
+				const { text, labelled, fontSize } = layout.colHeader(c)
 				return (
-					<text
-						key={`ci${c}`}
-						data-col-index={c}
-						x={at.x}
-						y={at.y}
-						fontSize={label === undefined ? metrics.indexFontSize : metrics.fontSize * 0.8}
-						fill={colors.text}
-						opacity={label === undefined ? 0.5 : 0.9}
-					>
-						{label ?? c}
+					<text key={`ci${c}`} data-col-index={c} x={at.x} y={at.y} fontSize={fontSize} fill={colors.text} opacity={labelled ? 0.9 : 0.5}>
+						{text}
 					</text>
 				)
 			})}

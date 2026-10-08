@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { step } from './cells'
-import { cellKey, getMatrixLayout, getMatrixMetrics, parseCellKey, sketchPosition, sketchSize } from './layout'
-import { deleteCol, deleteRow, insertCol, insertRow, matrixValues, moveMarks, resize, shellIndex, shiftAt, transpose } from './model'
+import { matrixCells, setLabel, step } from './cells'
+import { cellKey, getMatrixLayout, getMatrixMetrics, parseCellKey, parseHeaderKey, sketchPosition, sketchSize } from './layout'
+import { matrixShapeMigrations, type MatrixShape } from './matrix-shape-types'
+import { deleteCol, deleteRow, insertCol, insertRow, matrixValues, moveMarks, resize, shellIndex, shiftAt, shiftLabels, transpose } from './model'
 import { isSortedMatrix, staircaseSearch, transposeSteps, traverse } from './operations'
 
 const grid = (rows: number, cols: number) => Array.from({ length: rows }, (_, r) => Array.from({ length: cols }, (_, c) => `${r}${c}`))
@@ -32,6 +33,74 @@ describe('matrix layout', () => {
 		expect(cellKey(2, 10)).toBe('2,10')
 		expect(parseCellKey('2,10')).toEqual([2, 10])
 		expect(parseCellKey('row:2')).toBeUndefined()
+		expect(parseHeaderKey('row:2')).toEqual(['row', 2])
+		expect(parseHeaderKey('col:10')).toEqual(['col', 10])
+		expect(parseHeaderKey('2,10')).toBeUndefined()
+	})
+
+	it('labels take the indices\' place; the row strip widens for the widest, a column label shrinks to fit', () => {
+		const plain = getMatrixLayout(3, 2, m)
+		expect(plain.rowHeader(1)).toEqual({ text: '1', labelled: false, fontSize: m.indexFontSize })
+		const labelled = getMatrixLayout(3, 2, m, { rows: ['0x0000', '', '0x0002'], cols: ['a very long name'] })
+		expect(labelled.rowHeader(0)).toMatchObject({ text: '0x0000', labelled: true })
+		expect(labelled.rowHeader(1)).toMatchObject({ text: '1', labelled: false })
+		expect(labelled.cells.x).toBeGreaterThan(plain.cells.x)
+		const box = labelled.rowIndexBox(0)
+		expect(box.x).toBeGreaterThan(0)
+		expect(box.x + box.w).toBeLessThan(labelled.cells.x)
+		expect(labelled.colHeader(0).fontSize).toBeLessThan(m.fontSize * 0.8)
+		expect(labelled.colIndexBox(0).w).toBeLessThanOrEqual(m.cell)
+		// Short labels (a graph's A, B, C) fit the strip an index has.
+		expect(getMatrixLayout(3, 3, m, { rows: ['A', 'B', 'C'] }).cells.x).toBe(plain.cells.x)
+	})
+
+	it('finds the header beside a row or above a column', () => {
+		const layout = getMatrixLayout(3, 2, m)
+		expect(layout.headerAt(layout.rowIndexAt(2))).toBe('row:2')
+		expect(layout.headerAt(layout.colIndexAt(1))).toBe('col:1')
+		expect(layout.headerAt({ x: 1, y: 1 })).toBeUndefined()
+		expect(layout.headerAt({ x: layout.cells.x + 1, y: layout.cells.y + 1 })).toBeUndefined()
+	})
+})
+
+describe('matrix labels', () => {
+	const shape = (props: Partial<MatrixShape['props']> = {}) =>
+		({ id: 'shape:m', type: 'matrix', props: { values: grid(3, 2), size: 'm', rowLabels: [], colLabels: [], ...props } }) as unknown as MatrixShape
+
+	it('edits a header like a cell: the index until a label is typed, blank brings the index back', () => {
+		expect(matrixCells.getValue(shape(), 'row:1')).toBe('1')
+		expect(matrixCells.setValue(shape(), 'row:1', '0x1').props).toEqual({ rowLabels: ['', '0x1', ''] })
+		expect(matrixCells.setValue(shape(), 'col:0', ' addr ').props).toEqual({ colLabels: ['addr', ''] })
+		expect(matrixCells.getValue(shape({ rowLabels: ['', '0x1'] }), 'row:1')).toBe('0x1')
+		expect(setLabel(['a', 'b'], 3, 0, '')).toEqual(['', 'b', ''])
+	})
+
+	it('Tab and the arrows run down the row headers and along the column headers', () => {
+		const s = shape()
+		expect(matrixCells.neighbor(s, 'row:0', 'next')).toBe('row:1')
+		expect(matrixCells.neighbor(s, 'row:1', 'up')).toBe('row:0')
+		expect(matrixCells.neighbor(s, 'row:2', 'down')).toBeUndefined()
+		expect(matrixCells.neighbor(s, 'row:0', 'right')).toBeUndefined()
+		expect(matrixCells.neighbor(s, 'col:0', 'right')).toBe('col:1')
+		expect(matrixCells.neighbor(s, 'col:1', 'prev')).toBe('col:0')
+		expect(matrixCells.neighbor(s, 'col:1', 'next')).toBeUndefined()
+	})
+
+	it('labels move with their rows', () => {
+		expect(shiftLabels(['a', 'b', 'c'], 1, 1)).toEqual(['a', '', 'b', 'c'])
+		expect(shiftLabels(['a', 'b'], 5, 1)).toEqual(['a', 'b'])
+		expect(shiftLabels(['a', 'b', 'c'], 1, -1)).toEqual(['a', 'c'])
+	})
+
+	it('matrices saved before labels existed get none', () => {
+		const [addLabels] = matrixShapeMigrations.sequence
+		if (!('up' in addLabels) || typeof addLabels.down !== 'function') throw new Error('expected a props migration')
+		const props: Record<string, unknown> = { values: [['1']] }
+		addLabels.up(props)
+		expect(props).toMatchObject({ rowLabels: [], colLabels: [] })
+		addLabels.down(props)
+		expect(props).not.toHaveProperty('rowLabels')
+		expect(props).not.toHaveProperty('colLabels')
 	})
 })
 

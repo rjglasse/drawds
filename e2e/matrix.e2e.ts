@@ -19,18 +19,18 @@ async function sketchMatrix(page: Page, [x, y]: [number, number], rows: number, 
 }
 
 /** Screen centre of cell (r, c) of the selected matrix. */
-function cellAt(page: Page, r: number, c: number): Promise<[number, number]> {
-	return page.evaluate(
-		([r, c]) => {
-			const e = window.editor!
-			const s = e.getOnlySelectedShape()!
-			const util = e.getShapeUtil(s) as unknown as { cells: { cellBox(s: unknown, k: string): { x: number; y: number; w: number } } }
-			const box = util.cells.cellBox(s, `${r},${c}`)
-			const p = e.pageToScreen(e.getShapePageTransform(s).applyToPoint({ x: box.x + box.w / 2, y: box.y + box.w / 2 }))
-			return [p.x, p.y] as [number, number]
-		},
-		[r, c]
-	)
+const cellAt = (page: Page, r: number, c: number) => centreOf(page, `${r},${c}`)
+
+/** Screen centre of a cell or header (`row:<r>`, `col:<c>`) of the selected matrix. */
+function centreOf(page: Page, key: string): Promise<[number, number]> {
+	return page.evaluate((key) => {
+		const e = window.editor!
+		const s = e.getOnlySelectedShape()!
+		const util = e.getShapeUtil(s) as unknown as { cells: { cellBox(s: unknown, k: string): { x: number; y: number; w: number; h: number } } }
+		const box = util.cells.cellBox(s, key)
+		const p = e.pageToScreen(e.getShapePageTransform(s).applyToPoint({ x: box.x + box.w / 2, y: box.y + box.h / 2 }))
+		return [p.x, p.y] as [number, number]
+	}, key)
 }
 
 async function stepToEnd(page: Page) {
@@ -132,4 +132,37 @@ test('transpose at once turns rows x cols into cols x rows; one undo', async ({ 
 	expect((await matrix(page)).values).toEqual(before[0].map((_, c) => before.map((row) => row[c])))
 	await page.keyboard.press('ControlOrMeta+z')
 	expect((await matrix(page)).values).toEqual(before)
+})
+
+test('label the rows (addresses) and columns in place of the indices; the cells stay put', async ({ page }) => {
+	await sketchMatrix(page, [200, 200], 3, 2)
+	await page.mouse.dblclick(...(await centreOf(page, 'row:0')))
+	await expect(page.getByLabel('Cell row:0')).toHaveValue('0')
+	await page.keyboard.type('0x0')
+	await page.keyboard.press('Tab')
+	await page.keyboard.type('0x1')
+	await page.keyboard.press('Tab')
+	await page.keyboard.type('0x2')
+	await page.keyboard.press('Enter')
+	expect((await matrix(page)).rowLabels).toEqual(['0x0', '0x1', '0x2'])
+	expect(await cellAt(page, 0, 0)).toEqual([200, 200])
+	await expect(page.locator('[data-row-index="2"]')).toHaveText('0x2')
+
+	await page.mouse.dblclick(...(await centreOf(page, 'col:1')))
+	await page.keyboard.type('next')
+	await page.keyboard.press('Enter')
+	expect((await matrix(page)).colLabels).toEqual(['', 'next'])
+	await expect(page.locator('[data-col-index="0"]')).toHaveText('0')
+
+	// Labels move with their rows; clearing them brings the indices back, the cells where they were.
+	await rightClick(page, await cellAt(page, 1, 0))
+	await page.getByTestId('context-menu-sub.drawds-matrix-actions-button').click()
+	await page.getByTestId('context-menu.matrix-row-above').click()
+	expect((await matrix(page)).rowLabels).toEqual(['0x0', '', '0x1', '0x2'])
+	await rightClick(page, await cellAt(page, 0, 0))
+	await page.getByTestId('context-menu-sub.drawds-matrix-actions-button').click()
+	await page.getByTestId('context-menu.matrix-clear-labels').click()
+	expect(await matrix(page)).toMatchObject({ rowLabels: [], colLabels: [] })
+	expect(await cellAt(page, 0, 0)).toEqual([200, 200])
+	await expect(page.locator('[data-row-index="0"]')).toHaveText('0')
 })

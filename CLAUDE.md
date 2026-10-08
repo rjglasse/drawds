@@ -119,7 +119,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   indices above inside the box (`getMatrixLayout`). Sketch by dragging a rectangle (`MatrixShapeTool`, Shift+M);
   random fills are stable per cell as it grows (`shellIndex`: each k x k square takes the first k² values), sorted
   fills run row-major (so rows and columns are sorted). Grips `grow-cols` / `grow-rows`; a cell's menu inserts /
-  deletes rows and columns (`moveMarks` keeps marks on their cells). `operations.ts`: row- vs column-major
+  deletes rows and columns (`moveMarks` keeps marks on their cells). Headers are editable cells too (`row:<r>` / `col:<c>`, props
+  `rowLabels` / `colLabels`, '' = the index; e.g. addresses 0x0, 0x1): labelled rows widen the left strip (the shape
+  moves via `layoutOffset`, so the cells stay put), labels move with their rows and columns. `operations.ts`: row- vs column-major
   traversal with a "place in memory" strip, transpose (swaps across the diagonal), staircase search (sorted
   matrices); step pointers i / j sit at `row:<r>` / `col:<c>` (the index labels).
 - `src/shapes/graph-view/` - a graph's adjacency matrix, adjacency lists or Kruskal's union-find as a separate shape

@@ -2,7 +2,7 @@ import type { MarkColor } from '../../cells/marks'
 import { compareKeys } from '../../data/compare'
 import type { Frame, Strip } from '../../nodelink/playback'
 import type { Pointer } from '../../pointers/pointers'
-import { cellKey } from './layout'
+import { cellKey, colKey, rowKey } from './layout'
 import { colsOf, rowsOf, transpose, type Grid } from './model'
 
 // Matrix operations, step by step: the loops a teacher writes (for i, for j), with i on a row and
@@ -12,9 +12,9 @@ const LOOK: MarkColor = 'orange'
 const VISITED: MarkColor = 'blue'
 const FOUND: MarkColor = 'green'
 
+export { rowKey, colKey }
+
 /** Pointer i at a row (its index on the left), j at a column (its index above). */
-export const rowKey = (r: number) => `row:${r}`
-export const colKey = (c: number) => `col:${c}`
 const ij = (r: number, c: number): Pointer[] => [
 	{ id: '#i', name: 'i', at: rowKey(r) },
 	{ id: '#j', name: 'j', at: colKey(c) },
