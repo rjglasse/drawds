@@ -345,7 +345,13 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `generate.ts` (random shapes by depth + fullness, growth-stable: existence depends only on seed + path, ids
   are `n` + path), `layout.ts` (contour-based tidy layout; a lone child offset `lone`, well under half the
   sibling spacing, so parentage stays unambiguous), `model.ts` (add child, remove subtree, swap children,
-  mirror a subtree: plain trees' node menu, one undo step each).
+  mirror a subtree: plain trees' node menu, one undo step each). Show > Tree terms (lecture 8a; prop `terms` on trees
+  and heaps; `terms.ts` pure): the root, internal nodes and leaves tinted red / blue / green (`termMarks` under any marks,
+  as lecture 8 sorts them: the root apart), each node's height as a badge (`sceneBadges`; edges down, a leaf 0, the
+  lecture's convention, the summary giving the levels count too), "depth d" left of each level, a legend above and a
+  summary below (`termAnnotations` in the tree layout, keys `#depth:<d>`, `#legend:<term>`, `#terms-summary`, the
+  root's place unchanged); pointing at a node lights its path from the root orange and its subtree's edges green
+  (`pathAndSubtree`, via `hoverHighlights`). Tints and badges hide while an operation is open.
 - `src/shapes/graph/` - graphs: nodes at free positions in cell units (so the size style scales the drawing), edges
   `{from, to, weight}` (weights always stored; shown when the `drawds:graph-weights` style says so; direction and
   A/0 labels are styles too, see `src/ui/GraphPickers.tsx`). `generate.ts` is the sketch: a node drops every

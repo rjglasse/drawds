@@ -9,9 +9,10 @@ import type { Scene, SceneNode } from '../../nodelink/scene'
 import type { PointerAnchor } from '../../pointers/layout'
 import { prunePointers } from '../../pointers/pointers'
 import { rearrange, shuffledOrder } from '../array/rearrange'
-import { getTreeMetrics } from '../tree/layout'
+import { getTreeMetrics, legendMarks } from '../tree/layout'
+import { termMarks, treeTerms } from '../tree/terms'
 import { ORDER_NAMES, traverseTree, type TreeOrder } from '../tree/traverse'
-import { playOperation, type Frame } from '../../nodelink/playback'
+import { playbackFor, playOperation, type Frame } from '../../nodelink/playback'
 import {
 	buildByInsertion,
 	buildHeapSteps,
@@ -74,6 +75,7 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 			seed: 0,
 			marks: {},
 			pointers: [],
+			terms: false,
 			color: 'black',
 			size: 'm',
 			font: 'mono',
@@ -95,7 +97,15 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 	override sceneMarks(shape: HeapShape): Marks {
 		const marks: Marks = {}
 		for (const [key, color] of Object.entries(shape.props.marks)) Object.assign(marks, both(Number(key), color))
-		return marks
+		// With the terms shown (and no operation open): the tree view's root, internal nodes and leaves.
+		if (!shape.props.terms || playbackFor(this.editor, shape.id)) return marks
+		return { ...termMarks(treeTerms(heapTreeNodes(shape.props.values))), ...legendMarks(), ...marks }
+	}
+
+	/** With the terms shown: each tree node's height. */
+	override sceneBadges(shape: HeapShape) {
+		if (!shape.props.terms) return undefined
+		return Object.fromEntries([...treeTerms(heapTreeNodes(shape.props.values)).height].map(([id, h]) => [id, String(h)]))
 	}
 
 	/**
@@ -195,6 +205,15 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 		return [
 			{ group: 'build', id: 'heap-build', label: 'Build the heap (Floyd)', run: () => this.buildHeap(shape.id) },
 			{ section: 'actions', id: 'heap-shuffle', label: 'Shuffle values (not a heap any more)', run: () => this.shuffle(shape.id) },
+			{
+				section: 'show',
+				id: 'heap-terms',
+				label: shape.props.terms ? 'Hide the tree terms' : 'Tree terms: root, internal, leaf, depth, height',
+				run: () => {
+					this.editor.markHistoryStoppingPoint('toggle tree terms')
+					this.editor.updateShape<HeapShape>({ id: shape.id, type: HEAP_SHAPE_TYPE, props: { terms: !shape.props.terms } })
+				},
+			},
 		]
 	}
 
@@ -254,7 +273,8 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 	// Insert button appends a typed value and sifts it up.
 
 	canRemoveNode(shape: HeapShape, key: string) {
-		return !key.startsWith('a') && shape.props.values.length > 1
+		// Tree nodes only: not array cells, nor the terms' legend dots.
+		return indexOfKey(key) !== undefined && !key.startsWith('a') && shape.props.values.length > 1
 	}
 
 	removeNodeAnimated(shape: HeapShape, key: string, keep: boolean) {

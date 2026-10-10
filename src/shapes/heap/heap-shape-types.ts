@@ -41,6 +41,8 @@ export interface HeapShapeProps {
 	marks: Marks
 	/** Named pointers (i, parent...) on tree nodes (`i`) or array cells (`a<i>`); they stay at indices. */
 	pointers: Pointer[]
+	/** Lecture 8a's terms beside the tree view: root, internal and leaf tinted, depths, heights. */
+	terms: boolean
 	color: TLDefaultColorStyle
 	size: TLDefaultSizeStyle
 	font: TLDefaultFontStyle
@@ -63,6 +65,7 @@ export const heapShapeProps: RecordProps<HeapShape> = {
 	seed: T.number,
 	marks: marksValidator,
 	pointers: pointersValidator,
+	terms: T.boolean,
 	color: DefaultColorStyle,
 	size: DefaultSizeStyle,
 	font: DefaultFontStyle,
@@ -72,6 +75,7 @@ const versions = createShapePropsMigrationIds(HEAP_SHAPE_TYPE, {
 	AddPointers: 1,
 	AddInvariant: 2,
 	AddRange: 3,
+	AddTerms: 4,
 })
 
 /** Heaps are persisted in the browser, so every props change needs a step here. */
@@ -102,6 +106,15 @@ export const heapShapeMigrations = createShapePropsMigrationSequence({
 			},
 			down(props) {
 				delete props.range
+			},
+		},
+		{
+			id: versions.AddTerms,
+			up(props) {
+				props.terms = false
+			},
+			down(props) {
+				delete props.terms
 			},
 		},
 	],

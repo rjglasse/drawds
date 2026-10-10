@@ -53,14 +53,14 @@ test('lists, trees and heaps follow the same layout', async ({ page }) => {
 	)
 	await page.evaluate(() => void window.editor!.deleteShapes([...window.editor!.getCurrentPageShapeIds()]))
 	await sketchTree(page, [600, 200], 2, 1)
-	expect((await submenusAt(page, await nodeScreenPosition(page, 'n'))).map(([label]) => label)).toEqual(['Step by step', 'Binary tree', 'Mark', 'Pointer'])
+	expect((await submenusAt(page, await nodeScreenPosition(page, 'n'))).map(([label]) => label)).toEqual(['Step by step', 'Binary tree', 'Show', 'Mark', 'Pointer'])
 	await page.getByTestId('style.tree-kind.bst').click()
 	// A BST changes only through its own (step by step) insert and delete: its own submenu just has Clean copy.
-	expect((await submenusAt(page, await nodeScreenPosition(page, 'n'))).map(([label]) => label)).toEqual(['Step by step', 'Binary search tree', 'Mark', 'Pointer'])
+	expect((await submenusAt(page, await nodeScreenPosition(page, 'n'))).map(([label]) => label)).toEqual(['Step by step', 'Binary search tree', 'Show', 'Mark', 'Pointer'])
 	await page.evaluate(() => void window.editor!.deleteShapes([...window.editor!.getCurrentPageShapeIds()]))
 	await sketchHeap(page, [600, 200], 5)
 	expect(await submenusAt(page, await nodeScreenPosition(page, '1'))).toEqual(
-		['Step by step', 'Heap', 'Mark', 'Pointer'].map((label, i) => [label, ids('heap', 'steps', 'actions', 'mark', 'pointer')[i]])
+		['Step by step', 'Heap', 'Show', 'Mark', 'Pointer'].map((label, i) => [label, ids('heap', 'steps', 'actions', 'show', 'mark', 'pointer')[i]])
 	)
 })
 

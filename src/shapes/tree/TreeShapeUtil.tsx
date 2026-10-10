@@ -6,13 +6,14 @@ import type { Refillable } from '../../data/fill-style'
 import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import { prunePointers } from '../../pointers/pointers'
-import { playOperation, type Frame } from '../../nodelink/playback'
+import { playbackFor, playOperation, type Frame } from '../../nodelink/playback'
 import { assignInOrder, bstDelete, bstInsert, bstViolations } from './bst'
 import { bstBuild, bstExtreme, bstSearch } from './search'
 import { mulberry32 } from '../../data/random'
 import { seedForSketch } from '../../data/seed'
 import { shuffledOrder } from '../array/rearrange'
-import { nullKey, treeBasePosition, treeScene } from './layout'
+import { legendMarks, nullKey, treeBasePosition, treeScene } from './layout'
+import { pathAndSubtree, termMarks, treeTerms } from './terms'
 import { ORDER_NAMES, traverseTree, type TreeOrder } from './traverse'
 import { measureTree, type TreeMeasure } from './measure'
 import { addChild, levelOrder, mirrorSubtree, parentOf, removeSubtree, swapChildren } from './model'
@@ -40,6 +41,7 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 			seed: 0,
 			marks: {},
 			pointers: [],
+			terms: false,
 			color: 'black',
 			size: 'm',
 			font: 'mono',
@@ -50,6 +52,24 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 	override sceneWarnings(shape: TreeShape) {
 		const { kind, invariant, nodes } = shape.props
 		return kind === 'bst' && invariant === 'check' ? [...bstViolations(nodes)] : []
+	}
+
+	/** With the terms shown (and no operation open): root, internal and leaf in their colours, under any marks. */
+	override sceneMarks(shape: TreeShape) {
+		const marks = this.getMarks(shape)
+		if (!shape.props.terms || playbackFor(this.editor, shape.id)) return marks
+		return { ...termMarks(treeTerms(shape.props.nodes)), ...legendMarks(), ...marks }
+	}
+
+	/** With the terms shown: each node's height (edges down to its deepest leaf). */
+	override sceneBadges(shape: TreeShape) {
+		if (!shape.props.terms) return undefined
+		return Object.fromEntries([...treeTerms(shape.props.nodes).height].map(([id, h]) => [id, String(h)]))
+	}
+
+	/** With the terms shown, pointing at a node lights its path from the root and its subtree. */
+	hoverHighlights(shape: TreeShape, key: string): Marks {
+		return shape.props.terms ? pathAndSubtree(shape.props.nodes, key) : {}
 	}
 
 	buildScene(shape: TreeShape) {
@@ -103,6 +123,8 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 	// node's lower corners adds a child in an empty slot. The root stays put on the page.
 
 	canRemoveNode(shape: TreeShape, key: string) {
+		// Only nodes: not the terms' legend dots.
+		if (!shape.props.nodes.some((n) => n.id === key)) return false
 		// A BST can delete its root (the successor takes over), but keeps at least one node.
 		if (shape.props.kind === 'bst') return shape.props.nodes.length > 1
 		return key !== shape.props.nodes[0]?.id
@@ -231,14 +253,32 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 	 * (a stick) or shuffled first (bushy). The new tree is the result (one undo step).
 	 */
 	override shapeOperations(shape: TreeShape): NodeOperation[] {
-		if (shape.props.kind !== 'bst' || shape.props.nodes.length < 2) return []
+		// Lecture 8a's terms, on any tree.
+		const terms: NodeOperation = {
+			section: 'show',
+			id: 'tree-terms',
+			label: shape.props.terms ? 'Hide the tree terms' : 'Tree terms: root, internal, leaf, depth, height',
+			run: () => this.toggleTerms(shape.id),
+		}
+		if (shape.props.kind !== 'bst' || shape.props.nodes.length < 2) return [terms]
 		const build = { group: 'build' }
-		return (['sorted', 'shuffled'] as const).map((order) => ({
-			...build,
-			id: `bst-build-${order}`,
-			label: order === 'sorted' ? 'Insert these keys in sorted order (a stick)' : 'Insert these keys shuffled',
-			run: () => this.build(shape.id, order),
-		}))
+		return [
+			...(['sorted', 'shuffled'] as const).map((order) => ({
+				...build,
+				id: `bst-build-${order}`,
+				label: order === 'sorted' ? 'Insert these keys in sorted order (a stick)' : 'Insert these keys shuffled',
+				run: () => this.build(shape.id, order),
+			})),
+			terms,
+		]
+	}
+
+	/** The terms beside the tree, or not: one undo step. */
+	private toggleTerms(id: TreeShape['id']) {
+		const shape = this.editor.getShape(id) as TreeShape | undefined
+		if (!shape) return
+		this.editor.markHistoryStoppingPoint('toggle tree terms')
+		this.editor.updateShape<TreeShape>({ id, type: TREE_SHAPE_TYPE, props: { terms: !shape.props.terms } })
 	}
 
 	private build(id: TreeShape['id'], order: 'sorted' | 'shuffled') {

@@ -63,6 +63,8 @@ export interface TreeShapeProps {
 	marks: Marks
 	/** Named pointers (root, curr...) at node ids, or at null markers when they are shown. */
 	pointers: Pointer[]
+	/** Lecture 8a's terms beside the tree: root, internal and leaf tinted, depths, heights. */
+	terms: boolean
 	color: TLDefaultColorStyle
 	size: TLDefaultSizeStyle
 	font: TLDefaultFontStyle
@@ -94,6 +96,7 @@ export const treeShapeProps: RecordProps<TreeShape> = {
 	seed: T.number,
 	marks: marksValidator,
 	pointers: pointersValidator,
+	terms: T.boolean,
 	color: DefaultColorStyle,
 	size: DefaultSizeStyle,
 	font: DefaultFontStyle,
@@ -105,6 +108,7 @@ const versions = createShapePropsMigrationIds(TREE_SHAPE_TYPE, {
 	AddPointers: 3,
 	AddInvariant: 4,
 	AddRange: 5,
+	AddTerms: 6,
 })
 
 /** Trees are persisted in the browser, so every props change needs a step here. */
@@ -153,6 +157,15 @@ export const treeShapeMigrations = createShapePropsMigrationSequence({
 			},
 			down(props) {
 				delete props.range
+			},
+		},
+		{
+			id: versions.AddTerms,
+			up(props) {
+				props.terms = false
+			},
+			down(props) {
+				delete props.terms
 			},
 		},
 	],

@@ -25,17 +25,19 @@ export function heapTreeNodes(values: readonly string[]): TreeNode[] {
 	}))
 }
 
-type HeapLayoutProps = { values: readonly string[]; size: TLDefaultSizeStyle }
+type HeapLayoutProps = { values: readonly string[]; size: TLDefaultSizeStyle; terms?: boolean }
 
 /** The heap drawn twice: as a tidy tree (its root at x = 0), and as its backing array (with indices) centred below. */
-export function heapScene({ values, size }: HeapLayoutProps): Scene {
+export function heapScene({ values, size, terms = false }: HeapLayoutProps): Scene {
 	const m = getTreeMetrics(size)
-	const tree = treeScene({ nodes: heapTreeNodes(values), nulls: 'hide', size })
+	const tree = treeScene({ nodes: heapTreeNodes(values), nulls: 'hide', size, terms })
 	const nodes: SceneNode[] = tree.nodes.map((n) => ({ ...n, draggable: false }))
 	if (!nodes.length) return tree
 
-	const bottom = Math.max(...nodes.map((n) => n.y + n.h / 2))
-	const centre = (Math.min(...nodes.map((n) => n.x)) + Math.max(...nodes.map((n) => n.x))) / 2
+	// The tree's own nodes (not the terms' annotations, if shown) place the array.
+	const own = nodes.filter((n) => !n.key.startsWith('#'))
+	const bottom = Math.max(...own.map((n) => n.y + n.h / 2)) + (terms ? m.labelFontSize * 2.4 : 0)
+	const centre = (Math.min(...own.map((n) => n.x)) + Math.max(...own.map((n) => n.x))) / 2
 	const y = bottom + m.cell * 0.9 + m.cell / 2
 	const x0 = centre - ((values.length - 1) * m.cell) / 2
 	values.forEach((value, i) => {
@@ -54,8 +56,9 @@ export function heapScene({ values, size }: HeapLayoutProps): Scene {
 		})
 	})
 
-	// The root stays at x = 0, as the tree's: a heap gaining a level grows both ways and its root holds still.
-	const minY = Math.min(...nodes.map((n) => n.y - n.h / 2))
+	// The root stays at x = 0, as the tree's: a heap gaining a level grows both ways and its root holds
+	// still. Annotations above it don't move it either.
+	const minY = Math.min(...nodes.filter((n) => !n.key.startsWith('#')).map((n) => n.y - n.h / 2))
 	return { ...tree, nodes: nodes.map((n) => ({ ...n, y: n.y - minY })) }
 }
 

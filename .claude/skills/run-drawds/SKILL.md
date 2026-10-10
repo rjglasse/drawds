@@ -220,7 +220,9 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   root `n`). Node ids are paths: `n`, `nL`, `nR`, `nLR`... Null children:
   `[data-testid="style.nulls.show"]` with a tree selected. A plain tree's node menu has
   `context-menu.tree-swap-children` and `tree-mirror` under `context-menu-sub.drawds-tree-actions-button`. BSTs and heaps ring rule-breaking values
-  (`[data-warning]` in the DOM); `style.invariant.off` / `.check` toggles it.
+  (`[data-warning]` in the DOM); `style.invariant.off` / `.check` toggles it. Tree terms (root / internal / leaf
+  tinted, depths, heights as badges, a summary): `context-menu-sub.drawds-tree-show-button` > `context-menu.tree-terms`
+  (heaps: `drawds-heap-show`, `heap-terms`); prop `terms`; hover a node for its path from the root and its subtree.
 - **Matrix**: `key Shift+M` then `drag x1 y1 x2 y2` (a row / column per 48 px); cell keys `r,c`
   (`dblclick` a cell to edit). Grips: `dragnode grow-cols dx 0`, `dragnode grow-rows 0 dy`. A cell's
   menu: `context-menu-sub.drawds-matrix-steps-button` (`matrix-row-major`, `matrix-col-major`,

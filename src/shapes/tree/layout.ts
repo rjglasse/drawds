@@ -3,6 +3,7 @@ import type { Point } from '../../nodelink/geometry'
 import type { Scene, SceneEdge, SceneNode } from '../../nodelink/scene'
 import { CELL_SIZES } from '../sizes'
 import { byId } from './model'
+import { TERM_COLORS, termsSummary, treeTerms, type NodeTerm } from './terms'
 import type { TreeShapeProps } from './tree-shape-types'
 
 export function getTreeMetrics(size: TLDefaultSizeStyle) {
@@ -32,7 +33,15 @@ export function getTreeMetrics(size: TLDefaultSizeStyle) {
 }
 
 type Metrics = ReturnType<typeof getTreeMetrics>
-type LayoutProps = Pick<TreeShapeProps, 'nodes' | 'nulls' | 'size'>
+type LayoutProps = Pick<TreeShapeProps, 'nodes' | 'nulls' | 'size'> & Partial<Pick<TreeShapeProps, 'terms'>>
+
+/** Keys of the terms' annotations: a level's depth, the legend (a dot and a word per term), the summary. */
+export const depthKey = (depth: number) => `#depth:${depth}`
+export const legendKey = (term: NodeTerm) => `#legend:${term}`
+export const TERMS_SUMMARY_KEY = '#terms-summary'
+
+/** The legend's dots, tinted as the terms are. */
+export const legendMarks = () => Object.fromEntries((Object.keys(TERM_COLORS) as NodeTerm[]).map((t) => [legendKey(t), TERM_COLORS[t]]))
 
 /** Key of the null marker drawn in an empty slot. */
 export const nullKey = (parent: string, slot: number) => `#null:${parent}:${slot}`
@@ -139,8 +148,41 @@ function baseScene(props: LayoutProps): Scene {
 	}
 	visit(root, 0, 0)
 
+	// The tree's own top, so annotations above it don't move it.
 	const minY = Math.min(...nodes.map((n) => n.y - n.h / 2))
-	return { nodes: nodes.map((n) => ({ ...n, y: n.y - minY })), edges, metrics }
+	const all = props.terms ? [...nodes, ...termAnnotations(props, nodes, m)] : nodes
+	return { nodes: all.map((n) => ({ ...n, y: n.y - minY })), edges, metrics }
+}
+
+/**
+ * Lecture 8a's terms beside the tree: "depth d" left of each level, a legend above (root, internal,
+ * leaf in their colours; the badges are heights) and a summary below. The tints and badges are the
+ * shape's own (TreeShapeUtil), shown while no operation is open.
+ */
+function termAnnotations(props: LayoutProps, nodes: SceneNode[], m: Metrics): SceneNode[] {
+	const terms = treeTerms(props.nodes)
+	const text = (value: string) => ({ w: value.length * m.labelFontSize * 0.62 + m.labelFontSize, h: m.labelFontSize * 1.6, value })
+	const label = (key: string, x: number, y: number, value: string): SceneNode => ({ key, kind: 'label', x, y, ...text(value), editable: false, draggable: false })
+	const left = Math.min(...nodes.map((n) => n.x - n.w / 2)) - m.gap
+	const bottom = Math.max(...nodes.map((n) => n.y + n.h / 2))
+	const widest = text(`depth ${terms.levels - 1}`).w
+	const column = left - widest
+	const depths = Array.from({ length: terms.levels }, (_, d) => label(depthKey(d), left - widest / 2, d * m.levelH, `depth ${d}`))
+	// The legend: a small dot then its word, one after another, then what the badges are.
+	const legend: SceneNode[] = []
+	let x = column
+	const y = -m.levelH * 0.75
+	const dot = m.labelFontSize * 0.9
+	for (const term of Object.keys(TERM_COLORS) as NodeTerm[]) {
+		legend.push({ key: legendKey(term), kind: 'circle', x: x + dot / 2, y, w: dot, h: dot, value: '', editable: false, draggable: false })
+		const word = text(term)
+		legend.push(label(`${legendKey(term)}:word`, x + dot + word.w / 2, y, term))
+		x += dot + word.w + m.labelFontSize * 0.4
+	}
+	const badges = text('badge: height')
+	legend.push(label('#legend:badge', x + badges.w / 2, y, 'badge: height'))
+	const summary = text(termsSummary(terms))
+	return [...depths, ...legend, label(TERMS_SUMMARY_KEY, column + summary.w / 2, bottom + m.labelFontSize * 1.4, summary.value)]
 }
 
 /** The tree's scene: the automatic layout plus each node's drag offset; null markers follow their parent. */
