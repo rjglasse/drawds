@@ -502,9 +502,10 @@ export function StripSvg({
 							y={y}
 							width={itemW}
 							height={box}
-							fill={getColorValue(colors, color, 'semi')}
-							stroke={stroke}
-							strokeWidth={metrics.strokeWidth}
+							fill={getColorValue(colors, strip.marks?.[i] ?? color, 'semi')}
+							stroke={strip.marks?.[i] ? getColorValue(colors, strip.marks[i], 'solid') : stroke}
+							strokeWidth={metrics.strokeWidth * (strip.marks?.[i] ? 1.5 : 1)}
+							data-mark={strip.marks?.[i]}
 						/>
 						<text x={at.x + i * itemW + itemW / 2} y={y + box / 2} textAnchor="middle" fontSize={metrics.fontSize * 0.85} fill={colors.text}>
 							{item}

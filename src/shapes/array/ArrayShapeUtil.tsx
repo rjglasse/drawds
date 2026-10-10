@@ -65,6 +65,7 @@ import {
 	type AuxRow,
 } from './operations'
 import { parseCutoff, partition3Array, quicksort } from './quicksorts'
+import { insertionPasses, selectionPasses } from './passes'
 import { allUnique, findMax, sentinelSearch } from './scans'
 import { fisherYates, unfairShuffle, type ShuffleKind } from './shuffles'
 import { everyRunOperation, manyRunsOperation, TALLY_MAX, TREE_MAX, type OutcomesMode } from '../outcomes/outcomes'
@@ -315,6 +316,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		// Step by step in categories: Basics, Sorts, Shuffles (Misc, if ever needed: see NodeOperationsMenu).
 		const sorts = { group: 'sort', submenu: 'Sorts' }
 		const partitions = { group: 'partition', submenu: 'Sorts' }
+		const passes = { group: 'passes', submenu: 'Sorts' }
 		const quicksorts = { group: 'quicksort', submenu: 'Sorts' }
 		const scans = { group: 'scan', submenu: 'Basics' }
 		const shuffles = { group: 'shuffle', submenu: 'Shuffles' }
@@ -430,6 +432,9 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 						sort('array-selection-sort', 'Selection sort', selectionSort),
 						sort('array-bubble-sort', 'Bubble sort', bubbleSort),
 						sort('array-merge-sort', 'Merge sort', mergeSort),
+						// Lectures 2 and 3: a pass at a time, each a row under the array, the costs summed.
+						sort('array-selection-passes', 'Selection sort, a row per pass', selectionPasses, passes),
+						sort('array-insertion-passes', 'Insertion sort, a row per pass', insertionPasses, passes),
 						sort('array-partition', 'Partition around the last value', partitionArray, partitions),
 						sort('array-hoare-partition', 'Hoare partition around the first value', hoarePartition, partitions),
 						sort('array-partition-3way', 'Three-way partition (Dutch flag)', partition3Array, partitions),

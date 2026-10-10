@@ -11,6 +11,8 @@ export interface Strip {
 	items: string[]
 	/** A label under each item (an array's indexes: visited[] under each vertex's name). */
 	labels?: string[]
+	/** A colour for some items, by position (a sort's pass row: its sorted part green). */
+	marks?: Record<number, MarkColor>
 }
 
 /** One step of an animated operation. */

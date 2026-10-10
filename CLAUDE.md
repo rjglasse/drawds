@@ -136,6 +136,11 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   find the largest (`maxval` in a strip, n - 1 comparisons, updates counted), all unique? (every pair i < j, n(n - 1)/2
   at worst, a repeat stops it red), sentinel search (the key in an extra cell past the end, no i < n check, counts the
   checks saved). Scans in the Step by step menu's `scan` group; sentinel search with the searches, from a cell.
+- `src/shapes/array/passes.ts` - lectures 2 and 3's sorts a pass at a time (Sorts > "a row per pass", selection and
+  insertion): each outer pass one step, its row added under the array (a strip, `Strip.marks` colouring the sorted part
+  green and what moved orange; the title what the pass cost), ending on the series written out and its closed form
+  (selection 4 + 3 + 2 + 1 = n(n − 1)/2 on any input; insertion's while tests 2 + 3 + … + n = n(n + 1)/2 − 1 at worst, as
+  lecture 3 counts them). The counts are the step-by-step sorts' (its test checks).
 - `src/shapes/array/shuffles.ts` - lecture 2's shuffles step by step (`shuffle` group), named as its slides name them
   (the random index is the pointer `n`): the unfair shuffle (n from the whole array for every i) and Fisher-Yates (i
   from len - 1 down to 1, n from 0..i, placed values green); a pick then a swap per i, picks from the pinned seed if

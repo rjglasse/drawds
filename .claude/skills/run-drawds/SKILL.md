@@ -337,6 +337,7 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `array-sum-halves`: these open a `recursion-tree` shape to the array's right, `[data-testid="recursion-tree"]`, each
   call a `[data-call="sum(0, 3)"]` group), `-steps-sorts-button` (`array-insertion-sort`, `array-selection-sort`,
   `array-bubble-sort`, `array-merge-sort`, `array-partition`, `array-hoare-partition`, `array-partition-3way`,
+  `array-selection-passes`, `array-insertion-passes` (a row per pass: each a `playback-strip`),
   `array-quicksort`, `array-quicksort-random` (pointer `k`), `array-quicksort-median`, `array-quicksort-3way` (pointers
   `lt`, `i`, `gt`), `array-quicksort-cutoff` (opens `key-prompt`: the cut-off), `array-sort-growth` ("Counts as n grows:"
   the sort last played; a `[data-testid="sort-growth"]` table to the right, `data-rows` = rows shown, cells

@@ -54,7 +54,7 @@ nothing changed. Once the result is in, the bar stays to step back through it or
 
 | Structure | Step by step |
 |---|---|
-| Array | binary and linear search; insertion, selection, bubble, quick and merge sort; Lomuto, Hoare and three-way partitions; quicksort with a random pivot, the median of three, three ways or a cut-off to insertion sort; a sort's comparisons as n grows (n = 10, 100, 1000, four kinds of input); insert and delete by shifting; growing a full array (doubling against +1); recursive sums |
+| Array | binary and linear search; insertion, selection, bubble, quick and merge sort (selection and insertion also a row per pass, the costs summed); Lomuto, Hoare and three-way partitions; quicksort with a random pivot, the median of three, three ways or a cut-off to insertion sort; a sort's comparisons as n grows (n = 10, 100, 1000, four kinds of input); insert and delete by shifting; growing a full array (doubling against +1); recursive sums |
 | Stack, queue | push, pop, peek; enqueue, dequeue, a circular buffer wrapping round; overflow and underflow |
 | Linked list | find, insert, delete, append, insert in order, reverse, find the middle (slow and fast), print backwards, Floyd's cycle detection; a size field kept by every insert and delete, counting the nodes against reading it, the invariants checked, and the two bugs of forgetting the tail |
 | Tree, BST, heap | pre-, in-, post- and level-order; BST search, insert, delete (all three cases); heap insert, extract, build-heap; Show > tree terms (root, internal, leaf, depth, height) |
