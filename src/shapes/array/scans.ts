@@ -25,6 +25,8 @@ export function findMax(start: ArrayState): ArrayOperation {
 	const held = (at: number) => [{ title: 'maxval', items: [values[at]] }]
 	let at = 0
 	r.let('maxval', values[0])
+	r.counting('init', 'loop', 'compare', 'update', 'done')
+	r.ran('init')
 	r.step(`maxval = a[0] = ${values[0]}: the largest so far`, {
 		lit: { 0: HELD },
 		pointers: [ptr('i', 0)],
@@ -34,9 +36,11 @@ export function findMax(start: ArrayState): ArrayOperation {
 	})
 	for (let i = 1; i < n; i++) {
 		r.counts.comparisons++
+		r.ran('loop', 'compare')
 		const step = { pointers: [ptr('i', i)], strips: held(at), ask: `a[${i}] = ${values[i]} vs maxval = ${values[at]}: a new largest?`, askFocus: [i] }
 		if (compareKeys(values[i], values[at]) > 0) {
 			r.counts.updates++
+			r.ran('update')
 			r.let('maxval', values[i])
 			r.step(`i = ${i}: a[${i}] = ${values[i]} > maxval = ${values[at]}, so maxval = ${values[i]}`, {
 				...step,
@@ -49,6 +53,7 @@ export function findMax(start: ArrayState): ArrayOperation {
 			r.step(`i = ${i}: a[${i}] = ${values[i]} ≤ maxval = ${values[at]}: no change`, { ...step, lit: { [at]: HELD, [i]: LOOK }, line: 'compare' })
 		}
 	}
+	r.ran('loop', 'done')
 	r.step(`The largest is ${values[at]} (index ${at}): ${times(n - 1, 'comparison')}, n - 1 for any order of ${n} values`, {
 		lit: { [at]: DONE },
 		strips: held(at),
@@ -68,11 +73,16 @@ export function allUnique(start: ArrayState): ArrayOperation {
 	const n = values.length
 	const pairs = (n * (n - 1)) / 2
 	const r = recorder(start, { comparisons: 0 })
+	r.counting('n', 'outer', 'inner', 'compare', 'repeat', 'unique')
+	r.ran('n')
 	for (let i = 0; i < n - 1; i++) {
+		r.ran('outer')
 		for (let j = i + 1; j < n; j++) {
 			r.counts.comparisons++
+			r.ran('inner', 'compare')
 			const step = { pointers: [ptr('i', i), ptr('j', j)], dim: span(0, i - 1), ask: `a[${i}] = ${values[i]} vs a[${j}] = ${values[j]}: the same?`, askFocus: [i, j] }
 			if (compareKeys(values[i], values[j]) === 0) {
+				r.ran('repeat')
 				r.step(`a[${i}] = a[${j}] = ${values[i]}: not all unique, return false after ${times(r.counts.comparisons, 'comparison')}`, {
 					...step,
 					lit: { [i]: GONE, [j]: GONE },
@@ -82,7 +92,10 @@ export function allUnique(start: ArrayState): ArrayOperation {
 			}
 			r.step(`a[${i}] = ${values[i]} ≠ a[${j}] = ${values[j]}`, { ...step, lit: { [i]: HELD, [j]: LOOK }, line: 'compare' })
 		}
+		// j has run out: the inner loop's last test.
+		r.ran('inner')
 	}
+	r.ran('outer', 'unique')
 	r.step(`No two are equal: all unique, return true after ${times(pairs, 'comparison')}, every pair: n(n - 1)/2 = ${n}·${n - 1}/2, the worst case`, {
 		lit: lit(0, n - 1, DONE),
 		ask: false,

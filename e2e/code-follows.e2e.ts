@@ -126,3 +126,24 @@ test('predict mode: while a step is asked about, the line before it stays lit', 
 	await expect(codeLine(page, Number(await stepLine(page)))).toHaveText('return i;')
 	await page.getByTestId('play-predict').click()
 })
+
+test("Show > Times each line runs: lecture 3's column ticks up and ends on the totals (insertion sort, worst case)", async ({ page }) => {
+	await sketch(page, ['3', '2', '1'])
+	await steps(page, 0, 'array-insertion-sort')
+	await page.getByTestId('play-code').click()
+	await page.keyboard.press('Escape')
+	const box = (await page.locator('[data-testid="code-box"] > rect').first().boundingBox())!
+	await rightClick(page, [box.x + box.width / 2, box.y + box.height / 2])
+	await page.getByTestId('context-menu-sub.drawds-code-show-button').click()
+	await page.getByTestId('context-menu.code-line-counts').click()
+	expect((await codeBoxes(page))[0].props.lineCounts).toBe(true)
+	await page.keyboard.press('Escape')
+
+	await steps(page, 0, 'array-insertion-sort')
+	const counts = () => page.locator('[data-count-line]').allTextContents()
+	// Nothing has run yet: every line of the loop at 0.
+	expect(await counts()).toEqual(['×0', '×0', '×0', '×0', '×0', '×0'])
+	while (!(await page.getByTestId('play-done').count())) await page.keyboard.press('ArrowRight')
+	// n = 3: the for test n times, its body n - 1, the while test n(n + 1)/2 - 1, the swaps n(n - 1)/2.
+	expect(await counts()).toEqual(['×3', '×2', '×2', '×5', '×3', '×3'])
+})

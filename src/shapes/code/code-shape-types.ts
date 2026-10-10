@@ -39,6 +39,8 @@ export interface CodeShapeProps {
 	structureId: string
 	/** The algorithm whose code it shows ('' for code of its own), so its lines can be found. */
 	algorithm: string
+	/** A column of how many times each line has run, while the algorithm plays (lecture 3's "times"). */
+	lineCounts: boolean
 	color: TLDefaultColorStyle
 	size: TLDefaultSizeStyle
 }
@@ -59,12 +61,14 @@ export const codeShapeProps: RecordProps<CodeShape> = {
 	pointers: pointersValidator,
 	structureId: T.string,
 	algorithm: T.string,
+	lineCounts: T.boolean,
 	color: DefaultColorStyle,
 	size: DefaultSizeStyle,
 }
 
 const versions = createShapePropsMigrationIds(CODE_TYPE, {
 	AddFollowing: 1,
+	AddLineCounts: 2,
 })
 
 /** Code boxes are persisted in the browser, so every props change needs a step here. */
@@ -79,6 +83,15 @@ export const codeShapeMigrations = createShapePropsMigrationSequence({
 			down(props) {
 				delete props.structureId
 				delete props.algorithm
+			},
+		},
+		{
+			id: versions.AddLineCounts,
+			up(props) {
+				props.lineCounts = false
+			},
+			down(props) {
+				delete props.lineCounts
 			},
 		},
 	],

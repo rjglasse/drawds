@@ -53,6 +53,8 @@ const PC = 'pc'
 /** Values after a line are this much smaller than the code; each keeps room for this many characters. */
 const VALUE_SCALE = 0.85
 const VALUE_CHARS = 5
+/** Room for the times column's counts (×999), as small as the values. */
+const COUNT_CHARS = 4
 
 const shownCache = new WeakMap<CodeShape['props'], ShownValue[]>()
 
@@ -79,7 +81,7 @@ function valueText(value: string, language: CodeLanguage) {
  * show values for them.
  */
 function layoutOf(shape: CodeShape) {
-	const { code, size, lineNumbers, pointers, algorithm } = shape.props
+	const { code, size, lineNumbers, pointers, algorithm, lineCounts } = shape.props
 	const metrics = getCodeMetrics(size)
 	const left = pointerReachSideways(
 		[...pointers.map((p) => p.name), ...(algorithm ? [PC] : [])],
@@ -87,7 +89,8 @@ function layoutOf(shape: CodeShape) {
 	)
 	const after: Record<number, number> = {}
 	for (const v of valuesOf(shape)) after[v.line] = (after[v.line] ?? 2) + Math.ceil((v.name.length + 3 + VALUE_CHARS + 2) * VALUE_SCALE)
-	return getCodeLayout(code, metrics, { lineNumbers, left, after })
+	const right = algorithm && lineCounts ? Math.ceil((COUNT_CHARS + 2) * VALUE_SCALE) : 0
+	return getCodeLayout(code, metrics, { lineNumbers, left, after, right })
 }
 
 /** Marks and pointers on lines the code no longer has go. */
@@ -125,7 +128,18 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 	readonly cells = codeCells
 
 	getDefaultProps(): CodeShape['props'] {
-		return { code: '', language: 'java', lineNumbers: false, marks: {}, pointers: [], structureId: '', algorithm: '', color: 'black', size: 'm' }
+		return {
+			code: '',
+			language: 'java',
+			lineNumbers: false,
+			marks: {},
+			pointers: [],
+			structureId: '',
+			algorithm: '',
+			lineCounts: false,
+			color: 'black',
+			size: 'm',
+		}
 	}
 
 	getGeometry(shape: CodeShape) {
@@ -142,8 +156,11 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 	 * screen is on, if it is on one (in predict mode, while a step is asked about, the one before it).
 	 * `live`: the canvas, or exporting the structure's steps.
 	 */
-	private following(shape: CodeShape, live: boolean): { line?: number; values: { line: number; text: string }[] } | undefined {
-		const { structureId, algorithm, code, language } = shape.props
+	private following(
+		shape: CodeShape,
+		live: boolean
+	): { line?: number; values: { line: number; text: string }[]; counts: { line: number; text: string }[] } | undefined {
+		const { structureId, algorithm, code, language, lineCounts } = shape.props
 		if (!live || !structureId || !algorithm) return undefined
 		const view = playbackFor(this.editor, structureId as TLShapeId)
 		if (!view || view.fading || view.code !== algorithm) return undefined
@@ -155,9 +172,19 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 		for (const v of valuesOf(shape)) {
 			if (vars[v.key] !== undefined) byLine.set(v.line, [...(byLine.get(v.line) ?? []), `${v.name} = ${valueText(vars[v.key], language)}`])
 		}
+		// The times column: a line has run as often as the tags on it have (Python's one-line return
+		// that either finds or misses), so far.
+		const counts = new Map<number, number>()
+		if (lineCounts && source) {
+			for (const [tag, times] of Object.entries(frame?.runs ?? view.frames[0]?.runs ?? {})) {
+				const line = taggedLine(code, source, tag)
+				if (line !== undefined) counts.set(line, (counts.get(line) ?? 0) + (frame ? times : 0))
+			}
+		}
 		return {
 			line: frame?.line && source ? taggedLine(code, source, frame.line) : undefined,
 			values: [...byLine].map(([line, texts]) => ({ line, text: texts.join('  ') })),
+			counts: [...counts].map(([line, times]) => ({ line, text: `×${times}` })),
 		}
 	}
 
@@ -237,7 +264,7 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 	override readonly menuId = 'code'
 
 	override shapeOperations(shape: CodeShape): NodeOperation[] {
-		const { lineNumbers } = shape.props
+		const { lineNumbers, lineCounts, algorithm } = shape.props
 		return [
 			{
 				section: 'show',
@@ -248,6 +275,20 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 					this.editor.updateShape<CodeShape>({ id: shape.id, type: CODE_TYPE, props: { lineNumbers: !lineNumbers } })
 				},
 			},
+			// Lecture 3's times column, for code an algorithm runs.
+			...(algorithm
+				? [
+						{
+							section: 'show' as const,
+							id: 'code-line-counts',
+							label: lineCounts ? 'Hide the times each line runs' : 'Times each line runs',
+							run: () => {
+								this.editor.markHistoryStoppingPoint('line counts')
+								this.editor.updateShape<CodeShape>({ id: shape.id, type: CODE_TYPE, props: { lineCounts: !lineCounts } })
+							},
+						},
+					]
+				: []),
 		]
 	}
 
@@ -259,6 +300,7 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 			'Right-click a line: Pointer > pc, then click pc and step it with ↑ ↓ as you walk through the code',
 			'Right-click: Show > Line numbers',
 			'Beside a structure (the play bar\'s </> button), it shows the code of what plays, the line each step is on lit',
+			'Right-click it beside a structure: Show > Times each line runs, counted as the steps go',
 		]
 	}
 
@@ -296,6 +338,7 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 						cues={showsColourCues()}
 						step={step}
 						values={follow?.values}
+						counts={follow?.counts}
 					/>
 					{this.renderPointers(shape, colors, step === undefined ? {} : { placed: this.withPc(shape, step) })}
 				</SVGContainer>
@@ -333,6 +376,7 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 					cues={showsColourCues()}
 					step={step}
 					values={follow?.values}
+					counts={follow?.counts}
 				/>
 				{this.renderPointers(shape, colors, { exporting: true, ...(step === undefined ? {} : { placed: this.withPc(shape, step) }) })}
 			</>
@@ -365,7 +409,8 @@ const STEP_COLOR: TLDefaultColorStyle = 'yellow'
 /**
  * The box, lit lines, line numbers and the highlighted code: the canvas and exports alike. `step`:
  * the line an operation's step is on, lit over any mark; `values`: variables' values after their
- * lines, in the pointers' colour (i and j are the pointers on the structure too).
+ * lines, in the pointers' colour (i and j are the pointers on the structure too); `counts`: how many
+ * times lines have run, in a column at the right.
  */
 export function CodeSvg({
 	shape,
@@ -376,6 +421,7 @@ export function CodeSvg({
 	cues,
 	step,
 	values,
+	counts,
 }: {
 	shape: CodeShape
 	layout: CodeLayout
@@ -385,6 +431,7 @@ export function CodeSvg({
 	cues?: boolean
 	step?: number
 	values?: { line: number; text: string }[]
+	counts?: { line: number; text: string }[]
 }) {
 	const { code, language, lineNumbers, marks, color } = shape.props
 	const { box } = layout
@@ -458,6 +505,21 @@ export function CodeSvg({
 						{i + 1}
 					</text>
 				))}
+			{counts?.map(({ line, text }) => (
+				<text
+					key={`count-${line}`}
+					data-count-line={line}
+					x={layout.columnRight}
+					y={layout.lineAt(line).y}
+					fontSize={fontSize * VALUE_SCALE}
+					textAnchor="end"
+					dominantBaseline="central"
+					fill={colors.text}
+					opacity={0.55}
+				>
+					{text}
+				</text>
+			))}
 			{values?.map(({ line, text }) => {
 				const end = layout.endOf(line)
 				return (

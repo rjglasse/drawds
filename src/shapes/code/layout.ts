@@ -38,6 +38,8 @@ export interface CodeLayout {
 	rowBox(i: number): Box
 	/** Line numbers' right edge (when shown), and the text's left edge. */
 	gutterRight: number
+	/** The right edge of a column kept at the right (`right`), or of the text. */
+	columnRight: number
 	textX: number
 	/** Top of the first row. */
 	top: number
@@ -51,19 +53,25 @@ export const codeLines = (code: string) => code.replace(/\t/g, INDENT).split('\n
 
 /**
  * `left`: room before the box for pointers at its lines. `after`: columns kept free after some lines
- * (by line), for what is shown there (a variable's value).
+ * (by line), for what is shown there (a variable's value). `right`: columns for a column of its own
+ * at the right (how many times each line has run).
  */
 export function getCodeLayout(
 	code: string,
 	metrics: CodeMetrics,
-	{ lineNumbers = false, left = 0, after = {} }: { lineNumbers?: boolean; left?: number; after?: Record<number, number> } = {}
+	{
+		lineNumbers = false,
+		left = 0,
+		after = {},
+		right = 0,
+	}: { lineNumbers?: boolean; left?: number; after?: Record<number, number>; right?: number } = {}
 ): CodeLayout {
 	const { charW, lineH, padX, padY } = metrics
 	const lines = codeLines(code)
 	const digits = String(lines.length).length
 	const gutterW = lineNumbers ? (digits + 1.5) * charW : 0
 	const textX = left + padX + gutterW
-	const columns = Math.max(MIN_COLUMNS, ...lines.map((l, i) => l.length + (after[i] ?? 0)))
+	const columns = Math.max(MIN_COLUMNS, ...lines.map((l, i) => l.length + (after[i] ?? 0))) + right
 	const box = { x: left, y: 0, w: padX + gutterW + columns * charW + padX, h: padY * 2 + lines.length * lineH }
 	return {
 		box,
@@ -71,6 +79,7 @@ export function getCodeLayout(
 		endOf: (i) => ({ x: textX + (lines[i]?.length ?? 0) * charW, y: padY + (i + 0.5) * lineH }),
 		rowBox: (i) => ({ x: left, y: padY + i * lineH, w: box.w, h: lineH }),
 		gutterRight: textX - charW * 1.2,
+		columnRight: textX + columns * charW,
 		textX,
 		top: padY,
 		lines: lines.length,

@@ -176,6 +176,6 @@ test('code boxes saved before they could follow a structure load as code of thei
 		editor.loadSnapshot({ document: doc })
 		return editor.getCurrentPageShapes().map((s) => s.props)
 	})
-	expect(loaded).toEqual([expect.objectContaining({ code: 'x = 1', structureId: '', algorithm: '' })])
+	expect(loaded).toEqual([expect.objectContaining({ code: 'x = 1', structureId: '', algorithm: '', lineCounts: false })])
 	await expect(page.getByTestId('code-box')).toHaveCount(1)
 })

@@ -82,9 +82,19 @@ export function recorder(start: ArrayState, counts: Record<string, number>) {
 	let state: ArrayState = { ...start, values: [...start.values], marks: { ...start.marks } }
 	/** The code's variables beside the pointers (maxval, swapped...): every step from now on shows them. */
 	const vars: Record<string, string> = {}
+	/** Times each counted line of the code has run, by tag. */
+	const runs: Record<string, number> = {}
 	return {
 		frames,
 		counts,
+		/** The lines of the code that are counted (each from 0), by tag: every step shows their counts. */
+		counting(...tags: string[]) {
+			for (const tag of tags) runs[tag] = 0
+		},
+		/** The code ran these lines (once each, in order) on its way to the next step. */
+		ran(...tags: string[]) {
+			for (const tag of tags) runs[tag] = (runs[tag] ?? 0) + 1
+		},
 		/** Set a variable (undefined: it goes out of scope); later steps show it. */
 		let(name: string, value: string | number | boolean | undefined) {
 			if (value === undefined) delete vars[name]
@@ -119,6 +129,7 @@ export function recorder(start: ArrayState, counts: Record<string, number>) {
 				...(calls ? { calls } : {}),
 				...(line ? { line } : {}),
 				...(Object.keys(vars).length ? { vars: { ...vars } } : {}),
+				...(Object.keys(runs).length ? { runs: { ...runs } } : {}),
 			})
 		},
 	}
@@ -220,15 +231,19 @@ export function linearSearch(start: ArrayState, target: string): ArrayOperation 
 	const n = values.length
 	const r = recorder(start, { comparisons: 0 })
 	r.let('key', target)
+	r.counting('loop', 'compare', 'found', 'missing')
 	for (let i = 0; i < n; i++) {
 		r.counts.comparisons++
+		r.ran('loop', 'compare')
 		const step = { pointers: [ptr('i', i)], dim: span(0, i - 1), ask: `i = ${i}: is a[${i}] the ${target} we want?`, askFocus: [i] }
 		if (compareKeys(values[i], target) === 0) {
+			r.ran('found')
 			r.step(`i = ${i}: a[${i}] = ${values[i]}. Found ${target} at index ${i}`, { ...step, lit: { [i]: DONE }, line: 'found' })
 			return { frames: r.frames, finalFlash: { [i]: DONE }, code: 'linear-search' }
 		}
 		r.step(`i = ${i}: a[${i}] = ${values[i]} ≠ ${target}, so on to the next`, { ...step, lit: { [i]: LOOK }, line: 'compare' })
 	}
+	r.ran('loop', 'missing')
 	r.step(`i = ${n}: past the end, so ${target} is not in the array`, {
 		pointers: [ptr('i', n)],
 		dim: span(0, n - 1),
@@ -257,8 +272,10 @@ function sorted(r: ReturnType<typeof recorder>, n: number, code: string): ArrayO
 export function insertionSort(start: ArrayState): ArrayOperation {
 	const n = start.values.length
 	const r = recorder(start, sortCounts())
+	r.counting('outer', 'key', 'start', 'compare', 'swap', 'back')
 	r.step('a[0] on its own is sorted', { lit: lit(0, 0, DONE), ask: false })
 	for (let i = 1; i < n; i++) {
+		r.ran('outer', 'key', 'start')
 		r.let('key', r.state.values[i])
 		r.step(`i = ${i}: insert a[${i}] = ${r.state.values[i]} into the sorted part a[0..${i - 1}]`, {
 			lit: { ...lit(0, i - 1, DONE), [i]: LOOK },
@@ -278,6 +295,7 @@ export function insertionSort(start: ArrayState): ArrayOperation {
 			const pointers = [ptr('i', i), ptr('j', j)]
 			const ask = { ask: `a[${j - 1}] = ${x} vs a[${j}] = ${y}: swap them or not?`, askFocus: [j - 1, j], line: 'compare' }
 			r.counts.comparisons++
+			r.ran('compare')
 			if (compareKeys(x, y) <= 0) {
 				r.step(`a[${j - 1}] = ${x} ≤ a[${j}] = ${y}: ${y} is in place`, { lit: lit(0, i, DONE), pointers, ...ask })
 				break
@@ -285,6 +303,7 @@ export function insertionSort(start: ArrayState): ArrayOperation {
 			r.step(`a[${j - 1}] = ${x} > a[${j}] = ${y}: swap them`, { lit: around(j, j - 1), pointers, ...ask })
 			r.set(swapped(r.state, j - 1, j))
 			r.counts.swaps++
+			r.ran('swap', 'back')
 			r.step(`swap(a[${j - 1}], a[${j}]); j = ${j - 1}`, {
 				lit: around(j - 1),
 				pointers: [ptr('i', i), ptr('j', j - 1)],
@@ -294,10 +313,12 @@ export function insertionSort(start: ArrayState): ArrayOperation {
 			})
 			j--
 			if (j === 0) {
+				r.ran('compare')
 				r.step(`j = 0: ${y} is the smallest so far, at the front`, { lit: lit(0, i, DONE), pointers: [ptr('i', i), ptr('j', 0)], ask: false, line: 'compare' })
 			}
 		}
 	}
+	r.ran('outer')
 	return sorted(r, n, 'insertion-sort')
 }
 
@@ -308,8 +329,11 @@ export function insertionSort(start: ArrayState): ArrayOperation {
 export function selectionSort(start: ArrayState): ArrayOperation {
 	const n = start.values.length
 	const r = recorder(start, sortCounts())
+	r.counting('n', 'outer', 'init', 'inner', 'compare', 'update', 'noswap', 'swap')
+	r.ran('n')
 	for (let i = 0; i < n - 1; i++) {
 		let min = i
+		r.ran('outer', 'init')
 		r.step(`i = ${i}: find the smallest of a[${i}..${n - 1}]. min = ${i} (${r.state.values[i]}) so far`, {
 			lit: { ...lit(0, i - 1, DONE), [i]: LOOK },
 			pointers: [ptr('i', i), ptr('min', min)],
@@ -320,7 +344,9 @@ export function selectionSort(start: ArrayState): ArrayOperation {
 			const [x, m] = [r.state.values[j], r.state.values[min]]
 			const ask = { ask: `a[${j}] = ${x} vs a[min] = ${m}: does min move?`, askFocus: [j, min] }
 			r.counts.comparisons++
+			r.ran('inner', 'compare')
 			if (compareKeys(x, m) < 0) {
+				r.ran('update')
 				r.step(`a[${j}] = ${x} < a[min] = ${m}: min = ${j}`, {
 					lit: { ...lit(0, i - 1, DONE), [j]: LOOK },
 					pointers: [ptr('i', i), ptr('j', j), ptr('min', j)],
@@ -338,6 +364,7 @@ export function selectionSort(start: ArrayState): ArrayOperation {
 			}
 		}
 		const placed = { ask: `The scan is done and min = ${min}: what happens at index ${i}?`, askFocus: [i] }
+		r.ran('inner', 'noswap')
 		if (min === i) {
 			r.step(`a[${i}] = ${r.state.values[i]} is already the smallest: no swap`, {
 				lit: lit(0, i, DONE),
@@ -350,6 +377,7 @@ export function selectionSort(start: ArrayState): ArrayOperation {
 		const v = r.state.values[min]
 		r.set(swapped(r.state, i, min))
 		r.counts.swaps++
+		r.ran('swap')
 		r.step(`swap(a[${i}], a[min]): ${v} goes to index ${i}, its place`, {
 			lit: lit(0, i, DONE),
 			pointers: [ptr('i', i), ptr('min', min)],
@@ -358,6 +386,7 @@ export function selectionSort(start: ArrayState): ArrayOperation {
 			line: 'swap',
 		})
 	}
+	r.ran('outer')
 	return sorted(r, n, 'selection-sort')
 }
 
@@ -368,9 +397,13 @@ export function selectionSort(start: ArrayState): ArrayOperation {
 export function bubbleSort(start: ArrayState): ArrayOperation {
 	const n = start.values.length
 	const r = recorder(start, sortCounts())
+	r.counting('n', 'outer', 'reset', 'inner', 'compare', 'swap', 'flag', 'pass', 'sorted')
+	r.ran('n')
+	let early = false
 	for (let pass = 1; pass < n; pass++) {
 		const end = n - pass
 		let swaps = 0
+		r.ran('outer', 'reset')
 		r.let('pass', pass)
 		r.let('swapped', false)
 		const settled = lit(end + 1, n - 1, DONE)
@@ -379,6 +412,7 @@ export function bubbleSort(start: ArrayState): ArrayOperation {
 			const step = { lit: { ...settled, [j]: LOOK, [j + 1]: LOOK }, pointers: [ptr('j', j)] }
 			const ask = { ask: `a[${j}] = ${x} vs a[${j + 1}] = ${y}: swap them or leave them?`, askFocus: [j, j + 1], line: 'compare' }
 			r.counts.comparisons++
+			r.ran('inner', 'compare')
 			if (compareKeys(x, y) <= 0) {
 				r.step(`Pass ${pass}: a[${j}] = ${x} ≤ a[${j + 1}] = ${y}: leave them`, { ...step, ...ask })
 				continue
@@ -387,16 +421,21 @@ export function bubbleSort(start: ArrayState): ArrayOperation {
 			r.set(swapped(r.state, j, j + 1))
 			r.counts.swaps++
 			swaps++
+			r.ran('swap', 'flag')
 			r.let('swapped', true)
 			r.step(`swap(a[${j}], a[${j + 1}])`, { ...step, swaps: [[j, j + 1]], ask: false, line: 'swap' })
 		}
 		const over = { ask: `Pass ${pass} is over: what do we know now?` }
+		r.ran('inner', 'pass')
 		if (!swaps) {
+			r.ran('sorted')
+			early = true
 			r.step(`No swaps in pass ${pass}: every neighbour is in order, so the array is sorted`, { lit: lit(0, n - 1, DONE), ...over, line: 'sorted' })
 			break
 		}
 		r.step(`End of pass ${pass}: ${r.state.values[end]} has bubbled up to index ${end}`, { lit: lit(end, n - 1, DONE), ...over, line: 'pass' })
 	}
+	if (!early) r.ran('outer')
 	return sorted(r, n, 'bubble-sort')
 }
 

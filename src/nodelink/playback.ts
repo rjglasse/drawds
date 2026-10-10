@@ -66,6 +66,11 @@ export interface Frame {
 	 * name, at its element): maxval, swapped, key... Shown after their lines in the code box.
 	 */
 	vars?: Record<string, string>
+	/**
+	 * How many times each line of the code has run so far, by tag (loop headers once per test, so one
+	 * more than their body when the loop runs out), for the code box's times column.
+	 */
+	runs?: Record<string, number>
 }
 
 /**

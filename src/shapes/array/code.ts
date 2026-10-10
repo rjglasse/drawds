@@ -9,16 +9,16 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 	'linear-search': {
 		java: String.raw`
 			int linearSearch(int[] a, int key) {        $key
-			    for (int i = 0; i < a.length; i++) {    $i
-			        if (a[i] == key) {              @compare
-			            return i;                   @found
+			    for (int i = 0; i < a.length; i++) {    @loop $i
+			        if (a[i] == key) {                  @compare
+			            return i;                       @found
 			        }
 			    }
-			    return -1;                          @missing
+			    return -1;                              @missing
 			}`,
 		python: String.raw`
 			def linear_search(a, key):          $key
-			    for i in range(len(a)):             $i
+			    for i in range(len(a)):             @loop $i
 			        if a[i] == key:                 @compare
 			            return i                    @found
 			    return -1                           @missing`,
@@ -73,7 +73,7 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 		java: String.raw`
 			int maxElement(int[] a) {
 			    int maxval = a[0];                      @init $maxval
-			    for (int i = 1; i < a.length; i++) {    $i
+			    for (int i = 1; i < a.length; i++) {    @loop $i
 			        if (a[i] > maxval) {                @compare
 			            maxval = a[i];                  @update
 			        }
@@ -83,7 +83,7 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 		python: String.raw`
 			def max_element(a):
 			    maxval = a[0]                       @init $maxval
-			    for i in range(1, len(a)):          $i
+			    for i in range(1, len(a)):          @loop $i
 			        if a[i] > maxval:               @compare
 			            maxval = a[i]               @update
 			    return maxval                       @done`,
@@ -91,20 +91,20 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 	'all-unique': {
 		java: String.raw`
 			boolean uniqueElements(int[] a) {
-			    for (int i = 0; i < a.length - 1; i++) {        $i
-			        for (int j = i + 1; j < a.length; j++) {    $j
-			            if (a[i] == a[j]) {                 @compare
-			                return false;                   @repeat
+			    for (int i = 0; i < a.length - 1; i++) {        @outer $i
+			        for (int j = i + 1; j < a.length; j++) {    @inner $j
+			            if (a[i] == a[j]) {                     @compare
+			                return false;                       @repeat
 			            }
 			        }
 			    }
-			    return true;                                @unique
+			    return true;                                    @unique
 			}`,
 		python: String.raw`
 			def unique_elements(a):
-			    n = len(a)
-			    for i in range(n - 1):              $i
-			        for j in range(i + 1, n):       $j
+			    n = len(a)                          @n
+			    for i in range(n - 1):              @outer $i
+			        for j in range(i + 1, n):       @inner $j
 			            if a[i] == a[j]:            @compare
 			                return False            @repeat
 			    return True                         @unique`,
@@ -113,42 +113,43 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 		java: String.raw`
 			void insertionSort(int[] a) {
 			    for (int i = 1; i < a.length; i++) {        @outer $i
-			        int key = a[i];                         $key
-			        int j = i;
+			        int key = a[i];                         @key $key
+			        int j = i;                              @start
 			        while (j > 0 && a[j - 1] > key) {       @compare $j
 			            swap(a, j, j - 1);                  @swap
-			            j--;
+			            j--;                                @back
 			        }
 			    }
 			}`,
 		python: String.raw`
 			def insertion_sort(a):
 			    for i in range(1, len(a)):                  @outer $i
-			        key = a[i]                              $key
-			        j = i
+			        key = a[i]                              @key $key
+			        j = i                                   @start
 			        while j > 0 and a[j - 1] > key:         @compare $j
 			            a[j], a[j - 1] = a[j - 1], a[j]     @swap
-			            j -= 1`,
+			            j -= 1                              @back`,
 	},
 	'selection-sort': {
 		java: String.raw`
 			void selectionSort(int[] a) {
-			    for (int i = 0; i < a.length - 1; i++) {        $i
+			    for (int i = 0; i < a.length - 1; i++) {        @outer $i
 			        int min = i;                                @init $min
-			        for (int j = i + 1; j < a.length; j++) {    $j
+			        for (int j = i + 1; j < a.length; j++) {    @inner $j
 			            if (a[j] < a[min]) {                    @compare
 			                min = j;                            @update
 			            }
 			        }
-			        if (min != i) swap(a, i, min);              @swap @noswap
+			        if (min != i)                               @noswap
+			            swap(a, i, min);                        @swap
 			    }
 			}`,
 		python: String.raw`
 			def selection_sort(a):
-			    n = len(a)
-			    for i in range(n - 1):                              $i
+			    n = len(a)                                          @n
+			    for i in range(n - 1):                              @outer $i
 			        min_idx = i                                     @init $min_idx=min
-			        for j in range(i + 1, n):                       $j
+			        for j in range(i + 1, n):                       @inner $j
 			            if a[j] < a[min_idx]:                       @compare
 			                min_idx = j                             @update
 			        if min_idx != i:                                @noswap
@@ -157,26 +158,27 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 	'bubble-sort': {
 		java: String.raw`
 			void bubbleSort(int[] a) {
-			    for (int pass = 1; pass < a.length; pass++) {   $pass
-			        boolean swapped = false;                    $swapped
-			        for (int j = 0; j < a.length - pass; j++) {  $j
-			            if (a[j] > a[j + 1]) {              @compare
-			                swap(a, j, j + 1);              @swap
-			                swapped = true;
+			    for (int pass = 1; pass < a.length; pass++) {   @outer $pass
+			        boolean swapped = false;                    @reset $swapped
+			        for (int j = 0; j < a.length - pass; j++) {  @inner $j
+			            if (a[j] > a[j + 1]) {                  @compare
+			                swap(a, j, j + 1);                  @swap
+			                swapped = true;                     @flag
 			            }
 			        }
-			        if (!swapped) break;                    @pass @sorted
+			        if (!swapped)                               @pass
+			            break;                                  @sorted
 			    }
 			}`,
 		python: String.raw`
 			def bubble_sort(a):
-			    n = len(a)
-			    for p in range(1, n):                           $p=pass
-			        swapped = False                             $swapped
-			        for j in range(n - p):                      $j
+			    n = len(a)                                      @n
+			    for p in range(1, n):                           @outer $p=pass
+			        swapped = False                             @reset $swapped
+			        for j in range(n - p):                      @inner $j
 			            if a[j] > a[j + 1]:                     @compare
 			                a[j], a[j + 1] = a[j + 1], a[j]     @swap
-			                swapped = True
+			                swapped = True                      @flag
 			        if not swapped:                             @pass
 			            break                                   @sorted`,
 	},

@@ -202,7 +202,13 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   step's `min` under the language's own name; room after those lines is kept in the layout (`after`), long values
   cut to fit. `algorithms.ts` (pure): each algorithm written per language with `@tag`s and `$tag`s at line ends,
   two spaces before (`parseCode`), `algorithmCode` (C falls back to Java for now), `taggedLine` / `shownValues`
-  (find a tag's line in code edited since, by its text). Picking another language swaps an unedited box to that language's version (`onBeforeUpdate`).
+  (find a tag's line in code edited since, by its text). Line counts (dds-szw.14, lecture 3's "times" column): Show >
+  Times each line runs (prop `lineCounts`) puts a column at the right, `×n` per counted line, ticking up as the steps
+  go: frames carry `runs` (cumulative, by tag), which the array recorder keeps (`r.counting(...tags)` from 0, then
+  `r.ran(...tags)` for every line the code runs on its way to the next step: loop headers once per test, so one more
+  than their body when the loop runs out; a line's count is its tags' sum). Counted so far: linear search, max,
+  unique, insertion sort (lecture 3's: `key = a[i]`, worst case while n(n + 1)/2 - 1), selection and bubble sort;
+  `src/shapes/array/line-counts.test.ts` pins the lecture's totals. Picking another language swaps an unedited box to that language's version (`onBeforeUpdate`).
   The arrays' code is `src/shapes/array/code.ts` (searches, scans, every sort; Java and Python).
 - `src/shapes/hash/` - hash tables (node-link): `buckets: string[][]` (a chain per bucket, or one entry per slot with
   `TOMBSTONE` for deleted), strategy style `drawds:hash-strategy` chaining / probing (switching re-inserts the

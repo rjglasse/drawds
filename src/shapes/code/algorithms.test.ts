@@ -98,6 +98,11 @@ describe('algorithm code', () => {
 				for (const line of lines) expect(code.lines, `${op.code} ${language} @${line}`).toHaveProperty(line)
 				for (const v of code.values) expect(given, `${op.code} ${language} $${v.name}`).toContain(v.key)
 			}
+			// Every line counted is in the code, in one language at least (Python's n = len(a) only there).
+			for (const tag of Object.keys(op.frames[0].runs ?? {})) {
+				const where = (['java', 'python'] as const).filter((language) => algorithmCode(op.code!, language)!.lines[tag] !== undefined)
+				expect(where, `${op.code} counts @${tag}`).not.toEqual([])
+			}
 		}
 	})
 
@@ -122,6 +127,16 @@ describe('algorithm code', () => {
 })
 
 describe('code box migrations', () => {
+	it('code boxes saved before the times column have it off', () => {
+		const [, addLineCounts] = codeShapeMigrations.sequence
+		if (!('up' in addLineCounts) || typeof addLineCounts.down !== 'function') throw new Error('expected a props migration')
+		const props: Record<string, unknown> = { code: 'x = 1' }
+		addLineCounts.up(props)
+		expect(props).toMatchObject({ lineCounts: false })
+		addLineCounts.down(props)
+		expect(props).not.toHaveProperty('lineCounts')
+	})
+
 	it('code boxes saved before they could follow a structure follow none', () => {
 		const [addFollowing] = codeShapeMigrations.sequence
 		if (!('up' in addFollowing) || typeof addFollowing.down !== 'function') throw new Error('expected a props migration')
