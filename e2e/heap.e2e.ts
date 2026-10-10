@@ -71,9 +71,8 @@ test('editing a cell in the array view edits the tree node too, without re-heapi
 test('pointing at an index highlights it, its parent and its children in both views', async ({ page }) => {
 	await sketchHeap(page, [600, 120], 7)
 	await hoverNode(page, 'a1')
-	const flashed = await page.evaluate(() => document.querySelectorAll('.drawds-flash').length)
-	// Index 1, parent 0 and children 3 and 4, each in the tree and in the array.
-	expect(flashed).toBe(8)
+	// Index 1, parent 0 and children 3 and 4, each in the tree and in the array (once it has redrawn).
+	await expect.poll(() => page.evaluate(() => document.querySelectorAll('.drawds-flash').length)).toBe(8)
 })
 
 test('shuffle breaks the heap; build heap step by step restores it (Floyd), one undo', async ({ page }) => {
