@@ -18,7 +18,7 @@ const CLEARANCE = 0.8
 /** Smallest angle between two edges at a node, so they never look like one. */
 const MIN_ANGLE = (25 * Math.PI) / 180
 /** Extra edges per new node (up to), the chance of each, and how far they reach, by density. Sparse: a tree. */
-const DENSITY: Record<GraphDensity, { extras: number; chance: number; reach: number }> = {
+const DENSITY: Record<Exclude<GraphDensity, 'complete'>, { extras: number; chance: number; reach: number }> = {
 	sparse: { extras: 0, chance: 0, reach: GRAPH_REACH },
 	medium: { extras: 2, chance: EXTRA_EDGE_CHANCE, reach: GRAPH_REACH },
 	dense: { extras: 3, chance: 0.8, reach: GRAPH_REACH * 1.25 },
@@ -120,6 +120,7 @@ export function generateGraph(
 	labels: GraphLabelsMode,
 	{ density = 'medium', parts = 'connected', order = 'any' }: GraphSketchOptions = {}
 ): GraphModel {
+	if (density === 'complete') return completeGraph(points, seed, labels, order)
 	const { extras: most, chance, reach } = DENSITY[density]
 	// Where the current component's run of the drag starts (several parts).
 	let run = 0
@@ -171,6 +172,32 @@ export function generateGraph(
 			if (j === first) continue
 			extras++
 			if (rng() < chance && clean(k, j)) connect(k, j, rng)
+		}
+	}
+	return { nodes, edges }
+}
+
+/**
+ * A complete graph (lecture 9's "fully connected": every pair joined, V(V - 1)/2 edges) on as many
+ * nodes as `points`, drawn round a circle so no edge runs through a node: neighbours on the circle
+ * GRAPH_SPACING apart, node 0 at the top, where the first point is. Edges point either way at random,
+ * or (a DAG) from the earlier node to the later. Always one piece.
+ */
+function completeGraph(points: readonly Point[], seed: number, labels: GraphLabelsMode, order: GraphOrder): GraphModel {
+	const n = points.length
+	const r = n < 2 ? 0 : GRAPH_SPACING / (2 * Math.sin(Math.PI / n))
+	const [x0, y0] = [points[0]?.x ?? 0, (points[0]?.y ?? 0) + r]
+	const nodes = points.map((_, k) => {
+		const angle = -Math.PI / 2 + (2 * Math.PI * k) / n
+		return { id: `v${k}`, value: nodeLabel(k, labels), x: x0 + r * Math.cos(angle), y: y0 + r * Math.sin(angle) }
+	})
+	const edges: GraphEdge[] = []
+	for (let k = 1; k < n; k++) {
+		const rng = nodeRng(seed, k)
+		for (let j = 0; j < k; j++) {
+			const id = `e${edges.length}`
+			const [from, to] = order === 'dag' || rng() < 0.5 ? [j, k] : [k, j]
+			edges.push({ id, from: `v${from}`, to: `v${to}`, weight: edgeWeight(seed, id) })
 		}
 	}
 	return { nodes, edges }

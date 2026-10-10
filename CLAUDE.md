@@ -192,7 +192,15 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   any view beside it (`bottomBeside`). The graph's marks and an operation's highlights map onto it
   (`viewHighlights`: a node to its row / column headers or list head, `edge:<id>` to its cells or list entries).
   Created from the graph's menu (`showGraphView`, to its right). The matrix reuses `MatrixSvg` with `rowLabels` /
-  `colLabels` and `row:<r>` / `col:<c>` header tints.
+  `colLabels` and `row:<r>` / `col:<c>` header tints. Lecture 9a: an edge-list view (`edges`: `edgeList`, a row per
+  edge, sorted, the earlier label first when undirected; a node lights every cell naming it), and each view but the
+  union-find under a heading of what it costs (`viewTitle`: V × V cells and how many are filled, V + 2E (directed V + E)
+  list entries, E pairs, and the vertices on no edge that an edge list loses). `costs.ts`: what a change costs each
+  representation, step by step (add a vertex: the matrix copied into a bigger one, V², the lists a head; remove one:
+  (V - 1)², every list walked, V + E, the pairs scanned; remove an edge: 2 cells, the two ends' lists walked, O(deg u +
+  deg v), not E; is u adjacent to v: 1 cell, u's list, the pairs); frames carry the graph (`props`, so the views draw
+  the step's graph) and `Frame.views`, each view's own highlights for that step; counts per representation in the play
+  bar. The graph's Step by step opens the matrix and lists for them (`playCosts`; Esc takes them back).
 - `src/cells/clean-copy.ts` - Clean copy, last in every structure's own submenu (`NodeOperationsMenu` adds it): the
   same props (values, shape, seed) without marks or pointers, under the original past anything in the way
   (`freeTopBelow`, pure), selected, one undo step; followers stay with the original.
@@ -353,6 +361,14 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   else dfs(v) marks its whole component, coloured and numbered, and count += 1). BFS and DFS show lecture 9's visited[]
   (`visitedStrip`: booleans by vertex, a strip whose boxes have `labels`, marked on entry for DFS, when queued for BFS)
   beside the queue or call stack, and their code (`src/shapes/graph/code.ts`, with v and w; components too).
+  `paths.ts` (lecture 9): a path from s to t with the fewest edges (`shortestPath`: BFS, distance badges, parent[]
+  beside visited[], stopping when t is discovered, then x walks back the parents, lighting the path; a node's "Path
+  from A to" asks for t) and Is there a cycle? (`findCycle`, Task 18: DFS from each unvisited vertex, s the loop's;
+  undirected, a visited neighbour other than the parent closes one; directed, a neighbour still on the call stack, one
+  that is done not; the cycle lit red; none: a forest, or a DAG), each with its code. Density `complete` (lecture 9a's
+  fully connected): every pair joined, nodes round a circle so no edge runs through one (`completeGraph`; rewiring to it
+  moves them there, node 0 kept). Show > degrees (prop `degrees`): badges, directed in/out (`degrees` in model.ts),
+  drawn by `NodeLinkShapeUtil.sceneBadges` while no operation is open.
 - `src/controls/` - on-canvas controls shown while a structure is the only selected shape
   (`showsStructureControls`): grow grips (tldraw `create` handles `grow` / `grow-start`, drawn only on hover,
   plus our own '+' `GrowGrip`; `grownCount` is pure) and `ControlButton` (HTML insert '+' / remove 'x',

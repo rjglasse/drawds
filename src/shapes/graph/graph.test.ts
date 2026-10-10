@@ -15,6 +15,7 @@ import { graphScene } from './layout'
 import {
 	addEdge,
 	addNode,
+	degrees,
 	edgeWeight,
 	markKeys,
 	mergeTwins,
@@ -168,6 +169,29 @@ describe('generateGraph', () => {
 		expect(split).toBeGreaterThan(seeds.length / 2)
 	})
 
+	it('complete: every pair joined once, V(V - 1)/2 edges, round a circle with no edge through a node', () => {
+		const points = Array.from({ length: 7 }, (_, i) => ({ x: 3 + i * 2.3, y: 1 }))
+		const g = generateGraph(points, 5, 'numbers', { density: 'complete' })
+		expect(g.edges).toHaveLength((7 * 6) / 2)
+		expect(new Set(g.edges.map((e) => [e.from, e.to].sort().join('-'))).size).toBe(21)
+		// Node 0 where the drag began, its neighbours on the circle a sketch's spacing apart.
+		expect(g.nodes[0]).toMatchObject({ x: 3, y: 1 })
+		const at = (k: number) => g.nodes[k % 7]
+		for (let k = 0; k < 7; k++) expect(Math.hypot(at(k).x - at(k + 1).x, at(k).y - at(k + 1).y)).toBeCloseTo(GRAPH_SPACING)
+		// Every other node is well clear of every edge (no three nodes on a circle are in a line).
+		for (const e of g.edges) {
+			const [p, q] = [g.nodes.find((n) => n.id === e.from)!, g.nodes.find((n) => n.id === e.to)!]
+			for (const r of g.nodes.filter((n) => n !== p && n !== q)) {
+				const t = Math.max(0, Math.min(1, ((r.x - p.x) * (q.x - p.x) + (r.y - p.y) * (q.y - p.y)) / ((q.x - p.x) ** 2 + (q.y - p.y) ** 2)))
+				expect(Math.hypot(r.x - (p.x + t * (q.x - p.x)), r.y - (p.y + t * (q.y - p.y)))).toBeGreaterThan(0.5)
+			}
+		}
+		// A DAG: every pair, from the earlier node to the later.
+		const dag = generateGraph(points, 5, 'numbers', { density: 'complete', order: 'dag' })
+		for (const e of dag.edges) expect(Number(e.from.slice(1))).toBeLessThan(Number(e.to.slice(1)))
+		expect(generateGraph(points.slice(0, 1), 5, 'numbers', { density: 'complete' }).edges).toEqual([])
+	})
+
 	it('DAG: the same edges, every one from the earlier node to the later, so no cycle', () => {
 		for (const seed of seeds) {
 			const { points } = sketch(scribble(seed, 90))
@@ -268,9 +292,34 @@ describe('graph model', () => {
 	})
 })
 
+describe('degrees', () => {
+	it('undirected: the edges at each node, adding up to 2E; directed: in / out, each adding up to E', () => {
+		const g: GraphModel = {
+			nodes: ['a', 'b', 'c', 'd'].map((id, i) => ({ id, value: id.toUpperCase(), x: i, y: 0 })),
+			edges: [
+				{ id: 'e0', from: 'a', to: 'b', weight: '1' },
+				{ id: 'e1', from: 'a', to: 'c', weight: '1' },
+				{ id: 'e2', from: 'c', to: 'b', weight: '1' },
+			],
+		}
+		expect(degrees(g, false)).toEqual({ a: '2', b: '2', c: '2', d: '0' })
+		expect(degrees(g, true)).toEqual({ a: '0/2', b: '2/0', c: '1/1', d: '0/0' })
+	})
+})
+
 describe('graph migrations', () => {
-	it('graphs saved before the sketch options get the defaults', () => {
+	it('graphs saved before degrees could show get them hidden', () => {
 		const step = graphShapeMigrations.sequence.at(-1)!
+		if (!('up' in step) || typeof step.down !== 'function') throw new Error('expected a props migration')
+		const props: Record<string, unknown> = {}
+		step.up(props)
+		expect(props).toEqual({ degrees: false })
+		step.down(props)
+		expect(props).toEqual({})
+	})
+
+	it('graphs saved before the sketch options get the defaults', () => {
+		const step = graphShapeMigrations.sequence.at(-2)!
 		if (!('up' in step) || typeof step.down !== 'function') throw new Error('expected a props migration')
 		const props: Record<string, unknown> = {}
 		step.up(props)

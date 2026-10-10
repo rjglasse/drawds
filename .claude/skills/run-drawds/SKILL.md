@@ -231,9 +231,11 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   props `rowLabels`, `colLabels` (typed ones only: `0x0` alone shows 0x0, 0x1, 0x2... down the rows); drawn as
   `[data-row-index]` / `[data-col-index]` text.
 - **Graph views**: `rclick` a graph node, `context-menu-sub.drawds-graph-show-button`, then
-  `context-menu.graph-show-matrix`, `graph-show-lists` or `graph-show-union-find` (undirected): a `graph-view` shape
-  appears to the graph's right (past any views it has; Kruskal opens the union-find one itself)
-  and follows it (marks and BFS / DFS highlights too). With a view selected, `style.graph-view.matrix|lists`.
+  `context-menu.graph-show-matrix`, `graph-show-lists`, `graph-show-edges` (edge list) or `graph-show-union-find`
+  (undirected): a `graph-view` shape appears to the graph's right (past any views it has; Kruskal opens the union-find
+  one itself) and follows it (marks and BFS / DFS highlights too); its heading `[data-testid="graph-view-title"]`
+  counts V, E and the cells. With a view selected, `style.graph-view.matrix|lists|edges`. Also in Show:
+  `context-menu.graph-degrees` (degree badges; prop `degrees`).
 - **Union-find**: `key Shift+U` then `drag x y x+dx y` (an element per 48 px, at least 2, element 0 under the press),
   each in a set of its own. Keys: element `<i>`, parent cell `p<i>`, size / rank cell `w<i>`, parent arrow `e<i>`. Right-click
   an element: `context-menu-sub.drawds-uf-steps-button` (`uf-find`, `uf-union`: then `key-prompt` takes a name or index),
@@ -254,7 +256,7 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
 - **Graphs**: `shapes` lists graph edges as `A-B:7` (`A->B:7` when directed; `:7` is the
   weight, stored even when unweighted). Options with the graph tool or a graph selected:
   `[data-testid="style.graph-direction.directed"]`, `style.graph-weights.weighted`,
-  `style.graph-labels.numbers`, sketch options `style.graph-density.sparse|medium|dense`,
+  `style.graph-labels.numbers`, sketch options `style.graph-density.sparse|medium|dense|complete`,
   `style.graph-parts.connected|components` and (directed) `style.graph-order.any|dag`, which also
   rewire a selected graph. Edge x: `hover <from> <to>` then
   `[data-testid="remove-edge-<edge id>"]` (no edge buttons while a node is hovered).
@@ -286,7 +288,10 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   for the times column (`[data-count-line]`: `×5`). Its language: `eval` an `updateShape` with
   `props: { language: 'python' }` (the style panel's picker needs the box selected, which closes the bar).
 - **Graph traversals**: `rclick` a node, `clicksel [data-testid="context-menu-sub.drawds-graph-steps-button"]`,
-  then `context-menu.graph-bfs` or `graph-dfs`. **Tree / heap traversals**: `rclick` a node, `clicksel
+  then `context-menu.graph-bfs` or `graph-dfs`; `graph-path` (opens `key-prompt`: the target's label; parent[]
+  strip, then walked back) and `graph-cycle` (anywhere). Each view's cost (opens the matrix and lists): a node's
+  `graph-remove-vertex-costs`, `graph-has-edge-costs` (prompt), the graph's `graph-add-vertex-costs`, and right-click
+  an edge for `graph-remove-edge-costs`. **Tree / heap traversals**: `rclick` a node, `clicksel
   [data-testid="context-menu-sub.drawds-tree-steps-button"]` (`drawds-heap-steps` on heaps), then
   `context-menu.tree-in-order` (`tree-pre-order`, `tree-post-order`, `tree-level-order`; `heap-...`
   on heaps). Strips (call stack or queue, then the output) are each a

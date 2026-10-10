@@ -65,7 +65,7 @@ export type GraphLabelsMode = T.TypeOf<typeof GraphLabelsStyle>
 
 export const GraphDensityStyle = StyleProp.defineEnum('drawds:graph-density', {
 	defaultValue: 'medium' as const,
-	values: ['sparse', 'medium', 'dense'] as const,
+	values: ['sparse', 'medium', 'dense', 'complete'] as const,
 })
 export type GraphDensity = T.TypeOf<typeof GraphDensityStyle>
 
@@ -96,6 +96,8 @@ export interface GraphShapeProps {
 	marks: Marks
 	/** Named pointers (s, u, v...) at node ids. */
 	pointers: Pointer[]
+	/** Each node's degree as a badge (directed: in / out). */
+	degrees: boolean
 	color: TLDefaultColorStyle
 	size: TLDefaultSizeStyle
 	font: TLDefaultFontStyle
@@ -121,6 +123,7 @@ export const graphShapeProps: RecordProps<GraphShape> = {
 	seed: T.number,
 	marks: marksValidator,
 	pointers: pointersValidator,
+	degrees: T.boolean,
 	color: DefaultColorStyle,
 	size: DefaultSizeStyle,
 	font: DefaultFontStyle,
@@ -129,6 +132,7 @@ export const graphShapeProps: RecordProps<GraphShape> = {
 const versions = createShapePropsMigrationIds(GRAPH_SHAPE_TYPE, {
 	AddPointers: 1,
 	AddSketchOptions: 2,
+	AddDegrees: 3,
 })
 
 /** Graphs are persisted in the browser, so every props change needs a step here. */
@@ -152,6 +156,15 @@ export const graphShapeMigrations = createShapePropsMigrationSequence({
 			},
 			down(props) {
 				for (const key of ['density', 'parts', 'order']) delete props[key]
+			},
+		},
+		{
+			id: versions.AddDegrees,
+			up(props) {
+				props.degrees = false
+			},
+			down(props) {
+				delete props.degrees
 			},
 		},
 	],

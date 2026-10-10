@@ -242,6 +242,9 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	/** Elements that break the structure's invariant (scene node keys), ringed in red. */
 	sceneWarnings?(shape: S): readonly string[]
 
+	/** Badges shown while no operation is open (a graph's degrees), by scene node key. */
+	sceneBadges?(shape: S): Record<string, string> | undefined
+
 	/** Marks to draw, keyed by scene node key (structures with two views of one value map both). */
 	sceneMarks(shape: S) {
 		return this.getMarks(shape)
@@ -542,7 +545,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 				flash={
 					playing
 						? { marks: playing.flash, badges: playing.badges, fading: playing.fading, id: playing.id }
-						: hover && { marks: hover, fading: false, id: 0 }
+						: this.stillFlash(shape, hover)
 				}
 				swaps={
 					animate && playing?.frame && (playing.frame.swaps || playing.frame.moves)
@@ -580,12 +583,19 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 					color={this.style(shape).color}
 					fontFamily={this.getFontFamily(shape)}
 					marks={this.sceneMarks(shape)}
+					flash={this.stillFlash(shape)}
 					warnings={this.sceneWarnings?.(shape)}
 					cues={showsColourCues()}
 				/>
 				{this.renderPointers(shape, colors, { exporting: true })}
 			</>
 		)
+	}
+
+	/** With no operation open: the hovered element's highlights and the shape's own badges, if any. */
+	private stillFlash(shape: S, hover?: Marks) {
+		const badges = this.sceneBadges?.(shape)
+		return hover || badges ? { marks: hover ?? {}, badges, fading: false, id: 0 } : undefined
 	}
 
 	/**

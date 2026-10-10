@@ -75,6 +75,11 @@ export interface Frame {
 	runs?: Record<string, number>
 	/** How much of a shuffle's outcomes the view beside the array shows (`src/shapes/outcomes/`). */
 	outcomes?: FrameOutcomes
+	/**
+	 * Highlights on the views beside a graph at this step only, by view and its own keys (matrix cells
+	 * `r,c`, list heads and entries, edge-list rows): what a representation touches (`src/shapes/graph-view/costs.ts`).
+	 */
+	views?: Partial<Record<'matrix' | 'lists' | 'edges', Marks>>
 	/** How many rows of a sort's counts table beside the array show (`src/shapes/growth/`). */
 	growth?: { sort: string; rows: number }
 	/**

@@ -144,7 +144,7 @@ export class UnionFindShapeUtil extends NodeLinkShapeUtil<UnionFindShape> {
 			{
 				group: 'find',
 				id: 'uf-union',
-				label: `Union ${name} with…`,
+				label: `Union ${name} with`,
 				prompt: 'Element to union with',
 				run: (value) => value !== undefined && this.union(shape.id, i, value),
 			},

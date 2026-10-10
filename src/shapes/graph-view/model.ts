@@ -111,15 +111,87 @@ export function adjacencyScene(graph: Graph, size: TLDefaultSizeStyle): Scene {
 }
 
 /**
- * The graph's highlights on the view: a node's on its row and column header (matrix) or its list's
- * head (lists), an edge's (`edge:<id>`) on its cells or list entries. Null (clear) entries carry over.
+ * The edge list (lecture 9's plain text of pairs): a row per edge, its two ends (undirected, the
+ * earlier label first; directed, from and to) and, weighted, its weight, sorted. A vertex on no edge
+ * isn't in it (`isolated`): an edge list alone loses it.
  */
-export function viewHighlights(graph: Graph, view: 'matrix' | 'lists', marks: Record<string, MarkColor | null>): Marks {
+export function edgeList(graph: Graph) {
+	const label = new Map(graph.nodes.map((n) => [n.id, n.value]))
+	const name = (id: string) => label.get(id) ?? id
+	const directed = graph.direction === 'directed'
+	const weighted = graph.weights === 'weighted'
+	const rows = graph.edges
+		.map((e) => {
+			const flip = !directed && compareKeys(name(e.from), name(e.to)) > 0
+			return { edge: e.id, from: flip ? e.to : e.from, to: flip ? e.from : e.to, weight: e.weight }
+		})
+		.sort((a, b) => compareKeys(name(a.from), name(b.from)) || compareKeys(name(a.to), name(b.to)) || a.edge.localeCompare(b.edge))
+	const used = new Set(graph.edges.flatMap((e) => [e.from, e.to]))
+	return {
+		rows,
+		values: rows.map((r) => [name(r.from), name(r.to), ...(weighted ? [r.weight] : [])]),
+		cols: [...(directed ? ['from', 'to'] : ['u', 'v']), ...(weighted ? ['w'] : [])],
+		isolated: orderedNodes(graph)
+			.filter((n) => !used.has(n.id))
+			.map((n) => n.value),
+	}
+}
+
+export type CountedView = 'matrix' | 'lists' | 'edges'
+
+/** An edge list's row i: its header and its cells (two ends, and a weight). */
+export const edgeRowKeys = (graph: Pick<Graph, 'weights'>, i: number) => [`row:${i}`, cellKey(i, 0), cellKey(i, 1), ...(graph.weights === 'weighted' ? [cellKey(i, 2)] : [])]
+
+/**
+ * What a view costs, as its heading says: the matrix V × V cells (an undirected edge in two of them),
+ * the lists V heads and an entry per edge end (V + 2E; directed V + E), the edge list E pairs.
+ */
+export function viewTitle(graph: Graph, view: CountedView): string {
+	const [V, E] = [graph.nodes.length, graph.edges.length]
+	const directed = graph.direction === 'directed'
+	const edges = `E = ${E} edge${E === 1 ? '' : 's'}`
+	if (view === 'matrix') {
+		const index = new Map(orderedNodes(graph).map((n, i) => [n.id, i]))
+		const filled = new Set(graph.edges.flatMap((e) => edgeCells(e, index, directed))).size
+		return `Adjacency matrix: V × V = ${V} × ${V} = ${V * V} cells, ${filled} for ${edges}${filled > E ? ' (each in two)' : ''}`
+	}
+	if (view === 'lists') {
+		const entries = [...neighbours(graph, directed).values()].reduce((sum, list) => sum + list.length, 0)
+		const formula = entries === (directed ? E : 2 * E) ? (directed ? 'V + E' : 'V + 2E') : 'V + entries'
+		return `Adjacency lists: ${formula} = ${V} + ${entries} = ${V + entries} (${edges})`
+	}
+	const { isolated } = edgeList(graph)
+	const lost = isolated.length ? `; ${isolated.join(', ')}, on no edge, ${isolated.length === 1 ? "isn't" : "aren't"} in it` : ''
+	return `Edge list: E = ${E} pair${E === 1 ? '' : 's'} (V = ${V})${lost}`
+}
+
+/**
+ * The graph's highlights on the view: a node's on its row and column header (matrix), its list's head
+ * (lists) or every cell naming it (edge list), an edge's (`edge:<id>`) on its cells, list entries or
+ * row. Null (clear) entries carry over.
+ */
+export function viewHighlights(graph: Graph, view: CountedView, marks: Record<string, MarkColor | null>): Marks {
 	const out: Record<string, MarkColor | null> = {}
 	const nodes = orderedNodes(graph)
 	const index = new Map(nodes.map((n, i) => [n.id, i]))
 	const directed = graph.direction === 'directed'
 	const edges = new Map(graph.edges.map((e) => [e.id, e]))
+	if (view === 'edges') {
+		const { rows } = edgeList(graph)
+		const row = new Map(rows.map((r, i) => [r.edge, i]))
+		for (const [key, color] of Object.entries(marks)) {
+			if (key.startsWith('edge:')) {
+				const i = row.get(key.slice(5))
+				if (i !== undefined) for (const k of edgeRowKeys(graph, i)) out[k] = color
+				continue
+			}
+			rows.forEach((r, i) => {
+				if (r.from === key) out[cellKey(i, 0)] = color
+				if (r.to === key) out[cellKey(i, 1)] = color
+			})
+		}
+		return out as Marks
+	}
 	for (const [key, color] of Object.entries(marks)) {
 		if (key.startsWith('edge:')) {
 			const edge = edges.get(key.slice(5))

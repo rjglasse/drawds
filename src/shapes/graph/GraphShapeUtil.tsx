@@ -41,9 +41,12 @@ import { generateGraph } from './generate'
 import { getGraphMetrics, graphCorner, graphScene, toUnits } from './layout'
 import { components, dijkstra, kruskal, prim, topologicalSort } from './algorithms'
 import { bfs, dfs } from './traverse'
+import { findCycle, shortestPath } from './paths'
+import { addVertexCosts, hasEdgeCosts, removeEdgeCosts, removeVertexCosts, type CostRun } from '../graph-view/costs'
 import {
 	addEdge,
 	addNode,
+	degrees,
 	markKeys,
 	mergeTwins,
 	nextLabel,
@@ -80,6 +83,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 			seed: 0,
 			marks: {},
 			pointers: [],
+			degrees: false,
 			color: 'black',
 			size: 'm',
 			font: 'mono',
@@ -230,6 +234,20 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 	// end keeps the visited nodes and the tree edges as marks.
 
 	nodeOperations(shape: GraphShape, key: string): NodeOperation[] {
+		// An edge: removing it, step by step, as each representation does it.
+		const edge = key.startsWith('edge:') ? shape.props.edges.find((e) => `edge:${e.id}` === key) : undefined
+		if (edge) {
+			const name = (id: string) => shape.props.nodes.find((n) => n.id === id)?.value ?? id
+			const pair = `${name(edge.from)}${shape.props.direction === 'directed' ? '→' : '–'}${name(edge.to)}`
+			return [
+				{
+					group: 'representations',
+					id: 'graph-remove-edge-costs',
+					label: `Remove edge ${pair}: each view's cost`,
+					run: () => this.playCosts(shape.id, `remove edge ${pair}`, (s) => removeEdgeCosts(s.props, edge.id)),
+				},
+			]
+		}
 		const node = shape.props.nodes.find((n) => n.id === key)
 		if (!node) return []
 		const directed = shape.props.direction === 'directed'
@@ -237,6 +255,31 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		return [
 			{ group: 'traverse', id: 'graph-bfs', label: `Breadth-first search from ${node.value}`, run: () => this.traverse(shape.id, key, 'bfs') },
 			{ group: 'traverse', id: 'graph-dfs', label: `Depth-first search from ${node.value}`, run: () => this.traverse(shape.id, key, 'dfs') },
+			// Lecture 9: BFS finds the path with the fewest edges.
+			{
+				group: 'traverse',
+				id: 'graph-path',
+				label: `Path from ${node.value} to`,
+				prompt: 'To which vertex?',
+				run: (to) => to !== undefined && this.path(shape.id, key, to),
+			},
+			// Lecture 9a: what the representations cost, step by step.
+			{
+				group: 'representations',
+				id: 'graph-has-edge-costs',
+				label: `Is ${node.value} adjacent to`,
+				prompt: 'To which vertex?',
+				run: (to) => {
+					const target = to === undefined ? undefined : this.nodeNamed(shape.id, to)
+					if (target) this.playCosts(shape.id, 'is there an edge?', (s) => hasEdgeCosts(s.props, key, target))
+				},
+			},
+			{
+				group: 'representations',
+				id: 'graph-remove-vertex-costs',
+				label: `Remove ${node.value}: each view's cost`,
+				run: () => this.playCosts(shape.id, `remove ${node.value}`, (s) => removeVertexCosts(s.props, key)),
+			},
 			{
 				...algorithm,
 				id: 'graph-dijkstra',
@@ -268,8 +311,27 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 			...(shape.props.direction === 'directed'
 				? []
 				: [{ ...show, id: 'graph-show-union-find', label: "Union-find beside it (Kruskal's sets)", run: () => this.showView(shape.id, 'union-find') }]),
+			{ ...show, id: 'graph-show-edges', label: 'Edge list beside it', run: () => this.showView(shape.id, 'edges') },
+			{
+				...show,
+				id: 'graph-degrees',
+				label: `${shape.props.degrees ? 'Hide' : 'Show'} degrees${shape.props.direction === 'directed' ? ' (in/out)' : ''}`,
+				run: () => this.toggleDegrees(shape.id),
+			},
 		]
 		return [...views, ...this.algorithmOperations(shape)]
+	}
+
+	/** Degrees as badges on the nodes, or not: one undo step. */
+	private toggleDegrees(id: GraphShape['id']) {
+		const shape = this.editor.getShape(id) as GraphShape | undefined
+		if (!shape) return
+		this.editor.markHistoryStoppingPoint('toggle degrees')
+		this.editor.updateShape<GraphShape>({ id, type: GRAPH_SHAPE_TYPE, props: { degrees: !shape.props.degrees } })
+	}
+
+	override sceneBadges(shape: GraphShape) {
+		return shape.props.degrees ? degrees(shape.props, shape.props.direction === 'directed') : undefined
 	}
 
 	private showView(id: GraphShape['id'], view: GraphViewShape['props']['view']) {
@@ -285,7 +347,21 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 			label: 'Count connected components',
 			run: () => this.runAlgorithm(shape.id, 'connected components', (s) => components(s.props, this.algorithmOptions(s)).frames, undefined, 'graph-components'),
 		}
-		return [pieces, ...this.directedOrNot(shape, algorithms)]
+		// Lecture 9's Task 18: DFS finds a cycle as an edge back to the call stack.
+		const directed = shape.props.direction === 'directed'
+		const cycle: NodeOperation = {
+			...algorithms,
+			id: 'graph-cycle',
+			label: 'Is there a cycle?',
+			run: () => this.runAlgorithm(shape.id, 'is there a cycle?', (s) => findCycle(s.props, directed).frames, undefined, directed ? 'graph-cycle-directed' : 'graph-cycle'),
+		}
+		const addVertex: NodeOperation = {
+			group: 'representations',
+			id: 'graph-add-vertex-costs',
+			label: "Add a vertex: each view's cost",
+			run: () => this.playCosts(shape.id, 'add a vertex', (s) => addVertexCosts(s.props)),
+		}
+		return [pieces, cycle, ...this.directedOrNot(shape, algorithms), addVertex]
 	}
 
 	private directedOrNot(shape: GraphShape, algorithms: { group: string }): NodeOperation[] {
@@ -319,7 +395,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 			'Double-click a node or a weight to type',
 			"Drag from the dot on a node's right edge to another node to join them, or into space for a new node",
 			'Hover a node or an edge for x (remove); drag the dot under a node to move it',
-			"Right-click a node: Step by step has BFS, DFS, Dijkstra, Prim, Kruskal (with its union-find beside the graph) and connected components; Show puts its adjacency matrix, lists or union-find beside it",
+			"Right-click a node: Step by step has BFS, DFS, a path to another node (fewest edges), Dijkstra, Prim, Kruskal (with its union-find beside the graph), connected components and Is there a cycle?; Show puts its adjacency matrix, lists or union-find beside it",
 			'Style panel: Edges (directed or not), Weights, Labels, and Density, Pieces, Order for a new sketch',
 		]
 	}
@@ -338,7 +414,46 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		)
 	}
 
-	/** Play an algorithm's steps on the graph as it is now; nothing changes (Shift at the end keeps the highlights as marks). */
+	/** The id of the vertex named `typed` (as it is, else in any case), if there is one. */
+	private nodeNamed(id: GraphShape['id'], typed: string) {
+		const shape = this.editor.getShape(id) as GraphShape | undefined
+		const named = (match: (value: string) => boolean) => shape?.props.nodes.find((n) => match(n.value))
+		return (named((v) => v === typed.trim()) ?? named((v) => v.toLowerCase() === typed.trim().toLowerCase()))?.id
+	}
+
+	/** The path with the fewest edges from `from` to the vertex named `to`, if there is one by that name. */
+	private path(id: GraphShape['id'], from: string, to: string) {
+		const target = this.nodeNamed(id, to)
+		if (!target) return
+		this.runAlgorithm(id, 'path', (s) => shortestPath(s.props, from, target, s.props.direction === 'directed').frames, undefined, 'graph-path')
+	}
+
+	/**
+	 * What a change (or a question) costs each representation, step by step, with the adjacency matrix
+	 * and lists beside the graph (opened for it if missing: Esc takes them away again). The change goes
+	 * in at the end, as one undo step.
+	 */
+	private playCosts(id: GraphShape['id'], label: string, run: (shape: GraphShape) => CostRun) {
+		const shape = this.editor.getShape(id) as GraphShape | undefined
+		if (!shape) return
+		const shown = new Set(viewsOf(this.editor, shape).map((v) => v.props.view))
+		let mark: string | undefined
+		for (const view of ['matrix', 'lists'] as const) {
+			if (shown.has(view)) continue
+			const current = this.editor.getShape(id) as GraphShape
+			const made = showGraphView(this.editor, current, view)
+			mark ??= made
+		}
+		const { frames, result } = run(this.editor.getShape(id) as GraphShape)
+		playOperation(this.editor, {
+			shapeId: id,
+			label,
+			frames,
+			final: result && this.withModel(shape, result),
+			onCancel: mark === undefined ? undefined : () => void this.editor.bailToMark(mark!),
+		})
+	}
+
 	/**
 	 * Kruskal, with its union-find beside the graph: opened for it if the graph has none (Esc, before
 	 * the result is in, takes it away again, so cancelling changes nothing).
@@ -352,6 +467,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		this.runAlgorithm(id, 'minimum spanning tree', (s) => kruskal(s.props, this.algorithmOptions(s)).frames, takeBack)
 	}
 
+	/** Play an algorithm's steps on the graph as it is now; nothing changes (Shift at the end keeps the highlights as marks). */
 	private runAlgorithm(id: GraphShape['id'], label: string, steps: (shape: GraphShape) => Frame[], onCancel?: () => void, code?: string) {
 		const shape = this.editor.getShape(id) as GraphShape | undefined
 		if (!shape) return
@@ -410,19 +526,23 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		const options = { density: shape.props.density, parts: shape.props.parts, order: shape.props.order, ...change }
 		const order = new Map(nodes.map((n, i) => [n.id, i]))
 		let edges = shape.props.edges
+		let placed = nodes
 		if (change.density || change.parts) {
 			const ids = nodes.map((n) => n.id)
-			edges = generateGraph(nodes, seed, labels, options).edges.map((e) => ({
+			const sketch = generateGraph(nodes, seed, labels, options)
+			edges = sketch.edges.map((e) => ({
 				...e,
 				from: ids[Number(e.from.slice(1))],
 				to: ids[Number(e.to.slice(1))],
 			}))
+			// Complete: round a circle (from the first node), so no edge runs through a node.
+			if (options.density === 'complete') placed = nodes.map((n, i) => ({ ...n, x: sketch.nodes[i].x, y: sketch.nodes[i].y }))
 		} else if (change.order === 'dag') {
 			edges = mergeTwins(edges.map((e) => (order.get(e.from)! > order.get(e.to)! ? { ...e, from: e.to, to: e.from } : e)))
 		} else {
 			return this.update(shape, options)
 		}
-		const update = this.withModel(shape, { nodes, edges })
+		const update = this.withModel(shape, { nodes: placed, edges })
 		return { ...update, props: { ...update.props, ...options } }
 	}
 

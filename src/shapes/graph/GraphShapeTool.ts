@@ -19,9 +19,10 @@ export const GraphShapeTool = createDragTool<GraphShape, GraphSketch>({
 		const { seed, labels, size, density, parts, order } = shape.props
 		const { cell } = getGraphMetrics(size)
 		const { nodes, edges } = generateGraph(points, seed, labels, { density, parts, order })
-		// Shape space starts at the nodes' top-left corner; the first node stays under the press.
-		const left = Math.min(...points.map((p) => p.x)) - 0.5
-		const top = Math.min(...points.map((p) => p.y)) - 0.5
+		// Shape space starts at the nodes' top-left corner; the first node stays under the press (a
+		// complete graph's are round a circle, not along the drag).
+		const left = Math.min(...nodes.map((p) => p.x)) - 0.5
+		const top = Math.min(...nodes.map((p) => p.y)) - 0.5
 		return {
 			x: origin.x + left * cell,
 			y: origin.y + top * cell,

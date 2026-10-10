@@ -17,7 +17,9 @@ import { GRAPH_SHAPE_TYPE, type GraphShape } from '../graph/graph-shape-types'
 import { getMatrixLayout, getMatrixMetrics } from '../matrix/layout'
 import { MatrixSvg } from '../matrix/MatrixShapeUtil'
 import { GRAPH_VIEW_TYPE, graphViewShapeMigrations, graphViewShapeProps, type GraphViewShape } from './graph-view-shape-types'
-import { adjacencyMatrix, adjacencyScene, setsHighlights, setsLevels, unionFindView, viewHighlights } from './model'
+import { CHAR_WIDTH } from '../recursion/calls'
+import { CELL_SIZES } from '../sizes'
+import { adjacencyMatrix, adjacencyScene, edgeList, setsHighlights, setsLevels, unionFindView, viewHighlights, viewTitle } from './model'
 
 /**
  * A view of a graph beside it: its adjacency matrix, its adjacency lists, or Kruskal's union-find,
@@ -54,18 +56,29 @@ export class GraphViewShapeUtil extends ShapeUtil<GraphViewShape> {
 			const { scene, box } = unionFindView(graph.props, shape.props.size, sets, Math.max(1, ...steps.map(setsLevels)))
 			return { kind: 'union-find' as const, graph, scene, box, sets }
 		}
-		if (shape.props.view === 'matrix') {
-			const { labels, values } = adjacencyMatrix(graph.props)
-			const layout = getMatrixLayout(values.length, values.length, getMatrixMetrics(shape.props.size), { rows: labels, cols: labels })
-			return { kind: 'matrix' as const, graph, labels, values, box: layout.box }
+		// The graph as the step on screen has it (adding or removing a vertex, say), else as it is.
+		const frame = live ? playbackFor(this.editor, graph.id)?.frame : undefined
+		const shown = frame?.props ? { ...graph.props, ...(frame.props as Partial<GraphShape['props']>) } : graph.props
+		// Under a heading saying what the view costs.
+		const title = viewTitle(shown, shape.props.view)
+		const fontSize = Math.round(CELL_SIZES[shape.props.size] * 0.3)
+		const heading = { text: title, fontSize, h: fontSize * 2, w: title.length * fontSize * CHAR_WIDTH[shape.props.font] }
+		const below = (box: { w: number; h: number }) => ({ x: 0, y: 0, w: Math.max(box.w, heading.w), h: box.h + heading.h })
+		if (shape.props.view === 'matrix' || shape.props.view === 'edges') {
+			const { labels, values, cols } =
+				shape.props.view === 'matrix'
+					? { ...adjacencyMatrix(shown), cols: undefined }
+					: { ...edgeList(shown), labels: undefined }
+			const layout = getMatrixLayout(values.length, cols?.length ?? values.length, getMatrixMetrics(shape.props.size), { rows: labels, cols: cols ?? labels })
+			return { kind: shape.props.view, graph, shown, labels, cols, values, heading, box: below(layout.box) }
 		}
 		// The lists start at the origin: head cells at x = 0, the first row at the top.
-		const scene = adjacencyScene(graph.props, shape.props.size)
+		const scene = adjacencyScene(shown, shape.props.size)
 		const box = scene.nodes.reduce(
 			(b, n) => ({ w: Math.max(b.w, n.x + n.w / 2), h: Math.max(b.h, n.y + n.h / 2) }),
 			{ w: 1, h: 1 }
 		)
-		return { kind: 'lists' as const, graph, scene, box: { x: 0, y: 0, ...box } }
+		return { kind: 'lists' as const, graph, shown, scene, heading, box: below(box) }
 	}
 
 	getGeometry(shape: GraphViewShape) {
@@ -122,34 +135,53 @@ export class GraphViewShapeUtil extends ShapeUtil<GraphViewShape> {
 			)
 		}
 		const view = content.kind
-		const marks = viewHighlights(graph.props, view, graph.props.marks)
-		const flash = playing && { marks: viewHighlights(graph.props, view, playing.flash), fading: playing.fading, id: playing.id }
-		if (content.kind === 'matrix') {
-			return (
-				<MatrixSvg
-					values={content.values}
-					rowLabels={content.labels}
-					colLabels={content.labels}
-					marks={marks}
-					color={shape.props.color}
-					metrics={getMatrixMetrics(shape.props.size)}
-					colors={colors}
-					fontFamily={fontFamily}
-					flash={flash}
-					cues={showsColourCues()}
-				/>
-			)
-		}
+		const { shown } = content
+		const marks = viewHighlights(shown, view, graph.props.marks)
+		// The step's highlights on the graph, mapped here, and its own for this view (what it costs).
+		const own = playing?.frame?.views?.[view]
+		const flash = playing && { marks: { ...viewHighlights(shown, view, playing.flash), ...own }, fading: playing.fading, id: playing.id }
+		const { heading } = content
 		return (
-			<SceneSvg
-				scene={content.scene}
-				colors={colors}
-				color={shape.props.color}
-				fontFamily={fontFamily}
-				marks={marks as Marks}
-				flash={flash}
-				cues={showsColourCues()}
-			/>
+			<>
+				<text
+					data-testid="graph-view-title"
+					x={0}
+					y={heading.fontSize * 0.8}
+					fontFamily={fontFamily}
+					fontSize={heading.fontSize}
+					fill={colors.text}
+					opacity={0.75}
+					dominantBaseline="central"
+				>
+					{heading.text}
+				</text>
+				<g transform={`translate(0, ${heading.h})`}>
+					{content.kind === 'lists' ? (
+						<SceneSvg
+							scene={content.scene}
+							colors={colors}
+							color={shape.props.color}
+							fontFamily={fontFamily}
+							marks={marks as Marks}
+							flash={flash}
+							cues={showsColourCues()}
+						/>
+					) : (
+						<MatrixSvg
+							values={content.values}
+							rowLabels={content.labels}
+							colLabels={content.cols ?? content.labels}
+							marks={marks}
+							color={shape.props.color}
+							metrics={getMatrixMetrics(shape.props.size)}
+							colors={colors}
+							fontFamily={fontFamily}
+							flash={flash}
+							cues={showsColourCues()}
+						/>
+					)}
+				</g>
+			</>
 		)
 	}
 
@@ -174,7 +206,7 @@ export function showGraphView(editor: Editor, graph: GraphShape, view: GraphView
 	const bounds = editor.getShapePageBounds(graph)
 	if (!bounds) return undefined
 	const right = Math.max(bounds.maxX, ...viewsOf(editor, graph).map((v) => editor.getShapePageBounds(v)?.maxX ?? -Infinity))
-	const mark = editor.markHistoryStoppingPoint(`show ${view === 'union-find' ? 'union-find' : `adjacency ${view}`}`)
+	const mark = editor.markHistoryStoppingPoint(`show ${{ 'union-find': 'union-find', edges: 'edge list', matrix: 'adjacency matrix', lists: 'adjacency lists' }[view]}`)
 	editor.createShape<GraphViewShape>({
 		type: GRAPH_VIEW_TYPE,
 		x: right + 60,

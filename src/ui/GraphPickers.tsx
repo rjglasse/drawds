@@ -53,12 +53,13 @@ const LABEL_ITEMS: StyleValuesForUi<GraphLabelsMode> = [
 	{ value: 'numbers', icon: text('01', 15) },
 ]
 
-// Four nodes: a path, a path and a diagonal, every pair joined.
+// Four nodes: a path, a path and a diagonal, all but one pair joined, every pair joined.
 const FOUR = '<circle cx="6" cy="6" r="2.5"/><circle cx="24" cy="6" r="2.5"/><circle cx="6" cy="24" r="2.5"/><circle cx="24" cy="24" r="2.5"/>'
 const DENSITY_ITEMS: StyleValuesForUi<GraphDensity> = [
 	{ value: 'sparse', icon: svgIcon(`${FOUR}<path d="M8.5 6H21.5M24 8.5V21.5M21.5 24H8.5"/>`) },
 	{ value: 'medium', icon: svgIcon(`${FOUR}<path d="M8.5 6H21.5M24 8.5V21.5M21.5 24H8.5M8 22L22 8"/>`) },
-	{ value: 'dense', icon: svgIcon(`${FOUR}<path d="M8.5 6H21.5M24 8.5V21.5M21.5 24H8.5M6 8.5V21.5M8 22L22 8M8 8L22 22"/>`) },
+	{ value: 'dense', icon: svgIcon(`${FOUR}<path d="M8.5 6H21.5M24 8.5V21.5M21.5 24H8.5M6 8.5V21.5M8 22L22 8"/>`) },
+	{ value: 'complete', icon: svgIcon(`${FOUR}<path d="M8.5 6H21.5M24 8.5V21.5M21.5 24H8.5M6 8.5V21.5M8 22L22 8M8 8L22 22"/>`) },
 ]
 
 // One piece of four nodes; two pieces of two.
@@ -87,6 +88,7 @@ export const graphPickerTranslations: Record<string, string> = {
 	'graph-density-style.sparse': 'Sketch sparse graphs: just a spanning tree, no cycles',
 	'graph-density-style.medium': 'Sketch graphs of medium density',
 	'graph-density-style.dense': 'Sketch dense graphs: many edges between near nodes',
+	'graph-density-style.complete': 'Sketch complete graphs: every pair of nodes joined, round a circle',
 	'graph-parts-style.connected': 'Sketch connected graphs: one piece',
 	'graph-parts-style.components': 'Sketch graphs in several pieces (components)',
 	'graph-order-style.any': 'Edges point either way (cycles possible)',
@@ -213,15 +215,18 @@ const VIEW_ITEMS: StyleValuesForUi<GraphViewKind> = [
 		// Two small trees, children pointing up at their roots, over the parent array.
 		icon: svgIcon('<circle cx="8" cy="5" r="2.5"/><circle cx="4" cy="13" r="2.5"/><circle cx="12" cy="13" r="2.5"/><circle cx="22" cy="9" r="2.5"/><path d="M5.2 10.8L7 7.3M10.8 10.8L9 7.3"/><rect x="3" y="20" width="24" height="6"/><path d="M11 20v6M19 20v6"/>'),
 	},
+	// Pairs, a row each: two columns.
+	{ value: 'edges', icon: svgIcon('<rect x="8" y="4" width="14" height="22"/><path d="M15 4v22M8 11.3h14M8 18.7h14"/>') },
 ]
 
 export const graphViewPickerTranslations: Record<string, string> = {
 	'graph-view-style.matrix': 'Adjacency matrix',
 	'graph-view-style.lists': 'Adjacency lists',
 	'graph-view-style.union-find': "Union-find (Kruskal's sets)",
+	'graph-view-style.edges': 'Edge list',
 }
 
-/** A graph view shows its graph as an adjacency matrix, as adjacency lists, or as Kruskal's union-find. */
+/** A graph view shows its graph as an adjacency matrix, adjacency lists, Kruskal's union-find or an edge list. */
 export function GraphViewPickers() {
 	const { styles } = useStylePanelContext()
 	const view = styles.get(GraphViewKindStyle)

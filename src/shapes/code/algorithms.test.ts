@@ -22,6 +22,7 @@ import { measureTree } from '../tree/measure'
 import { bstExtreme } from '../tree/search'
 import { bfs, dfs } from '../graph/traverse'
 import { components } from '../graph/algorithms'
+import { findCycle, shortestPath } from '../graph/paths'
 import { traverseTree } from '../tree/traverse'
 import { mulberry32 } from '../../data/random'
 import { ALGORITHMS, algorithmCode, parseCode, shownValues, taggedLine } from './algorithms'
@@ -136,6 +137,13 @@ describe('algorithm code', () => {
 			dfs(graph, 'a', false),
 			bfs(graph, 'a', true),
 			components(graph, { directed: false, weighted: false }),
+			// Lecture 9's path and Task 18's cycle.
+			shortestPath(graph, 'a', 'c', false),
+			shortestPath(graph, 'a', 'e', false),
+			findCycle(graph, false),
+			findCycle({ ...graph, edges: graph.edges.slice(0, 1) }, false),
+			findCycle(graph, true),
+			findCycle({ ...graph, edges: graph.edges.slice(0, 1) }, true),
 		]
 		// What the steps give values for (their pointers and variables), by code: some runs never reach a
 		// variable (a pop that underflows has no v), so all the runs of a code together.

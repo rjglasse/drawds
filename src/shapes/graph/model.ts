@@ -88,6 +88,20 @@ export function mergeTwins(edges: readonly GraphEdge[]): GraphEdge[] {
 }
 
 /** Keys that can carry a mark: node ids and `edge:<id>` for edges. */
+/**
+ * Each node's degree, as a badge says it: undirected, how many edges meet it (a loop counts twice),
+ * so they add up to 2E; directed, in / out (edges coming in, going out), each adding up to E.
+ */
+export function degrees({ nodes, edges }: GraphModel, directed: boolean): Record<string, string> {
+	const into = new Map(nodes.map((n) => [n.id, 0]))
+	const out = new Map(nodes.map((n) => [n.id, 0]))
+	for (const e of edges) {
+		into.set(e.to, (into.get(e.to) ?? 0) + 1)
+		out.set(e.from, (out.get(e.from) ?? 0) + 1)
+	}
+	return Object.fromEntries(nodes.map((n) => [n.id, directed ? `${into.get(n.id)}/${out.get(n.id)}` : String(into.get(n.id)! + out.get(n.id)!)]))
+}
+
 export function markKeys(model: GraphModel): string[] {
 	return [...model.nodes.map((n) => n.id), ...model.edges.map((e) => edgeCellKey(e.id))]
 }

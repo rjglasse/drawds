@@ -34,8 +34,9 @@ you can retype. Each one is a single shape: move it, restyle it, undo it in one 
 </tr>
 </table>
 
-A graph can show its **adjacency matrix**, **adjacency lists** or **union-find** beside it (right-click > Show), and
-they follow it as it changes. The style panel's **What can I do?** lists every gesture, button and setting for the
+A graph can show its **adjacency matrix**, **adjacency lists**, **edge list** or **union-find** beside it (right-click >
+Show), each headed by what it costs (V × V cells, V + 2E entries, E pairs), and they follow it as it changes; Show >
+degrees badges every node. The style panel's **What can I do?** lists every gesture, button and setting for the
 selected structure.
 
 ## Step by step
@@ -58,7 +59,7 @@ nothing changed. Once the result is in, the bar stays to step back through it or
 | Linked list | find, insert, delete, append, insert in order, reverse, find the middle (slow and fast), print backwards, Floyd's cycle detection |
 | Tree, BST, heap | pre-, in-, post- and level-order; BST search, insert, delete (all three cases); heap insert, extract, build-heap |
 | Hash table | insert, find, delete (tombstones when probing), grow and rehash |
-| Graph | BFS, DFS, Dijkstra, Prim, Kruskal (with its union-find), topological sort, connected components |
+| Graph | BFS, DFS, a path with the fewest edges, is there a cycle?, Dijkstra, Prim, Kruskal (with its union-find), topological sort, connected components; adding or removing a vertex or an edge, and what it costs the adjacency matrix, the lists and the edge list |
 | Union-find, matrix | find with path compression, union by size or rank; row- and column-major order, transpose, staircase search |
 
 ### Recursion
