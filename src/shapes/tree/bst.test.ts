@@ -68,13 +68,36 @@ describe('BST', () => {
 		expect(bstViolations(r.nodes).size).toBe(0)
 	})
 
-	it('deletes a node with two children via its in-order successor', () => {
+	it('deletes a node with two children by moving its in-order successor up, relinked (3.2: the successor is deeper)', () => {
 		const r = bstDelete(tree(), 'nL')
 		expect(r.kind).toBe('two-children')
+		expect(r.twoChildren).toBe('3.2')
 		expect(r.successor).toBe('nLRL')
 		expect(r.path).toEqual(['nLR', 'nLRL'])
-		expect(r.nodes.find((n) => n.id === 'nL')!.value).toBe('4')
+		// The successor node itself (key 4) is in the deleted node's place; no key copied.
+		expect(r.nodes.find((n) => n.id === 'nL')).toBeUndefined()
+		expect(r.nodes.find((n) => n.id === 'n')!.children[0]).toBe('nLRL')
 		expect(values(r.nodes)).toEqual(['1', '4', '6', '7', '8', '10', '13', '14'])
+		expect(bstViolations(r.nodes).size).toBe(0)
+	})
+
+	it("lecture 8b's 3.2: delete 20; 21 moves up, 23 becomes 25's left child, 15 and 25 hang on 21", () => {
+		const r = bstDelete(
+			[node('z', '20', ['l', 'x']), node('l', '15'), node('x', '25', ['y', null]), node('y', '21', [null, 'w']), node('w', '23')],
+			'z'
+		)
+		expect(r.twoChildren).toBe('3.2')
+		const byId = new Map(r.nodes.map((n) => [n.id, n]))
+		expect(r.nodes[0].id).toBe('y')
+		expect(byId.get('y')!.children).toEqual(['l', 'x'])
+		expect(byId.get('x')!.children).toEqual(['w', null])
+		expect(bstViolations(r.nodes).size).toBe(0)
+	})
+
+	it("3.1: the successor is the right child: it moves up, the deleted node's left subtree its left", () => {
+		const r = bstDelete([node('z', '20', ['l', 'x']), node('l', '15'), node('x', '25', [null, 'r']), node('r', '30')], 'z')
+		expect(r.twoChildren).toBe('3.1')
+		expect(r.nodes[0]).toMatchObject({ id: 'x', children: ['l', 'r'] })
 	})
 
 	it('deleting a root with one child makes the child the root', () => {

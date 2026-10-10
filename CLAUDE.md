@@ -305,7 +305,14 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   Union with... (prompt: a name or index); actions: Random unions, reset. Type a parent into its cell (a loop is refused;
   sizes and ranks recounted). Shift+U.
 - `src/shapes/tree/bst.ts` - BST as a *kind* of binary tree (`drawds:tree-kind` style): in-order key placement,
-  insert (path), delete (leaf / one child / two children via successor), violation check with ancestor bounds.
+  insert (path), delete (leaf / one child / two children: the successor node moves up, relinked as lecture 8b does, no key
+  copied: 3.1 the successor is the right child, 3.2 it is deeper and its right subtree takes its place), violation check
+  with ancestor bounds. Lecture 8: `measure.ts` (height with a leaf 0 or 1, count the leaves, size: post-order recursion
+  from a node, the call stack as a strip, each node's answer badged as its call returns, the caption forming the sum or
+  max; the code checks for null so a node with one child works), `search.ts`'s `bstExtreme` (min / max: hops counted)
+  and `bstBuild` (the tree's keys inserted again sorted, a stick, or shuffled; BST Step by step, `shapeOperations`). The
+  traversals, measures and min / max have code beside the tree (`src/shapes/tree/code.ts`; traversals in lecture 8's
+  three-line form).
   `search.ts`: search as frames (curr walks down, each ruled-out subtree fades via `dim`). Invariant checks:
   BSTs and heaps ring offending elements in dashed red (`sceneWarnings` -> SceneSvg `warnings`, toggled by the
   `drawds:invariant` style, `src/cells/invariant-style.ts`; hidden while an operation is open).

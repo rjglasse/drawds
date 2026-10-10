@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { Frame } from '../../nodelink/playback'
 import {
 	binarySearch,
 	bubbleSort,
@@ -11,18 +12,23 @@ import {
 	recursiveBinarySearch,
 	selectionSort,
 	sumWithInvariant,
-	type ArrayOperation,
 	type ArrayState,
 } from '../array/operations'
 import { allUnique, findMax, sentinelSearch } from '../array/scans'
 import { fisherYates, unfairShuffle } from '../array/shuffles'
 import { peekStack, pop, push } from '../array/stack-queue'
 import { findInList } from '../list/operations'
+import { measureTree } from '../tree/measure'
+import { bstExtreme } from '../tree/search'
+import { traverseTree } from '../tree/traverse'
 import { mulberry32 } from '../../data/random'
 import { ALGORITHMS, algorithmCode, parseCode, shownValues, taggedLine } from './algorithms'
 import { codeShapeMigrations } from './code-shape-types'
 
 const array = (...values: (string | number)[]): ArrayState => ({ values: values.map(String), marks: {} })
+const treeNode = (id: string, value: string, children: (string | null)[] = [null, null]) => ({ id, value, children, dx: 0, dy: 0 })
+// A, B and C, B with one child D: every kind of node.
+const tree = [treeNode('a', 'A', ['b', 'c']), treeNode('b', 'B', ['d', null]), treeNode('c', 'C'), treeNode('d', 'D')]
 
 describe('algorithm code', () => {
 	it('takes the tags off the ends of lines and the indentation the first line has', () => {
@@ -71,7 +77,7 @@ describe('algorithm code', () => {
 	})
 
 	it('every line a step of an array operation names is in its code, in Java and Python', () => {
-		const ops: ArrayOperation[] = [
+		const ops: { frames: Frame[]; code?: string }[] = [
 			linearSearch(array(5, 7, 9), '9'),
 			linearSearch(array(5, 7, 9), '4'),
 			binarySearch(array(1, 3, 5, 7, 9, 11), '9'),
@@ -106,6 +112,11 @@ describe('algorithm code', () => {
 			// Lecture 5's indexOf.
 			findInList({ nodes: ['7', '3', '9'].map((value, i) => ({ id: `n${i}`, value, dx: 0, dy: 0 })), direction: 'right', size: 'm' }, '9'),
 			findInList({ nodes: ['7', '3'].map((value, i) => ({ id: `n${i}`, value, dx: 0, dy: 0 })), direction: 'right', size: 'm' }, '9'),
+			// Lecture 8: traversals (with and without null markers) and the recursion that returns values.
+			...(['pre', 'in', 'post', 'level'] as const).flatMap((order) => [traverseTree(tree, 'a', order), traverseTree(tree, 'a', order, { nulls: true })]),
+			...(['height', 'height-levels', 'leaves', 'size'] as const).flatMap((m) => [measureTree(tree, 'a', m), measureTree(tree, 'a', m, { nulls: true })]),
+			{ ...bstExtreme(tree, 'a', 'min'), code: 'bst-min' },
+			{ ...bstExtreme(tree, 'a', 'max'), code: 'bst-max' },
 		]
 		// What the steps give values for (their pointers and variables), by code: some runs never reach a
 		// variable (a pop that underflows has no v), so all the runs of a code together.

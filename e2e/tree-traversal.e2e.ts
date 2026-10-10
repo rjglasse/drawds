@@ -58,3 +58,38 @@ test('level order of a heap is its array order, lit in both views', async ({ pag
 	await page.keyboard.press('Shift+Enter')
 	expect(Object.keys((await heap(page)).marks).sort()).toEqual(values.map((_, i) => String(i)).sort())
 })
+
+/** Lecture 8a's tree: A with children B and C; B with D and E. */
+async function lectureTree(page: Page) {
+	await sketchTree(page, [400, 150], 1)
+	await page.evaluate(() => {
+		const editor = window.editor!
+		const shape = editor.getCurrentPageShapes().find((s) => s.type === 'binary-tree')!
+		const n = (id: string, value: string, children: (string | null)[] = [null, null]) => ({ id, value, children, dx: 0, dy: 0 })
+		editor.updateShape({ id: shape.id, type: 'binary-tree', props: { nodes: [n('a', 'A', ['b', 'c']), n('b', 'B', ['d', 'e']), n('c', 'C'), n('d', 'D'), n('e', 'E')] } } as never)
+	})
+}
+
+test("lecture 8a's recursion that returns values: count the leaves, each node's answer badged as its call returns", async ({ page }) => {
+	await lectureTree(page)
+	await traverseFrom(page, 'a', 'tree-leaves')
+	await stepToEnd(page)
+	await expect(page.getByTestId('play-caption')).toHaveText('leaves(A) = 3: 3 leaves, each a base case returning 1, added up on the way back')
+	// Height (a leaf is 0) with its code beside the tree: A is 2.
+	await page.keyboard.press('Enter')
+	await traverseFrom(page, 'a', 'tree-height')
+	await page.getByTestId('play-code').click()
+	await stepToEnd(page)
+	await expect(page.getByTestId('play-caption')).toContainText('height(A) = 2: the longest way down from A, counted in edges')
+	expect(await shapesOfType(page, 'code')).toHaveLength(1)
+})
+
+test("traversals show lecture 8's three-line code, the step's line lit", async ({ page }) => {
+	await lectureTree(page)
+	await traverseFrom(page, 'a', 'tree-in-order')
+	await page.getByTestId('play-code').click()
+	await page.keyboard.press('ArrowRight')
+	// Step 2: in-order goes left to B: the call on node.left.
+	const line = await page.locator('[data-step-line]').getAttribute('data-step-line')
+	await expect(page.locator(`[data-code-line="${line}"]`)).toContainText('inOrder(node.left)')
+})

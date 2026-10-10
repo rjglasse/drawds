@@ -8,9 +8,13 @@ import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkSh
 import { prunePointers } from '../../pointers/pointers'
 import { playOperation, type Frame } from '../../nodelink/playback'
 import { assignInOrder, bstDelete, bstInsert, bstViolations } from './bst'
-import { bstSearch } from './search'
+import { bstBuild, bstExtreme, bstSearch } from './search'
+import { mulberry32 } from '../../data/random'
+import { seedForSketch } from '../../data/seed'
+import { shuffledOrder } from '../array/rearrange'
 import { nullKey, treeBasePosition, treeScene } from './layout'
 import { ORDER_NAMES, traverseTree, type TreeOrder } from './traverse'
+import { measureTree, type TreeMeasure } from './measure'
 import { addChild, levelOrder, mirrorSubtree, parentOf, removeSubtree, swapChildren } from './model'
 import {
 	TREE_SHAPE_TYPE,
@@ -190,6 +194,13 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 							prompt: 'Key to find',
 							run: (value?: string) => value !== undefined && this.search(shape.id, value),
 						},
+						// Lecture 8b: as far left (right) as it goes, the hops counted.
+						...(['min', 'max'] as const).map((side) => ({
+							...search,
+							id: `bst-${side}`,
+							label: `${side === 'min' ? 'Minimum' : 'Maximum'}${root ? '' : ` of ${node.value || 'this'}'s subtree`}`,
+							run: () => this.extreme(shape.id, key, side),
+						})),
 					]
 				: []),
 			...(['pre', 'in', 'post', 'level'] as const).map((order) => ({
@@ -198,7 +209,62 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 				group: 'traverse',
 				run: () => this.traverse(shape.id, key, order),
 			})),
+			// Lecture 8a: recursion that returns values, its answers badged on the nodes as they come back.
+			...(
+				[
+					['height', `Height of ${node.value || 'this subtree'} (a leaf is 0)`],
+					['height-levels', `Height of ${node.value || 'this subtree'} (a leaf is 1)`],
+					['leaves', `Count the leaves under ${node.value || 'here'}`],
+					['size', `Size of ${node.value ? `${node.value}'s` : 'this'} subtree`],
+				] as const
+			).map(([measure, label]) => ({
+				id: `tree-${measure}`,
+				label,
+				group: 'measure',
+				run: () => this.measure(shape.id, key, measure),
+			})),
 		]
+	}
+
+	/**
+	 * Lecture 8b's priority queue as a BST: these keys inserted one by one into an empty tree, sorted
+	 * (a stick) or shuffled first (bushy). The new tree is the result (one undo step).
+	 */
+	override shapeOperations(shape: TreeShape): NodeOperation[] {
+		if (shape.props.kind !== 'bst' || shape.props.nodes.length < 2) return []
+		const build = { group: 'build' }
+		return (['sorted', 'shuffled'] as const).map((order) => ({
+			...build,
+			id: `bst-build-${order}`,
+			label: order === 'sorted' ? 'Insert these keys in sorted order (a stick)' : 'Insert these keys shuffled',
+			run: () => this.build(shape.id, order),
+		}))
+	}
+
+	private build(id: TreeShape['id'], order: 'sorted' | 'shuffled') {
+		const shape = this.editor.getShape(id) as TreeShape | undefined
+		if (!shape) return
+		const keys = shape.props.nodes.map((n) => n.value).filter((v) => v.trim())
+		const sorted = [...keys].sort(compareKeys)
+		const ordered = order === 'sorted' ? sorted : shuffledOrder(sorted.length, mulberry32(seedForSketch())).map((i) => sorted[i])
+		const { frames, nodes } = bstBuild(ordered, order)
+		this.play(shape, order === 'sorted' ? 'insert sorted keys' : 'insert shuffled keys', frames, false, { nodes, flash: {} })
+	}
+
+	/** The minimum or maximum of the subtree at `start`, step by step, its code beside it. */
+	private extreme(id: TreeShape['id'], start: string, side: 'min' | 'max') {
+		const shape = this.editor.getShape(id) as TreeShape | undefined
+		if (!shape) return
+		const { frames, found } = bstExtreme(shape.props.nodes, start, side)
+		playOperation(this.editor, { shapeId: id, label: side === 'min' ? 'minimum' : 'maximum', frames, finalFlash: { [found]: 'green' }, code: `bst-${side}` })
+	}
+
+	/** Height, leaves or size of the subtree at `start`, worked out recursively, step by step. */
+	private measure(id: TreeShape['id'], start: string, measure: TreeMeasure) {
+		const shape = this.editor.getShape(id) as TreeShape | undefined
+		if (!shape) return
+		const { frames, code } = measureTree(shape.props.nodes, start, measure, { nulls: shape.props.nulls === 'show' })
+		playOperation(this.editor, { shapeId: id, label: measure.startsWith('height') ? 'height' : measure, frames, code })
 	}
 
 	override menuName(shape: TreeShape) {
@@ -238,7 +304,7 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 		const shape = this.editor.getShape(id) as TreeShape | undefined
 		if (!shape) return
 		const { nodes, nulls, kind } = shape.props
-		const { frames, visited } = traverseTree(nodes, start, order, { nulls: nulls === 'show' })
+		const { frames, visited, code } = traverseTree(nodes, start, order, { nulls: nulls === 'show' })
 		// The point of in-order on a BST (unless the keys were edited out of order).
 		const keys = visited.map((v) => nodes.find((n) => n.id === v)!.value)
 		if (order === 'in' && kind === 'bst' && keys.every((k, i) => i === 0 || compareKeys(keys[i - 1], k) <= 0)) {
@@ -249,6 +315,7 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 			shapeId: id,
 			label: `${ORDER_NAMES[order].toLowerCase()} traversal`,
 			frames,
+			code,
 			withMarks: (_update, highlights) => {
 				const current = (this.editor.getShape(id) as TreeShape | undefined) ?? shape
 				const marks = pruneMarks(
@@ -310,27 +377,25 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 		const why = {
 			leaf: `Delete ${v}: a leaf, so just remove it`,
 			'one-child': `Delete ${v}: it has one child, which takes its place`,
-			'two-children': `Delete ${v}: two children, so find its successor (the smallest key on its right)`,
+			'two-children': `Delete ${v}: two children, so its successor, the smallest key on its right, will take its place`,
 		}[result.kind]
+		const s = result.successor
+		const sv = s && valueOf.get(s)
+		const moves =
+			result.twoChildren === '3.1'
+				? `${sv} is ${v}'s right child, with no left child: it moves up into ${v}'s place and ${v}'s left subtree hangs on as its left (case 3.1)`
+				: `${sv} has no left child: its right subtree takes its place, then ${sv} moves up into ${v}'s place with both of ${v}'s subtrees (case 3.2)`
 		const frames = [
 			TreeShapeUtil.highlight(key, 'red', why),
 			...result.path.map((id, i) =>
 				TreeShapeUtil.highlight(id, 'orange', i === 0 ? `Go right to ${valueOf.get(id)}` : `Go left to ${valueOf.get(id)}`)
 			),
-			...(result.successor
-				? [
-						TreeShapeUtil.highlight(
-							result.successor,
-							'green',
-							`${valueOf.get(result.successor)} has no left child: it is the successor, and replaces ${v}`
-						),
-					]
-				: []),
+			...(s ? [TreeShapeUtil.highlight(s, 'green', moves)] : []),
 		]
-		// With two children the node stays, now holding its successor's value.
+		// With two children the successor node moves up: nodes are relinked, no key copied.
 		this.play(shape, 'delete key', frames, keep, {
 			nodes: result.nodes,
-			flash: result.kind === 'two-children' ? { [key]: 'green' } : {},
+			flash: s ? { [s]: 'green' } : {},
 		})
 		return true
 	}

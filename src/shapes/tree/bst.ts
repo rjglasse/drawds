@@ -77,7 +77,12 @@ export function bstInsert(nodes: readonly TreeNode[], key: string): BstInsert {
 export interface BstDelete {
 	/** Which textbook case applied. */
 	kind: 'leaf' | 'one-child' | 'two-children'
-	/** Two children: the in-order successor, the path down to it from the right child, and its value. */
+	/**
+	 * Two children: lecture 8b's 3.1 (the successor is the right child) or 3.2 (it is further down,
+	 * the leftmost of the right subtree).
+	 */
+	twoChildren?: '3.1' | '3.2'
+	/** Two children: the in-order successor, and the path down to it from the right child. */
 	successor?: string
 	path: string[]
 	nodes: TreeNode[]
@@ -95,9 +100,11 @@ function splice(nodes: readonly TreeNode[], id: string, replacement: string): Tr
 }
 
 /**
- * Delete a node, BST style: a leaf just goes; a node with one child is replaced by it; a node
- * with two children takes its in-order successor's value (leftmost of its right subtree), and the
- * successor, which has no left child, is removed instead.
+ * Delete a node, BST style: a leaf just goes; a node with one child is replaced by it; a node with
+ * two children is replaced by its in-order successor (the leftmost of its right subtree), relinked
+ * as lecture 8b does, no keys copied: 3.1, the successor is its right child: it moves up, the
+ * deleted node's left subtree its left. 3.2, the successor is further down: its right subtree takes
+ * its place, then it moves up with both of the deleted node's subtrees.
  */
 export function bstDelete(nodes: readonly TreeNode[], id: string): BstDelete {
 	const index = byId(nodes)
@@ -114,8 +121,22 @@ export function bstDelete(nodes: readonly TreeNode[], id: string): BstDelete {
 		s = index.get(s.children[0])!
 		path.push(s.id)
 	}
-	const withValue = nodes.map((n) => (n.id === id ? { ...n, value: s.value } : n))
-	const right = s.children[1]
-	const rest = right && index.has(right) ? splice(withValue, s.id, right) : removeSubtree(withValue, s.id)
-	return { kind: 'two-children', successor: s.id, path, nodes: rest }
+	const [left, right] = node.children
+	const deep = path.length > 1
+	const sParent = deep ? path[path.length - 2] : undefined
+	const sRight = s.children[1] && index.has(s.children[1]) ? s.children[1] : null
+	const parent = parentOf(nodes, id)
+	const relinked = nodes
+		.filter((n) => n.id !== id)
+		.map((n) => {
+			// The successor takes the deleted node's subtrees (3.1 keeps its own right one).
+			if (n.id === s.id) return { ...n, children: [left, deep ? right : n.children[1]] }
+			// 3.2: the successor's right subtree takes its place, as its parent's left child.
+			if (n.id === sParent) return { ...n, children: [sRight, n.children[1]] }
+			if (parent && n.id === parent.id) return { ...n, children: n.children.map((c) => (c === id ? s.id : c)) }
+			return n
+		})
+	// The root was deleted: the successor is the root now, and comes first.
+	const out = parent ? relinked : [relinked.find((n) => n.id === s.id)!, ...relinked.filter((n) => n.id !== s.id)]
+	return { kind: 'two-children', twoChildren: deep ? '3.2' : '3.1', successor: s.id, path, nodes: out }
 }
