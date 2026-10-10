@@ -1,3 +1,4 @@
+import type { Band } from '../controls/BandSvg'
 import { useLayoutEffect, useRef, type KeyboardEvent, type PointerEvent, type ReactNode, type RefObject } from 'react'
 import {
 	Rectangle2d,
@@ -81,6 +82,8 @@ export interface PlaybackLayout {
 	 * shape they could lie outside its box. `slots`: dashed places just off the structure they are at.
 	 */
 	pointers?: { placed: PlacedPointer[]; fontSize: number; slots: Box[] }
+	/** The step's band (a loop invariant over the cells done), drawn in front of the canvas like the pointers. */
+	band?: Band
 }
 
 /**

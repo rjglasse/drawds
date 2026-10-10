@@ -73,6 +73,11 @@ export interface Frame {
 	runs?: Record<string, number>
 	/** How much of a shuffle's outcomes the view beside the array shows (`src/shapes/outcomes/`). */
 	outcomes?: FrameOutcomes
+	/**
+	 * A labelled bracket along cells `from`..`to` of an array: what holds over them at this step (a
+	 * loop invariant over the part done so far).
+	 */
+	band?: { from: number; to: number; label: string }
 }
 
 /**
@@ -88,9 +93,12 @@ export interface FrameOutcomes {
 
 /**
  * A recursive call being made (`call`: what it is called with, e.g. "sum(0, 3)"; it is made by the
- * call running then), or the running call returning (`returns`: its value, '' for nothing).
+ * call running then), or the running call returning (`returns`: its value, '' for nothing). `id`
+ * tells calls apart when their text could match (a sort's calls show the values they get: two
+ * calls on [4] aren't the same call); `size`: how many values the call works on, added up per level
+ * beside the recursion tree.
  */
-export type CallEvent = { call: string } | { returns: string }
+export type CallEvent = { call: string; id?: string; size?: number } | { returns: string }
 
 /**
  * Disjoint sets as a step leaves them: each node's parent and each node's set size (meaningful at

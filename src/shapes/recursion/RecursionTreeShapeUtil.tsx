@@ -23,6 +23,8 @@ import {
 	callsSignature,
 	callsTitle,
 	hasCalls,
+	levelSizes,
+	LEVELS_HEADER,
 	repeatMarks,
 	resultText,
 	type Call,
@@ -139,6 +141,7 @@ export class RecursionTreeShapeUtil extends ShapeUtil<RecursionTreeShape> {
 					flash={follow && { marks: callHighlights(follow.run, follow.states), fading: false, id: follow.id }}
 					cues={showsColourCues()}
 				/>
+				{layout.levels && <LevelSizes layout={layout} sums={levelSizes(calls, shown)} fontFamily={fontFamily} colors={colors} />}
 				<g fontFamily={fontFamily} fontSize={fontSize} fill={colors.text} textAnchor="middle" dominantBaseline="central" pointerEvents="none">
 					{layout.boxes.map((b, i) =>
 						shown(i) ? (
@@ -169,12 +172,39 @@ export class RecursionTreeShapeUtil extends ShapeUtil<RecursionTreeShape> {
 	}
 }
 
+/**
+ * The values each level's calls work on, right of their level, and their total under them: merge
+ * sort's levels each come to n, quicksort's on sorted input n, n - 1, n - 2... (only the calls made
+ * so far, while following a run).
+ */
+function LevelSizes({ layout, sums, fontFamily, colors }: { layout: CallTreeLayout; sums: number[]; fontFamily: string; colors: TLThemeColors }) {
+	const { levels, fontSize } = layout
+	if (!levels) return null
+	const total = sums.reduce((a, b) => a + b, 0)
+	return (
+		<g data-testid="recursion-levels" fontFamily={fontFamily} fontSize={fontSize} fill={colors.text} textAnchor="end" dominantBaseline="central" pointerEvents="none">
+			<text x={levels.x} y={levels.header} opacity={0.6} fontSize={fontSize * 0.85}>
+				{LEVELS_HEADER}
+			</text>
+			{levels.rows.map(({ depth, y }) => (
+				<text key={depth} data-level={depth} x={levels.x} y={y}>
+					{sums[depth] ?? 0}
+				</text>
+			))}
+			<text data-level-total={total} x={levels.x} y={levels.total} fontWeight="bold">
+				{`= ${total}`}
+			</text>
+		</g>
+	)
+}
+
 /** The recursion trees beside `structure`. */
 export const treesOf = (editor: Editor, structure: TLShape) =>
 	followersOf(editor, structure.id).filter((s): s is RecursionTreeShape => s.type === RECURSION_TREE_TYPE)
 
 /** Plain JSON for props: no undefined (a call that never returned has no result). */
-const stored = (calls: readonly Call[]): Call[] => calls.map((c) => (c.result === undefined ? { label: c.label, parent: c.parent } : { ...c }))
+const stored = (calls: readonly Call[]): Call[] =>
+	calls.map((c) => Object.fromEntries(Object.entries(c).filter(([, v]) => v !== undefined)) as unknown as Call)
 
 /**
  * Before playing a recursive operation (frames that make calls): put its recursion tree to the

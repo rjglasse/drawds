@@ -39,6 +39,7 @@ import {
 	appendFixed,
 	appendMany,
 	binarySearch,
+	recursiveBinarySearch,
 	bubbleSort,
 	deleteAt,
 	deleteFixed,
@@ -54,6 +55,7 @@ import {
 	selectionSort,
 	sumByHalves,
 	sumByRest,
+	sumWithInvariant,
 	withCell,
 	withoutCell,
 	withoutUsedCell,
@@ -69,7 +71,18 @@ import { openOutcomes } from '../outcomes/OutcomesShapeUtil'
 import { movesAnything, rearrange, reversedOrder, shuffledOrder, sortedOrder } from './rearrange'
 import { arrayMarkers, frontOf, isUsed, usedIndices } from './kinds'
 import { dequeue, enqueue, peekQueue, peekStack, pop, push } from './stack-queue'
-import { arrayStepVector, getArrayGrowPoint, getArrayLayout, getArrayMetrics, getAuxLayout, hoveredCell, indexAlong, type ArrayMetrics } from './layout'
+import {
+	arrayStepVector,
+	getArrayGrowPoint,
+	getArrayLayout,
+	getArrayMetrics,
+	getAuxLayout,
+	hoveredCell,
+	indexAlong,
+	type ArrayLayout,
+	type ArrayMetrics,
+} from './layout'
+import { bandReach, type Band } from '../../controls/BandSvg'
 import { cellHandleId, cellOfHandle, crossSlides, frameSlides, orderSlides, swapCells, swapState, type Slides, type SwapDrag } from './swap'
 
 /** How long values take to arc into their new cells (a swap, a sort, a shift). */
@@ -267,6 +280,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		]
 		return [
 			...find('array-binary-search', 'Binary search', binarySearch),
+			...find('array-binary-search-recursive', 'Binary search, recursive', recursiveBinarySearch),
 			...find('array-linear-search', 'Linear search', linearSearch),
 			...find('array-sentinel-search', 'Sentinel search', sentinelSearch),
 			...(sizing === 'fixed'
@@ -409,6 +423,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			...(usedCount(shape.props) < 1 || !allNumbers(shape.props.values.slice(0, usedCount(shape.props)))
 				? []
 				: [
+						{ ...sums, id: 'array-sum-invariant', label: 'Sum with a loop: its invariant', run: () => this.play(shape.id, 'sum with its invariant', sumWithInvariant) },
 						{ ...sums, id: 'array-sum-rest', label: 'Sum: last value + sum of the rest', run: () => this.play(shape.id, 'sum by last + rest', sumByRest) },
 						{ ...sums, id: 'array-sum-halves', label: 'Sum by halves (divide and conquer)', run: () => this.play(shape.id, 'sum by halves', sumByHalves) },
 					]),
@@ -946,19 +961,35 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const sceneMetrics = { fontSize: metrics.fontSize, labelFontSize: metrics.indexFontSize, strokeWidth: metrics.strokeWidth }
 		const aux = this.displayAux(shape, frame)
 		const auxBounds = aux && getAuxLayout(aux.values.length, metrics, layout).bounds
-		const bottom = Math.max(layout.box.y + layout.box.h, ...slots.map((b) => b.y + b.h), auxBounds ? auxBounds.y + auxBounds.h : -Infinity)
+		const below = Math.max(layout.box.y + layout.box.h, ...slots.map((b) => b.y + b.h), auxBounds ? auxBounds.y + auxBounds.h : -Infinity)
+		// The step's band: under a row of cells (past the indices), or right of a column.
+		const band: Band | undefined = frame?.band && this.bandFor(layout, metrics, frame.band, below)
+		const bottom = band?.side === 'below' ? band.y + bandReach(sceneMetrics) : below
 		return {
 			left: layout.box.x,
 			bottom,
+			band,
 			metrics: sceneMetrics,
 			color: shape.props.color,
 			fontFamily: this.getFontFamily(shape),
 			pointers: framePointers && {
-				placed: placePointers(framePointers, (key) => this.pointerAnchor(shown, key), this.getPointerFontSize(shape)),
+				placed: placePointers(framePointers, (key) => this.pointerAnchor(shown, key), this.getPointerFontSize(shape), { apart: true }),
 				fontSize: this.getPointerFontSize(shape),
 				slots,
 			},
 		}
+	}
+
+	/** Where a step's band goes: along cells from..to, under them in a row (below `under`), right of them in a column. */
+	private bandFor(layout: ArrayLayout, metrics: ArrayMetrics, { from, to, label }: NonNullable<Frame['band']>, under: number): Band {
+		const [a, b] = [layout.cellAt(from), layout.cellAt(to)]
+		const x = Math.min(a.x, b.x)
+		const y = Math.min(a.y, b.y)
+		const w = Math.abs(a.x - b.x) + metrics.cell
+		const h = Math.abs(a.y - b.y) + metrics.cell
+		return metrics.axis === 'horizontal'
+			? { x, y: under, w, h: 0, side: 'below', label }
+			: { x: layout.box.x + layout.box.w, y, w: 0, h, side: 'right', label }
 	}
 
 	component(shape: ArrayShape) {

@@ -40,12 +40,16 @@ export function pointerReachSideways(names: readonly string[], fontSize: number)
 
 /**
  * Lay out every pointer whose element has an anchor. Pointers sharing an element sit side by side
- * (above / below) or stacked (left / right), each with its own short arrow onto the element.
+ * (above / below) or stacked (left / right), each with its own short arrow onto the element. With
+ * `apart`, a label above or below that would overlap one already placed (low and mid on one cell,
+ * high on the next) goes up or down a row instead, its arrow longer: only for pointers drawn in
+ * front of the canvas (a step's), since a shape keeps room for its own pointers' labels at one row.
  */
 export function placePointers(
 	pointers: readonly Pointer[],
 	anchorOf: (key: string) => PointerAnchor | undefined,
-	fontSize: number
+	fontSize: number,
+	{ apart = false }: { apart?: boolean } = {}
 ): PlacedPointer[] {
 	const groups = new Map<string, Pointer[]>()
 	for (const p of pointers) groups.set(p.at, [...(groups.get(p.at) ?? []), p])
@@ -81,7 +85,25 @@ export function placePointers(
 			})
 		}
 	}
+	if (apart) keepApart(placed, gap, (key) => anchorOf(key)?.side)
 	return placed
+}
+
+/** Labels above (below) that overlap one placed before them, left to right, move up (down) a row at a time. */
+function keepApart(placed: PlacedPointer[], gap: number, sideOf: (key: string) => PointerAnchor['side'] | undefined) {
+	const overlaps = (a: Box, b: Box) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+	for (const side of ['above', 'below'] as const) {
+		const row = placed.filter((p) => sideOf(p.pointer.at) === side).sort((a, b) => a.label.x - b.label.x)
+		const settled: Box[] = []
+		for (const p of row) {
+			const step = (p.label.h + gap) * (side === 'above' ? -1 : 1)
+			for (let tries = 0; tries < 8 && settled.some((b) => overlaps(b, p.label)); tries++) {
+				p.label = { ...p.label, y: p.label.y + step }
+				p.tail = { ...p.tail, y: p.tail.y + step }
+			}
+			settled.push(p.label)
+		}
+	}
 }
 
 /** The placed pointer whose label contains `p`, if any (topmost last). */

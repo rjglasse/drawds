@@ -70,6 +70,8 @@ interface Step {
 	calls?: CallEvent[]
 	/** The line of the operation's code this step is on (a tag in `code.ts`). */
 	line?: string
+	/** A labelled bracket along cells from..to: what holds over them (a loop invariant). */
+	band?: Frame['band']
 }
 
 /**
@@ -107,7 +109,7 @@ export function recorder(start: ArrayState, counts: Record<string, number>) {
 		set(next: ArrayState) {
 			state = next
 		},
-		step(caption: string, { lit: next = {}, pointers = [], dim = [], swaps, moves, strips, ask, askFocus, calls, line }: Step = {}) {
+		step(caption: string, { lit: next = {}, pointers = [], dim = [], swaps, moves, strips, ask, askFocus, calls, line, band }: Step = {}) {
 			const flash: Record<string, MarkColor | null> = {}
 			for (const key of Object.keys(shown)) if (!next[key]) flash[key] = null
 			for (const [key, color] of Object.entries(next)) if (shown[key] !== color) flash[key] = color
@@ -128,6 +130,7 @@ export function recorder(start: ArrayState, counts: Record<string, number>) {
 				...(askFocus ? { askFocus: askFocus.map(String) } : {}),
 				...(calls ? { calls } : {}),
 				...(line ? { line } : {}),
+				...(band ? { band } : {}),
 				...(Object.keys(vars).length ? { vars: { ...vars } } : {}),
 				...(Object.keys(runs).length ? { runs: { ...runs } } : {}),
 			})
@@ -223,6 +226,106 @@ export function binarySearch(start: ArrayState, target: string): ArrayOperation 
 		line: 'missing',
 	})
 	return { frames: r.frames, code: 'binary-search' }
+}
+
+/**
+ * Binary search written recursively, as lecture 4 writes it (low, mid, high): each call looks at
+ * its middle value and, unless it is the key, makes one call on the half left (two calls in the
+ * code, but only one runs: not branches). The calls make a chain, about log₂ n long, for the
+ * recursion tree beside the array; then each returns what the call it made returned.
+ */
+export function recursiveBinarySearch(start: ArrayState, target: string): ArrayOperation {
+	const { values } = start
+	const n = values.length
+	const r = recorder(start, { comparisons: 0, calls: 0, 'max depth': 0 })
+	r.let('key', target)
+	const stack: string[] = []
+	const outside = (low: number, high: number) => span(0, n - 1).filter((k) => Number(k) < low || Number(k) > high)
+	const unsorted = values.findIndex((v, i) => i > 0 && compareKeys(values[i - 1], v) > 0)
+	if (unsorted > 0) {
+		const [a, b] = [unsorted - 1, unsorted]
+		r.step(`Careful: a[${a}] = ${values[a]} > a[${b}] = ${values[b]}, so the array isn't sorted and binary search can miss ${target}`, {
+			lit: { [a]: GONE, [b]: GONE },
+			ask: 'Can binary search work on this array?',
+		})
+	}
+	const search = (low: number, high: number): number => {
+		stack.push(`${low}..${high}`)
+		r.counts.calls++
+		r.counts['max depth'] = Math.max(r.counts['max depth'], stack.length)
+		r.let('low', low)
+		r.let('high', high)
+		r.let('mid', undefined)
+		const name = `binarySearch(${low}, ${high})`
+		const call: CallEvent = { call: name, id: `${low}..${high}` }
+		const around = { dim: outside(low, high), strips: [{ title: 'call stack', items: [...stack] }] }
+		const ends = [ptr('low', low), ptr('high', high)]
+		if (low > high) {
+			r.step(`${name}: low > high, nothing left to search: return -1`, {
+				...around,
+				pointers: ends,
+				calls: [call, { returns: '-1' }],
+				ask: `low = ${low}, high = ${high}: what does this call do?`,
+				line: 'missing',
+			})
+			stack.pop()
+			return -1
+		}
+		const mid = Math.floor((low + high) / 2)
+		const v = values[mid]
+		const at = [ptr('low', low), ptr('mid', mid), ptr('high', high)]
+		r.counts.comparisons++
+		r.let('mid', mid)
+		r.step(`${name}: mid = (${low} + ${high}) / 2 = ${mid}. Is a[${mid}] = ${v} the key ${target}?`, {
+			...around,
+			pointers: at,
+			lit: { [mid]: LOOK },
+			calls: [call],
+			ask: `low = ${low}, high = ${high}: which index is mid?`,
+			line: 'mid',
+		})
+		const c = compareKeys(v, target)
+		const half = { ask: `a[${mid}] = ${v} vs ${target}: found it, or which half is left?`, askFocus: [mid] }
+		if (c === 0) {
+			r.step(`a[${mid}] = ${target}: found, so return ${mid}`, { ...around, pointers: at, lit: { [mid]: DONE }, calls: [{ returns: String(mid) }], ...half, line: 'found' })
+			stack.pop()
+			return mid
+		}
+		const [next, line] = c < 0 ? [`binarySearch(${mid + 1}, ${high})`, 'right'] : [`binarySearch(${low}, ${mid - 1})`, 'left']
+		r.step(`${v} ${c < 0 ? '<' : '>'} ${target}: the key can only be ${c < 0 ? 'right' : 'left'} of mid, so return ${next}`, {
+			...around,
+			pointers: at,
+			dim: c < 0 ? outside(mid + 1, high) : outside(low, mid - 1),
+			...half,
+			line,
+		})
+		const result = c < 0 ? search(mid + 1, high) : search(low, mid - 1)
+		// Back from the call it made: it returns what that call returned, and comes off the stack.
+		stack.pop()
+		r.let('low', low)
+		r.let('high', high)
+		r.let('mid', mid)
+		r.step(`${name} returns ${result}, what ${next} returned`, {
+			dim: outside(low, high),
+			strips: [{ title: 'call stack', items: [...stack] }],
+			pointers: at,
+			lit: result >= 0 ? { [result]: DONE } : {},
+			calls: [{ returns: String(result) }],
+			ask: false,
+			line,
+		})
+		return result
+	}
+	const found = search(0, n - 1)
+	const { calls } = r.counts
+	r.let('low', undefined)
+	r.let('high', undefined)
+	r.let('mid', undefined)
+	r.step(
+		`${found >= 0 ? `Found ${target} at index ${found}` : `${target} is not in the array`}: ${calls} call${calls === 1 ? '' : 's'}, one per halving, so about log₂ ${n} deep: T(n) = T(n/2) + 1. The loop version needs no stack`,
+		{ lit: found >= 0 ? { [found]: DONE } : {}, strips: [{ title: 'call stack', items: [] }], ask: false }
+	)
+	return { frames: r.frames, finalFlash: found >= 0 ? { [found]: DONE } : undefined, code: 'binary-search-recursive' }
 }
 
 /** Linear search for `target`: i walks from the start, comparing each value, fading the ones it passed. */
@@ -526,12 +629,16 @@ export function quicksort(start: ArrayState): ArrayOperation {
 	const settled: Marks = {}
 	const calls: string[] = []
 	const outside = (lo: number, hi: number) => span(0, n - 1).filter((k) => Number(k) < lo || Number(k) > hi)
+	// For the recursion tree: a call returns after its inner calls, with no step of its own, so its
+	// return goes with the next step.
+	const tree = callEvents(r)
 	const sort = (lo: number, hi: number) => {
 		calls.push(`${lo}..${hi}`)
 		r.let('lo', lo)
 		r.let('hi', hi)
 		r.let('pivot', undefined)
 		const around = { dim: outside(lo, hi), strips: [{ title: 'call stack', items: [...calls] }] }
+		const call = tree.call(lo, hi)
 		if (lo >= hi) {
 			if (lo === hi) settled[String(lo)] = DONE
 			r.step(`quicksort(${lo}, ${hi}): ${lo === hi ? `one value, a[${lo}], is sorted` : 'no values: nothing to do'}`, {
@@ -539,23 +646,74 @@ export function quicksort(start: ArrayState): ArrayOperation {
 				lit: { ...settled },
 				ask: NEXT_CALL,
 				line: 'base',
+				calls: tree.events(call, tree.returns(lo, hi)),
 			})
 		} else {
-			r.step(`quicksort(${lo}, ${hi}): partition a[${lo}..${hi}]`, { ...around, lit: { ...settled }, ask: NEXT_CALL, line: 'partition' })
+			r.step(`quicksort(${lo}, ${hi}): partition a[${lo}..${hi}]`, {
+				...around,
+				lit: { ...settled },
+				ask: NEXT_CALL,
+				line: 'partition',
+				calls: tree.events(call),
+			})
 			const p = partition(r, lo, hi, settled, around)
 			sort(lo, p - 1)
 			sort(p + 1, hi)
+			tree.later(tree.returns(lo, hi))
 		}
 		calls.pop()
 	}
 	sort(0, n - 1)
 	const { comparisons, swaps } = r.counts
-	r.step(`Every call has returned: sorted, with ${comparisons} comparisons and ${swaps} swaps`, {
+	r.step(`Every call has returned: sorted, with ${comparisons} comparisons and ${swaps} swaps. ${tree.summary(n)}`, {
 		lit: lit(0, n - 1, DONE),
 		strips: [{ title: 'call stack', items: [] }],
 		ask: false,
+		calls: tree.events(),
 	})
 	return { frames: r.frames, result: r.state, code: 'quicksort' }
+}
+
+/**
+ * A sort's calls for the recursion tree beside the array: each call shows the values it is handed
+ * (told apart by its range) and returns them sorted; its size is how many values it works on, so
+ * each level's work adds up beside the tree. Returns a step can't carry wait for the next.
+ */
+function callEvents(r: Recorder) {
+	const pending: CallEvent[] = []
+	const values = (lo: number, hi: number) => (lo > hi ? '[ ]' : r.state.values.slice(lo, hi + 1).join(' '))
+	let depth = 0
+	let deepest = 0
+	let worked = 0
+	return {
+		call(lo: number, hi: number): CallEvent {
+			const size = Math.max(0, hi - lo + 1)
+			worked += size
+			return { call: values(lo, hi), id: `${lo}..${hi}`, size }
+		},
+		returns: (lo: number, hi: number): CallEvent => ({ returns: lo > hi ? '' : values(lo, hi) }),
+		/** The events for a step: any returns waiting, then these. */
+		events(...own: CallEvent[]): CallEvent[] {
+			const all = [...pending, ...own]
+			pending.length = 0
+			for (const e of all) {
+				if ('call' in e) deepest = Math.max(deepest, ++depth)
+				else depth--
+			}
+			return all
+		},
+		/** A return for the next step to carry. */
+		later(e: CallEvent) {
+			pending.push(e)
+		},
+		/** What the tree comes to: its levels, and the values worked on in all. */
+		summary(n: number) {
+			const worst = deepest >= n && n > 2
+			return worst
+				? `${deepest} levels: each call leaves one side empty, so ${n} + ${n - 1} + … + 1 = ${worked} values worked on, about n²/2`
+				: `${deepest} levels, ${worked} values worked on in all (n = ${n}, n log₂ n ≈ ${Math.round(n * Math.log2(Math.max(2, n)))})`
+		},
+	}
 }
 
 /**
@@ -639,9 +797,11 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 		r.let('hi', hi)
 		r.let('mid', mid)
 	}
+	const tree = callEvents(r)
 	const sort = (lo: number, hi: number) => {
 		calls.push(`${lo}..${hi}`)
 		call(lo, hi)
+		const made = tree.call(lo, hi)
 		if (lo === hi) {
 			r.step(`mergeSort(${lo}, ${hi}): one value, a[${lo}], is sorted`, {
 				dim: outside(lo, hi),
@@ -649,6 +809,7 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 				lit: { [lo]: DONE },
 				ask: NEXT_CALL,
 				line: 'base',
+				calls: tree.events(made, tree.returns(lo, hi)),
 			})
 			calls.pop()
 			return
@@ -660,6 +821,7 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 			strips: strips(),
 			ask: NEXT_CALL,
 			line: 'split',
+			calls: tree.events(made),
 		})
 		sort(lo, mid)
 		sort(mid + 1, hi)
@@ -737,12 +899,13 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 			moves: from.map((old, k): [number, number] => [old, lo + k]).filter(([a, b]) => a !== b),
 			ask: false,
 			line: 'copy',
+			calls: tree.events(tree.returns(lo, hi)),
 		})
 		calls.pop()
 	}
 	sort(0, n - 1)
 	const { comparisons, copies } = r.counts
-	r.step(`Every call has returned: sorted, with ${comparisons} comparisons and ${copies} copies`, {
+	r.step(`Every call has returned: sorted, with ${comparisons} comparisons and ${copies} copies. ${tree.summary(n)}`, {
 		lit: lit(0, n - 1, DONE),
 		strips: [
 			{ title: 'call stack', items: [] },
@@ -767,6 +930,54 @@ const total = (x: number) => String(Number.isInteger(x) ? x : Number(x.toFixed(1
 const sumCall = (lo: number, hi: number) => `sum(${lo}, ${hi})`
 
 /** A recorder for a recursive sum: counts calls, the deepest the stack goes, and additions. */
+/**
+ * Lecture 4's loop invariant, on summing an array with a loop: total starts at nums[0] (0 would say
+ * nothing about nums; an empty array has no nums[0]), and after each pass total = nums[0] + … +
+ * nums[i - 1]. A band under the cells summed so far says so, true at the beginning, in the middle
+ * and at the end, where i = n makes it the sum of the whole array.
+ */
+export function sumWithInvariant(start: ArrayState): ArrayOperation {
+	const { values } = start
+	const n = values.length
+	const nums = values.map(Number)
+	const r = recorder(start, { additions: 0 })
+	// What the invariant says total is: the values written out while they fit, else their range.
+	const sumOf = (i: number) => (i <= 6 ? values.slice(0, i).join(' + ') : `nums[0] + … + nums[${i - 1}]`)
+	const band = (i: number, sum: number) => ({ from: 0, to: i - 1, label: `total = ${sumOf(i)}${i > 1 ? ` = ${total(sum)}` : ''}` })
+	let sum = nums[0]
+	r.let('total', total(sum))
+	r.step(
+		`Beginning: total = nums[0] = ${total(sum)}, i = 1. The invariant, total = nums[0] + … + nums[i − 1], says total = nums[0]: it holds (total = 0 would say nothing about nums)`,
+		{
+			pointers: [ptr('i', 1)],
+			lit: { 0: LOOK },
+			band: band(1, sum),
+			ask: 'Sum the array: where do total and i start, so that something about total is true from the beginning?',
+			line: 'init',
+		}
+	)
+	for (let i = 1; i < n; i++) {
+		sum += nums[i]
+		r.counts.additions++
+		r.let('total', total(sum))
+		r.step(`Middle: total += nums[${i}] = ${values[i]}, so total = ${total(sum)}; i = ${i + 1}. The invariant holds again: total = nums[0] + … + nums[${i}]`, {
+			pointers: [ptr('i', i + 1)],
+			lit: { [i]: LOOK },
+			band: band(i + 1, sum),
+			ask: `i = ${i}: what are total and i after this pass, and does the invariant still hold?`,
+			askFocus: [i],
+			line: 'add',
+		})
+	}
+	r.step(`End: i = ${n} = nums.length, so the loop stops. The invariant with i = n says total = nums[0] + … + nums[${n - 1}] = ${total(sum)}: the whole array, the sum`, {
+		pointers: [ptr('i', n)],
+		band: band(n, sum),
+		ask: false,
+		line: 'done',
+	})
+	return { frames: r.frames, finalFlash: lit(0, n - 1, DONE), code: 'sum-invariant' }
+}
+
 function sumRecorder(start: ArrayState) {
 	const r = recorder(start, { calls: 0, 'max depth': 0, additions: 0 })
 	let depth = 0

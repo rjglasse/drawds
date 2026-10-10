@@ -330,7 +330,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 			color: shape.props.color,
 			fontFamily: this.getFontFamily(shape),
 			pointers: frame?.pointers && {
-				placed: placePointers(frame.pointers, (key) => this.pointerAnchor(shape, key), fontSize),
+				placed: placePointers(frame.pointers, (key) => this.pointerAnchor(shape, key), fontSize, { apart: true }),
 				fontSize,
 				slots: [],
 			},

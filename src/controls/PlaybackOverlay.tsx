@@ -3,6 +3,7 @@ import { CellShapeUtil } from '../cells/CellShapeUtil'
 import { currentPlayback } from '../nodelink/playback'
 import { StripSvg, stripGap, stripsHeight } from '../nodelink/SceneSvg'
 import { PointersSvg } from '../pointers/PointersSvg'
+import { BandSvg } from './BandSvg'
 import { placementFor } from './placement'
 import { PlayBar } from './PlayBar'
 
@@ -43,14 +44,15 @@ export function PlaybackOverlay() {
 	const { metrics } = layout
 	return (
 		<>
-			{layout.pointers && (
+			{(layout.pointers || layout.band) && (
 				<svg
 					style={{ position: 'absolute', left: origin.x, top: origin.y, overflow: 'visible', pointerEvents: 'none' }}
 					width={1}
 					height={1}
 				>
 					<g transform={`scale(${zoom})`}>
-						{layout.pointers.slots.map((box) => (
+						{layout.band && <BandSvg band={layout.band} metrics={metrics} colors={colors} fontFamily={layout.fontFamily} />}
+						{layout.pointers?.slots.map((box) => (
 							<rect
 								key={`${box.x},${box.y}`}
 								x={box.x}
@@ -64,14 +66,16 @@ export function PlaybackOverlay() {
 								opacity={0.45}
 							/>
 						))}
-						<PointersSvg
-							placed={layout.pointers.placed}
-							fontSize={layout.pointers.fontSize}
-							fontFamily={layout.fontFamily}
-							colors={colors}
-							animate
-							zoom={zoom}
-						/>
+						{layout.pointers && (
+							<PointersSvg
+								placed={layout.pointers.placed}
+								fontSize={layout.pointers.fontSize}
+								fontFamily={layout.fontFamily}
+								colors={colors}
+								animate
+								zoom={zoom}
+							/>
+						)}
 					</g>
 				</svg>
 			)}

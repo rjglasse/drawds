@@ -49,6 +49,28 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			            hi = mid - 1                @left
 			    return -1                           @missing`,
 	},
+	'binary-search-recursive': {
+		java: String.raw`
+			int binarySearch(int[] a, int key, int low, int high) {     $key $low $high
+			    if (low > high) return -1;                              @missing
+			    int mid = (low + high) / 2;                             @mid $mid
+			    if (a[mid] == key) return mid;                          @found
+			    if (a[mid] < key)
+			        return binarySearch(a, key, mid + 1, high);         @right
+			    else
+			        return binarySearch(a, key, low, mid - 1);          @left
+			}`,
+		python: String.raw`
+			def binary_search(a, key, low, high):          $key $low $high
+			    if low > high:
+			        return -1                               @missing
+			    mid = (low + high) // 2                     @mid $mid
+			    if a[mid] == key:
+			        return mid                              @found
+			    if a[mid] < key:
+			        return binary_search(a, key, mid + 1, high)     @right
+			    return binary_search(a, key, low, mid - 1)          @left`,
+	},
 	'sentinel-search': {
 		java: String.raw`
 			int sentinelSearch(int[] a, int n, int key) {   $n $key
@@ -69,6 +91,28 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			        i += 1
 			    a.pop()
 			    return i if i < n else -1           @found @missing`,
+	},
+	'sum-invariant': {
+		java: String.raw`
+			int sum(int[] nums) {
+			    int total = nums[0];                    @init $total
+			    int i = 1;
+			    while (i < nums.length) {               $i
+			        total += nums[i];                   @add
+			        i++;
+			        // total == nums[0] + ... + nums[i - 1]
+			    }
+			    return total;                           @done
+			}`,
+		python: String.raw`
+			def sum_array(nums):
+			    total = nums[0]                     @init $total
+			    i = 1
+			    while i < len(nums):                $i
+			        total += nums[i]                @add
+			        i += 1
+			        # total == sum(nums[0:i])
+			    return total                        @done`,
 	},
 	'find-max': {
 		java: String.raw`

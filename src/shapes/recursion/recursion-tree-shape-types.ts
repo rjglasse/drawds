@@ -3,6 +3,7 @@ import {
 	DefaultFontStyle,
 	DefaultSizeStyle,
 	T,
+	createShapePropsMigrationIds,
 	createShapePropsMigrationSequence,
 	type RecordProps,
 	type TLDefaultColorStyle,
@@ -37,11 +38,26 @@ export type RecursionTreeShape = TLShape<typeof RECURSION_TREE_TYPE>
 export const recursionTreeShapeProps: RecordProps<RecursionTreeShape> = {
 	structureId: T.string,
 	title: T.string,
-	calls: T.arrayOf(T.object({ label: T.string, parent: T.number, result: T.string.optional() })),
+	calls: T.arrayOf(T.object({ label: T.string, parent: T.number, result: T.string.optional(), id: T.string.optional(), size: T.number.optional() })),
 	color: DefaultColorStyle,
 	size: DefaultSizeStyle,
 	font: DefaultFontStyle,
 }
 
+const versions = createShapePropsMigrationIds(RECURSION_TREE_TYPE, {
+	AddCallSizes: 1,
+})
+
 /** Recursion trees are persisted in the browser, so every props change needs a step here. */
-export const recursionTreeShapeMigrations = createShapePropsMigrationSequence({ sequence: [] })
+export const recursionTreeShapeMigrations = createShapePropsMigrationSequence({
+	sequence: [
+		{
+			// Calls may say what tells them apart and how many values they work on (both optional).
+			id: versions.AddCallSizes,
+			up() {},
+			down(props) {
+				props.calls = (props.calls as Record<string, unknown>[]).map(({ id: _id, size: _size, ...call }) => call)
+			},
+		},
+	],
+})

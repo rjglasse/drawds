@@ -4,6 +4,7 @@ import { placementFor } from '../controls/placement'
 import type { PlaybackView } from '../nodelink/playback'
 import { StripSvg, stripGap, stripSize, stripsHeight } from '../nodelink/SceneSvg'
 import { PointersSvg } from '../pointers/PointersSvg'
+import { BandSvg, bandReach } from '../controls/BandSvg'
 import { wrapText } from './caption'
 import { stepDrawing } from './exporting'
 
@@ -36,6 +37,14 @@ function stepExtras(util: CellShapeUtil<TLShape>, shape: TLShape, view: Playback
 		...strips.map(({ strip, at }) => new Box(at.x, at.y, stripSize(strip, metrics).w, stripSize(strip, metrics).h)),
 		...(layout.pointers?.placed ?? []).map(({ label }) => new Box(label.x, label.y, label.w, label.h)),
 		...(layout.pointers?.slots ?? []).map((b) => new Box(b.x, b.y, b.w, b.h)),
+		// A band and its label (a label beside a column can be long: room for twenty characters or so).
+		...(layout.band
+			? [
+					layout.band.side === 'below'
+						? new Box(layout.band.x, layout.band.y, layout.band.w, bandReach(metrics))
+						: new Box(layout.band.x, layout.band.y, bandReach(metrics) + metrics.fontSize * 0.65 * 0.6 * layout.band.label.length, layout.band.h),
+				]
+			: []),
 	]
 	return { layout, caption, strips, extent: boxes.length ? Box.Common(boxes) : new Box(placement.bar.x, placement.strip.y, 1, 1) }
 }
@@ -73,6 +82,7 @@ export function StepExtrasSvg({ util, shape, view, colors }: { util: CellShapeUt
 					opacity={0.45}
 				/>
 			))}
+			{layout.band && <BandSvg band={layout.band} metrics={metrics} colors={colors} fontFamily={layout.fontFamily} />}
 			{layout.pointers && <PointersSvg placed={layout.pointers.placed} fontSize={layout.pointers.fontSize} fontFamily={layout.fontFamily} colors={colors} />}
 			{strips.map(({ strip, at }) => (
 				<StripSvg key={strip.title} strip={strip} at={at} metrics={metrics} colors={colors} color={layout.color} fontFamily={layout.fontFamily} />

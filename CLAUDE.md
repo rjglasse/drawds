@@ -111,6 +111,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   are blank spare slots; `usedCount(props)` everywhere, operations run on the used part (`play` pads frames back)
   unless `{ whole: true }` (insertFixed / deleteFixed / appendFixed / growFixed / appendMany). A step can show a
   second row under the array (`props.aux`: newArr), with `moves` keyed `aux:<i>` between the rows.
+- Loop invariants (lecture 4, dds-szw.7): `Frame.band` `{ from, to, label }` puts a labelled bracket under array cells
+  (right of a column), laid out by the array's `playbackLayout` (`band`, below the indices; strips go under it) and drawn
+  in front of the canvas and in exported steps (`src/controls/BandSvg.tsx`). `sumWithInvariant`: lecture 4's sum with a
+  while loop, total from nums[0], the band "total = 4 + 6 + 5 = 15" over the part done at the beginning, after each
+  pass and at the end. A step's pointers drawn in front of the canvas keep their labels apart (`placePointers`'s
+  `apart`: an overlapping label goes up a row).
 - `src/shapes/array/scans.ts` - lectures 2-3's counted scans (Levitin's MaxElement, UniqueElements, SequentialSearch2):
   find the largest (`maxval` in a strip, n - 1 comparisons, updates counted), all unique? (every pair i < j, n(n - 1)/2
   at worst, a repeat stops it red), sentinel search (the key in an extra cell past the end, no i < n check, counts the
@@ -183,7 +189,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   while playing, so the class can guess). `openRecursionTree` (before `playOperation`, its take-back as `onCancel`)
   puts one to the structure's right unless one there already shows the same calls, so two runs can be compared side
   by side. Arrays: Sum: last value + sum of the rest (a stick n deep) and Sum by halves (`sumByRest` / `sumByHalves`,
-  shown when every value is a number), counts calls, max depth and additions. Repeated calls (`repeatedCalls`: the
+  shown when every value is a number), counts calls, max depth and additions. Lecture 4: merge sort and quicksort feed
+  it too (`callEvents` in operations.ts: each call shows the values it is handed and returns them sorted, `id` its
+  range so equal values aren't repeats, `size` how many values it works on; quicksort's returns ride on the next step);
+  calls with sizes get a "values" column right of the tree, each level's sizes added up and totalled (`levelSizes`:
+  merge sort n per level, quicksort on sorted input n, n - 1, ...), and the last step sums up the levels. Binary
+  search, recursive (`recursiveBinarySearch`, low / mid / high as lecture 4 names them) makes a chain, returning up it. Repeated calls (`repeatedCalls`: the
   same call already finished elsewhere, not an ancestor) are green and counted in the heading (fib's overlap).
 - Recursion tracer (dds-szw.13.4, `recursion-tracer`, Shift+R, a click places it): a function traced on the call
   stack. Props `fn` (style `drawds:recursion-fn`: gcd, fact, fib, sum, hello = sayHello with no base case, stuck = a

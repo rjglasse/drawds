@@ -76,6 +76,26 @@ describe('placePointers', () => {
 		expect(placed[1].label.x).toBeGreaterThan(200 + box.w)
 		expect(pointerAt(placed, { x: placed[1].label.x + 2, y: placed[1].label.y + 2 })?.pointer.name).toBe('x')
 	})
+
+	it("kept apart, a step's label that would overlap its neighbour's goes up a row, its arrow longer", () => {
+		// Cells 48 wide side by side: low and mid on one, high on the next.
+		const cell = (x: number): PointerAnchor => ({ box: { x, y: 100, w: 48, h: 48 }, side: 'above' })
+		const cells: Record<string, PointerAnchor> = { '6': cell(0), '7': cell(48) }
+		const pointers = [
+			{ id: '#low', name: 'low', at: '6' },
+			{ id: '#mid', name: 'mid', at: '6' },
+			{ id: '#high', name: 'high', at: '7' },
+		]
+		const overlapping = (ps: ReturnType<typeof placePointers>) =>
+			ps.some((a, i) => ps.some((b, j) => i < j && a.label.x < b.label.x + b.label.w && b.label.x < a.label.x + a.label.w && a.label.y < b.label.y + b.label.h && b.label.y < a.label.y + a.label.h))
+		expect(overlapping(placePointers(pointers, (k) => cells[k], 14))).toBe(true)
+		const apart = placePointers(pointers, (k) => cells[k], 14, { apart: true })
+		expect(overlapping(apart)).toBe(false)
+		const [low, , high] = apart
+		expect(high.label.y).toBeLessThan(low.label.y)
+		expect(high.tip).toEqual(placePointers(pointers, (k) => cells[k], 14)[2].tip)
+		expect(high.tail.y).toBe(high.label.y + high.label.h)
+	})
 })
 
 describe('pointer migrations', () => {

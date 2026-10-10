@@ -16,6 +16,10 @@ export interface Call {
 	parent: number
 	/** What it returned ('' for nothing); left out while it hasn't returned (or if it never did). */
 	result?: string
+	/** What tells it apart from other calls (else its label). */
+	id?: string
+	/** How many values it works on (a sort's range), added up per level. */
+	size?: number
 }
 
 /** A run's calls in the order they were made, the step each was made at, and the step each returned at. */
@@ -38,7 +42,8 @@ export function callRun(frames: readonly Frame[]): CallRun {
 	frames.forEach((frame, step) => {
 		for (const event of frame.calls ?? []) {
 			if ('call' in event) {
-				run.calls.push({ label: event.call, parent: stack.at(-1) ?? -1 })
+				const { id, size } = event
+				run.calls.push({ label: event.call, parent: stack.at(-1) ?? -1, ...(id === undefined ? {} : { id }), ...(size === undefined ? {} : { size }) })
 				run.opened.push(step)
 				run.returned.push(undefined)
 				stack.push(run.calls.length - 1)
@@ -55,7 +60,7 @@ export function callRun(frames: readonly Frame[]): CallRun {
 }
 
 /** Two runs with the same calls (and results) draw the same tree: one tree can show either. */
-export const callsSignature = (calls: readonly Call[]) => JSON.stringify(calls.map((c) => [c.label, c.parent, c.result ?? null]))
+export const callsSignature = (calls: readonly Call[]) => JSON.stringify(calls.map((c) => [c.label, c.parent, c.result ?? null, c.id ?? null, c.size ?? null]))
 
 /**
  * - running: what the step is about: the call returning at this step, else the newest call open
@@ -111,8 +116,9 @@ export function repeatedCalls(calls: readonly Call[]): Set<number> {
 	calls.forEach((c, i) => {
 		const ancestors = new Set<number>()
 		for (let p = c.parent; p >= 0; p = calls[p].parent) ancestors.add(p)
-		if ((seen.get(c.label) ?? []).some((j) => !ancestors.has(j))) repeats.add(i)
-		seen.set(c.label, [...(seen.get(c.label) ?? []), i])
+		const key = c.id ?? c.label
+		if ((seen.get(key) ?? []).some((j) => !ancestors.has(j))) repeats.add(i)
+		seen.set(key, [...(seen.get(key) ?? []), i])
 	})
 	return repeats
 }
@@ -158,6 +164,28 @@ export interface CallTreeLayout {
 	/** How far right of a box's centre its text is centred (clear of a colour cue's badge in the top-left corner). */
 	textShift: number
 	box: { x: number; y: number; w: number; h: number }
+	/**
+	 * When calls have sizes: a column right of the tree adding up the values each level's calls work
+	 * on (merge sort: n on every level), its right edge `x`, a row per level and the total under them.
+	 */
+	levels?: { x: number; header: number; rows: { depth: number; y: number }[]; total: number }
+}
+
+/** How deep each call is (a first call: 0). */
+export const callDepths = (calls: readonly Call[]) => {
+	const depth: number[] = []
+	calls.forEach((c, i) => (depth[i] = c.parent >= 0 ? depth[c.parent] + 1 : 0))
+	return depth
+}
+
+/** The values each level's calls work on, added up (calls without a size count 0), deepest last. */
+export function levelSizes(calls: readonly Call[], shown: (i: number) => boolean = () => true): number[] {
+	const depths = callDepths(calls)
+	const sums: number[] = []
+	calls.forEach((c, i) => {
+		sums[depths[i]] = (sums[depths[i]] ?? 0) + (shown(i) ? (c.size ?? 0) : 0)
+	})
+	return Array.from(sums, (s) => s ?? 0)
 }
 
 /** The text under a call: what it returned (done: nothing), or a question mark while it waits. */
@@ -225,6 +253,13 @@ export function callTreeLayout(
 	})
 	const heading = callsTitle(title, calls)
 	const levels = callDepth(calls)
+	// The values per level, right of the tree (room for the most there can be, and its heading).
+	const sized = calls.some((c) => c.size !== undefined)
+	const most = sized ? levelSizes(calls).reduce((a, b) => a + b, 0) : 0
+	const columnW = Math.max(LEVELS_HEADER.length, String(most).length + 2) * charW
+	const treeW = left
+	// The column, and a little room after it inside the box.
+	if (sized) left += treeGap + columnW + pad
 	const nodes: SceneNode[] = boxes.map((b, i) => ({
 		key: callKey(i),
 		kind: 'box',
@@ -246,7 +281,19 @@ export function callTreeLayout(
 			x: 0,
 			y: 0,
 			w: Math.max(1, left, heading.length * charW),
-			h: levels ? titleH + levels * (boxH + levelGap) - levelGap : titleH,
+			// With sizes, a row more for their total.
+			h: (levels ? titleH + levels * (boxH + levelGap) - levelGap : titleH) + (sized ? fontSize * 1.8 : 0),
 		},
+		levels: sized
+			? {
+					x: Math.max(treeW + treeGap + columnW, heading.length * charW - pad),
+					header: titleH - fontSize * 0.7,
+					rows: Array.from({ length: levels }, (_, depth) => ({ depth, y: titleH + depth * (boxH + levelGap) + boxH / 2 })),
+					total: titleH + levels * (boxH + levelGap) - levelGap + fontSize * 0.9,
+				}
+			: undefined,
 	}
 }
+
+/** The heading of the column of values per level. */
+export const LEVELS_HEADER = 'values'
