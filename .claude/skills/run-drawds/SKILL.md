@@ -345,6 +345,9 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   selected). Drawn tokens: `[data-testid="code-box"] tspan[data-kind=keyword|type|constant|string|number|comment|meta]`;
   the editor `[data-testid="code-editor"]`. Marks keyed `L<i>` (point at a line, `key 3`); `rclick`,
   `context-menu-sub.drawds-code-show-button`, `context-menu.code-line-numbers`. The tool sits under the toolbar's ^.
+  Pointer at a line: `rclick` it, `context-menu-sub.drawds-pointer-button`, `context-menu.pointer-pc`; `clicksel
+  [data-testid="pointer-pc"]`, `key ArrowDown`. A tldraw text box (`key t`, `click`, `type`): `rclick` it,
+  `context-menu.make-code-box`. Typing fast into tldraw's own text box can scramble it: in e2e, create the text shape.
 - **Pointers**: `rclick` an element, `clicksel [data-testid="context-menu-sub.drawds-pointer-button"]`,
   then `[data-testid="context-menu.pointer-i"]` (names depend on the structure; `pointer-custom`
   opens a name prompt, `key-prompt`). **Wait ~400 ms between context menus**: a menu that is

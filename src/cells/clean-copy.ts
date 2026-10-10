@@ -1,6 +1,7 @@
 import { createShapeId, type Editor, type TLShape } from 'tldraw'
 import type { Box } from '../nodelink/geometry'
 import { ROOM_KEY } from '../nodelink/playback'
+import { CellShapeUtil } from './CellShapeUtil'
 
 /** Page px between a structure and its clean copy. */
 const GAP = 40
@@ -34,11 +35,15 @@ export function cleanCopy(editor: Editor, shape: TLShape) {
 			return b ? [{ x: b.x, y: b.y, w: b.w, h: b.h }] : []
 		})
 	const dy = freeTopBelow({ x: box.x, y: box.y, w: box.w, h: box.h }, others) - box.y
-	const origin = editor.getShapePageTransform(shape).applyToPoint({ x: 0, y: 0 })
-	const at = editor.getPointInParentSpace(shape, { x: origin.x, y: origin.y + dy })
 	const props: Record<string, unknown> = { ...shape.props }
 	if ('marks' in props) props.marks = {}
 	if ('pointers' in props) props.pointers = []
+	// Room the original's pointers took moves its drawing off its origin; the copy has none.
+	const util = editor.getShapeUtil(shape)
+	const before = util instanceof CellShapeUtil ? util.layoutOffset(shape) : { x: 0, y: 0 }
+	const after = util instanceof CellShapeUtil ? util.layoutOffset({ ...shape, props } as TLShape) : before
+	const origin = editor.getShapePageTransform(shape).applyToPoint({ x: before.x - after.x, y: before.y - after.y })
+	const at = editor.getPointInParentSpace(shape, { x: origin.x, y: origin.y + dy })
 	const { [ROOM_KEY]: _room, ...meta } = shape.meta
 	const id = createShapeId()
 	editor.markHistoryStoppingPoint('clean copy')

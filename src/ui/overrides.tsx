@@ -25,6 +25,7 @@ import {
 	ViewSubmenu,
 	type Editor,
 	type TLComponents,
+	type TLTextShape,
 	type TLUiOverrides,
 } from 'tldraw'
 import { useState } from 'react'
@@ -63,6 +64,7 @@ import { TreePickers, treePickerTranslations } from './TreePickers'
 import { UnionFindPickers, unionFindPickerTranslations } from './UnionFindPickers'
 import { TracerPickers, tracerPickerTranslations } from './TracerPickers'
 import { CodePickers, codePickerTranslations } from './CodePickers'
+import { makeCodeBox } from '../shapes/code/convert'
 import { StructureHint } from './StructureHint'
 
 /** Our structure tools, in toolbar order. */
@@ -417,6 +419,25 @@ function PointerMenu() {
 	)
 }
 
+/** A text box (an algorithm written as plain text) made a code box, highlighted. */
+function MakeCodeBoxMenuItem() {
+	const editor = useEditor()
+	const text = useValue(
+		'text box to make code',
+		() => {
+			const shape = editor.getOnlySelectedShape()
+			return shape?.type === 'text' ? (shape as TLTextShape) : undefined
+		},
+		[editor]
+	)
+	if (!text) return null
+	return (
+		<TldrawUiMenuGroup id="drawds-code">
+			<TldrawUiMenuItem id="make-code-box" label="Make a code box" onSelect={() => makeCodeBox(editor, text)} />
+		</TldrawUiMenuGroup>
+	)
+}
+
 function RelayoutMenuItem() {
 	const editor = useEditor()
 	const actions = useActions()
@@ -499,6 +520,7 @@ export const components: TLComponents = {
 			<MarkMenu />
 			<PointerMenu />
 			<RelayoutMenuItem />
+			<MakeCodeBoxMenuItem />
 			<DefaultContextMenuContent />
 		</DefaultContextMenu>
 	),

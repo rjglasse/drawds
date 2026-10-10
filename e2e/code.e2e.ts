@@ -102,3 +102,48 @@ test('a double-click puts the caret where it was; empty boxes go; lines can be m
 	await page.keyboard.press('Escape')
 	expect(await shapesOfType(page, 'code')).toHaveLength(1)
 })
+
+test('a text box with an algorithm in it becomes a code box: indentation kept, the language guessed; one undo', async ({ page }) => {
+	// Made directly: tldraw's text editor can scramble keys typed as fast as a test types them.
+	const lines = ['def find_max(a):', '    m = a[0]', '    for x in a:', '        if x > m:', '            m = x', '    return m']
+	await page.evaluate((lines) => {
+		const e = window.editor!
+		const richText = { type: 'doc', content: lines.map((text) => ({ type: 'paragraph', content: [{ type: 'text', text }] })) }
+		e.createShape({ type: 'text', x: 200, y: 150, props: { richText } } as never)
+		e.select(e.getCurrentPageShapes()[0].id)
+	}, lines)
+	await rightClick(page, [220, 160])
+	await page.getByTestId('context-menu.make-code-box').click()
+	expect(await shapesOfType(page, 'text')).toHaveLength(0)
+	const props = await code(page)
+	expect(props.language).toBe('python')
+	expect(props.code).toBe('def find_max(a):\n    m = a[0]\n    for x in a:\n        if x > m:\n            m = x\n    return m')
+	expect(await drawn(page, 'keyword')).toEqual(['def', 'for', 'in', 'if', 'return'])
+	await page.keyboard.press('ControlOrMeta+z')
+	expect(await shapesOfType(page, 'code')).toHaveLength(0)
+	expect(await shapesOfType(page, 'text')).toHaveLength(1)
+})
+
+test('a pc pointer beside a line: the code stays put as it comes, the arrow keys step it; a clean copy lines up under it', async ({ page }) => {
+	await newCodeBox(page, [300, 150])
+	await typeLines(page, ['int max(int[] a) {', 'int m = a[0];', 'for (int x : a) {', 'if (x > m) m = x;', '}', 'return m;', '}'])
+	await page.keyboard.press('Escape')
+	/** Screen x of the first line's text in each code box. */
+	const textX = () => page.locator('[data-testid="code-box"] text:first-of-type').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().x)))
+	const [before] = await textX()
+	await rightClick(page, [330, 176])
+	await page.getByTestId('context-menu-sub.drawds-pointer-button').click()
+	await page.getByTestId('context-menu.pointer-pc').click()
+	expect((await code(page)).pointers.map((p) => p.at)).toEqual(['L1'])
+	expect(await textX()).toEqual([before])
+	await page.getByTestId('pointer-pc').click()
+	await page.keyboard.press('ArrowDown')
+	await page.keyboard.press('ArrowDown')
+	await page.keyboard.press('Escape')
+	expect((await code(page)).pointers.map((p) => p.at)).toEqual(['L3'])
+
+	await rightClick(page, [330, 150])
+	await page.getByTestId('context-menu-sub.drawds-code-actions-button').click()
+	await page.getByTestId('context-menu.clean-copy').click()
+	expect(await textX()).toEqual([before, before])
+})

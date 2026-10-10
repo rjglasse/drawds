@@ -5,7 +5,8 @@ import { CELL_SIZES } from '../sizes'
 
 // A code box: the code in a monospace font, one line per row, in a box sized to it (never smaller
 // than a short line, so an empty one can be clicked), line numbers in a gutter on the left if shown.
-// The in-place editor is laid over the text exactly, so both use these numbers.
+// Pointers at lines (pc) come from the left: the box starts past the room they take. The in-place
+// editor is laid over the text exactly, so both use these numbers.
 
 /** Spaces a tab becomes (typed Tab indents by as much). */
 export const INDENT = '    '
@@ -46,18 +47,19 @@ export interface CodeLayout {
 /** The code split into lines (tabs as spaces). */
 export const codeLines = (code: string) => code.replace(/\t/g, INDENT).split('\n')
 
-export function getCodeLayout(code: string, metrics: CodeMetrics, lineNumbers = false): CodeLayout {
+/** `left`: room before the box for pointers at its lines. */
+export function getCodeLayout(code: string, metrics: CodeMetrics, { lineNumbers = false, left = 0 } = {}): CodeLayout {
 	const { charW, lineH, padX, padY } = metrics
 	const lines = codeLines(code)
 	const digits = String(lines.length).length
 	const gutterW = lineNumbers ? (digits + 1.5) * charW : 0
-	const textX = padX + gutterW
+	const textX = left + padX + gutterW
 	const columns = Math.max(MIN_COLUMNS, ...lines.map((l) => l.length))
-	const box = { x: 0, y: 0, w: textX + columns * charW + padX, h: padY * 2 + lines.length * lineH }
+	const box = { x: left, y: 0, w: padX + gutterW + columns * charW + padX, h: padY * 2 + lines.length * lineH }
 	return {
 		box,
 		lineAt: (i) => ({ x: textX, y: padY + (i + 0.5) * lineH }),
-		rowBox: (i) => ({ x: 0, y: padY + i * lineH, w: box.w, h: lineH }),
+		rowBox: (i) => ({ x: left, y: padY + i * lineH, w: box.w, h: lineH }),
 		gutterRight: textX - charW * 1.2,
 		textX,
 		top: padY,

@@ -183,7 +183,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   highlights as it is typed; `editing.ts` (pure): Tab / Shift+Tab, Enter keeping the indent (one more after `{` or a
   Python `:`), `}` stepping out, each one range replaced via `execCommand('insertText')` so the browser's own undo
   keeps up. Esc or Cmd/Ctrl+Enter finish; an empty box goes; a new box's first edit goes on from its creation mark
-  (`beginCellEdit`'s `markId`), so one undo removes it. Lines mark like cells (`L<i>`); Show > Line numbers.
+  (`beginCellEdit`'s `markId`), so one undo removes it. Lines mark like cells (`L<i>`); Show > Line numbers. Pointers
+  (pc, here) sit left of a line, stepped with the arrow keys: the layout makes room for them on the left (`left`,
+  `pointerReachSideways`) and `layoutOffset` moves the shape so the code stays put. `convert.ts`: right-click a tldraw
+  text box > Make a code box (its plain text, the language guessed from telltale signs by `guessLanguage`, pure).
 - `src/shapes/hash/` - hash tables (node-link): `buckets: string[][]` (a chain per bucket, or one entry per slot with
   `TOMBSTONE` for deleted), strategy style `drawds:hash-strategy` chaining / probing (switching re-inserts the
   keys). `hash.ts` is pure: `hashOf` (k mod m, or character codes added; with how, for captions), `buildTable`,

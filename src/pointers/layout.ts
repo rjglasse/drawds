@@ -33,6 +33,11 @@ export function pointerReach(fontSize: number) {
 	return fontSize * (ARROW + LABEL_H)
 }
 
+/** How far pointers reach out sideways (left / right) from their element: the widest label and its arrow. */
+export function pointerReachSideways(names: readonly string[], fontSize: number) {
+	return names.length ? Math.max(...names.map((name) => pointerLabelSize(name, fontSize).w)) + fontSize * ARROW : 0
+}
+
 /**
  * Lay out every pointer whose element has an anchor. Pointers sharing an element sit side by side
  * (above / below) or stacked (left / right), each with its own short arrow onto the element.

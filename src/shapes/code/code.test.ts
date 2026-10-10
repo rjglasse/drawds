@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { guessLanguage } from './convert'
 import { applyEdit, closeBraceEdit, indentEdit, newlineEdit } from './editing'
 import { highlightLines, tokenize, type CodeLanguage, type TokenKind } from './highlight'
 import { getCodeLayout, getCodeMetrics, offsetOf } from './layout'
@@ -70,7 +71,10 @@ describe('code box layout', () => {
 		const long = 'x'.repeat(40)
 		expect(getCodeLayout(long, m).box.w).toBeCloseTo(m.padX * 2 + 40 * m.charW)
 		// Line numbers take a gutter.
-		expect(getCodeLayout(long, m, true).textX).toBeGreaterThan(getCodeLayout(long, m).textX)
+		expect(getCodeLayout(long, m, { lineNumbers: true }).textX).toBeGreaterThan(getCodeLayout(long, m).textX)
+		// Room for pointers on the left moves everything right, the box no wider.
+		const roomy = getCodeLayout(long, m, { left: 30 })
+		expect([roomy.box.x, roomy.box.w, roomy.textX]).toEqual([30, getCodeLayout(long, m).box.w, getCodeLayout(long, m).textX + 30])
 	})
 
 	it('finds the line and column under a point, and their offset in the code', () => {
@@ -108,5 +112,19 @@ describe('code editing keys', () => {
 		const blank = 'f() {\n        '
 		expect(run(blank, closeBraceEdit(blank, blank.length, blank.length)!).text).toBe('f() {\n    }')
 		expect(closeBraceEdit('a = b', 5, 5)).toBeUndefined()
+	})
+})
+
+describe('guessing the language of a text box', () => {
+	it('goes by the telltale signs of each, else the fallback', () => {
+		expect(guessLanguage('def fib(n):\n    if n < 2:\n        return n\n    return fib(n-1) + fib(n-2)', 'java')).toBe('python')
+		expect(guessLanguage('for x in xs:\n    print(x)', 'c')).toBe('python')
+		expect(guessLanguage('public static int max(int[] a) {\n    int m = a[0];\n}', 'c')).toBe('java')
+		expect(guessLanguage('System.out.println(new Node(3));', 'python')).toBe('java')
+		expect(guessLanguage('#include <stdio.h>\nint main(void) {\n    printf("hi");\n}', 'java')).toBe('c')
+		expect(guessLanguage('node->next = NULL;', 'java')).toBe('c')
+		// Nothing tells (pseudocode a C, Java or Python teacher could write): the fallback.
+		expect(guessLanguage('x = x + 1', 'java')).toBe('java')
+		expect(guessLanguage('while (lo <= hi) {\n    mid = (lo + hi) / 2;\n}', 'c')).toBe('c')
 	})
 })

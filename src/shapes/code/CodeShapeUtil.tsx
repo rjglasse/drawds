@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, type KeyboardEvent } from 'react'
 import {
+	Group2d,
 	Rectangle2d,
 	SVGContainer,
 	getColorValue,
@@ -9,11 +10,13 @@ import {
 	type SvgExportContext,
 	type VecLike,
 } from 'tldraw'
-import { CellShapeUtil, useFocusOnEdit, type NodeOperation } from '../../cells/CellShapeUtil'
+import { CellShapeUtil, useFocusOnEdit, type NodeOperation, type PointerDirection } from '../../cells/CellShapeUtil'
 import { CueBadge } from '../../cells/CueBadge'
 import { cueBadgeAt, showsColourCues } from '../../cells/cues'
 import { beginCellEdit, getEditingCell, type EditableCells } from '../../cells/editable-cells'
-import { pruneMarks, type Marks } from '../../cells/marks'
+import { pruneMarks } from '../../cells/marks'
+import { POINTER_FONT_SCALE, pointerReachSideways, type PointerAnchor } from '../../pointers/layout'
+import { prunePointers } from '../../pointers/pointers'
 import { CODE_TYPE, codeShapeMigrations, codeShapeProps, type CodeShape } from './code-shape-types'
 import { applyEdit, closeBraceEdit, indentEdit, newlineEdit, type CodeEdit } from './editing'
 import { highlightLines, type CodeLanguage, type TokenKind } from './highlight'
@@ -25,8 +28,9 @@ const CODE_KEY = 'code'
 /** A new box's creation mark (CodeShapeTool), which its first edit goes on from. */
 export const createdFrom = new Map<string, string>()
 
-/** A line's key, for marks. */
+/** A line's key, for marks and pointers. */
 export const lineKey = (i: number) => `L${i}`
+const lineOf = (key: string) => (/^L\d+$/.test(key) ? Number(key.slice(1)) : undefined)
 
 /** Token colours, from the theme (so dark mode has its own); plain text is the text colour. */
 const TOKEN_COLORS: Record<Exclude<TokenKind, 'plain'>, TLDefaultColorStyle> = {
@@ -39,14 +43,22 @@ const TOKEN_COLORS: Record<Exclude<TokenKind, 'plain'>, TLDefaultColorStyle> = {
 	meta: 'red',
 }
 
-const layoutOf = (shape: CodeShape) => getCodeLayout(shape.props.code, getCodeMetrics(shape.props.size), shape.props.lineNumbers)
-
-/** Marks on lines the code no longer has go. */
-const keptMarks = (marks: Marks, code: string) =>
-	pruneMarks(
-		marks,
-		codeLines(code).map((_, i) => lineKey(i))
+/** The layout, with room on the left for the shape's pointers' labels and arrows. */
+function layoutOf(shape: CodeShape) {
+	const { code, size, lineNumbers, pointers } = shape.props
+	const metrics = getCodeMetrics(size)
+	const left = pointerReachSideways(
+		pointers.map((p) => p.name),
+		metrics.fontSize * POINTER_FONT_SCALE
 	)
+	return getCodeLayout(code, metrics, { lineNumbers, left })
+}
+
+/** Marks and pointers on lines the code no longer has go. */
+function kept(shape: CodeShape, code: string) {
+	const lines = codeLines(code).map((_, i) => lineKey(i))
+	return { marks: pruneMarks(shape.props.marks, lines), pointers: prunePointers(shape.props.pointers, lines) }
+}
 
 const codeCells: EditableCells<CodeShape> = {
 	cellAt(shape, { x, y }) {
@@ -58,7 +70,7 @@ const codeCells: EditableCells<CodeShape> = {
 	getValue: (shape) => shape.props.code,
 	setValue(shape, _key, value) {
 		const code = value.replace(/\t/g, INDENT)
-		return { id: shape.id, type: CODE_TYPE, props: { code, marks: keptMarks(shape.props.marks, code) } }
+		return { id: shape.id, type: CODE_TYPE, props: { code, ...kept(shape, code) } }
 	},
 	neighbor: () => undefined,
 }
@@ -82,7 +94,41 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 
 	getGeometry(shape: CodeShape) {
 		const { box } = layoutOf(shape)
-		return new Rectangle2d({ x: box.x, y: box.y, width: box.w, height: box.h, isFilled: true })
+		const body = new Rectangle2d({ x: box.x, y: box.y, width: box.w, height: box.h, isFilled: true })
+		const pointers = this.pointerGeometry(shape)
+		return pointers.length ? new Group2d({ children: [body, ...pointers] }) : body
+	}
+
+	/** Room made on the left for pointers (`layoutOf`): the shape moves so the code stays put. */
+	override layoutOffset(shape: CodeShape): VecLike {
+		return { x: layoutOf(shape).box.x, y: 0 }
+	}
+
+	// Pointers (pc...) come from the left of a line; the arrow keys step them up and down the code.
+
+	pointerAnchor(shape: CodeShape, key: string): PointerAnchor | undefined {
+		const line = lineOf(key)
+		const layout = layoutOf(shape)
+		if (line === undefined || line >= layout.lines) return undefined
+		return { box: layout.rowBox(line), side: 'left' }
+	}
+
+	override pointerTargetAt(shape: CodeShape, point: VecLike): string | undefined {
+		const layout = layoutOf(shape)
+		const { box } = layout
+		if (point.y < box.y || point.y > box.y + box.h || point.x > box.x + box.w) return undefined
+		return lineKey(layout.caretAt(point).line)
+	}
+
+	pointerStep(shape: CodeShape, key: string, direction: PointerDirection): string | undefined {
+		const line = lineOf(key)
+		const by = { up: -1, down: 1, left: 0, right: 0 }[direction]
+		const next = line === undefined || !by ? undefined : lineKey(line + by)
+		return next && this.pointerAnchor(shape, next) ? next : undefined
+	}
+
+	pointerNames() {
+		return ['pc', 'here']
 	}
 
 	override canResize() {
@@ -125,6 +171,7 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 			'Double-click to edit: highlighted as you type; Tab / Shift+Tab indent, Enter keeps the indentation, Esc finishes',
 			'Style panel: C, Java or Python',
 			'Point at a line and press 1–4 to light it (0 clears)',
+			'Right-click a line: Pointer > pc, then click pc and step it with ↑ ↓ as you walk through the code',
 			'Right-click: Show > Line numbers',
 		]
 	}
@@ -153,7 +200,9 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 			<>
 				<SVGContainer>
 					<CodeSvg shape={shape} layout={layout} metrics={metrics} colors={colors} fontFamily={this.getFontFamily()} cues={showsColourCues()} />
+					{this.renderPointers(shape, colors)}
 				</SVGContainer>
+				{this.renderPointerOverlays(shape, colors)}
 				{editing && cell && (
 					<CodeEditor
 						key={cell.markId}
@@ -173,14 +222,17 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 	override toSvg(shape: CodeShape, ctx: SvgExportContext) {
 		const colors = this.editor.getCurrentTheme().colors[ctx.colorMode]
 		return (
-			<CodeSvg
-				shape={shape}
-				layout={layoutOf(shape)}
-				metrics={getCodeMetrics(shape.props.size)}
-				colors={colors}
-				fontFamily={this.getFontFamily()}
-				cues={showsColourCues()}
-			/>
+			<>
+				<CodeSvg
+					shape={shape}
+					layout={layoutOf(shape)}
+					metrics={getCodeMetrics(shape.props.size)}
+					colors={colors}
+					fontFamily={this.getFontFamily()}
+					cues={showsColourCues()}
+				/>
+				{this.renderPointers(shape, colors, { exporting: true })}
+			</>
 		)
 	}
 
