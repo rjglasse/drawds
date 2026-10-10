@@ -27,9 +27,13 @@ describe('stacks', () => {
 		expect(op.frames[0].caption).toBe('Push 9: top = top + 1 = 1, a new cell on top')
 	})
 
-	it('pop takes the last value pushed, freeing its slot; an empty stack underflows', () => {
+	it('pop takes the last value pushed, leaving it in its slot (off the stack); an empty stack underflows', () => {
 		const op = pop(fixed(['1', '2', '3', ''], 3))
-		expect(op.result).toMatchObject({ values: ['1', '2', '', ''], used: 2 })
+		// Lecture 6: the 3 stays in a[2] until a push overwrites it.
+		expect(op.result).toMatchObject({ values: ['1', '2', '3', ''], used: 2 })
+		expect(last(op).caption).toBe('top = top - 1 = 1: a[2] still holds 3, but it is off the stack now, until a push overwrites it. Popped 3, the last value pushed')
+		expect(push(fixed(['1', '2', '3', ''], 2), '7').frames.at(-1)?.caption).toBe('a[top] = 7, over the 3 an earlier pop left there')
+		expect([op.code, push(fixed(['1', ''], 1), '7').code]).toEqual(['stack-pop', 'stack-push'])
 		expect(last(op).strips).toEqual([{ title: 'popped', items: ['3'] }])
 		expect(at(op, 'top')).toBe('1')
 		expect(pop(fixed(['', ''], 0)).frames[0].caption).toBe('Pop: top = -1, the stack is empty. Stack underflow')

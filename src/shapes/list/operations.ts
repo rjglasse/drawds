@@ -131,6 +131,8 @@ export interface ListOperation {
 	direction?: ListDirection
 	/** Highlights on the result. */
 	finalFlash?: Record<string, MarkColor>
+	/** Its code (an algorithm in `src/shapes/list/code.ts`), if it has some for this kind of list. */
+	code?: string
 }
 
 /**
@@ -152,6 +154,10 @@ export function findInList(props: ListProps, target: string): ListOperation {
 	const { v, name } = listOf(props)
 	const frames: Frame[] = []
 	const start = v.sentinel ? 'curr = head.next (past the sentinel)' : 'curr = head'
+	// Lecture 5's indexOf, for a plain list (a sentinel or a way round would change the code).
+	const code = !v.sentinel && !v.circular && !v.cycleTo ? 'list-find' : undefined
+	// The code's variables: curr is a node (shown by its value), i its index.
+	const vars = (curr: string, i: number) => ({ value: target, curr, i: String(i) })
 	// The same question whatever the answer: found it, or on to the next node.
 	const decide = (at: ListNode) => ({ ask: `curr is at ${at.value}: found ${target}, or where does curr go?`, askFocus: [at.id] })
 	for (const [i, node] of nodes.entries()) {
@@ -160,6 +166,9 @@ export function findInList(props: ListProps, target: string): ListOperation {
 			pointers: [pointer('curr', node.id)],
 			flash: { [node.id]: LOOK, ...(i ? { [nodes[i - 1].id]: null } : {}) },
 			caption: `${how}. Is it ${target}?`,
+			counts: { 'nodes visited': i + 1 },
+			vars: vars(node.value, i),
+			line: i === 0 ? 'start' : 'next',
 			...(i === 0 ? { ask: `Find ${target}: where does curr start?` } : decide(nodes[i - 1])),
 		})
 		if (node.value === target) {
@@ -167,9 +176,12 @@ export function findInList(props: ListProps, target: string): ListOperation {
 				pointers: [pointer('curr', node.id)],
 				flash: { [node.id]: FOUND },
 				caption: `Yes: ${target} is node ${i + 1} from the head`,
+				counts: { 'nodes visited': i + 1 },
+				vars: vars(node.value, i),
+				line: 'found',
 				...decide(node),
 			})
-			return { frames, finalFlash: { [node.id]: FOUND } }
+			return { frames, finalFlash: { [node.id]: FOUND }, code }
 		}
 	}
 	const last = nodes[nodes.length - 1]
@@ -183,10 +195,13 @@ export function findInList(props: ListProps, target: string): ListOperation {
 	frames.push({
 		pointers: [pointer('curr', NULL_KEY)],
 		flash: { [last.id]: null },
-		caption: `${after}null. ${target} is not in the list`,
+		caption: `${after}null. ${target} is not in the list: all ${nodes.length} nodes visited`,
+		counts: { 'nodes visited': nodes.length },
+		vars: vars('null', nodes.length),
+		line: 'missing',
 		...decide(last),
 	})
-	return { frames }
+	return { frames, code }
 }
 
 /**
@@ -319,7 +334,7 @@ export function deleteFromList(props: ListProps, id: string): ListOperation {
 
 	if (c === 0) {
 		// The head, and no sentinel in front of it.
-		frames.push({ pointers: [pointer('curr', id)], flash: { [id]: GONE }, caption: `Delete the head, ${target.value}`, ask: false })
+		frames.push({ pointers: [pointer('curr', id)], flash: { [id]: GONE }, caption: `Delete the head, ${target.value}`, counts: { 'nodes visited': 1 }, ask: false })
 		point({ [HEAD_EDGE]: nextKey })
 		frames.push({ scene, pointers: [pointer('curr', id)], flash: { [edgeMark(HEAD_EDGE)]: CHANGED }, caption: `head = head.next: the list starts at ${nextName} now`, ask: NEXT_LINE })
 		let lit = edgeMark(HEAD_EDGE)
@@ -340,9 +355,22 @@ export function deleteFromList(props: ListProps, id: string): ListOperation {
 		return { frames: withLoops(frames, props, { [id]: c }), nodes: nodes.slice(1) }
 	}
 
-	// Walk prev and curr from the head (or from the sentinel: prev starts there).
+	// Walk prev and curr from the head (or from the sentinel: prev starts there). Not to the last node
+	// of a doubly linked list with a tail: tail.prev is the node before it, no walk needed.
 	const first = v.sentinel ? 1 : 0
-	for (let j = first; j <= c; j++) {
+	const jump = v.doubly && v.tail && id === lastId
+	if (jump) {
+		frames.push({
+			pointers: [pointer('prev', chain[c - 1]), pointer('curr', id)],
+			flash: { [id]: GONE },
+			caption: `curr = tail (${target.value}), prev = curr.prev (${name(chain[c - 1])}): no walk, a doubly linked list knows the node before its tail`,
+			counts: { 'nodes visited': 1 },
+			ask: `Delete ${target.value}, the last node: how do we find the node before it?`,
+		})
+	}
+	// A singly linked list can only find the node before its last by walking the whole way.
+	const walkedToLast = !v.doubly && id === lastId
+	for (let j = first; j <= c && !jump; j++) {
 		const prev = j > 0 ? [pointer('prev', chain[j - 1])] : []
 		const how =
 			j === first
@@ -353,7 +381,11 @@ export function deleteFromList(props: ListProps, id: string): ListOperation {
 		frames.push({
 			pointers: [...prev, pointer('curr', chain[j])],
 			flash: { [chain[j]]: j === c ? GONE : LOOK, ...(j > first ? { [chain[j - 1]]: null } : {}) },
-			caption: j === c ? `${how}: found ${target.value}` : `${how}. Is it ${target.value}?`,
+			caption:
+				j === c
+					? `${how}: found ${target.value}${walkedToLast ? `, after visiting all ${j - first + 1} nodes: a singly linked list has no way back from its last node` : ''}`
+					: `${how}. Is it ${target.value}?`,
+			counts: { 'nodes visited': j - first + 1 },
 			...(j === first
 				? { ask: `Delete ${target.value}: where does the walk start?` }
 				: { ask: `curr is at ${name(chain[j - 1])}: is it ${target.value}? Where do prev and curr go?`, askFocus: [chain[j - 1]] }),

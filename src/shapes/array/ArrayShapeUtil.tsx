@@ -1389,7 +1389,8 @@ function ArraySvg({
 				const { x, y } = cellAt(i)
 				const up = cross?.toMain[i]
 				const animated = up !== undefined && fromBelow ? crossStyle(cellAt(i), fromBelow.cellAt(up)) : slideStyle(i)
-				const faded = dimmed.has(String(i))
+				// A spare slot's value (what a pop left there) is still in memory but off the stack: faded.
+				const faded = dimmed.has(String(i)) || (fixed && !isUsed(shape.props, i))
 				return (
 					<text
 						// A new key per move remounts the texts that move, which restarts their animation.

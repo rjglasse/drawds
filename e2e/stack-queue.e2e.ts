@@ -98,10 +98,14 @@ test('stack: push a typed value, pop it again (last in, first out); overflow whe
 	expect((await props(page)).values[2]).toBe('42')
 	await menu(page, [300, 450], 'array-steps', 'array-pop')
 	await stepToEnd(page)
-	await expect(caption(page)).toHaveText('top = top - 1 = 1: a[2] is free again. Popped 42, the last value pushed')
+	await expect(caption(page)).toHaveText(
+		'top = top - 1 = 1: a[2] still holds 42, but it is off the stack now, until a push overwrites it. Popped 42, the last value pushed'
+	)
 	await expect(page.getByTestId('playback-strip')).toContainText('42')
 	await page.keyboard.press('Enter')
+	// Lecture 6: the 42 is still in the array, off the stack.
 	expect(await props(page)).toMatchObject({ used: 2 })
+	expect((await props(page)).values[2]).toBe('42')
 })
 
 test('circular queue: enqueue wraps rear round to 0; dequeue moves front on, nothing else moves', async ({ page }) => {

@@ -38,7 +38,21 @@ describe('findInList', () => {
 	it('walks off the end to null when the value is missing', () => {
 		const { frames } = findInList(props, '5')
 		expect(where(frames.at(-1)!)).toEqual([`curr@${NULL_KEY}`])
-		expect(frames.at(-1)!.caption).toBe('4 ≠ 5, so curr = curr.next: null. 5 is not in the list')
+		expect(frames.at(-1)!.caption).toBe('4 ≠ 5, so curr = curr.next: null. 5 is not in the list: all 4 nodes visited')
+	})
+
+	it("is lecture 5's indexOf: curr by its value and i beside the code, each node visited counted", () => {
+		const op = findInList(props, '9')
+		expect(op.code).toBe('list-find')
+		expect(op.frames.map((f) => [f.line, f.vars?.curr, f.vars?.i, f.counts?.['nodes visited']])).toEqual([
+			['start', '7', '0', 1],
+			['next', '3', '1', 2],
+			['next', '9', '2', 3],
+			['found', '9', '2', 3],
+		])
+		expect(findInList(props, '5').frames.at(-1)).toMatchObject({ line: 'missing', vars: { curr: 'null', i: '4' } })
+		// A circular list never reaches null: not that code.
+		expect(findInList({ ...props, ends: 'circular' }, '9').code).toBeUndefined()
 	})
 })
 
@@ -409,5 +423,22 @@ describe("predict mode's questions", () => {
 		const { frames } = reverseList(props)
 		expect(frames[0].ask).toBe('Reverse the list: where do prev and curr start?')
 		expect(frames.slice(1).every((f) => f.ask === 'Which line comes next?')).toBe(true)
+	})
+})
+
+describe('deleting the last node (lecture 5)', () => {
+	it('a singly linked list walks the whole list to find the node before it, counting the nodes', () => {
+		const { frames } = deleteFromList({ ...props, tail: 'tail' }, 'n3')
+		const found = frames.find((f) => f.caption?.includes('found 4'))!
+		expect(found.caption).toContain('after visiting all 4 nodes: a singly linked list has no way back from its last node')
+		expect(found.counts).toEqual({ 'nodes visited': 4 })
+	})
+
+	it('a doubly linked list with a tail jumps there and takes tail.prev: one node visited', () => {
+		const { frames, nodes: after } = deleteFromList({ ...props, tail: 'tail', links: 'doubly' }, 'n3')
+		expect(frames[0].caption).toBe('curr = tail (4), prev = curr.prev (9): no walk, a doubly linked list knows the node before its tail')
+		expect(frames[0].counts).toEqual({ 'nodes visited': 1 })
+		expect(frames.some((f) => f.caption?.startsWith('prev = curr, curr = curr.next'))).toBe(false)
+		expect(after!.map((n) => n.value)).toEqual(['7', '3', '9'])
 	})
 })

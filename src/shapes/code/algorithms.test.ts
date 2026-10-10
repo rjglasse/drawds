@@ -16,6 +16,8 @@ import {
 } from '../array/operations'
 import { allUnique, findMax, sentinelSearch } from '../array/scans'
 import { fisherYates, unfairShuffle } from '../array/shuffles'
+import { peekStack, pop, push } from '../array/stack-queue'
+import { findInList } from '../list/operations'
 import { mulberry32 } from '../../data/random'
 import { ALGORITHMS, algorithmCode, parseCode, shownValues, taggedLine } from './algorithms'
 import { codeShapeMigrations } from './code-shape-types'
@@ -94,18 +96,33 @@ describe('algorithm code', () => {
 			mergeSort(array(7, 2, 9, 1, 5, 3)),
 			unfairShuffle(array(7, 2, 9, 1), mulberry32(3)),
 			fisherYates(array(7, 2, 9, 1), mulberry32(3)),
+			// Lecture 6's ArrayStack: a fixed stack.
+			push({ ...array(1, 2, 0), used: 2, fixed: true }, '7'),
+			push({ ...array(1, 2), used: 2, fixed: true }, '7'),
+			pop({ ...array(1, 2, 0), used: 2, fixed: true }),
+			pop({ ...array(0, 0), used: 0, fixed: true }),
+			peekStack({ ...array(1, 2, 0), used: 2, fixed: true }),
+			peekStack({ ...array(0), used: 0, fixed: true }),
+			// Lecture 5's indexOf.
+			findInList({ nodes: ['7', '3', '9'].map((value, i) => ({ id: `n${i}`, value, dx: 0, dy: 0 })), direction: 'right', size: 'm' }, '9'),
+			findInList({ nodes: ['7', '3'].map((value, i) => ({ id: `n${i}`, value, dx: 0, dy: 0 })), direction: 'right', size: 'm' }, '9'),
 		]
+		// What the steps give values for (their pointers and variables), by code: some runs never reach a
+		// variable (a pop that underflows has no v), so all the runs of a code together.
+		const given = new Map<string, Set<string>>()
+		for (const op of ops) {
+			const names = op.frames.flatMap((f) => [...(f.pointers ?? []).map((p) => p.name), ...Object.keys(f.vars ?? {})])
+			given.set(op.code!, new Set([...(given.get(op.code!) ?? []), ...names]))
+		}
 		for (const op of ops) {
 			expect(op.code && ALGORITHMS[op.code], `${op.frames[0]?.caption}`).toBeTruthy()
 			const lines = op.frames.flatMap((f) => (f.line ? [f.line] : []))
 			expect(lines.length).toBeGreaterThan(0)
-			// What the steps give values for: their pointers and variables.
-			const given = new Set(op.frames.flatMap((f) => [...(f.pointers ?? []).map((p) => p.name), ...Object.keys(f.vars ?? {})]))
 			for (const language of ['java', 'python'] as const) {
 				const code = algorithmCode(op.code!, language)!
 				expect(code.language).toBe(language)
 				for (const line of lines) expect(code.lines, `${op.code} ${language} @${line}`).toHaveProperty(line)
-				for (const v of code.values) expect(given, `${op.code} ${language} $${v.name}`).toContain(v.key)
+				for (const v of code.values) expect(given.get(op.code!), `${op.code} ${language} $${v.name}`).toContain(v.key)
 			}
 			// Every line counted is in the code, in one language at least (Python's n = len(a) only there).
 			for (const tag of Object.keys(op.frames[0].runs ?? {})) {

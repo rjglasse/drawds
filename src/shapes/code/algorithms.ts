@@ -1,4 +1,5 @@
 import { ARRAY_CODE } from '../array/code'
+import { LIST_CODE } from '../list/code'
 import type { CodeLanguage } from './highlight'
 import { codeLines } from './layout'
 
@@ -50,7 +51,7 @@ export function parseCode(source: string, language: CodeLanguage): AlgorithmCode
 }
 
 /** Every algorithm with code, by id (what an operation names as its `code`). */
-export const ALGORITHMS: Record<string, CodeSource> = { ...ARRAY_CODE }
+export const ALGORITHMS: Record<string, CodeSource> = { ...ARRAY_CODE, ...LIST_CODE }
 
 const parsed = new Map<string, AlgorithmCode>()
 

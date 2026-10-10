@@ -397,7 +397,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 	private play(id: ListShape['id'], label: string, operation: () => ListOperation) {
 		const shape = this.editor.getShape(id) as ListShape | undefined
 		if (!shape) return
-		const { frames, nodes, direction, finalFlash } = operation()
+		const { frames, nodes, direction, finalFlash, code } = operation()
 		const final = nodes && this.withNodes(shape, shape, nodes, direction)
 		playOperation(this.editor, {
 			shapeId: id,
@@ -406,6 +406,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 			frames: final ? endTidied(shape.props, { ...shape.props, ...final.props }, frames) : frames,
 			final,
 			finalFlash,
+			code,
 			// Shift: the highlights become marks, on the nodes still in the list.
 			withMarks: (_update, highlights) => {
 				const keep = (nodes ?? shape.props.nodes).map((n) => n.id)

@@ -137,6 +137,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   over its leaves, bars on a share scale (full height = 1.5 fair shares, capped) with the fair share dashed; six or
   fewer orders get a colour each. The tree for up to three values (`TREE_MAX`), the tally up to four (`TALLY_MAX`);
   `openOutcomes` puts one to the right (a tally with the same values takes the new seed), Esc takes it back.
+- A fixed stack's pop leaves the value in its slot (lecture 6): drawn faded, as any value in a spare slot is, off the stack
+  until a push overwrites it (the caption says so). List find and delete count the nodes they visit; deleting the last node
+  of a doubly linked list with a tail jumps there and takes tail.prev (no walk), a singly linked one says it had to walk.
 - Stacks and queues are a *kind* of array (`kind`, the Kind picker; `src/shapes/array/kinds.ts`): a stack
   stands upright (layout axis `'up'` in `getArrayMetrics`: index 0 at the origin, which rises as cells come,
   so index 0 stays put; use `metrics.axis` and `layout.boundaryAt`, never `props.direction`), a queue lies in a
@@ -238,7 +241,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `src/shapes/array/line-counts.test.ts` pins the lecture's totals. Insertion sort's play bar counts comparisons of two
   values and, beside them, `while tests` (the test also runs when j > 0 stops it, comparing nothing: lectures 2-3's 54
   and 14 are the tests); its last step says why the two differ. Where a slide's count is off, drawds counts correctly. Picking another language swaps an unedited box to that language's version (`onBeforeUpdate`).
-  The arrays' code is `src/shapes/array/code.ts` (searches, scans, every sort; Java and Python).
+  The arrays' code is `src/shapes/array/code.ts` (searches, scans, every sort, shuffles, lecture 6's ArrayStack push / pop /
+  peek for a fixed stack; Java and Python), the lists' `src/shapes/list/code.ts` (lecture 5's indexOf for find, on a plain
+  list: curr shown by its node's value through `Frame.vars`, since a list pointer is at a node key).
 - `src/shapes/hash/` - hash tables (node-link): `buckets: string[][]` (a chain per bucket, or one entry per slot with
   `TOMBSTONE` for deleted), strategy style `drawds:hash-strategy` chaining / probing (switching re-inserts the
   keys). `hash.ts` is pure: `hashOf` (k mod m, or character codes added; with how, for captions), `buildTable`,

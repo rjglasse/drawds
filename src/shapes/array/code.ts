@@ -390,4 +390,50 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			        n = random.randint(0, i)                    @pick $n
 			        numbers[i], numbers[n] = numbers[n], numbers[i]     @swap`,
 	},
+	// Lecture 6's ArrayStack (a fixed array, top from -1), a method per operation.
+	'stack-push': {
+		java: String.raw`
+			void push(int v) {                      $v
+			    if (top == a.length - 1)            @overflow
+			        throw new StackOverflowError();
+			    top++;                              @inc $top
+			    a[top] = v;                         @store
+			}`,
+		python: String.raw`
+			def push(self, v):                      $v
+			    if self.top == len(self.a) - 1:     @overflow
+			        raise OverflowError('stack overflow')
+			    self.top += 1                       @inc $top
+			    self.a[self.top] = v                @store`,
+	},
+	'stack-pop': {
+		java: String.raw`
+			int pop() {
+			    if (top == -1)                      @underflow
+			        throw new EmptyStackException();
+			    int v = a[top];                     @take $v
+			    top--;                              @dec $top
+			    return v;
+			}`,
+		python: String.raw`
+			def pop(self):
+			    if self.top == -1:                  @underflow
+			        raise IndexError('pop from an empty stack')
+			    v = self.a[self.top]                @take $v
+			    self.top -= 1                       @dec $top
+			    return v`,
+	},
+	'stack-peek': {
+		java: String.raw`
+			int peek() {
+			    if (top == -1)                      @peek-empty
+			        throw new EmptyStackException();
+			    return a[top];                      @peek $top
+			}`,
+		python: String.raw`
+			def peek(self):
+			    if self.top == -1:                  @peek-empty
+			        raise IndexError('peek at an empty stack')
+			    return self.a[self.top]             @peek $top`,
+	},
 }

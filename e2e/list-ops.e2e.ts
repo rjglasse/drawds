@@ -20,6 +20,20 @@ async function stepToEnd(page: Page) {
 
 test.beforeEach(({ page }) => open(page))
 
+test("find is lecture 5's indexOf: the code beside the list, curr by its node's value and i as it walks", async ({ page }) => {
+	await sketchList(page, [200, 200], 4)
+	const { nodes } = await list(page)
+	await listOp(page, 'n2', 'list-find')
+	await page.getByTestId('play-code').click()
+	await page.keyboard.press('ArrowRight')
+	const shown = () => page.locator('[data-value-line]').allTextContents()
+	await expect.poll(shown).toEqual([`value = ${nodes[2].value}`, `curr = ${nodes[1].value}`, 'i = 1'])
+	await expect(page.getByTestId('play-counts')).toHaveText('nodes visited 2')
+	await stepToEnd(page)
+	await expect(page.locator('[data-step-line]')).toHaveCount(1)
+	expect(await page.locator(`[data-code-line="${await page.locator('[data-step-line]').getAttribute('data-step-line')}"]`).textContent()).toContain('return i')
+})
+
 test('find: curr walks from the head to the value; nothing changes', async ({ page }) => {
 	await sketchList(page, [200, 200], 4)
 	const before = await list(page)

@@ -20,59 +20,76 @@ export interface StackState extends ArrayState {
 	fixed: boolean
 }
 
-/** Push `value`: top = top + 1, then a[top] = value. A full fixed stack overflows instead. */
+/**
+ * Push `value`: top = top + 1, then a[top] = value (over whatever an earlier pop left there). A full
+ * fixed stack overflows instead. A fixed stack is lecture 6's ArrayStack: its code beside it.
+ */
 export function push(start: StackState, value: string): ArrayOperation {
 	const { used, fixed } = start
 	const capacity = start.values.length
 	const r = recorder(start, {})
+	const code = fixed ? 'stack-push' : undefined
 	const top = used - 1
+	r.let('v', value)
 	if (fixed && used >= capacity) {
 		r.step(`Push ${value}: top = ${top}, the last slot: the stack is full. Stack overflow (Capacity > Grow makes room)`, {
 			lit: { [top]: GONE },
 			pointers: [marker('top', top)],
+			line: 'overflow',
 		})
-		return { frames: r.frames }
+		return { frames: r.frames, code }
 	}
 	if (!fixed) r.set({ ...r.state, values: [...r.state.values, ''], used: used + 1 })
 	r.step(`Push ${value}: top = top + 1 = ${top + 1}${fixed ? '' : ', a new cell on top'}`, {
 		lit: { [top + 1]: LOOK },
 		pointers: [marker('top', top + 1)],
+		line: 'inc',
 	})
 	const values = [...r.state.values]
+	const old = values[top + 1]
 	values[top + 1] = value
 	r.set({ ...r.state, values, used: used + 1 })
-	r.step(`a[top] = ${value}`, { lit: { [top + 1]: DONE }, pointers: [marker('top', top + 1)] })
-	return { frames: r.frames, result: r.state, finalFlash: { [top + 1]: DONE } }
+	r.step(`a[top] = ${value}${fixed && old ? `, over the ${old} an earlier pop left there` : ''}`, {
+		lit: { [top + 1]: DONE },
+		pointers: [marker('top', top + 1)],
+		line: 'store',
+	})
+	return { frames: r.frames, result: r.state, finalFlash: { [top + 1]: DONE }, code }
 }
 
-/** Pop: take a[top], then top = top - 1 (its slot is free again). An empty stack underflows. */
+/**
+ * Pop: take a[top], then top = top - 1. In a fixed stack (an array) the value stays in its slot,
+ * faded, no longer on the stack, until a push overwrites it. An empty stack underflows.
+ */
 export function pop(start: StackState): ArrayOperation {
 	const { used, fixed } = start
 	const r = recorder(start, {})
+	const code = fixed ? 'stack-pop' : undefined
 	const top = used - 1
 	if (used === 0) {
-		r.step('Pop: top = -1, the stack is empty. Stack underflow', { pointers: [marker('top', -1)] })
-		return { frames: r.frames }
+		r.step('Pop: top = -1, the stack is empty. Stack underflow', { pointers: [marker('top', -1)], line: 'underflow' })
+		return { frames: r.frames, code }
 	}
 	const v = start.values[top]
 	const popped = [{ title: 'popped', items: [v] }]
-	r.step(`Pop: v = a[top] = ${v}`, { lit: { [top]: LOOK }, pointers: [marker('top', top)], strips: popped })
-	const after = fixed ? { ...r.state, values: r.state.values.map((x, i) => (i === top ? '' : x)) } : { ...r.state, ...withoutCell(r.state, top) }
-	r.set({ ...after, used: used - 1 })
-	r.step(`top = top - 1 = ${top - 1}${fixed ? `: a[${top}] is free again` : ', the cell goes'}. Popped ${v}, the last value pushed`, {
-		pointers: [marker('top', top - 1)],
-		strips: popped,
-	})
-	return { frames: r.frames, result: r.state }
+	r.let('v', v)
+	r.step(`Pop: v = a[top] = ${v}`, { lit: { [top]: LOOK }, pointers: [marker('top', top)], strips: popped, line: 'take' })
+	r.set({ ...(fixed ? r.state : { ...r.state, ...withoutCell(r.state, top) }), used: used - 1 })
+	r.step(
+		`top = top - 1 = ${top - 1}${fixed ? `: a[${top}] still holds ${v}, but it is off the stack now, until a push overwrites it` : ', the cell goes'}. Popped ${v}, the last value pushed`,
+		{ pointers: [marker('top', top - 1)], strips: popped, line: 'dec' }
+	)
+	return { frames: r.frames, result: r.state, code }
 }
 
 /** Peek: look at a[top] without taking it. */
 export function peekStack(start: StackState): ArrayOperation {
 	const r = recorder(start, {})
 	const top = start.used - 1
-	if (top < 0) r.step('Peek: top = -1, the stack is empty: nothing to see', { pointers: [marker('top', -1)] })
-	else r.step(`Peek: a[top] = ${start.values[top]}, still on the stack`, { lit: { [top]: PEEK }, pointers: [marker('top', top)] })
-	return { frames: r.frames }
+	const code = start.fixed ? 'stack-peek' : undefined
+	if (top < 0) r.step('Peek: top = -1, the stack is empty: nothing to see', { pointers: [marker('top', -1)], line: 'peek-empty' })
+	else r.step(`Peek: a[top] = ${start.values[top]}, still on the stack`, { lit: { [top]: PEEK }, pointers: [marker('top', top)], line: 'peek' })
+	return { frames: r.frames, code }
 }
 
 /**
