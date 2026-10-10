@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { hashShapeMigrations } from './hash-shape-types'
 import {
 	TOMBSTONE,
 	buildTable,
@@ -7,8 +8,10 @@ import {
 	deleteKey,
 	entriesOf,
 	findKey,
+	hashCodeOf,
 	hashOf,
 	insertEntry,
+	javaHashCode,
 	keyOf,
 	misplaced,
 	nextPrime,
@@ -121,5 +124,54 @@ describe('hash table scene', () => {
 		const slots = hashScene({ buckets: [['8'], [TOMBSTONE], []], strategy: 'probing', size: 'm' })
 		expect(slots.nodes.filter((n) => n.kind === 'box').map((n) => n.value)).toEqual(['8', '×', ''])
 		expect(slots.nodes.find((n) => n.key === '#load')?.value).toBe('n = 1, m = 3, load 0.33')
+	})
+})
+
+describe("lecture 7's hash codes, compression and direct addressing", () => {
+	const scheme = (code: 'sum' | 'letters' | 'java' | 'direct', compress: 'mod' | 'mad' = 'mod') => ({ strategy: 'chaining' as const, code, compress })
+
+	it('the first three letters, A = 1, added: the class exercise (KIM 33, LOK 38, GAB 10, RIC 30)', () => {
+		expect(['Kim', 'Lok', 'Gab', 'Ric'].map((name) => (hashCodeOf(name, 'letters') as { value: number }).value)).toEqual([33, 38, 10, 30])
+		expect(hashOf('Kimberly', 7, scheme('letters')).how).toBe('K + I + M = 11 + 9 + 13 = 33, then 33 mod 7 = 5')
+	})
+
+	it("Java's String.hashCode: misused and horsemints collide; a negative code still lands in the table", () => {
+		expect([javaHashCode('misused'), javaHashCode('horsemints')]).toEqual([1069518484, 1069518484])
+		expect(hashOf('misused', 7, scheme('java')).how).toBe('"misused".hashCode() = 1069518484 (h = 31·h + c, character by character), then 1069518484 mod 7 = 6')
+		const negative = hashOf('polygenelubricants', 7, scheme('java'))
+		expect(javaHashCode('polygenelubricants')).toBeLessThan(0)
+		expect(negative.index).toBeGreaterThanOrEqual(0)
+		expect(negative.how).toContain('(floorMod: % would give a negative index)')
+	})
+
+	it('mod 8 on keys 0..9 piles 8 and 9 onto slots 0 and 1; MAD spreads them by another rule', () => {
+		const table = buildTable(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'], 8, scheme('sum'))
+		expect(table.map((b) => b.length)).toEqual([2, 2, 1, 1, 1, 1, 1, 1])
+		expect(hashOf('33', 8, scheme('sum', 'mad')).how).toBe('((7·33 + 3) mod 101) mod 8 = 0')
+		expect(hashOf('Kim', 8, scheme('letters', 'mad')).how).toBe('K + I + M = 11 + 9 + 13 = 33, then ((7·33 + 3) mod 101) mod 8 = 0')
+	})
+
+	it('direct addressing: the key is the index; 256 would need 257 slots, X70 is no index', () => {
+		expect(hashOf('3', 8, scheme('direct'))).toMatchObject({ index: 3, how: '3: the key is the index' })
+		expect(hashOf('256', 8, scheme('direct')).refused).toBe(
+			'256 goes at index 256, but the table has slots 0 to 7: it would need 257 slots, most of them empty. Direct addressing wastes space'
+		)
+		expect(hashOf('X70', 8, scheme('direct')).refused).toContain("X70 isn't a whole number, so it can't be an index")
+		const buckets = buildTable(['1', '2', '3'], 8, scheme('direct'))
+		expect(buckets.map((b) => b.join())).toEqual(['', '1', '2', '3', '', '', '', ''])
+		// Inserting what it can't place: it says why, and changes nothing.
+		const op = insertEntry(buckets, scheme('direct'), '256')
+		expect(op.buckets).toBeUndefined()
+		expect(op.frames.map((f) => f.caption)).toEqual([expect.stringContaining('Insert 256: 256 goes at index 256')])
+	})
+
+	it('tables saved before the hash code could be chosen keep adding character codes, mod m', () => {
+		const [addFunctions] = hashShapeMigrations.sequence
+		if (!('up' in addFunctions) || typeof addFunctions.down !== 'function') throw new Error('expected a props migration')
+		const props: Record<string, unknown> = { buckets: [] }
+		addFunctions.up(props)
+		expect(props).toMatchObject({ code: 'sum', compress: 'mod' })
+		addFunctions.down(props)
+		expect(props).not.toHaveProperty('code')
 	})
 })

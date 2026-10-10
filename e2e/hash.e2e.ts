@@ -90,3 +90,47 @@ test('grow and rehash: every key moves to its place in a bigger table', async ({
 	expect(props.buckets).toHaveLength(11)
 	expect([props.buckets[10], props.buckets[5], props.buckets[6]]).toEqual([['10'], ['5'], ['6']])
 })
+
+/** Insert a key from the + by the load factor, played to the end and kept. */
+async function insert(page: Page, key: string) {
+	await page.getByTestId('insert-key').click()
+	await page.getByTestId('key-prompt').fill(key)
+	await page.keyboard.press('Enter')
+	await stepToEnd(page)
+}
+
+test("lecture 7's class exercise: the first three letters, A = 1, added; KIM and a classmate's 33 collide", async ({ page }) => {
+	await sketchTable(page, [200, 150], 7)
+	await setBuckets(page, [[], [], [], [], [], [], []])
+	await page.getByTestId('style.hash-code.letters').click()
+	expect((await table(page)).code).toBe('letters')
+	await insert(page, 'Kim')
+	await page.keyboard.press('Enter')
+	await page.getByTestId('insert-key').click()
+	await page.getByTestId('key-prompt').fill('Lok')
+	await page.keyboard.press('Enter')
+	await expect(caption(page)).toHaveText('Insert Lok: h(Lok) = L + O + K = 12 + 15 + 11 = 38, then 38 mod 7 = 3: bucket 3, which is empty')
+	await stepToEnd(page)
+	await page.keyboard.press('Enter')
+	expect((await table(page)).buckets[5]).toEqual(['Kim'])
+})
+
+test('the Bus Map, direct addressing: routes 1, 2, 3 at their own indexes; 256 would waste space, X70 is no index', async ({ page }) => {
+	await sketchTable(page, [200, 150], 5)
+	await setBuckets(page, [['1'], ['2'], ['3'], [], []])
+	await page.getByTestId('style.hash-code.direct').click()
+	// The key is the index: the table is rebuilt that way (no compression to choose).
+	expect((await table(page)).buckets.map((b) => b.join())).toEqual(['', '1', '2', '3', ''])
+	await expect(page.getByTestId('style.hash-compress.mod')).toHaveCount(0)
+	await page.getByTestId('insert-key').click()
+	await page.getByTestId('key-prompt').fill('256')
+	await page.keyboard.press('Enter')
+	await expect(caption(page)).toContainText('it would need 257 slots, most of them empty. Direct addressing wastes space')
+	await page.keyboard.press('Escape')
+	await page.getByTestId('insert-key').click()
+	await page.getByTestId('key-prompt').fill('X70')
+	await page.keyboard.press('Enter')
+	await expect(caption(page)).toContainText("X70 isn't a whole number, so it can't be an index")
+	await page.keyboard.press('Escape')
+	expect(await keys(page)).toEqual(['1', '2', '3'])
+})

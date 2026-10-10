@@ -4,6 +4,7 @@ import {
 	DefaultSizeStyle,
 	StyleProp,
 	T,
+	createShapePropsMigrationIds,
 	createShapePropsMigrationSequence,
 	type RecordProps,
 	type TLDefaultColorStyle,
@@ -26,6 +27,24 @@ export const HashStrategyStyle = StyleProp.defineEnum('drawds:hash-strategy', {
 })
 export type HashStrategy = T.TypeOf<typeof HashStrategyStyle>
 
+/**
+ * How a key becomes a number (lecture 7): its character codes added; the first three letters with
+ * A = 1, added (the class exercise: KIM = 33); Java's String.hashCode (h = 31·h + c); or direct
+ * addressing, the key itself as the index (integer keys only, no compression).
+ */
+export const HashCodeStyle = StyleProp.defineEnum('drawds:hash-code', {
+	defaultValue: 'sum' as const,
+	values: ['sum', 'letters', 'java', 'direct'] as const,
+})
+export type HashCode = T.TypeOf<typeof HashCodeStyle>
+
+/** How a hash code comes down to a bucket: mod m, or MAD (multiply, add, divide: a more even spread). */
+export const HashCompressionStyle = StyleProp.defineEnum('drawds:hash-compress', {
+	defaultValue: 'mod' as const,
+	values: ['mod', 'mad'] as const,
+})
+export type HashCompression = T.TypeOf<typeof HashCompressionStyle>
+
 /** Most buckets the sketch and growing make. */
 export const MAX_BUCKETS = 31
 
@@ -36,6 +55,9 @@ export interface HashShapeProps {
 	 */
 	buckets: string[][]
 	strategy: HashStrategy
+	/** How keys become numbers, and how those come down to buckets (see `hashOf`). */
+	code: HashCode
+	compress: HashCompression
 	/** Ring the keys in the wrong place (as a teacher may type them). */
 	invariant: InvariantMode
 	fill: FillMode
@@ -60,6 +82,8 @@ export type HashShape = TLShape<typeof HASH_SHAPE_TYPE>
 export const hashShapeProps: RecordProps<HashShape> = {
 	buckets: T.arrayOf(T.arrayOf(T.string)),
 	strategy: HashStrategyStyle,
+	code: HashCodeStyle,
+	compress: HashCompressionStyle,
 	invariant: InvariantStyle,
 	fill: FillStyle,
 	range: FillRangeStyle,
@@ -71,5 +95,24 @@ export const hashShapeProps: RecordProps<HashShape> = {
 	font: DefaultFontStyle,
 }
 
+const versions = createShapePropsMigrationIds(HASH_SHAPE_TYPE, {
+	AddHashFunctions: 1,
+})
+
 /** Hash tables are persisted in the browser, so every props change needs a step here. */
-export const hashShapeMigrations = createShapePropsMigrationSequence({ sequence: [] })
+export const hashShapeMigrations = createShapePropsMigrationSequence({
+	sequence: [
+		{
+			// Tables saved before the hash code and compression could be chosen used these.
+			id: versions.AddHashFunctions,
+			up(props) {
+				props.code = 'sum'
+				props.compress = 'mod'
+			},
+			down(props) {
+				delete props.code
+				delete props.compress
+			},
+		},
+	],
+})

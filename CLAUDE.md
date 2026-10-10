@@ -246,7 +246,13 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   list: curr shown by its node's value through `Frame.vars`, since a list pointer is at a node key).
 - `src/shapes/hash/` - hash tables (node-link): `buckets: string[][]` (a chain per bucket, or one entry per slot with
   `TOMBSTONE` for deleted), strategy style `drawds:hash-strategy` chaining / probing (switching re-inserts the
-  keys). `hash.ts` is pure: `hashOf` (k mod m, or character codes added; with how, for captions), `buildTable`,
+  keys). Lecture 7: a hash code (`drawds:hash-code`: character codes added; the first three letters, A = 1, added, the
+  class exercise KIM = 33; Java's String.hashCode, `javaHashCode`, 32-bit, misused / horsemints collide; direct
+  addressing, the key is the index, the Bus Map) and a compression (`drawds:hash-compress`: mod m, floorMod for negative
+  codes, or MAD `((a·h + b) mod p) mod m`, constants in `MAD`), props `code` / `compress`; the pure functions take a
+  `HashScheme` (or just a strategy: sum, mod), `hashOf` says how each step was worked out. Direct addressing refuses
+  what it can't place and says why (256 in a small table: the slots it would waste; X70: no index); switching to it
+  sizes the table for the largest key (`withScheme`), and it has no compression to pick and nothing to rehash. `hash.ts` is pure: `hashOf` (k mod m, or character codes added; with how, for captions), `buildTable`,
   `misplaced` (keys a find wouldn't reach: the red ring), insert / find / delete / rehash as frames. Entries are
   keys or `key:value`; scene keys `b<i>` buckets, `k:<entry>` chained entries, `s<i>` slots, `#load`. Shift+B.
 - `src/nodelink/playback.ts` - animated operations, stepped through: frames (props override, value swaps

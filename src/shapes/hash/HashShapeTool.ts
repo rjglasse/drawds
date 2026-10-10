@@ -20,14 +20,15 @@ export const HashShapeTool = createDragTool<HashShape, { buckets: number }>({
 	},
 	same: (a, b) => a.buckets === b.buckets,
 	layout(shape, origin, { buckets }) {
-		const { fill, seed, range, strategy, size } = shape.props
+		const { fill, seed, range, size } = shape.props
 		const m = getHashMetrics(size)
 		const keys = fillValues(fill, seed, Math.round(buckets * 0.6), { range })
 		// The first bucket's row is under the press point.
 		return {
 			x: origin.x - m.indexW - m.pointerW / 2,
 			y: origin.y - m.cell / 2,
-			props: { buckets: buildTable(keys, buckets, strategy) },
+			// As the style panel's collisions, hash code and compression place them.
+			props: { buckets: buildTable(keys, buckets, shape.props) },
 		}
 	},
 })
