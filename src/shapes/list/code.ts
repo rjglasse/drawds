@@ -7,6 +7,17 @@ import type { CodeSource } from '../code/algorithms'
 
 export const LIST_CODE: Record<string, CodeSource> = {
 	'list-find': {
+		c: String.raw`
+			int indexOf(List *list, int value) {    $value
+			    Node *curr = list->head;            @start $curr
+			    int i = 0;                          $i
+			    while (curr != NULL) {
+			        if (curr->value == value) return i;      @found
+			        curr = curr->next;              @next
+			        i++;
+			    }
+			    return -1;                          @missing
+			}`,
 		java: String.raw`
 			int indexOf(int value) {                $value
 			    Node curr = head;                   @start $curr
@@ -31,6 +42,16 @@ export const LIST_CODE: Record<string, CodeSource> = {
 	},
 	// Lecture 5's size, counted: O(n), where a size field kept by every add and remove is O(1).
 	'list-count': {
+		c: String.raw`
+			int size(List *list) {
+			    int count = 0;                      @start $count
+			    Node *curr = list->head;            $curr
+			    while (curr != NULL) {
+			        count++;                        @count
+			        curr = curr->next;
+			    }
+			    return count;                       @done
+			}`,
 		java: String.raw`
 			int size() {
 			    int count = 0;                      @start $count
@@ -52,6 +73,12 @@ export const LIST_CODE: Record<string, CodeSource> = {
 	},
 	// Insert after curr.
 	'list-insert': {
+		c: String.raw`
+			void insertAfter(Node *curr, int value) {    @call $curr $value
+			    Node *node = newNode(value);             @new $node
+			    node->next = curr->next;                 @link
+			    curr->next = node;                       @point
+			}`,
 		java: String.raw`
 			void insertAfter(Node curr, int value) {    @call $curr $value
 			    Node node = new Node(value);            @new $node
@@ -66,6 +93,12 @@ export const LIST_CODE: Record<string, CodeSource> = {
 	},
 	// Insert at the head.
 	'list-insert-head': {
+		c: String.raw`
+			void insertAtHead(List *list, int value) {    $value
+			    Node *node = newNode(value);              @new $node
+			    node->next = list->head;                  @link
+			    list->head = node;                        @point
+			}`,
 		java: String.raw`
 			void insertAtHead(int value) {      $value
 			    Node node = new Node(value);    @new $node
@@ -80,6 +113,14 @@ export const LIST_CODE: Record<string, CodeSource> = {
 	},
 	// Append without a tail: walk to the last node first, O(n).
 	'list-append': {
+		c: String.raw`
+			void append(List *list, int value) {    $value
+			    Node *curr = list->head;            @start $curr
+			    while (curr->next != NULL)
+			        curr = curr->next;              @walk
+			    Node *node = newNode(value);        @new $node
+			    curr->next = node;                  @point
+			}`,
 		java: String.raw`
 			void append(int value) {            $value
 			    Node curr = head;               @start $curr
@@ -98,6 +139,17 @@ export const LIST_CODE: Record<string, CodeSource> = {
 	},
 	// Remove a value: prev and curr walk to it, then the arrow before it goes round it.
 	'list-delete': {
+		c: String.raw`
+			void removeValue(List *list, int value) {         $value
+			    Node *prev = NULL, *curr = list->head;        @start $prev $curr
+			    while (curr->value != value) {
+			        prev = curr;
+			        curr = curr->next;                        @walk
+			    }
+			    if (prev == NULL) list->head = curr->next;    @unlink-head
+			    else prev->next = curr->next;                 @unlink
+			    free(curr);
+			}`,
 		java: String.raw`
 			void remove(int value) {                   $value
 			    Node prev = null, curr = head;         @start $prev $curr
@@ -120,6 +172,17 @@ export const LIST_CODE: Record<string, CodeSource> = {
 	},
 	// Reverse in place: each arrow turned round as prev and curr walk.
 	'list-reverse': {
+		c: String.raw`
+			void reverse(List *list) {
+			    Node *prev = NULL, *curr = list->head;    @start $prev $curr
+			    while (curr != NULL) {
+			        Node *next = curr->next;              @save $next
+			        curr->next = prev;                    @turn
+			        prev = curr;
+			        curr = next;                          @move
+			    }
+			    list->head = prev;                        @head
+			}`,
 		java: String.raw`
 			void reverse() {
 			    Node prev = null, curr = head;    @start $prev $curr
@@ -142,6 +205,13 @@ export const LIST_CODE: Record<string, CodeSource> = {
 	},
 	// Insert after curr, a tail moving on when curr was the last.
 	'list-insert-tail': {
+		c: String.raw`
+			void insertAfter(List *list, Node *curr, int value) {    @call $curr $value
+			    Node *node = newNode(value);                         @new $node
+			    node->next = curr->next;                             @link
+			    curr->next = node;                                   @point
+			    if (curr == list->tail) list->tail = node;           @tail
+			}`,
 		java: String.raw`
 			void insertAfter(Node curr, int value) {    @call $curr $value
 			    Node node = new Node(value);            @new $node
@@ -159,6 +229,13 @@ export const LIST_CODE: Record<string, CodeSource> = {
 	},
 	// Insert at the head, the first node the tail too.
 	'list-insert-head-tail': {
+		c: String.raw`
+			void insertAtHead(List *list, int value) {        $value
+			    Node *node = newNode(value);                  @new $node
+			    node->next = list->head;                      @link
+			    list->head = node;                            @point
+			    if (list->tail == NULL) list->tail = node;    @tail
+			}`,
 		java: String.raw`
 			void insertAtHead(int value) {        $value
 			    Node node = new Node(value);      @new $node
@@ -176,6 +253,12 @@ export const LIST_CODE: Record<string, CodeSource> = {
 	},
 	// Append with a tail: O(1), no walk.
 	'list-append-tail': {
+		c: String.raw`
+			void append(List *list, int value) {    @call $value
+			    Node *node = newNode(value);        @new $node
+			    list->tail->next = node;            @point
+			    list->tail = node;                  @tail
+			}`,
 		java: String.raw`
 			void append(int value) {            @call $value
 			    Node node = new Node(value);    @new $node
@@ -190,6 +273,18 @@ export const LIST_CODE: Record<string, CodeSource> = {
 	},
 	// Remove a value: prev and curr walk to it, then the arrow before it goes round it; a tail on it moves back.
 	'list-delete-tail': {
+		c: String.raw`
+			void removeValue(List *list, int value) {         $value
+			    Node *prev = NULL, *curr = list->head;        @start $prev $curr
+			    while (curr->value != value) {
+			        prev = curr;
+			        curr = curr->next;                        @walk
+			    }
+			    if (prev == NULL) list->head = curr->next;    @unlink-head
+			    else prev->next = curr->next;                 @unlink
+			    if (curr == list->tail) list->tail = prev;    @tail
+			    free(curr);
+			}`,
 		java: String.raw`
 			void remove(int value) {                   $value
 			    Node prev = null, curr = head;         @start $prev $curr
@@ -215,6 +310,18 @@ export const LIST_CODE: Record<string, CodeSource> = {
 	},
 	// Reverse in place: each arrow turned round as prev and curr walk; the old head is the tail.
 	'list-reverse-tail': {
+		c: String.raw`
+			void reverse(List *list) {
+			    Node *prev = NULL, *curr = list->head;    @start $prev $curr
+			    while (curr != NULL) {
+			        Node *next = curr->next;              @save $next
+			        curr->next = prev;                    @turn
+			        prev = curr;
+			        curr = next;                          @move
+			    }
+			    list->tail = list->head;
+			    list->head = prev;                        @head
+			}`,
 		java: String.raw`
 			void reverse() {
 			    Node prev = null, curr = head;    @start $prev $curr
@@ -239,6 +346,12 @@ export const LIST_CODE: Record<string, CodeSource> = {
 	},
 	// A linked stack (lecture 6): push and pop at the top, O(1).
 	'linked-push': {
+		c: String.raw`
+			void push(Stack *s, int value) {    $value
+			    Node *node = newNode(value);    @new $node
+			    node->next = s->top;            @link
+			    s->top = node;                  @point
+			}`,
 		java: String.raw`
 			void push(int value) {              $value
 			    Node node = new Node(value);    @new $node
@@ -253,6 +366,15 @@ export const LIST_CODE: Record<string, CodeSource> = {
 	},
 	// Pop: the top's value, then top moves on; an empty stack underflows.
 	'linked-pop': {
+		c: String.raw`
+			int pop(Stack *s) {
+			    if (s->top == NULL) { fprintf(stderr, "empty stack\n"); exit(1); }    @empty
+			    int v = s->top->value;                                                @value $v
+			    Node *old = s->top;
+			    s->top = old->next;                                                   @unlink
+			    free(old);
+			    return v;                                                             @done
+			}`,
 		java: String.raw`
 			int pop() {
 			    if (top == null) throw new EmptyStackException();    @empty
@@ -270,6 +392,11 @@ export const LIST_CODE: Record<string, CodeSource> = {
 	},
 	// Peek at the top: nothing changes.
 	'linked-peek': {
+		c: String.raw`
+			int peek(Stack *s) {
+			    if (s->top == NULL) { fprintf(stderr, "empty stack\n"); exit(1); }    @empty
+			    return s->top->value;                                                 @peek
+			}`,
 		java: String.raw`
 			int peek() {
 			    if (top == null) throw new EmptyStackException();    @empty
@@ -283,6 +410,13 @@ export const LIST_CODE: Record<string, CodeSource> = {
 	},
 	// A linked queue: enqueue at the rear, dequeue at the front, O(1) both.
 	'linked-enqueue': {
+		c: String.raw`
+			void enqueue(Queue *q, int value) {          $value
+			    Node *node = newNode(value);             @new $node
+			    if (q->rear == NULL) q->front = node;    @empty
+			    else q->rear->next = node;               @link
+			    q->rear = node;                          @rear
+			}`,
 		java: String.raw`
 			void enqueue(int value) {              $value
 			    Node node = new Node(value);       @new $node
@@ -301,6 +435,16 @@ export const LIST_CODE: Record<string, CodeSource> = {
 	},
 	// Dequeue: the front's value, front moves on; the last one out empties rear too.
 	'linked-dequeue': {
+		c: String.raw`
+			int dequeue(Queue *q) {
+			    if (q->front == NULL) { fprintf(stderr, "empty queue\n"); exit(1); }    @nothing
+			    int v = q->front->value;                                                @value $v
+			    Node *old = q->front;
+			    q->front = old->next;                                                   @unlink
+			    if (q->front == NULL) q->rear = NULL;                                   @tail
+			    free(old);
+			    return v;                                                               @done
+			}`,
 		java: String.raw`
 			int dequeue() {
 			    if (front == null) throw new NoSuchElementException();    @nothing
@@ -321,6 +465,11 @@ export const LIST_CODE: Record<string, CodeSource> = {
 	},
 	// Peek at the front: nothing changes.
 	'linked-front': {
+		c: String.raw`
+			int peek(Queue *q) {
+			    if (q->front == NULL) { fprintf(stderr, "empty queue\n"); exit(1); }    @nothing
+			    return q->front->value;                                                 @peek
+			}`,
 		java: String.raw`
 			int peek() {
 			    if (front == null) throw new NoSuchElementException();    @nothing

@@ -266,7 +266,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   array recorder's `r.let('maxval', v)`, kept for later steps; undefined: out of scope); `$min_idx=min` shows the
   step's `min` under the language's own name; room after those lines is kept in the layout (`after`), long values
   cut to fit. `algorithms.ts` (pure): each algorithm written per language with `@tag`s and `$tag`s at line ends,
-  two spaces before (`parseCode`), `algorithmCode` (C falls back to Java for now), `taggedLine` / `shownValues`
+  two spaces before (`parseCode`), `algorithmCode` (every algorithm in C, Java and Python; C as a slide would put it:
+  arrays with their length, `swap(&a[i], &a[j])`, structs by pointer, `newNode`, `NULL`), `taggedLine` / `shownValues`
   (find a tag's line in code edited since, by its text). Line counts (dds-szw.14, lecture 3's "times" column): Show >
   Times each line runs (prop `lineCounts`) puts a column at the right, `×n` per counted line, ticking up as the steps
   go: frames carry `runs` (cumulative, by tag), which the array recorder keeps (`r.counting(...tags)` from 0, then
@@ -278,7 +279,7 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   and 14 are the tests); its last step says why the two differ. Where a slide's count is off, drawds counts correctly. Picking another language swaps an unedited box to that language's version (`onBeforeUpdate`).
   The arrays' code is `src/shapes/array/code.ts` (searches, scans, every sort, shuffles, lecture 6's ArrayStack push / pop /
   peek for a fixed stack and ArrayQueue enqueue / dequeue / peek for the circular buffer, insert / delete by shifting, growing
-  or with a fixed capacity; Java and Python), the lists' `src/shapes/list/code.ts` (lecture 5's indexOf for find, size counted,
+  or with a fixed capacity), the lists' `src/shapes/list/code.ts` (lecture 5's indexOf for find, size counted,
   insert after / at the head, append, delete, reverse, and the linked stack's and queue's operations, `linked-*`: on a plain
   singly linked list only, with a tail a version of its own (`plainCode`, `-tail`); curr, prev, node shown by their nodes'
   values through `Frame.vars`, since a list pointer is at a node key), the trees' `src/shapes/tree/code.ts` (traversals,

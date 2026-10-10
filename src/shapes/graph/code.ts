@@ -7,6 +7,15 @@ import type { CodeSource } from '../code/algorithms'
 
 export const GRAPH_CODE: Record<string, CodeSource> = {
 	'graph-dfs': {
+		c: String.raw`
+			void dfs(Graph *g, int v) {                     $v
+			    visited[v] = true;                          @mark
+			    for (int k = 0; k < g->degree[v]; k++) {    @loop $w
+			        int w = g->adj[v][k];
+			        if (!visited[w])                        @check
+			            dfs(g, w);
+			    }
+			}`,
 		java: String.raw`
 			void dfs(Graph graph, int v) {                  $v
 			    visited[v] = true;                          @mark
@@ -22,6 +31,23 @@ export const GRAPH_CODE: Record<string, CodeSource> = {
 			            dfs(graph, w)`,
 	},
 	'graph-bfs': {
+		c: String.raw`
+			void bfs(Graph *g, int s) {                         $s
+			    int queue[MAX];
+			    int front = 0, rear = 0;
+			    queue[rear++] = s;                              @start
+			    visited[s] = true;
+			    while (front < rear) {
+			        int v = queue[front++];                     @dequeue $v
+			        for (int k = 0; k < g->degree[v]; k++) {    $w
+			            int w = g->adj[v][k];
+			            if (!visited[w]) {                      @check
+			                visited[w] = true;                  @mark
+			                queue[rear++] = w;
+			            }
+			        }
+			    }
+			}`,
 		java: String.raw`
 			void bfs(Graph graph, int s) {                  $s
 			    Queue<Integer> queue = new LinkedList<>();
@@ -49,6 +75,21 @@ export const GRAPH_CODE: Record<string, CodeSource> = {
 			                queue.append(w)`,
 	},
 	'graph-components': {
+		c: String.raw`
+			int count = 0;                              $count
+			for (int v = 0; v < g->n; v++)              $v
+			    if (!visited[v]) {                      @skip
+			        dfs(g, v);                          @search
+			        count++;                            @count
+			    }
+
+			void dfs(Graph *g, int u) {                 $u
+			    visited[u] = true;                      @mark
+			    for (int k = 0; k < g->degree[u]; k++) {
+			        int w = g->adj[u][k];
+			        if (!visited[w]) dfs(g, w);
+			    }
+			}`,
 		java: String.raw`
 			int count = 0;                              $count
 			for (int v : graph.vertices())              $v
@@ -77,6 +118,37 @@ export const GRAPH_CODE: Record<string, CodeSource> = {
 	},
 	// A path with the fewest edges: BFS noting each vertex's parent, then walking back from t.
 	'graph-path': {
+		c: String.raw`
+			int path(Graph *g, int s, int t, int out[]) {               $s $t
+			    int queue[MAX];
+			    int front = 0, rear = 0;
+			    queue[rear++] = s;                                      @start
+			    visited[s] = true;
+			    while (front < rear) {
+			        int v = queue[front++];                             @dequeue $v
+			        for (int k = 0; k < g->degree[v]; k++) {            $w
+			            int w = g->adj[v][k];
+			            if (!visited[w]) {                              @check
+			                visited[w] = true;                          @mark
+			                parent[w] = v;
+			                if (w == t) return walkBack(s, t, out);     @found
+			                queue[rear++] = w;
+			            }
+			        }
+			    }
+			    return 0;                                               @none
+			}
+
+			int walkBack(int s, int t, int path[]) {
+			    int n = 0;
+			    for (int x = t; x != s; x = parent[x])                  @walk $x
+			        path[n++] = x;
+			    path[n++] = s;
+			    for (int i = 0, j = n - 1; i < j; i++, j--) {
+			        int tmp = path[i]; path[i] = path[j]; path[j] = tmp;
+			    }
+			    return n;                                               @done
+			}`,
 		java: String.raw`
 			List<Integer> path(Graph graph, int s, int t) {     $s $t
 			    Queue<Integer> queue = new LinkedList<>();
@@ -128,6 +200,26 @@ export const GRAPH_CODE: Record<string, CodeSource> = {
 	},
 	// Is there a cycle? (lecture 9's Task 18): DFS from every vertex not visited yet.
 	'graph-cycle': {
+		c: String.raw`
+			bool hasCycle(Graph *g) {
+			    for (int s = 0; s < g->n; s++)                  $s
+			        if (!visited[s] && dfs(g, s, -1))           @search
+			            return true;                            @yes
+			    return false;                                   @no
+			}
+
+			bool dfs(Graph *g, int v, int parent) {             $v $parent
+			    visited[v] = true;                              @mark
+			    for (int k = 0; k < g->degree[v]; k++) {        $w
+			        int w = g->adj[v][k];
+			        if (!visited[w]) {
+			            if (dfs(g, w, v)) return true;
+			        } else if (w != parent) {                   @parent
+			            return true;                            @cycle
+			        }
+			    }
+			    return false;                                   @none-here
+			}`,
 		java: String.raw`
 			boolean hasCycle(Graph graph) {
 			    for (int s : graph.vertices())                  $s
@@ -165,6 +257,26 @@ export const GRAPH_CODE: Record<string, CodeSource> = {
 			    return False                                @none-here`,
 	},
 	'graph-cycle-directed': {
+		c: String.raw`
+			bool hasCycle(Graph *g) {
+			    for (int s = 0; s < g->n; s++)                  $s
+			        if (!visited[s] && dfs(g, s))               @search
+			            return true;                            @yes
+			    return false;                                   @no
+			}
+
+			bool dfs(Graph *g, int v) {                         $v
+			    visited[v] = true;                              @mark
+			    onStack[v] = true;
+			    for (int k = 0; k < g->degree[v]; k++) {        $w
+			        int w = g->adj[v][k];
+			        if (onStack[w]) return true;                @cycle
+			        if (!visited[w] && dfs(g, w))               @done
+			            return true;
+			    }
+			    onStack[v] = false;
+			    return false;                                   @none-here
+			}`,
 		java: String.raw`
 			boolean hasCycle(Graph graph) {
 			    for (int s : graph.vertices())                  $s

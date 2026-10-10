@@ -50,7 +50,8 @@ with pointers that slide, values that swap in arcs, cells that light up and runn
 Step with <kbd>←</kbd> <kbd>→</kbd> (or a presentation clicker), <kbd>Space</kbd> plays and pauses, <kbd>Enter</kbd>
 puts the result in (<kbd>Shift</kbd>+<kbd>Enter</kbd> keeps the highlights as marks), <kbd>Esc</kbd> cancels with
 nothing changed. Once the result is in, the bar stays to step back through it or replay it. Autoplay and speed
-(½× to 4×) are on the bar.
+(½× to 4×) are on the bar. Its </> button puts the algorithm's code beside the structure, in C, Java or Python, the line each
+step is on lit and the variables' values beside their lines.
 
 | Structure | Step by step |
 |---|---|

@@ -25,7 +25,7 @@ interface LanguageRules {
 	line: string
 	/** Block comments (/* ... *\/). */
 	block: boolean
-	/** Capitalised names are classes (Java: String, Node). */
+	/** Capitalised names are classes (Java: String, Node) or typedefs (C as drawds writes it: Node, List, Graph). */
 	capitalisedTypes: boolean
 }
 
@@ -38,7 +38,7 @@ const RULES: Record<CodeLanguage, LanguageRules> = {
 		constants: words('true false NULL'),
 		line: '//',
 		block: true,
-		capitalisedTypes: false,
+		capitalisedTypes: true,
 	},
 	java: {
 		keywords: words(`abstract assert break case catch class continue default do else enum extends final finally for

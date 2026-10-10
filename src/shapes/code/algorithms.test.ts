@@ -80,14 +80,15 @@ describe('algorithm code', () => {
 
 	it('leaves no tag in the code (a tag needs two spaces before it)', () => {
 		for (const id of Object.keys(ALGORITHMS)) {
-			for (const language of ['java', 'python'] as const) {
+			for (const language of ['c', 'java', 'python'] as const) {
 				expect(algorithmCode(id, language)!.text, `${id} ${language}`).not.toMatch(/\s[@$][\w=-]+\s*$/m)
 			}
 		}
 	})
 
-	it('C falls back to Java (not written yet); an algorithm without code has none', () => {
-		expect(algorithmCode('bubble-sort', 'c')?.language).toBe('java')
+	it('every algorithm is written in C, Java and Python; an algorithm without code has none', () => {
+		for (const id of Object.keys(ALGORITHMS)) for (const language of ['c', 'java', 'python'] as const) expect(ALGORITHMS[id][language], `${id} ${language}`).toBeTruthy()
+		expect(algorithmCode('bubble-sort', 'c')?.text).toMatch(/^void bubbleSort\(int a\[\], int n\) \{/)
 		expect(algorithmCode('bubble-sort', 'python')?.text).toMatch(/^def bubble_sort\(a\):/)
 		expect(algorithmCode('no-such-sort', 'java')).toBeUndefined()
 	})
@@ -224,7 +225,7 @@ describe('algorithm code', () => {
 			expect(op.code && ALGORITHMS[op.code], `${op.frames[0]?.caption}`).toBeTruthy()
 			const lines = op.frames.flatMap((f) => (f.line ? [f.line] : []))
 			expect(lines.length).toBeGreaterThan(0)
-			for (const language of ['java', 'python'] as const) {
+			for (const language of ['c', 'java', 'python'] as const) {
 				const code = algorithmCode(op.code!, language)!
 				expect(code.language).toBe(language)
 				for (const line of lines) expect(code.lines, `${op.code} ${language} @${line}`).toHaveProperty(line)
