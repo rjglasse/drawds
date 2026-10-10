@@ -72,6 +72,8 @@ interface Step {
 	line?: string
 	/** A labelled bracket along cells from..to: what holds over them (a loop invariant). */
 	band?: Frame['band']
+	/** Small notes in cells' corners, by index, kept for later steps ('' takes one away). */
+	badges?: Record<string, string>
 }
 
 /**
@@ -109,7 +111,7 @@ export function recorder(start: ArrayState, counts: Record<string, number>) {
 		set(next: ArrayState) {
 			state = next
 		},
-		step(caption: string, { lit: next = {}, pointers = [], dim = [], swaps, moves, strips, ask, askFocus, calls, line, band }: Step = {}) {
+		step(caption: string, { lit: next = {}, pointers = [], dim = [], swaps, moves, strips, ask, askFocus, calls, line, band, badges }: Step = {}) {
 			const flash: Record<string, MarkColor | null> = {}
 			for (const key of Object.keys(shown)) if (!next[key]) flash[key] = null
 			for (const [key, color] of Object.entries(next)) if (shown[key] !== color) flash[key] = color
@@ -131,6 +133,7 @@ export function recorder(start: ArrayState, counts: Record<string, number>) {
 				...(calls ? { calls } : {}),
 				...(line ? { line } : {}),
 				...(band ? { band } : {}),
+				...(badges ? { badges } : {}),
 				...(Object.keys(vars).length ? { vars: { ...vars } } : {}),
 				...(Object.keys(runs).length ? { runs: { ...runs } } : {}),
 			})
@@ -1357,27 +1360,92 @@ export type GrowthPolicy = 'double' | 'plus-one'
 export function appendMany(start: ArrayState, used: number, values: readonly string[], policy: GrowthPolicy): ArrayOperation {
 	const r = recorder({ ...start, used }, { appends: 0, copies: 0 })
 	const how = policy === 'double' ? 'doubling the capacity when full' : 'growing by one cell when full'
-	r.step(`Append ${plural(values.length, 'value')}, ${how}: size ${used}, capacity ${start.values.length}`)
+	// Lecture 7's aggregate method: each append's cost (1 for the write, plus any copies), in a row.
+	const costs: string[] = []
+	const strips = () => [{ title: 'cost of each append', items: [...costs] }]
+	r.step(`Append ${plural(values.length, 'value')}, ${how}: size ${used}, capacity ${start.values.length}`, { strips: strips() })
 	for (const value of values) {
 		const size = r.state.used ?? used
 		const capacity = r.state.values.length
+		const before = r.counts.copies
 		if (size >= capacity) {
 			const next = policy === 'double' ? Math.max(1, capacity * 2) : capacity + 1
-			r.step(`Append ${value}: full (size = capacity = ${capacity}), so grow to ${next} first`, { lit: { [capacity - 1]: GONE } })
+			r.step(`Append ${value}: full (size = capacity = ${capacity}), so grow to ${next} first`, { lit: { [capacity - 1]: GONE }, strips: strips() })
 			growSteps(r, next, { oneByOne: false })
 		}
 		const after = [...r.state.values]
 		after[size] = value
 		r.set({ values: after, marks: r.state.marks, used: size + 1 })
 		r.counts.appends++
-		r.step(`Append ${value}: a[${size}] = ${value}; size = ${size + 1}`, { lit: { [size]: DONE }, pointers: [ptr('size', size + 1)] })
+		const copied = r.counts.copies - before
+		costs.push(String(1 + copied))
+		r.step(`Append ${value}: a[${size}] = ${value}; size = ${size + 1}. Cost ${1 + copied}${copied ? `: 1 for the write, ${copied} for the copies` : ''}`, {
+			lit: { [size]: DONE },
+			pointers: [ptr('size', size + 1)],
+			strips: strips(),
+		})
 	}
 	const { appends, copies } = r.counts
-	const each = (copies / Math.max(1, appends)).toFixed(1)
+	const total = appends + copies
+	const each = (total / Math.max(1, appends)).toFixed(1)
+	const sum = `${appends} write${appends === 1 ? '' : 's'} + ${copies} cop${copies === 1 ? 'y' : 'ies'} = ${total}`
 	r.step(
 		policy === 'double'
-			? `${plural(appends, 'append')} cost ${plural(copies, 'copy', 'copies')}, ${each} per append: doubling keeps it under 2 each, however many (amortised O(1))`
-			: `${plural(appends, 'append')} cost ${plural(copies, 'copy', 'copies')}, ${each} per append: growing by one copies everything every time, so each append costs O(n)`
+			? `${plural(appends, 'append')} cost ${sum}, ${each} each: the copies (1 + 2 + 4 + …) add up to less than 2n, so n appends cost under 3n: amortised O(1)`
+			: `${plural(appends, 'append')} cost ${sum}, ${each} each: growing by one copies everything every time, so each append costs O(n)`,
+		{ strips: strips() }
+	)
+	return { frames: r.frames, result: r.state }
+}
+
+/**
+ * Lecture 7's accounting method: every append pays 3 kr, 1 for its write and 2 saved on its cell (a
+ * badge). When the array is full, doubling copies every value at 1 kr each, paid from what the
+ * values added since the last doubling saved: exactly enough, so the bank (in the play bar) is
+ * never in debt and each append costs at most 3: amortised O(1). Values already there are counted
+ * as if added this way.
+ */
+export function appendAccounting(start: ArrayState, used: number, values: readonly string[]): ArrayOperation {
+	const capacity0 = start.values.length
+	// Saved so far, as if every value had been appended this way: 2 kr on each added since the last doubling.
+	const since = Math.max(0, used - Math.floor(capacity0 / 2))
+	const saved: Record<string, string> = Object.fromEntries(Array.from({ length: since }, (_, k) => [String(used - since + k), '2 kr']))
+	const r = recorder({ ...start, used }, { appends: 0, copies: 0, 'bank (kr)': 2 * since })
+	r.step(`Each append pays 3 kr: 1 for its write, 2 saved on its cell for later copies. Saved so far: ${2 * since} kr`, { badges: { ...saved } })
+	for (const value of values) {
+		const size = r.state.used ?? used
+		const capacity = r.state.values.length
+		if (size >= capacity) {
+			const next = Math.max(1, capacity * 2)
+			const bank = r.counts['bank (kr)']
+			r.step(`Append ${value}: full, so double to ${next}: ${plural(size, 'copy', 'copies')} at 1 kr each, ${size} kr, and the bank holds ${bank} kr`, {
+				lit: { [capacity - 1]: GONE },
+			})
+			growSteps(r, next, { oneByOne: false })
+			// The copies are paid for: the credit on the cells is spent.
+			r.counts['bank (kr)'] -= size
+			const spent = Object.fromEntries(Object.keys(saved).map((k) => [k, '']))
+			for (const k of Object.keys(saved)) delete saved[k]
+			r.step(`The ${size} kr saved paid for the ${plural(size, 'copy', 'copies')}: bank ${bank} → ${r.counts['bank (kr)']} kr, never in debt`, {
+				badges: spent,
+			})
+		}
+		const after = [...r.state.values]
+		after[size] = value
+		r.set({ values: after, marks: r.state.marks, used: size + 1 })
+		r.counts.appends++
+		r.counts['bank (kr)'] += 2
+		saved[String(size)] = '2 kr'
+		r.step(`Append ${value}: pay 3 kr, 1 for a[${size}] = ${value}, 2 saved on its cell. Bank ${r.counts['bank (kr)']} kr`, {
+			lit: { [size]: DONE },
+			pointers: [ptr('size', size + 1)],
+			badges: { [String(size)]: '2 kr' },
+		})
+	}
+	const { appends, copies } = r.counts
+	r.step(
+		`${plural(appends, 'append')} paid ${3 * appends} kr for ${appends} writes and ${copies} copies, with ${r.counts['bank (kr)']} kr left: never in debt, so each append costs at most 3, amortised O(1)`,
+		{ ask: false }
 	)
 	return { frames: r.frames, result: r.state }
 }

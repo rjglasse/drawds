@@ -38,6 +38,7 @@ import {
 	allNumbers,
 	appendFixed,
 	appendMany,
+	appendAccounting,
 	binarySearch,
 	recursiveBinarySearch,
 	bubbleSort,
@@ -347,9 +348,16 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 						...(['double', 'plus-one'] as const).map((policy) => ({
 							...capacity,
 							id: `array-append-many-${policy}`,
-							label: `Append 8 values, ${policy === 'double' ? 'doubling' : 'growing by one'} when full`,
-							run: () => this.play(shape.id, 'append', (a) => appendMany(a, a.used!, this.appendValues(shape.id, a, 8), policy), { whole: true }),
+							label: `Append 10 values, ${policy === 'double' ? 'doubling' : 'growing by one'} when full`,
+							run: () => this.play(shape.id, 'append', (a) => appendMany(a, a.used!, this.appendValues(shape.id, a, 10), policy), { whole: true }),
 						})),
+						// Lecture 7's accounting method: 3 kr an append, 2 of them saved for the copies.
+						{
+							...capacity,
+							id: 'array-append-accounting',
+							label: 'Append 10 values, 3 kr each (accounting)',
+							run: () => this.play(shape.id, 'append', (a) => appendAccounting(a, a.used!, this.appendValues(shape.id, a, 10)), { whole: true }),
+						},
 					]
 				: []
 		const n = usedCount(shape.props)
@@ -1024,6 +1032,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 						flash={playing && { marks: playing.flash, fading: playing.fading, id: playing.id }}
 						dim={playing && !playing.fading ? (playing.dim ?? []) : undefined}
 						pulse={playing && !playing.fading ? playing.pulse : undefined}
+						badges={playing && !playing.fading ? playing.badges : undefined}
 						offEnd={framePointers ? [] : this.offEndSlots(shape)}
 						aux={aux}
 						cross={cross}
@@ -1065,6 +1074,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 						fontFamily={this.getFontFamily(shape)}
 						flash={{ marks: step.flash, fading: false, id: step.id }}
 						dim={step.dim ?? []}
+						badges={step.badges}
 						offEnd={framePointers ? [] : this.offEndSlots(shape)}
 						aux={this.displayAux(shape)}
 						cues={showsColourCues()}
@@ -1140,6 +1150,7 @@ function ArraySvg({
 	drag,
 	slides,
 	flash,
+	badges,
 	dim,
 	pulse,
 	offEnd = [],
@@ -1163,6 +1174,8 @@ function ArraySvg({
 	slides?: Slides
 	/** Canvas only: an operation's highlights, fading out once it is dismissed. */
 	flash?: { marks: Marks; fading: boolean; id: number }
+	/** A step's small notes in cells' corners, by index (the kronor an append saved there). */
+	badges?: Record<string, string>
 	/** Canvas only, while an operation is open: cells out of play, drawn faded (in or out). */
 	dim?: readonly string[]
 	/** Canvas only, in predict mode: the cells the play bar's question is about, ringed in pulsing violet. */
@@ -1406,6 +1419,26 @@ function ArraySvg({
 					</text>
 				)
 			})}
+			{badges &&
+				values.map((_, i) => {
+					const note = badges[String(i)]
+					if (!note) return null
+					const { x, y } = cellAt(i)
+					return (
+						<text
+							key={`badge-${i}`}
+							data-badge={i}
+							x={x + cell - strokeWidth * 2}
+							y={y + strokeWidth * 2}
+							fontSize={metrics.indexFontSize * 0.85}
+							textAnchor="end"
+							dominantBaseline="hanging"
+							fill={getColorValue(colors, 'green', 'solid')}
+						>
+							{note}
+						</text>
+					)
+				})}
 			{drag && (
 				<text x={drag.at.x} y={drag.at.y - cell * 0.35} fontSize={textSize(values[drag.from] ?? '')} fill={colors.text} opacity={0.85}>
 					{values[drag.from]}

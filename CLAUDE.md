@@ -137,6 +137,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   over its leaves, bars on a share scale (full height = 1.5 fair shares, capped) with the fair share dashed; six or
   fewer orders get a colour each. The tree for up to three values (`TREE_MAX`), the tally up to four (`TALLY_MAX`);
   `openOutcomes` puts one to the right (a tally with the same values takes the new seed), Esc takes it back.
+- Amortised cost (lecture 7): Append 10 values (doubling or by one) shows each append's cost in a strip (from capacity 1
+  doubling: 1 2 3 1 5 1 1 1 9 1, the aggregate 10 writes + 15 copies = 25) and sums it up; Append 10 values, 3 kr each
+  (`appendAccounting`) is the accounting method: 2 kr saved per append as a badge on its cell (`Frame.badges`, drawn in
+  array cells' corners), spent on the copies at each doubling, the bank in the play bar, never in debt.
 - A fixed stack's pop leaves the value in its slot (lecture 6): drawn faded, as any value in a spare slot is, off the stack
   until a push overwrites it (the caption says so). List find and delete count the nodes they visit; deleting the last node
   of a doubly linked list with a tail jumps there and takes tail.prev (no walk), a singly linked one says it had to walk.

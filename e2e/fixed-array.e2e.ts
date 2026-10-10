@@ -130,19 +130,30 @@ test('insert and delete step by step keep the capacity; append grows a full arra
 	expect((await props(page)).values).toHaveLength(6)
 })
 
-test('append 8 values: doubling copies 12 times, growing by one 60 times', async ({ page }) => {
+test('append 10 values: doubling copies 12 times, growing by one 85 times; each append\'s cost in a row', async ({ page }) => {
 	await fixedArray(page, 4, 4)
 	await arrayMenu(page, 'array-steps', 'array-append-many-double')
 	await stepToEnd(page)
-	await expect(page.getByTestId('play-counts')).toHaveText('appends 8 · copies 12')
-	await expect(caption(page)).toContainText('amortised O(1)')
+	await expect(page.getByTestId('play-counts')).toHaveText('appends 10 · copies 12')
+	await expect(caption(page)).toContainText('10 appends cost 10 writes + 12 copies = 22, 2.2 each')
+	await expect(page.getByTestId('playback-strip').filter({ hasText: 'cost of each append' })).toBeVisible()
 	await page.keyboard.press('Enter')
-	expect(await props(page)).toMatchObject({ used: 12 })
+	expect(await props(page)).toMatchObject({ used: 14 })
 	expect((await props(page)).values).toHaveLength(16)
 	await page.keyboard.press('ControlOrMeta+z')
 	await arrayMenu(page, 'array-steps', 'array-append-many-plus-one')
 	await stepToEnd(page)
-	await expect(page.getByTestId('play-counts')).toHaveText('appends 8 · copies 60')
+	await expect(page.getByTestId('play-counts')).toHaveText('appends 10 · copies 85')
 	await page.keyboard.press('Enter')
-	expect((await props(page)).values).toHaveLength(12)
+	expect((await props(page)).values).toHaveLength(14)
+})
+
+test("lecture 7's accounting method: 3 kr an append, 2 saved on its cell, the savings paying each doubling", async ({ page }) => {
+	await fixedArray(page, 4, 4)
+	await arrayMenu(page, 'array-steps', 'array-append-accounting')
+	// A full array of 4: the two added since 2 → 4 hold their 2 kr each.
+	expect(await page.locator('[data-badge]').allTextContents()).toEqual(['2 kr', '2 kr'])
+	await stepToEnd(page)
+	await expect(caption(page)).toContainText('never in debt, so each append costs at most 3, amortised O(1)')
+	await expect(page.getByTestId('play-counts')).toContainText('bank (kr)')
 })

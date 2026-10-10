@@ -337,14 +337,16 @@ describe('appending many values', () => {
 		expect(op.result).toMatchObject({ used: 12 })
 		expect(op.result?.values).toHaveLength(16)
 		expect(counts(op)).toEqual({ appends: 8, copies: 12 })
-		expect(last(op).caption).toBe('8 appends cost 12 copies, 1.5 per append: doubling keeps it under 2 each, however many (amortised O(1))')
+		expect(last(op).caption).toBe(
+			'8 appends cost 8 writes + 12 copies = 20, 2.5 each: the copies (1 + 2 + 4 + …) add up to less than 2n, so n appends cost under 3n: amortised O(1)'
+		)
 	})
 
 	it('growing by one: a grow on every append, 4 + 5 + ... + 11 = 60 copies', () => {
 		const op = appendMany(full, 4, more, 'plus-one')
 		expect(op.result?.values).toHaveLength(12)
 		expect(counts(op)).toEqual({ appends: 8, copies: 60 })
-		expect(last(op).caption).toMatch(/^8 appends cost 60 copies, 7.5 per append/)
+		expect(last(op).caption).toMatch(/^8 appends cost 8 writes \+ 60 copies = 68, 8\.5 each/)
 	})
 })
 
