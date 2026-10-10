@@ -81,6 +81,8 @@ export interface ListShapeProps {
 	/** A cycle: the last node's next points at this node instead of null ('' for none). */
 	cycleTo: string
 	kind: ListKind
+	/** A size field beside the head (lecture 5: read in O(1), as every add and remove keeps it). */
+	showSize: boolean
 	color: TLDefaultColorStyle
 	size: TLDefaultSizeStyle
 	font: TLDefaultFontStyle
@@ -108,6 +110,7 @@ export const listShapeProps: RecordProps<ListShape> = {
 	sentinel: ListSentinelStyle,
 	cycleTo: T.string,
 	kind: ListKindStyle,
+	showSize: T.boolean,
 	color: DefaultColorStyle,
 	size: DefaultSizeStyle,
 	font: DefaultFontStyle,
@@ -119,6 +122,7 @@ const versions = createShapePropsMigrationIds(LIST_SHAPE_TYPE, {
 	AddVariants: 3,
 	AddKind: 4,
 	AddRange: 5,
+	AddShowSize: 6,
 })
 
 /** Lists are persisted in the browser, so every props change needs a step here. */
@@ -171,6 +175,15 @@ export const listShapeMigrations = createShapePropsMigrationSequence({
 			},
 			down(props) {
 				delete props.range
+			},
+		},
+		{
+			id: versions.AddShowSize,
+			up(props) {
+				props.showSize = false
+			},
+			down(props) {
+				delete props.showSize
 			},
 		},
 	],

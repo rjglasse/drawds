@@ -33,6 +33,7 @@ import {
 } from './list-shape-types'
 import { anchorShift, insertListNode, removeListNode, resizeList } from './ops'
 import { dequeueFrom, enqueueOnto, peekAt, popFrom, pushOnto } from './stack-queue'
+import { checkInvariants, countNodes, withSizeStep } from './size'
 import {
 	appendToList,
 	deleteFromList,
@@ -68,15 +69,19 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 			sentinel: 'none',
 			cycleTo: '',
 			kind: 'list',
+			showSize: false,
 			color: 'black',
 			size: 'm',
 			font: 'mono',
 		}
 	}
 
-	/** Switching a variant (doubly, tail, circular, sentinel, kind) redraws the list with its head where it was. */
+	/**
+	 * Switching a variant (doubly, tail, circular, sentinel, kind) or the size field redraws the list
+	 * with its head where it was.
+	 */
 	override onBeforeUpdate(prev: ListShape, next: ListShape): ListShape | void {
-		const variants = ['links', 'tail', 'ends', 'sentinel', 'cycleTo', 'kind'] as const
+		const variants = ['links', 'tail', 'ends', 'sentinel', 'cycleTo', 'kind', 'showSize'] as const
 		let shape = next
 		if (variants.some((k) => prev.props[k] !== next.props[k]) && prev.props.nodes === next.props.nodes) {
 			const shift = Vec.Rot(anchorShift(prev.props, next.props), next.rotation)
@@ -275,6 +280,64 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 	// as the + and x beside the top, or the rear and front (renderStructureControls).
 
 	override shapeOperations(shape: ListShape): NodeOperation[] {
+		return [...this.kindOperations(shape), ...this.sizeOperations(shape)]
+	}
+
+	/**
+	 * Lecture 5's size and invariants, on any list: the size field (Show), counting the nodes against
+	 * reading it, the invariants checked; and, with a tail, the two bugs the lecture names, shown and
+	 * not kept.
+	 */
+	private sizeOperations(shape: ListShape): NodeOperation[] {
+		const { kind, nodes, showSize } = shape.props
+		const id = shape.id
+		const props = () => (this.editor.getShape(id) as ListShape | undefined)?.props ?? shape.props
+		const run = (label: string, op: () => ListOperation) => () => this.play(id, label, op)
+		const v = listVariant(shape.props, nodes)
+		const size = { group: 'size' }
+		const bugs = { group: 'bugs' }
+		return [
+			// Walking a cycle would never end.
+			...(v.cycleTo ? [] : [{ ...size, id: 'list-count', label: 'Count the nodes (size)', run: run('count the nodes', () => countNodes(props())) }]),
+			{ ...size, id: 'list-invariants', label: 'Check the invariants', run: run('check the invariants', () => checkInvariants(props())) },
+			...(kind === 'list' && v.tail && !v.circular && !v.sentinel && nodes.length === 0
+				? [
+						{
+							...bugs,
+							id: 'list-insert-forget-tail',
+							label: 'Insert, forgetting the tail (a bug)',
+							run: run('insert, forgetting the tail', () => insertIntoList(props(), undefined, this.newId(props()), this.endValue(props(), 'front'), { forgetTail: true })),
+						},
+					]
+				: []),
+			...(kind === 'list' && v.tail && !v.circular && !v.sentinel && nodes.length === 1
+				? [
+						{
+							...bugs,
+							id: 'list-delete-forget-tail',
+							label: `Delete ${nodes[0].value}, forgetting the tail (a bug)`,
+							run: run('delete, forgetting the tail', () => deleteFromList(props(), nodes[0].id, { forgetTail: true })),
+						},
+					]
+				: []),
+			{
+				section: 'show',
+				id: 'list-size-field',
+				label: showSize ? 'Hide the size field' : 'Show the size field',
+				run: () => this.toggleSize(id),
+			},
+		]
+	}
+
+	/** The size field beside the head, or not: one undo step. */
+	private toggleSize(id: ListShape['id']) {
+		const shape = this.editor.getShape(id) as ListShape | undefined
+		if (!shape) return
+		this.editor.markHistoryStoppingPoint('toggle size field')
+		this.editor.updateShape<ListShape>({ id, type: LIST_SHAPE_TYPE, props: { showSize: !shape.props.showSize } })
+	}
+
+	private kindOperations(shape: ListShape): NodeOperation[] {
 		const { kind, nodes } = shape.props
 		const id = shape.id
 		const props = () => (this.editor.getShape(id) as ListShape | undefined)?.props ?? shape.props
@@ -410,8 +473,9 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		playOperation(this.editor, {
 			shapeId: id,
 			label,
-			// Ending on the list as the result draws it, so nothing jumps when it goes in.
-			frames: final ? endTidied(shape.props, { ...shape.props, ...final.props }, frames) : frames,
+			// Ending on the list as the result draws it, so nothing jumps when it goes in; then size++ or
+			// size--, if the size field is shown.
+			frames: final ? withSizeStep(endTidied(shape.props, { ...shape.props, ...final.props }, frames), shape.props, nodes.length) : frames,
 			final,
 			finalFlash,
 			code,

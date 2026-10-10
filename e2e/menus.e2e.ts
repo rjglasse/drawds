@@ -49,7 +49,7 @@ test('arrays, stacks and matrices: Step by step, their name, Show, Mark, Pointer
 test('lists, trees and heaps follow the same layout', async ({ page }) => {
 	await sketchList(page, [300, 300], 3)
 	expect(await submenusAt(page, await nodeScreenPosition(page, 'n1'))).toEqual(
-		['Step by step', 'Linked list', 'Mark', 'Pointer'].map((label, i) => [label, ids('list', 'steps', 'actions', 'mark', 'pointer')[i]])
+		['Step by step', 'Linked list', 'Show', 'Mark', 'Pointer'].map((label, i) => [label, ids('list', 'steps', 'actions', 'show', 'mark', 'pointer')[i]])
 	)
 	await page.evaluate(() => void window.editor!.deleteShapes([...window.editor!.getCurrentPageShapeIds()]))
 	await sketchTree(page, [600, 200], 2, 1)

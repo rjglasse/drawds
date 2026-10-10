@@ -492,6 +492,16 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
 - A plain list (not circular, no sentinel, no cycle: `canBeEmpty`) can be empty, as lecture 5 starts: head and tail point
   at null. Deleting its only node empties it (tail = null too); empty, its menu offers Insert at the head and Append
   (`shapeOperations`), both making the new node head and tail; the grips still grow it.
+- Lecture 5's size and invariants (`src/shapes/list/size.ts`, every kind of list): Show > the size field (prop
+  `showSize`, a `#size` box named `#size-label` before the head label, above it on a vertical list; derived from the
+  node count, toggling it keeps the head where it was), and every operation that adds or removes a node ends with a
+  step of its own doing size++ / size-- (`withSizeStep` in `play`, after `endTidied`: earlier steps show the old size).
+  Count the nodes walks curr to null, O(n), against reading the field, O(1) (`list-count` code); Check the invariants
+  steps through the lecture's slide (size 0: head and tail null; size > 0: both at nodes; size 1: head == tail; the
+  last node's next null; doubly, head.prev null), each O(1) (a cycle breaks the last). With a tail, the two bugs the
+  lecture names are shown and not kept (`forgetTail` on `insertIntoList` / `deleteFromList`): the first insert setting
+  head but not tail, the only node deleted with tail left on it. drawds derives head, tail and size from the nodes,
+  so between operations the invariants always hold.
 - List variants (`src/ui/ListPickers.tsx`, four combinable toggles): `links` singly / doubly (a `pointer.back`
   prev compartment, `<-` edges with `fromPointer: 'prev'` in parallel `lane`s), `tail` (a `#tail` label),
   `ends` null / circular, `sentinel` (a dashed `#sentinel` ghost node first in `chainKeys`), plus `cycleTo`

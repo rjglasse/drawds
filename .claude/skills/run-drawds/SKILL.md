@@ -301,7 +301,10 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `context-menu.list-find`, `list-find-value` (opens `key-prompt`), `list-insert-after`,
   `list-insert-head`, `list-delete`, `list-reverse`, `list-middle`, `list-insert-sorted` (opens `key-prompt`),
   `list-append`, `list-print`, `list-floyd` (cycle detection) or (doubly) `list-print-back`. Step with `key ArrowRight` (they open
-  paused); a reversed list is drawn the other way (`direction` flips) with nodes in place.
+  paused); a reversed list is drawn the other way (`direction` flips) with nodes in place. Anywhere on a list (any kind):
+  `list-count`, `list-invariants`, and with a tail `list-insert-forget-tail` (empty) / `list-delete-forget-tail` (one
+  node); `context-menu-sub.drawds-list-show-button` > `context-menu.list-size-field` (prop `showSize`; a size++ /
+  size-- step ends every insert and delete).
 - **List variants**: with a list selected, `clicksel [data-testid="style.list-variant.doubly"]` (`tail`,
   `circular`, `sentinel`) toggles each (one undo step each), or set props directly: `eval (() => { const s =
   editor.getOnlySelectedShape(); editor.updateShape({ id: s.id, type: s.type, props: { links: 'doubly', tail:

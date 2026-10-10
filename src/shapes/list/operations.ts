@@ -28,7 +28,7 @@ import { anchorShift } from './ops'
 // special cases at the head.
 
 export type ListProps = Pick<ListShapeProps, 'nodes' | 'direction' | 'size'> &
-	Partial<Pick<ListShapeProps, 'links' | 'tail' | 'ends' | 'sentinel' | 'cycleTo' | 'kind'>>
+	Partial<Pick<ListShapeProps, 'links' | 'tail' | 'ends' | 'sentinel' | 'cycleTo' | 'kind' | 'showSize'>>
 
 export const LOOK: MarkColor = 'orange'
 export const FOUND: MarkColor = 'green'
@@ -163,6 +163,17 @@ export interface ListOperation {
 
 const NEXT_LINE = 'Which line comes next?'
 
+/** What forgetting the tail does (lecture 5's two named bugs): the steps as written, the list left broken. */
+export const forgotTail = {
+	/** First insert, head set but not tail. */
+	insert: (value: string, tail: string) =>
+		`Forgot ${tail} = node: ${value} is the only node, so ${tail} should point at it too, but it is still null. size == 1 needs head == ${tail}: a bad list, and the next append would follow null`,
+	/** The only node deleted, tail left on it. */
+	remove: (value: string, tail: string) =>
+		`Forgot ${tail} = null: the list is empty, but ${tail} still points at ${value}, a node no longer in it. size == 0 needs ${tail} == null: a bad list`,
+}
+
+
 /** Frames with predict mode's questions: `first` before the first step, `rest` before the others. */
 function asking(frames: Frame[], first: Frame['ask'], rest: Frame['ask'] = NEXT_LINE): Frame[] {
 	return frames.map((frame, i) => ({ ...frame, ask: i === 0 ? first : rest }))
@@ -229,7 +240,13 @@ export function findInList(props: ListProps, target: string): ListOperation {
  * linked list also sets the two prev links; a tail moves to a new last node; a circular list's
  * last node points at a new head; with a sentinel, the front is just "after the sentinel".
  */
-export function insertIntoList(props: ListProps, afterId: string | undefined, id: string, value: string): ListOperation {
+export function insertIntoList(
+	props: ListProps,
+	afterId: string | undefined,
+	id: string,
+	value: string,
+	{ forgetTail = false }: { forgetTail?: boolean } = {}
+): ListOperation {
 	const { nodes } = props
 	const { v, chain, lastId, end, name, arrows } = listOf(props)
 	// With a sentinel there is always a node before: inserting at the front is inserting after it.
@@ -302,6 +319,11 @@ export function insertIntoList(props: ListProps, afterId: string | undefined, id
 		step('node.next = head: null, as the list is empty', light(edgeMark(next(id))))
 		point({ [HEAD_EDGE]: id }, { [HEAD_EDGE]: roundLabel(scene, props, HEAD_KEY, NULL_KEY, id) })
 		step(`head = node: ${value} is the first node now`, light(edgeMark(HEAD_EDGE)))
+		if (v.tail && forgetTail) {
+			// Lecture 5's first bug: head set, tail not. Shown, not kept.
+			frames.push({ scene, pointers: [pointer('node', id)], flash: { [edgeMark(TAIL_EDGE)]: GONE, [TAIL_KEY]: GONE }, caption: forgotTail.insert(value, v.names.tail), ask: 'Head points at the new node: is the list right now?' })
+			return { frames: withLoops(asking(frames, NEXT_LINE), props, { [id]: i + 0.5 }) }
+		}
 		if (v.tail) {
 			point({ [TAIL_EDGE]: id }, { [TAIL_EDGE]: roundLabel(scene, props, TAIL_KEY, NULL_KEY, id) })
 			step(`tail = node: ${value} is the last node too, the only one`, light(edgeMark(TAIL_EDGE)))
@@ -341,7 +363,7 @@ export function insertIntoList(props: ListProps, afterId: string | undefined, id
  * points at the new head). A doubly linked list fixes the next node's prev too; a tail on the
  * deleted node moves back; with a sentinel even the first value has a prev, so no special case.
  */
-export function deleteFromList(props: ListProps, id: string): ListOperation {
+export function deleteFromList(props: ListProps, id: string, { forgetTail = false }: { forgetTail?: boolean } = {}): ListOperation {
 	const { nodes } = props
 	const { v, chain, lastId, end, name } = listOf(props)
 	const base = listScene(props)
@@ -371,7 +393,12 @@ export function deleteFromList(props: ListProps, id: string): ListOperation {
 			frames.push({ scene, pointers: [pointer('curr', id)], flash: { [lit]: null, [edgeMark(key)]: CHANGED }, caption, ask: NEXT_LINE })
 			lit = edgeMark(key)
 		}
-		// The only node: the list is empty now, head (and tail) pointing at null.
+		// The only node: the list is empty now, head (and tail) pointing at null; lecture 5's second bug
+		// forgets the tail, left on the node that has gone (shown, not kept).
+		if (v.tail && id === lastId && forgetTail) {
+			frames.push({ scene: dropped(scene), flash: { [edgeMark(HEAD_EDGE)]: null, [edgeMark(TAIL_EDGE)]: GONE, [TAIL_KEY]: GONE }, caption: forgotTail.remove(target.value, v.names.tail), ask: 'Head is null: is the list right now?' })
+			return { frames: withLoops(frames, props, { [id]: c }) }
+		}
 		if (v.tail && id === lastId) {
 			point({ [TAIL_EDGE]: NULL_KEY }, { [TAIL_EDGE]: roundLabel(scene, props, TAIL_KEY, id, NULL_KEY) })
 			step('tail = null: it was the only node, so the list is empty', TAIL_EDGE)

@@ -18,6 +18,7 @@ import { allUnique, findMax, sentinelSearch } from '../array/scans'
 import { fisherYates, unfairShuffle } from '../array/shuffles'
 import { peekStack, pop, push } from '../array/stack-queue'
 import { findInList } from '../list/operations'
+import { countNodes } from '../list/size'
 import { measureTree } from '../tree/measure'
 import { bstExtreme } from '../tree/search'
 import { bfs, dfs } from '../graph/traverse'
@@ -124,6 +125,8 @@ describe('algorithm code', () => {
 			pop({ ...array(0, 0), used: 0, fixed: true }),
 			peekStack({ ...array(1, 2, 0), used: 2, fixed: true }),
 			peekStack({ ...array(0), used: 0, fixed: true }),
+			// Lecture 5's size, counted.
+			countNodes({ nodes: ['7', '3'].map((value, i) => ({ id: `n${i}`, value, dx: 0, dy: 0 })), direction: 'right', size: 'm' }),
 			// Lecture 5's indexOf.
 			findInList({ nodes: ['7', '3', '9'].map((value, i) => ({ id: `n${i}`, value, dx: 0, dy: 0 })), direction: 'right', size: 'm' }, '9'),
 			findInList({ nodes: ['7', '3'].map((value, i) => ({ id: `n${i}`, value, dx: 0, dy: 0 })), direction: 'right', size: 'm' }, '9'),

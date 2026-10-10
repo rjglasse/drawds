@@ -29,4 +29,25 @@ export const LIST_CODE: Record<string, CodeSource> = {
 			        i += 1
 			    return -1                       @missing`,
 	},
+	// Lecture 5's size, counted: O(n), where a size field kept by every add and remove is O(1).
+	'list-count': {
+		java: String.raw`
+			int size() {
+			    int count = 0;                      @start $count
+			    Node curr = head;                   $curr
+			    while (curr != null) {
+			        count++;                        @count
+			        curr = curr.next;
+			    }
+			    return count;                       @done
+			}`,
+		python: String.raw`
+			def size(self):
+			    count = 0                           @start $count
+			    curr = self.head                    $curr
+			    while curr is not None:
+			        count += 1                      @count
+			        curr = curr.next
+			    return count                        @done`,
+	},
 }

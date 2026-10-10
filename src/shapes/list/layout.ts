@@ -14,6 +14,15 @@ export const TAIL_KEY = '#tail'
 export const SENTINEL_KEY = '#sentinel'
 /** The null a doubly linked list's first node's prev points at. */
 export const NULL_PREV_KEY = '#null-prev'
+/** The size field (its value) and its name, beside the head. */
+export const SIZE_KEY = '#size'
+export const SIZE_LABEL_KEY = '#size-label'
+
+/** The scene with the size field saying `size` (a step before or after size++ / size--). */
+export const withSize = (scene: Scene, size: number): Scene => ({
+	...scene,
+	nodes: scene.nodes.map((n) => (n.key === SIZE_KEY ? { ...n, value: String(size) } : n)),
+})
 
 /** Next and prev arrows of a doubly linked list run in two lanes, this share of a node's height apart. */
 const LANE = 0.2
@@ -46,7 +55,7 @@ export function sketchDirection({ direction, sign }: SketchState): ListDirection
 }
 
 type Variants = Partial<Pick<ListShapeProps, 'links' | 'tail' | 'ends' | 'sentinel' | 'cycleTo' | 'kind'>>
-type ListLayoutProps = Pick<ListShapeProps, 'nodes' | 'direction' | 'size'> & Variants
+type ListLayoutProps = Pick<ListShapeProps, 'nodes' | 'direction' | 'size'> & Variants & Partial<Pick<ListShapeProps, 'showSize'>>
 
 /**
  * The list's variant as flags: doubly linked, a tail pointer, circular, a sentinel; a cycle; and
@@ -137,11 +146,30 @@ function baseScene(props: ListLayoutProps): Scene {
 		editable: false,
 		draggable: false,
 	})
+	const head = label(HEAD_KEY, first, v.names.head, -shift)
+	// The size field: a box with the count, named, before the head label (above it on a vertical list).
+	const sizeField = (): SceneNode[] => {
+		const [w, h] = [m.cell * 0.8, m.cell * 0.7]
+		const word = text(4)
+		const box: SceneNode = {
+			key: SIZE_KEY,
+			kind: 'box',
+			x: horizontal ? head.x - head.w / 2 - m.gap * 0.5 - w / 2 : head.x + head.w / 2 - w / 2,
+			y: horizontal ? head.y : head.y - head.h / 2 - m.gap * 0.5 - h / 2,
+			w,
+			h,
+			value: String(props.nodes.length),
+			editable: false,
+			draggable: false,
+		}
+		return [box, { key: SIZE_LABEL_KEY, kind: 'label', x: box.x - w / 2 - word.w / 2, y: box.y, ...word, value: 'size', editable: false, draggable: false }]
+	}
 	const annotations: SceneNode[] = [
 		...(empty ? [empty] : v.circular || v.cycleTo ? [] : [nul(NULL_KEY, last, 1)]),
 		...(v.doubly && !v.circular && !empty ? [nul(NULL_PREV_KEY, first, -1)] : []),
-		label(HEAD_KEY, first, v.names.head, -shift),
+		head,
 		...(v.tail ? [label(TAIL_KEY, last, v.names.tail, shift)] : []),
+		...(props.showSize ? sizeField() : []),
 	]
 
 	// Next arrows, then a doubly linked list's prev arrows, in their own lanes; the last node's next
@@ -246,7 +274,7 @@ export function listScene(props: ListLayoutProps): Scene {
 	const first = props.nodes[0]
 	const last = props.nodes[props.nodes.length - 1]
 	const owner = (key: string) =>
-		key === HEAD_KEY
+		key === HEAD_KEY || key === SIZE_KEY || key === SIZE_LABEL_KEY
 			? v.sentinel
 				? undefined
 				: first
