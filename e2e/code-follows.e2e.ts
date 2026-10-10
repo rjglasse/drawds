@@ -7,6 +7,8 @@ import { CELL, open, rightClick, shapesOfType, sketchArray, transitionsDone } fr
 
 const codeBoxes = (page: Page) => shapesOfType<CodeShapeProps>(page, 'code')
 const stepLine = (page: Page) => page.locator('[data-step-line]').getAttribute('data-step-line')
+/** The variables' values shown after the lines, top to bottom. */
+const values = (page: Page) => page.locator('[data-value-line]').allTextContents()
 
 async function sketch(page: Page, values: string[]) {
 	await sketchArray(page, [200, 200], values.length)
@@ -25,7 +27,7 @@ async function steps(page: Page, i: number, item: string) {
 }
 
 /** The code box's line `i`, as drawn. */
-const codeLine = (page: Page, i: number) => page.locator('[data-testid="code-box"] > text').nth(i)
+const codeLine = (page: Page, i: number) => page.locator(`[data-code-line="${i}"]`)
 
 test.beforeEach(({ page }) => open(page))
 
@@ -45,9 +47,15 @@ test('</> shows bubble sort beside the array: each step lights its line, pc besi
 	// Step 1 compares a[0] and a[1]: the if line.
 	await expect.poll(() => stepLine(page)).not.toBeNull()
 	await expect(codeLine(page, Number(await stepLine(page)))).toHaveText('if (a[j] > a[j + 1]) {')
+	// The loops' variables beside their lines, as the steps run.
+	expect(await values(page)).toEqual(['pass = 1', 'swapped = false', 'j = 0'])
 	await page.keyboard.press('ArrowRight')
 	await expect(page.getByTestId('play-caption')).toHaveText('swap(a[0], a[1])')
 	await expect(codeLine(page, Number(await stepLine(page)))).toHaveText('swap(a, j, j + 1);')
+	expect(await values(page)).toEqual(['pass = 1', 'swapped = true', 'j = 0'])
+	await page.keyboard.press('ArrowRight')
+	expect(await values(page)).toEqual(['pass = 1', 'swapped = true', 'j = 1'])
+	await page.keyboard.press('ArrowLeft')
 	// pc points at the lit line.
 	await transitionsDone(page)
 	const pc = await page.locator('[data-pointer="pc"]').boundingBox()
@@ -79,7 +87,7 @@ test('the next algorithm takes over the box (Esc puts the last one back); Python
 
 	// The box in Python: the same algorithm, written in Python.
 	const [box] = await codeBoxes(page)
-	await page.evaluate((id) => void window.editor!.select(id as never), box.id)
+	await page.evaluate((id: string) => void window.editor!.select(id as never), String(box.id))
 	await page.getByTestId('style.code-language.python').click()
 	expect((await codeBoxes(page))[0].props.code).toMatch(/^def bubble_sort\(a\):/)
 	await page.evaluate(() => void window.editor!.selectNone())
@@ -88,6 +96,7 @@ test('the next algorithm takes over the box (Esc puts the last one back); Python
 	await steps(page, 0, 'array-find-max')
 	expect((await codeBoxes(page))[0].props).toMatchObject({ algorithm: 'find-max', language: 'python' })
 	await expect(codeLine(page, Number(await stepLine(page)))).toHaveText('maxval = a[0]')
+	expect(await values(page)).toEqual(['maxval = 2', 'i = 0'])
 	const strip = (await page.getByTestId('playback-strip').boundingBox())!
 	const bar = (await page.getByTestId('play-bar').boundingBox())!
 	const code = (await page.locator('[data-testid="code-box"] > rect').first().boundingBox())!

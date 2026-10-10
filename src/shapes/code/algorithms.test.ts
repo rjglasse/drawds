@@ -13,7 +13,7 @@ import {
 	type ArrayState,
 } from '../array/operations'
 import { allUnique, findMax, sentinelSearch } from '../array/scans'
-import { ALGORITHMS, algorithmCode, parseCode, taggedLine } from './algorithms'
+import { ALGORITHMS, algorithmCode, parseCode, shownValues, taggedLine } from './algorithms'
 import { codeShapeMigrations } from './code-shape-types'
 
 const array = (...values: (string | number)[]): ArrayState => ({ values: values.map(String), marks: {} })
@@ -24,12 +24,28 @@ describe('algorithm code', () => {
 			`
 			def f(a):
 			    @cache  # a decorator stays
-			    x = a[0]              @init
-			    return x  # done      @found @missing`,
+			    x = a[0]              @init $x
+			    return x  # done      @found @missing $min_idx=min $n`,
 			'python'
 		)
 		expect(code.text).toBe('def f(a):\n    @cache  # a decorator stays\n    x = a[0]\n    return x  # done')
 		expect(code.lines).toEqual({ init: 2, found: 3, missing: 3 })
+		expect(code.values).toEqual([
+			{ line: 2, name: 'x', key: 'x' },
+			{ line: 3, name: 'min_idx', key: 'min' },
+			{ line: 3, name: 'n', key: 'n' },
+		])
+		// In code edited since, values stay with their lines, or go with them.
+		expect(shownValues(`# lecture 3\n${code.text}`, code).map((v) => v.line)).toEqual([3, 4, 4])
+		expect(shownValues('def f(a):\n    return x  # done', code).map((v) => v.line)).toEqual([1, 1])
+	})
+
+	it('leaves no tag in the code (a tag needs two spaces before it)', () => {
+		for (const id of Object.keys(ALGORITHMS)) {
+			for (const language of ['java', 'python'] as const) {
+				expect(algorithmCode(id, language)!.text, `${id} ${language}`).not.toMatch(/\s[@$][\w=-]+\s*$/m)
+			}
+		}
 	})
 
 	it('C falls back to Java (not written yet); an algorithm without code has none', () => {
@@ -74,10 +90,13 @@ describe('algorithm code', () => {
 			expect(op.code && ALGORITHMS[op.code], `${op.frames[0]?.caption}`).toBeTruthy()
 			const lines = op.frames.flatMap((f) => (f.line ? [f.line] : []))
 			expect(lines.length).toBeGreaterThan(0)
+			// What the steps give values for: their pointers and variables.
+			const given = new Set(op.frames.flatMap((f) => [...(f.pointers ?? []).map((p) => p.name), ...Object.keys(f.vars ?? {})]))
 			for (const language of ['java', 'python'] as const) {
 				const code = algorithmCode(op.code!, language)!
 				expect(code.language).toBe(language)
 				for (const line of lines) expect(code.lines, `${op.code} ${language} @${line}`).toHaveProperty(line)
+				for (const v of code.values) expect(given, `${op.code} ${language} $${v.name}`).toContain(v.key)
 			}
 		}
 	})
@@ -85,6 +104,20 @@ describe('algorithm code', () => {
 	it('a step names the line it shows: bubble sort compares, swaps, and checks after each pass', () => {
 		const op = bubbleSort(array(2, 1, 3))
 		expect(op.frames.map((f) => f.line)).toEqual(['compare', 'swap', 'compare', 'pass', 'compare', 'sorted', undefined])
+		// Its variables as the steps run: swapped goes true at the swap, and false again for pass 2.
+		expect(op.frames.map((f) => f.vars?.swapped)).toEqual(['false', 'true', 'true', 'true', 'false', 'false', 'false'])
+		expect(op.frames.map((f) => f.vars?.pass)).toEqual(['1', '1', '1', '1', '2', '2', '2'])
+	})
+
+	it('merge sort: each call shows its own lo, hi and mid, again when it merges after its inner calls', () => {
+		const op = mergeSort(array(3, 1, 2))
+		const merging = op.frames.filter((f) => f.line === 'merge').map((f) => [f.vars?.lo, f.vars?.mid, f.vars?.hi])
+		expect(merging).toEqual([
+			['0', '0', '1'],
+			['0', '1', '2'],
+		])
+		// A call of one value has no mid.
+		expect(op.frames.find((f) => f.line === 'base')?.vars?.mid).toBeUndefined()
 	})
 })
 

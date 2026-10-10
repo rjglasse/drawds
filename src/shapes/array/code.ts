@@ -1,14 +1,15 @@
 import type { CodeSource } from '../code/algorithms'
 
 // The array algorithms' code, as a code box beside the array shows it while one plays (see
-// `src/shapes/code/algorithms.ts`). The tags at the ends of lines are the `line`s the steps in
-// `operations.ts` and `scans.ts` name, so a line reads as what its step shows.
+// `src/shapes/code/algorithms.ts`). The @tags at the ends of lines are the `line`s the steps in
+// `operations.ts` and `scans.ts` name, so a line reads as what its step shows; the $tags the
+// variables shown there (the steps' pointers, or what they `let`). Insertion sort is lecture 3's.
 
 export const ARRAY_CODE: Record<string, CodeSource> = {
 	'linear-search': {
 		java: String.raw`
-			int linearSearch(int[] a, int key) {
-			    for (int i = 0; i < a.length; i++) {
+			int linearSearch(int[] a, int key) {        $key
+			    for (int i = 0; i < a.length; i++) {    $i
 			        if (a[i] == key) {              @compare
 			            return i;                   @found
 			        }
@@ -16,18 +17,18 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			    return -1;                          @missing
 			}`,
 		python: String.raw`
-			def linear_search(a, key):
-			    for i in range(len(a)):
+			def linear_search(a, key):          $key
+			    for i in range(len(a)):             $i
 			        if a[i] == key:                 @compare
 			            return i                    @found
 			    return -1                           @missing`,
 	},
 	'binary-search': {
 		java: String.raw`
-			int binarySearch(int[] a, int key) {
-			    int lo = 0, hi = a.length - 1;            @init
+			int binarySearch(int[] a, int key) {      $key
+			    int lo = 0, hi = a.length - 1;            @init $lo $hi
 			    while (lo <= hi) {
-			        int mid = (lo + hi) / 2;              @mid
+			        int mid = (lo + hi) / 2;              @mid $mid
 			        if (a[mid] == key) return mid;        @found
 			        else if (a[mid] < key) lo = mid + 1;  @right
 			        else hi = mid - 1;                    @left
@@ -35,10 +36,10 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			    return -1;                                @missing
 			}`,
 		python: String.raw`
-			def binary_search(a, key):
-			    lo, hi = 0, len(a) - 1              @init
+			def binary_search(a, key):          $key
+			    lo, hi = 0, len(a) - 1              @init $lo $hi
 			    while lo <= hi:
-			        mid = (lo + hi) // 2            @mid
+			        mid = (lo + hi) // 2            @mid $mid
 			        if a[mid] == key:
 			            return mid                  @found
 			        elif a[mid] < key:
@@ -49,21 +50,21 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 	},
 	'sentinel-search': {
 		java: String.raw`
-			int sentinelSearch(int[] a, int n, int key) {
+			int sentinelSearch(int[] a, int n, int key) {   $n $key
 			    a[n] = key; // past the end: the sentinel   @sentinel
 			    int i = 0;
-			    while (a[i] != key) {                       @compare
+			    while (a[i] != key) {                       @compare $i
 			        i++;
 			    }
 			    if (i < n) return i;                        @found
 			    return -1;                                  @missing
 			}`,
 		python: String.raw`
-			def sentinel_search(a, key):
-			    n = len(a)
+			def sentinel_search(a, key):        $key
+			    n = len(a)                          $n
 			    a.append(key)  # the sentinel       @sentinel
 			    i = 0
-			    while a[i] != key:                  @compare
+			    while a[i] != key:                  @compare $i
 			        i += 1
 			    a.pop()
 			    return i if i < n else -1           @found @missing`,
@@ -71,8 +72,8 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 	'find-max': {
 		java: String.raw`
 			int maxElement(int[] a) {
-			    int maxval = a[0];                      @init
-			    for (int i = 1; i < a.length; i++) {
+			    int maxval = a[0];                      @init $maxval
+			    for (int i = 1; i < a.length; i++) {    $i
 			        if (a[i] > maxval) {                @compare
 			            maxval = a[i];                  @update
 			        }
@@ -81,8 +82,8 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			}`,
 		python: String.raw`
 			def max_element(a):
-			    maxval = a[0]                       @init
-			    for i in range(1, len(a)):
+			    maxval = a[0]                       @init $maxval
+			    for i in range(1, len(a)):          $i
 			        if a[i] > maxval:               @compare
 			            maxval = a[i]               @update
 			    return maxval                       @done`,
@@ -90,8 +91,8 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 	'all-unique': {
 		java: String.raw`
 			boolean uniqueElements(int[] a) {
-			    for (int i = 0; i < a.length - 1; i++) {
-			        for (int j = i + 1; j < a.length; j++) {
+			    for (int i = 0; i < a.length - 1; i++) {        $i
+			        for (int j = i + 1; j < a.length; j++) {    $j
 			            if (a[i] == a[j]) {                 @compare
 			                return false;                   @repeat
 			            }
@@ -102,8 +103,8 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 		python: String.raw`
 			def unique_elements(a):
 			    n = len(a)
-			    for i in range(n - 1):
-			        for j in range(i + 1, n):
+			    for i in range(n - 1):              $i
+			        for j in range(i + 1, n):       $j
 			            if a[i] == a[j]:            @compare
 			                return False            @repeat
 			    return True                         @unique`,
@@ -111,28 +112,30 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 	'insertion-sort': {
 		java: String.raw`
 			void insertionSort(int[] a) {
-			    for (int i = 1; i < a.length; i++) {        @outer
+			    for (int i = 1; i < a.length; i++) {        @outer $i
+			        int key = a[i];                         $key
 			        int j = i;
-			        while (j > 0 && a[j - 1] > a[j]) {      @compare
-			            swap(a, j - 1, j);                  @swap
+			        while (j > 0 && a[j - 1] > key) {       @compare $j
+			            swap(a, j, j - 1);                  @swap
 			            j--;
 			        }
 			    }
 			}`,
 		python: String.raw`
 			def insertion_sort(a):
-			    for i in range(1, len(a)):                  @outer
+			    for i in range(1, len(a)):                  @outer $i
+			        key = a[i]                              $key
 			        j = i
-			        while j > 0 and a[j - 1] > a[j]:        @compare
-			            a[j - 1], a[j] = a[j], a[j - 1]     @swap
+			        while j > 0 and a[j - 1] > key:         @compare $j
+			            a[j], a[j - 1] = a[j - 1], a[j]     @swap
 			            j -= 1`,
 	},
 	'selection-sort': {
 		java: String.raw`
 			void selectionSort(int[] a) {
-			    for (int i = 0; i < a.length - 1; i++) {
-			        int min = i;                                @init
-			        for (int j = i + 1; j < a.length; j++) {
+			    for (int i = 0; i < a.length - 1; i++) {        $i
+			        int min = i;                                @init $min
+			        for (int j = i + 1; j < a.length; j++) {    $j
 			            if (a[j] < a[min]) {                    @compare
 			                min = j;                            @update
 			            }
@@ -143,9 +146,9 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 		python: String.raw`
 			def selection_sort(a):
 			    n = len(a)
-			    for i in range(n - 1):
-			        min_idx = i                                     @init
-			        for j in range(i + 1, n):
+			    for i in range(n - 1):                              $i
+			        min_idx = i                                     @init $min_idx=min
+			        for j in range(i + 1, n):                       $j
 			            if a[j] < a[min_idx]:                       @compare
 			                min_idx = j                             @update
 			        if min_idx != i:                                @noswap
@@ -154,9 +157,9 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 	'bubble-sort': {
 		java: String.raw`
 			void bubbleSort(int[] a) {
-			    for (int pass = 1; pass < a.length; pass++) {
-			        boolean swapped = false;
-			        for (int j = 0; j < a.length - pass; j++) {
+			    for (int pass = 1; pass < a.length; pass++) {   $pass
+			        boolean swapped = false;                    $swapped
+			        for (int j = 0; j < a.length - pass; j++) {  $j
 			            if (a[j] > a[j + 1]) {              @compare
 			                swap(a, j, j + 1);              @swap
 			                swapped = true;
@@ -168,9 +171,9 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 		python: String.raw`
 			def bubble_sort(a):
 			    n = len(a)
-			    for p in range(1, n):
-			        swapped = False
-			        for j in range(n - p):
+			    for p in range(1, n):                           $p=pass
+			        swapped = False                             $swapped
+			        for j in range(n - p):                      $j
 			            if a[j] > a[j + 1]:                     @compare
 			                a[j], a[j + 1] = a[j + 1], a[j]     @swap
 			                swapped = True
@@ -179,10 +182,10 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 	},
 	partition: {
 		java: String.raw`
-			int partition(int[] a, int lo, int hi) {
-			    int pivot = a[hi];                      @pivot
-			    int i = lo - 1;
-			    for (int j = lo; j < hi; j++) {
+			int partition(int[] a, int lo, int hi) {    $lo $hi
+			    int pivot = a[hi];                      @pivot $pivot
+			    int i = lo - 1;                         $i
+			    for (int j = lo; j < hi; j++) {         $j
 			        if (a[j] < pivot) {                 @compare
 			            i++;
 			            swap(a, i, j);                  @swap
@@ -192,10 +195,10 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			    return i + 1;
 			}`,
 		python: String.raw`
-			def partition(a, lo, hi):
-			    pivot = a[hi]                           @pivot
-			    i = lo - 1
-			    for j in range(lo, hi):
+			def partition(a, lo, hi):               $lo $hi
+			    pivot = a[hi]                           @pivot $pivot
+			    i = lo - 1                              $i
+			    for j in range(lo, hi):                 $j
 			        if a[j] < pivot:                    @compare
 			            i += 1
 			            a[i], a[j] = a[j], a[i]         @swap
@@ -204,7 +207,7 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 	},
 	quicksort: {
 		java: String.raw`
-			void quicksort(int[] a, int lo, int hi) {
+			void quicksort(int[] a, int lo, int hi) {   $lo $hi
 			    if (lo < hi) {                          @base
 			        int p = partition(a, lo, hi);       @partition
 			        quicksort(a, lo, p - 1);
@@ -213,9 +216,9 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			}
 
 			int partition(int[] a, int lo, int hi) {
-			    int pivot = a[hi];                      @pivot
-			    int i = lo - 1;
-			    for (int j = lo; j < hi; j++) {
+			    int pivot = a[hi];                      @pivot $pivot
+			    int i = lo - 1;                         $i
+			    for (int j = lo; j < hi; j++) {         $j
 			        if (a[j] < pivot) {                 @compare
 			            i++;
 			            swap(a, i, j);                  @swap
@@ -225,16 +228,16 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			    return i + 1;
 			}`,
 		python: String.raw`
-			def quicksort(a, lo, hi):
+			def quicksort(a, lo, hi):               $lo $hi
 			    if lo < hi:                             @base
 			        p = partition(a, lo, hi)            @partition
 			        quicksort(a, lo, p - 1)
 			        quicksort(a, p + 1, hi)
 
 			def partition(a, lo, hi):
-			    pivot = a[hi]                           @pivot
-			    i = lo - 1
-			    for j in range(lo, hi):
+			    pivot = a[hi]                           @pivot $pivot
+			    i = lo - 1                              $i
+			    for j in range(lo, hi):                 $j
 			        if a[j] < pivot:                    @compare
 			            i += 1
 			            a[i], a[j] = a[j], a[i]         @swap
@@ -244,25 +247,25 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 	'hoare-partition': {
 		java: String.raw`
 			int hoarePartition(int[] a, int lo, int hi) {
-			    int pivot = a[lo];                      @pivot
+			    int pivot = a[lo];                      @pivot $pivot
 			    int i = lo - 1, j = hi + 1;
 			    while (true) {
-			        do i++; while (a[i] < pivot);       @left
-			        do j--; while (a[j] > pivot);       @right
+			        do i++; while (a[i] < pivot);       @left $i
+			        do j--; while (a[j] > pivot);       @right $j
 			        if (i >= j) return j;               @crossed
 			        swap(a, i, j);                      @swap
 			    }
 			}`,
 		python: String.raw`
 			def hoare_partition(a, lo, hi):
-			    pivot = a[lo]                           @pivot
+			    pivot = a[lo]                           @pivot $pivot
 			    i, j = lo - 1, hi + 1
 			    while True:
 			        i += 1
-			        while a[i] < pivot:                 @left
+			        while a[i] < pivot:                 @left $i
 			            i += 1
 			        j -= 1
-			        while a[j] > pivot:                 @right
+			        while a[j] > pivot:                 @right $j
 			            j -= 1
 			        if i >= j:                          @crossed
 			            return j
@@ -270,9 +273,9 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 	},
 	'merge-sort': {
 		java: String.raw`
-			void mergeSort(int[] a, int lo, int hi) {
+			void mergeSort(int[] a, int lo, int hi) {               $lo $hi
 			    if (lo == hi) return;                               @base
-			    int mid = (lo + hi) / 2;                            @split
+			    int mid = (lo + hi) / 2;                            @split $mid
 			    mergeSort(a, lo, mid);
 			    mergeSort(a, mid + 1, hi);
 			    merge(a, lo, mid, hi);                              @merge
@@ -281,7 +284,7 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			void merge(int[] a, int lo, int mid, int hi) {
 			    int[] merged = new int[hi - lo + 1];
 			    int i = lo, j = mid + 1, k = 0;
-			    while (i <= mid && j <= hi) {
+			    while (i <= mid && j <= hi) {                       $i $j $k
 			        if (a[i] <= a[j]) merged[k++] = a[i++];         @left
 			        else merged[k++] = a[j++];                      @right
 			    }
@@ -290,10 +293,10 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			    for (k = 0; k < merged.length; k++) a[lo + k] = merged[k];  @copy
 			}`,
 		python: String.raw`
-			def merge_sort(a, lo, hi):
+			def merge_sort(a, lo, hi):              $lo $hi
 			    if lo == hi:                            @base
 			        return
-			    mid = (lo + hi) // 2                    @split
+			    mid = (lo + hi) // 2                    @split $mid
 			    merge_sort(a, lo, mid)
 			    merge_sort(a, mid + 1, hi)
 			    merge(a, lo, mid, hi)                   @merge
@@ -301,7 +304,7 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			def merge(a, lo, mid, hi):
 			    merged = []
 			    i, j = lo, mid + 1
-			    while i <= mid and j <= hi:
+			    while i <= mid and j <= hi:             $i $j
 			        if a[i] <= a[j]:
 			            merged.append(a[i])             @left
 			            i += 1

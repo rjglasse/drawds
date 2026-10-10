@@ -61,6 +61,11 @@ export interface Frame {
 	 * `src/shapes/code/algorithms.ts`), lit in a code box following the structure.
 	 */
 	line?: string
+	/**
+	 * The code's variables at this step beside its pointers (i, j, lo...: a pointer is a variable of its
+	 * name, at its element): maxval, swapped, key... Shown after their lines in the code box.
+	 */
+	vars?: Record<string, string>
 }
 
 /**

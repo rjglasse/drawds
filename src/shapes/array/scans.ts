@@ -24,6 +24,7 @@ export function findMax(start: ArrayState): ArrayOperation {
 	const r = recorder(start, { comparisons: 0, updates: 0 })
 	const held = (at: number) => [{ title: 'maxval', items: [values[at]] }]
 	let at = 0
+	r.let('maxval', values[0])
 	r.step(`maxval = a[0] = ${values[0]}: the largest so far`, {
 		lit: { 0: HELD },
 		pointers: [ptr('i', 0)],
@@ -36,6 +37,7 @@ export function findMax(start: ArrayState): ArrayOperation {
 		const step = { pointers: [ptr('i', i)], strips: held(at), ask: `a[${i}] = ${values[i]} vs maxval = ${values[at]}: a new largest?`, askFocus: [i] }
 		if (compareKeys(values[i], values[at]) > 0) {
 			r.counts.updates++
+			r.let('maxval', values[i])
 			r.step(`i = ${i}: a[${i}] = ${values[i]} > maxval = ${values[at]}, so maxval = ${values[i]}`, {
 				...step,
 				lit: { [at]: LOOK, [i]: HELD },
@@ -98,6 +100,8 @@ export function sentinelSearch(start: ArrayState, target: string): ArrayOperatio
 	const { values } = start
 	const n = values.length
 	const r = recorder(start, { comparisons: 0, 'i < n checks saved': 0 })
+	r.let('key', target)
+	r.let('n', n)
 	const withSentinel = { ...r.state, values: [...values, target] }
 	r.set(withSentinel)
 	r.step(`a[${n}] = ${target}: the key goes one past the end as a sentinel, so the search is sure to stop`, {

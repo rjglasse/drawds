@@ -196,9 +196,13 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `follow.ts`). The play bar's </> button (shown when the operation has `code`) opens one to the structure's right or
   takes it away; while one is there, every operation with code shows its algorithm in it (`playOperation`'s `code`
   replaces the box's code, Esc puts the old back), the frame's `line` lit yellow with a pc arrow (room kept on the
-  left whenever `algorithm` is set). `algorithms.ts` (pure): each algorithm written per language with `@tag`s at line
-  ends (`parseCode`), `algorithmCode` (C falls back to Java for now), `taggedLine` (finds a tag's line in code edited
-  since, by its text). Picking another language swaps an unedited box to that language's version (`onBeforeUpdate`).
+  left whenever `algorithm` is set). Live values: a line tagged `$i` shows `i = 2` after it in violet (the pointers'
+  colour) as the steps run; a value is the step's pointer of that name (at its element) or its `Frame.vars` (the
+  array recorder's `r.let('maxval', v)`, kept for later steps; undefined: out of scope); `$min_idx=min` shows the
+  step's `min` under the language's own name; room after those lines is kept in the layout (`after`), long values
+  cut to fit. `algorithms.ts` (pure): each algorithm written per language with `@tag`s and `$tag`s at line ends,
+  two spaces before (`parseCode`), `algorithmCode` (C falls back to Java for now), `taggedLine` / `shownValues`
+  (find a tag's line in code edited since, by its text). Picking another language swaps an unedited box to that language's version (`onBeforeUpdate`).
   The arrays' code is `src/shapes/array/code.ts` (searches, scans, every sort; Java and Python).
 - `src/shapes/hash/` - hash tables (node-link): `buckets: string[][]` (a chain per bucket, or one entry per slot with
   `TOMBSTONE` for deleted), strategy style `drawds:hash-strategy` chaining / probing (switching re-inserts the

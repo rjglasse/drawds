@@ -32,6 +32,8 @@ export interface CodeLayout {
 	box: Box
 	/** Where line i's text starts (left edge, vertical middle of its row). */
 	lineAt(i: number): VecLike
+	/** Where line i's text ends (vertical middle of its row). */
+	endOf(i: number): VecLike
 	/** Row i across the box, for a line's mark. */
 	rowBox(i: number): Box
 	/** Line numbers' right edge (when shown), and the text's left edge. */
@@ -47,18 +49,26 @@ export interface CodeLayout {
 /** The code split into lines (tabs as spaces). */
 export const codeLines = (code: string) => code.replace(/\t/g, INDENT).split('\n')
 
-/** `left`: room before the box for pointers at its lines. */
-export function getCodeLayout(code: string, metrics: CodeMetrics, { lineNumbers = false, left = 0 } = {}): CodeLayout {
+/**
+ * `left`: room before the box for pointers at its lines. `after`: columns kept free after some lines
+ * (by line), for what is shown there (a variable's value).
+ */
+export function getCodeLayout(
+	code: string,
+	metrics: CodeMetrics,
+	{ lineNumbers = false, left = 0, after = {} }: { lineNumbers?: boolean; left?: number; after?: Record<number, number> } = {}
+): CodeLayout {
 	const { charW, lineH, padX, padY } = metrics
 	const lines = codeLines(code)
 	const digits = String(lines.length).length
 	const gutterW = lineNumbers ? (digits + 1.5) * charW : 0
 	const textX = left + padX + gutterW
-	const columns = Math.max(MIN_COLUMNS, ...lines.map((l) => l.length))
+	const columns = Math.max(MIN_COLUMNS, ...lines.map((l, i) => l.length + (after[i] ?? 0)))
 	const box = { x: left, y: 0, w: padX + gutterW + columns * charW + padX, h: padY * 2 + lines.length * lineH }
 	return {
 		box,
 		lineAt: (i) => ({ x: textX, y: padY + (i + 0.5) * lineH }),
+		endOf: (i) => ({ x: textX + (lines[i]?.length ?? 0) * charW, y: padY + (i + 0.5) * lineH }),
 		rowBox: (i) => ({ x: left, y: padY + i * lineH, w: box.w, h: lineH }),
 		gutterRight: textX - charW * 1.2,
 		textX,

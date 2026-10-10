@@ -20,7 +20,7 @@ import { exportingStep } from '../../export/exporting'
 import { playbackFor, shownFrame } from '../../nodelink/playback'
 import { POINTER_FONT_SCALE, placePointers, pointerReachSideways, type PointerAnchor } from '../../pointers/layout'
 import { prunePointers } from '../../pointers/pointers'
-import { algorithmCode, taggedLine } from './algorithms'
+import { algorithmCode, shownValues, taggedLine, type ShownValue } from './algorithms'
 import { CODE_TYPE, codeShapeMigrations, codeShapeProps, type CodeShape } from './code-shape-types'
 import { applyEdit, closeBraceEdit, indentEdit, newlineEdit, type CodeEdit } from './editing'
 import { highlightLines, type CodeLanguage, type TokenKind } from './highlight'
@@ -50,9 +50,33 @@ const TOKEN_COLORS: Record<Exclude<TokenKind, 'plain'>, TLDefaultColorStyle> = {
 /** The pointer at the line a step is on, in a box showing an operation's code. */
 const PC = 'pc'
 
+/** Values after a line are this much smaller than the code; each keeps room for this many characters. */
+const VALUE_SCALE = 0.85
+const VALUE_CHARS = 5
+
+const shownCache = new WeakMap<CodeShape['props'], ShownValue[]>()
+
+/** The variables whose values show after their lines while the box's algorithm plays. */
+function valuesOf(shape: CodeShape): ShownValue[] {
+	const { algorithm, code, language } = shape.props
+	let values = shownCache.get(shape.props)
+	if (!values) {
+		const source = algorithm ? algorithmCode(algorithm, language) : undefined
+		shownCache.set(shape.props, (values = source ? shownValues(code, source) : []))
+	}
+	return values
+}
+
+/** A value as the language prints it (Python's True), long ones cut short to fit the room kept for it. */
+function valueText(value: string, language: CodeLanguage) {
+	const printed = language === 'python' && (value === 'true' || value === 'false') ? value[0].toUpperCase() + value.slice(1) : value
+	return printed.length > VALUE_CHARS ? `${printed.slice(0, VALUE_CHARS - 1)}…` : printed
+}
+
 /**
  * The layout, with room on the left for the shape's pointers' labels and arrows (and, in a box that
- * shows an algorithm's code, for the pc arrow that walks it while it plays).
+ * shows an algorithm's code, for the pc arrow that walks it while it plays), and after the lines that
+ * show values for them.
  */
 function layoutOf(shape: CodeShape) {
 	const { code, size, lineNumbers, pointers, algorithm } = shape.props
@@ -61,7 +85,9 @@ function layoutOf(shape: CodeShape) {
 		[...pointers.map((p) => p.name), ...(algorithm ? [PC] : [])],
 		metrics.fontSize * POINTER_FONT_SCALE
 	)
-	return getCodeLayout(code, metrics, { lineNumbers, left })
+	const after: Record<number, number> = {}
+	for (const v of valuesOf(shape)) after[v.line] = (after[v.line] ?? 2) + Math.ceil((v.name.length + 3 + VALUE_CHARS + 2) * VALUE_SCALE)
+	return getCodeLayout(code, metrics, { lineNumbers, left, after })
 }
 
 /** Marks and pointers on lines the code no longer has go. */
@@ -116,14 +142,23 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 	 * screen is on, if it is on one (in predict mode, while a step is asked about, the one before it).
 	 * `live`: the canvas, or exporting the structure's steps.
 	 */
-	private following(shape: CodeShape, live: boolean): { line?: number } | undefined {
+	private following(shape: CodeShape, live: boolean): { line?: number; values: { line: number; text: string }[] } | undefined {
 		const { structureId, algorithm, code, language } = shape.props
 		if (!live || !structureId || !algorithm) return undefined
 		const view = playbackFor(this.editor, structureId as TLShapeId)
 		if (!view || view.fading || view.code !== algorithm) return undefined
-		const tag = view.frames[shownFrame({ step: view.step, asking: view.question !== undefined })]?.line
+		const frame = view.frames[shownFrame({ step: view.step, asking: view.question !== undefined })]
 		const source = algorithmCode(algorithm, language)
-		return { line: tag && source ? taggedLine(code, source, tag) : undefined }
+		// A pointer is the variable of its name, at its element; the step's other variables beside them.
+		const vars: Record<string, string> = { ...Object.fromEntries((frame?.pointers ?? []).map((p) => [p.name, p.at])), ...frame?.vars }
+		const byLine = new Map<number, string[]>()
+		for (const v of valuesOf(shape)) {
+			if (vars[v.key] !== undefined) byLine.set(v.line, [...(byLine.get(v.line) ?? []), `${v.name} = ${valueText(vars[v.key], language)}`])
+		}
+		return {
+			line: frame?.line && source ? taggedLine(code, source, frame.line) : undefined,
+			values: [...byLine].map(([line, texts]) => ({ line, text: texts.join('  ') })),
+		}
 	}
 
 	/** The shape's pointers laid out, plus pc at the line a step is on. */
@@ -247,11 +282,21 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 		const layout = layoutOf(shape)
 		const editing = this.getEditingKey(shape) === CODE_KEY
 		const cell = getEditingCell(this.editor)
-		const step = this.following(shape, true)?.line
+		const follow = this.following(shape, true)
+		const step = follow?.line
 		return (
 			<>
 				<SVGContainer>
-					<CodeSvg shape={shape} layout={layout} metrics={metrics} colors={colors} fontFamily={this.getFontFamily()} cues={showsColourCues()} step={step} />
+					<CodeSvg
+						shape={shape}
+						layout={layout}
+						metrics={metrics}
+						colors={colors}
+						fontFamily={this.getFontFamily()}
+						cues={showsColourCues()}
+						step={step}
+						values={follow?.values}
+					/>
 					{this.renderPointers(shape, colors, step === undefined ? {} : { placed: this.withPc(shape, step) })}
 				</SVGContainer>
 				{this.renderPointerOverlays(shape, colors)}
@@ -275,7 +320,8 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 		const colors = this.editor.getCurrentTheme().colors[ctx.colorMode]
 		// Exporting its structure's steps: the step's line, as on the canvas.
 		const live = !!shape.props.structureId && !!exportingStep(this.editor, shape.props.structureId as TLShapeId)
-		const step = this.following(shape, live)?.line
+		const follow = this.following(shape, live)
+		const step = follow?.line
 		return (
 			<>
 				<CodeSvg
@@ -286,6 +332,7 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 					fontFamily={this.getFontFamily()}
 					cues={showsColourCues()}
 					step={step}
+					values={follow?.values}
 				/>
 				{this.renderPointers(shape, colors, { exporting: true, ...(step === undefined ? {} : { placed: this.withPc(shape, step) }) })}
 			</>
@@ -317,7 +364,8 @@ const STEP_COLOR: TLDefaultColorStyle = 'yellow'
 
 /**
  * The box, lit lines, line numbers and the highlighted code: the canvas and exports alike. `step`:
- * the line an operation's step is on, lit over any mark.
+ * the line an operation's step is on, lit over any mark; `values`: variables' values after their
+ * lines, in the pointers' colour (i and j are the pointers on the structure too).
  */
 export function CodeSvg({
 	shape,
@@ -327,6 +375,7 @@ export function CodeSvg({
 	fontFamily,
 	cues,
 	step,
+	values,
 }: {
 	shape: CodeShape
 	layout: CodeLayout
@@ -335,6 +384,7 @@ export function CodeSvg({
 	fontFamily: string
 	cues?: boolean
 	step?: number
+	values?: { line: number; text: string }[]
 }) {
 	const { code, language, lineNumbers, marks, color } = shape.props
 	const { box } = layout
@@ -408,10 +458,27 @@ export function CodeSvg({
 						{i + 1}
 					</text>
 				))}
+			{values?.map(({ line, text }) => {
+				const end = layout.endOf(line)
+				return (
+					<text
+						key={`value-${line}`}
+						data-value-line={line}
+						x={end.x + metrics.charW * 2}
+						y={end.y}
+						fontSize={fontSize * VALUE_SCALE}
+						dominantBaseline="central"
+						fill={getColorValue(colors, 'violet', 'solid')}
+						style={{ whiteSpace: 'pre' }}
+					>
+						{text}
+					</text>
+				)
+			})}
 			{lines.map((tokens, i) => {
 				const at = layout.lineAt(i)
 				return (
-					<text key={i} x={at.x} y={at.y} fontSize={fontSize} dominantBaseline="central" fill={colors.text} style={{ whiteSpace: 'pre' }}>
+					<text key={i} data-code-line={i} x={at.x} y={at.y} fontSize={fontSize} dominantBaseline="central" fill={colors.text} style={{ whiteSpace: 'pre' }}>
 						{tokens.map((t, k) => (
 							<tspan
 								key={k}

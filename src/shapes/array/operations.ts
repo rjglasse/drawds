@@ -80,9 +80,16 @@ export function recorder(start: ArrayState, counts: Record<string, number>) {
 	const frames: Frame[] = []
 	let shown: Marks = {}
 	let state: ArrayState = { ...start, values: [...start.values], marks: { ...start.marks } }
+	/** The code's variables beside the pointers (maxval, swapped...): every step from now on shows them. */
+	const vars: Record<string, string> = {}
 	return {
 		frames,
 		counts,
+		/** Set a variable (undefined: it goes out of scope); later steps show it. */
+		let(name: string, value: string | number | boolean | undefined) {
+			if (value === undefined) delete vars[name]
+			else vars[name] = String(value)
+		},
 		get state() {
 			return state
 		},
@@ -111,6 +118,7 @@ export function recorder(start: ArrayState, counts: Record<string, number>) {
 				...(askFocus ? { askFocus: askFocus.map(String) } : {}),
 				...(calls ? { calls } : {}),
 				...(line ? { line } : {}),
+				...(Object.keys(vars).length ? { vars: { ...vars } } : {}),
 			})
 		},
 	}
@@ -139,6 +147,7 @@ export function binarySearch(start: ArrayState, target: string): ArrayOperation 
 	const { values } = start
 	const n = values.length
 	const r = recorder(start, { comparisons: 0 })
+	r.let('key', target)
 	const outside = (lo: number, hi: number) => span(0, n - 1).filter((k) => Number(k) < lo || Number(k) > hi)
 	let lo = 0
 	let hi = n - 1
@@ -210,6 +219,7 @@ export function linearSearch(start: ArrayState, target: string): ArrayOperation 
 	const { values } = start
 	const n = values.length
 	const r = recorder(start, { comparisons: 0 })
+	r.let('key', target)
 	for (let i = 0; i < n; i++) {
 		r.counts.comparisons++
 		const step = { pointers: [ptr('i', i)], dim: span(0, i - 1), ask: `i = ${i}: is a[${i}] the ${target} we want?`, askFocus: [i] }
@@ -249,6 +259,7 @@ export function insertionSort(start: ArrayState): ArrayOperation {
 	const r = recorder(start, sortCounts())
 	r.step('a[0] on its own is sorted', { lit: lit(0, 0, DONE), ask: false })
 	for (let i = 1; i < n; i++) {
+		r.let('key', r.state.values[i])
 		r.step(`i = ${i}: insert a[${i}] = ${r.state.values[i]} into the sorted part a[0..${i - 1}]`, {
 			lit: { ...lit(0, i - 1, DONE), [i]: LOOK },
 			pointers: [ptr('i', i), ptr('j', i)],
@@ -360,6 +371,8 @@ export function bubbleSort(start: ArrayState): ArrayOperation {
 	for (let pass = 1; pass < n; pass++) {
 		const end = n - pass
 		let swaps = 0
+		r.let('pass', pass)
+		r.let('swapped', false)
 		const settled = lit(end + 1, n - 1, DONE)
 		for (let j = 0; j < end; j++) {
 			const [x, y] = [r.state.values[j], r.state.values[j + 1]]
@@ -374,6 +387,7 @@ export function bubbleSort(start: ArrayState): ArrayOperation {
 			r.set(swapped(r.state, j, j + 1))
 			r.counts.swaps++
 			swaps++
+			r.let('swapped', true)
 			r.step(`swap(a[${j}], a[${j + 1}])`, { ...step, swaps: [[j, j + 1]], ask: false, line: 'swap' })
 		}
 		const over = { ask: `Pass ${pass} is over: what do we know now?` }
@@ -395,6 +409,9 @@ export type Recorder = ReturnType<typeof recorder>
 function partition(r: Recorder, lo: number, hi: number, settled: Marks, around: Pick<Step, 'dim' | 'strips'>): number {
 	const p = r.state.values[hi]
 	let i = lo - 1
+	r.let('lo', lo)
+	r.let('hi', hi)
+	r.let('pivot', p)
 	// Settled cells, the pivot, the smaller values so far, and whatever else this step lights.
 	const shown = (extra: Marks = {}): Marks => ({ ...settled, ...lit(lo, i, SMALL), [hi]: PIVOT, ...extra })
 	const at = (j?: number) => [ptr('i', i), ...(j === undefined ? [] : [ptr('j', j)])]
@@ -472,6 +489,9 @@ export function quicksort(start: ArrayState): ArrayOperation {
 	const outside = (lo: number, hi: number) => span(0, n - 1).filter((k) => Number(k) < lo || Number(k) > hi)
 	const sort = (lo: number, hi: number) => {
 		calls.push(`${lo}..${hi}`)
+		r.let('lo', lo)
+		r.let('hi', hi)
+		r.let('pivot', undefined)
 		const around = { dim: outside(lo, hi), strips: [{ title: 'call stack', items: [...calls] }] }
 		if (lo >= hi) {
 			if (lo === hi) settled[String(lo)] = DONE
@@ -511,6 +531,7 @@ export function hoarePartition(start: ArrayState): ArrayOperation {
 	let i = -1
 	let j = n
 	let pivotAt = 0
+	r.let('pivot', p)
 	const shown = (extra: Marks = {}): Marks => ({ [pivotAt]: PIVOT, ...extra })
 	const at = () => [ptr('i', i), ptr('j', j)]
 	r.step(`pivot = a[0] = ${p}. i starts before the array, j after it`, { lit: shown(), pointers: at(), ask: false, line: 'pivot' })
@@ -573,8 +594,15 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 		{ title: 'call stack', items: [...calls] },
 		{ title: 'merged', items: merged },
 	]
+	// The call's own variables (a call's steps come after its inner calls' too).
+	const call = (lo: number, hi: number, mid?: number) => {
+		r.let('lo', lo)
+		r.let('hi', hi)
+		r.let('mid', mid)
+	}
 	const sort = (lo: number, hi: number) => {
 		calls.push(`${lo}..${hi}`)
+		call(lo, hi)
 		if (lo === hi) {
 			r.step(`mergeSort(${lo}, ${hi}): one value, a[${lo}], is sorted`, {
 				dim: outside(lo, hi),
@@ -587,6 +615,7 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 			return
 		}
 		const mid = Math.floor((lo + hi) / 2)
+		call(lo, hi, mid)
 		r.step(`mergeSort(${lo}, ${hi}): sort a[${lo}..${mid}] and a[${mid + 1}..${hi}], then merge them`, {
 			dim: outside(lo, hi),
 			strips: strips(),
@@ -603,6 +632,8 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 		let j = mid + 1
 		const halves = { ...lit(lo, mid, SMALL), ...lit(mid + 1, hi, DONE) }
 		const taken = () => from.map(String)
+		call(lo, hi, mid)
+		r.let('k', 0)
 		r.step(`Merge a[${lo}..${mid}] (blue) and a[${mid + 1}..${hi}] (green), both sorted`, {
 			dim: outside(lo, hi),
 			strips: strips(),
@@ -639,6 +670,7 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 			const take = left ? i++ : j++
 			merged.push(values[take])
 			from.push(take)
+			r.let('k', merged.length)
 			r.counts.copies++
 			r.step(why, {
 				dim: [...outside(lo, hi), ...taken()],
@@ -657,6 +689,7 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 			if (mark) marks[String(lo + k)] = mark
 		})
 		r.set({ values: [...values.slice(0, lo), ...merged, ...values.slice(hi + 1)], marks })
+		r.let('k', undefined)
 		r.counts.copies += merged.length
 		r.step(`Copy the merged run back into a[${lo}..${hi}]: it is sorted`, {
 			dim: outside(lo, hi),
