@@ -374,7 +374,9 @@ function sorted(r: ReturnType<typeof recorder>, n: number, code: string): ArrayO
  */
 export function insertionSort(start: ArrayState): ArrayOperation {
 	const n = start.values.length
-	const r = recorder(start, sortCounts())
+	// The while test runs once more than the comparisons when j reaches 0: j > 0 stops it before it
+	// compares anything. Lecture 3 counts the tests (n(n + 1)/2 - 1 at worst): both are counted.
+	const r = recorder(start, { ...sortCounts(), 'while tests': 0 })
 	r.counting('outer', 'key', 'start', 'compare', 'swap', 'back')
 	r.step('a[0] on its own is sorted', { lit: lit(0, 0, DONE), ask: false })
 	for (let i = 1; i < n; i++) {
@@ -398,6 +400,7 @@ export function insertionSort(start: ArrayState): ArrayOperation {
 			const pointers = [ptr('i', i), ptr('j', j)]
 			const ask = { ask: `a[${j - 1}] = ${x} vs a[${j}] = ${y}: swap them or not?`, askFocus: [j - 1, j], line: 'compare' }
 			r.counts.comparisons++
+			r.counts['while tests']++
 			r.ran('compare')
 			if (compareKeys(x, y) <= 0) {
 				r.step(`a[${j - 1}] = ${x} ≤ a[${j}] = ${y}: ${y} is in place`, { lit: lit(0, i, DONE), pointers, ...ask })
@@ -416,12 +419,27 @@ export function insertionSort(start: ArrayState): ArrayOperation {
 			})
 			j--
 			if (j === 0) {
+				r.counts['while tests']++
 				r.ran('compare')
-				r.step(`j = 0: ${y} is the smallest so far, at the front`, { lit: lit(0, i, DONE), pointers: [ptr('i', i), ptr('j', 0)], ask: false, line: 'compare' })
+				r.step(`j = 0: ${y} is the smallest so far, at the front. The while test stops at j > 0, comparing no values`, {
+					lit: lit(0, i, DONE),
+					pointers: [ptr('i', i), ptr('j', 0)],
+					ask: false,
+					line: 'compare',
+				})
 			}
 		}
 	}
 	r.ran('outer')
+	const { comparisons, swaps } = r.counts
+	const tests = r.counts['while tests']
+	if (tests > comparisons) {
+		r.step(
+			`Sorted: ${comparisons} comparisons, ${swaps} swaps. The while test ran ${tests} times, ${tests - comparisons} more: once for each value that reached the front, where j > 0 stops it before it compares anything`,
+			{ lit: lit(0, n - 1, DONE), ask: false }
+		)
+		return { frames: r.frames, result: r.state, code: 'insertion-sort' }
+	}
 	return sorted(r, n, 'insertion-sort')
 }
 

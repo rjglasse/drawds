@@ -87,8 +87,10 @@ test('insertion sort, step by step: sorted at the end, marks travel, one undo', 
 	await arrayOp(page, 0, 'array-steps', 'array-insertion-sort')
 	await expect(caption(page)).toHaveText('a[0] on its own is sorted')
 	await stepToEnd(page)
-	await expect(caption(page)).toHaveText('Sorted: 12 comparisons, 9 swaps')
-	await expect(page.getByTestId('play-counts')).toHaveText('comparisons 12 · swaps 9')
+	await expect(caption(page)).toHaveText(
+		'Sorted: 12 comparisons, 9 swaps. The while test ran 14 times, 2 more: once for each value that reached the front, where j > 0 stops it before it compares anything'
+	)
+	await expect(page.getByTestId('play-counts')).toHaveText('comparisons 12 · swaps 9 · while tests 14')
 	expect(await props(page)).toMatchObject({ values: ['1', '2', '3', '4', '5', '6'], marks: { 0: 'blue' } })
 	await page.keyboard.press('Enter')
 	await page.keyboard.press('ControlOrMeta+z')

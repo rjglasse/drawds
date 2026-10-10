@@ -235,7 +235,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `r.ran(...tags)` for every line the code runs on its way to the next step: loop headers once per test, so one more
   than their body when the loop runs out; a line's count is its tags' sum). Counted so far: linear search, max,
   unique, insertion sort (lecture 3's: `key = a[i]`, worst case while n(n + 1)/2 - 1), selection and bubble sort;
-  `src/shapes/array/line-counts.test.ts` pins the lecture's totals. Picking another language swaps an unedited box to that language's version (`onBeforeUpdate`).
+  `src/shapes/array/line-counts.test.ts` pins the lecture's totals. Insertion sort's play bar counts comparisons of two
+  values and, beside them, `while tests` (the test also runs when j > 0 stops it, comparing nothing: lectures 2-3's 54
+  and 14 are the tests); its last step says why the two differ. Where a slide's count is off, drawds counts correctly. Picking another language swaps an unedited box to that language's version (`onBeforeUpdate`).
   The arrays' code is `src/shapes/array/code.ts` (searches, scans, every sort; Java and Python).
 - `src/shapes/hash/` - hash tables (node-link): `buckets: string[][]` (a chain per bucket, or one entry per slot with
   `TOMBSTONE` for deleted), strategy style `drawds:hash-strategy` chaining / probing (switching re-inserts the

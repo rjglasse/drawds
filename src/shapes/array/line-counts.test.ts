@@ -58,9 +58,17 @@ describe('times each line runs', () => {
 			const last = op.frames[op.frames.length - 1]
 			expect(last.runs?.compare).toBe(last.counts?.comparisons)
 		}
-		// The while test also runs when j > 0 fails, comparing no values: once per value that reaches the front.
-		const last = totals(insertionSort(array(5, 4, 3, 2, 1)))
-		const worst = insertionSort(array(5, 4, 3, 2, 1)).frames.at(-1)!.counts!.comparisons
-		expect([last?.compare, worst]).toEqual([14, 10])
+		// The while test also runs when j > 0 fails, comparing no values: once per value that reaches the
+		// front. The play bar counts both: lecture 3's 14 is the tests.
+		const op = insertionSort(array(5, 4, 3, 2, 1))
+		const last = op.frames.at(-1)!
+		expect([last.runs?.compare, last.counts]).toEqual([14, { comparisons: 10, swaps: 10, 'while tests': 14 }])
+		expect(last.caption).toBe(
+			'Sorted: 10 comparisons, 10 swaps. The while test ran 14 times, 4 more: once for each value that reached the front, where j > 0 stops it before it compares anything'
+		)
+		// Sorted already: no value reaches the front, the tests are the comparisons.
+		expect(insertionSort(array(1, 2, 3)).frames.at(-1)?.caption).toBe('Sorted: 2 comparisons, 0 swaps')
+		// Ten reversed values: lecture 2's 54 is the tests; 45 comparisons.
+		expect(insertionSort(array(10, 9, 8, 7, 6, 5, 4, 3, 2, 1)).frames.at(-1)?.counts).toEqual({ comparisons: 45, swaps: 45, 'while tests': 54 })
 	})
 })

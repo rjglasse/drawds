@@ -107,14 +107,15 @@ describe('sorts', () => {
 	const sortedValues = ['1', '2', '3', '4', '5', '6']
 
 	it.each([
-		['insertion', insertionSort, { comparisons: 12, swaps: 9 }],
+		// Insertion sort's while test also runs when j > 0 stops it: twice here (2 and 1 reach the front).
+		['insertion', insertionSort, { comparisons: 12, swaps: 9, 'while tests': 14 }],
 		['selection', selectionSort, { comparisons: 15, swaps: 3 }],
 		['bubble', bubbleSort, { comparisons: 15, swaps: 9 }],
 	] as const)('%s sort sorts, with the textbook counts', (_, sort, expected) => {
 		const op = sort(start)
 		expect(op.result?.values).toEqual(sortedValues)
 		expect(counts(op)).toEqual(expected)
-		expect(last(op).caption).toBe(`Sorted: ${expected.comparisons} comparisons, ${expected.swaps} swaps`)
+		expect(last(op).caption).toMatch(new RegExp(`^Sorted: ${expected.comparisons} comparisons, ${expected.swaps} swaps`))
 		expectConsistent(op, start.values)
 	})
 
