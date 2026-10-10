@@ -56,14 +56,16 @@ describe('bfs', () => {
 	})
 
 	it('shows the queue and narrates each step', () => {
-		expect(result.frames[0].caption).toBe('Start at A: discover it (1) and queue it')
-		const discoverB = result.frames.findIndex((f) => f.caption === 'A–B: B is new: discover it (2) and queue it')
+		expect(result.frames[0].caption).toBe('Start at A: queue it and mark it visited (1)')
+		const discoverB = result.frames.findIndex((f) => f.caption === 'A–B: B is new: mark it visited (2) and queue it')
 		expect(stateAt(result.frames, discoverB).strips?.[0].items).toEqual(['B'])
-		expect(result.frames.some((f) => f.caption === 'C–D: D was already discovered')).toBe(true)
+		expect(result.frames.some((f) => f.caption === 'C–D: visited[D] is already true')).toBe(true)
+		// Lecture 9's visited[]: booleans by vertex, true as each is queued.
+		expect(stateAt(result.frames, discoverB).strips?.[1]).toEqual({ title: 'visited[]', items: ['T', 'T', 'F', 'F', 'F', 'F'], labels: ['A', 'B', 'C', 'D', 'E', 'F'] })
 	})
 
 	it('flashes an edge it only looks at, then clears it', () => {
-		const look = result.frames.findIndex((f) => f.caption === 'C–D: D was already discovered')
+		const look = result.frames.findIndex((f) => f.caption === 'C–D: visited[D] is already true')
 		expect(stateAt(result.frames, look).flash[`edge:${edgeId('C-D')}`]).toBe('orange')
 		expect(stateAt(result.frames, look + 1).flash[`edge:${edgeId('C-D')}`]).toBeUndefined()
 	})
@@ -90,5 +92,28 @@ describe('dfs', () => {
 		)
 		expect(end.strips?.[0].items).toEqual([])
 		expect(result.frames.at(-1)!.caption).toBe('A is done: finished, 5 of 6 nodes reached; the rest can\'t be reached from the start')
+	})
+})
+
+describe("lecture 9's graph: vertices 0..6", () => {
+	const numbered = (pairs: string[]): GraphModel => ({
+		nodes: '0123456'.split('').map((v, i) => ({ id: `v${v}`, value: v, x: i, y: 0 })),
+		edges: pairs.map((p, i) => {
+			const [from, to] = p.split('-')
+			return { id: `e${i}`, from: `v${from}`, to: `v${to}`, weight: '1' }
+		}),
+	})
+	const lecture = numbered(['0-1', '0-2', '1-3', '2-3', '2-5', '3-4', '3-5', '4-6', '5-6'])
+
+	it('BFS from 0 goes rank by rank: 0, 1, 2, 3, 5, 4, 6, as the lecture traces it', () => {
+		const run = bfs(lecture, 'v0', false)
+		expect(run.order.map((id) => id.slice(1))).toEqual(['0', '1', '2', '3', '5', '4', '6'])
+		expect(run.code).toBe('graph-bfs')
+	})
+
+	it('DFS marks on entry, visited[] filling in as it goes deeper', () => {
+		const run = dfs(lecture, 'v0', false)
+		expect(run.order.map((id) => id.slice(1))).toEqual(['0', '1', '3', '2', '5', '6', '4'])
+		expect(run.frames[0].strips?.[1]).toEqual({ title: 'visited[]', items: ['T', 'F', 'F', 'F', 'F', 'F', 'F'], labels: ['0', '1', '2', '3', '4', '5', '6'] })
 	})
 })

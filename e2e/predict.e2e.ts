@@ -104,7 +104,7 @@ test('BFS asks which node leaves the queue and, edge by edge, whether the far en
 	await page.getByTestId('context-menu.graph-bfs').click()
 	await expect(asking(page)).toHaveText('What happens next?')
 	await page.keyboard.press('ArrowRight')
-	await expect(caption(page)).toHaveText('Start at A: discover it (1) and queue it')
+	await expect(caption(page)).toHaveText('Start at A: queue it and mark it visited (1)')
 	await page.keyboard.press('ArrowRight')
 	await expect(asking(page)).toHaveText('Which node comes off the queue next?')
 	await page.keyboard.press('ArrowRight')
@@ -113,7 +113,7 @@ test('BFS asks which node leaves the queue and, edge by edge, whether the far en
 	await expect(asking(page)).toHaveText(/^A–(\w): is \1 new\?$/)
 	await expect(pulsing(page)).toHaveAttribute('data-pulse', /^edge:/)
 	await page.keyboard.press('ArrowRight')
-	await expect(caption(page)).toHaveText(/^A–(\w): \1 is new: discover it \(2\) and queue it$/)
+	await expect(caption(page)).toHaveText(/^A–(\w): \1 is new: mark it visited \(2\) and queue it$/)
 })
 
 test('hash insert asks which bucket the key hashes to', async ({ page }) => {

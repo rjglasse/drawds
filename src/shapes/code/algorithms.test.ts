@@ -20,6 +20,8 @@ import { peekStack, pop, push } from '../array/stack-queue'
 import { findInList } from '../list/operations'
 import { measureTree } from '../tree/measure'
 import { bstExtreme } from '../tree/search'
+import { bfs, dfs } from '../graph/traverse'
+import { components } from '../graph/algorithms'
 import { traverseTree } from '../tree/traverse'
 import { mulberry32 } from '../../data/random'
 import { ALGORITHMS, algorithmCode, parseCode, shownValues, taggedLine } from './algorithms'
@@ -27,6 +29,11 @@ import { codeShapeMigrations } from './code-shape-types'
 
 const array = (...values: (string | number)[]): ArrayState => ({ values: values.map(String), marks: {} })
 const treeNode = (id: string, value: string, children: (string | null)[] = [null, null]) => ({ id, value, children, dx: 0, dy: 0 })
+// Two pieces: A-B-C in a triangle, D-E.
+const graph = {
+	nodes: ['A', 'B', 'C', 'D', 'E'].map((v, i) => ({ id: v.toLowerCase(), value: v, x: i, y: 0 })),
+	edges: [['a', 'b'], ['b', 'c'], ['a', 'c'], ['d', 'e']].map(([from, to], i) => ({ id: `e${i}`, from, to, weight: '1' })),
+}
 // A, B and C, B with one child D: every kind of node.
 const tree = [treeNode('a', 'A', ['b', 'c']), treeNode('b', 'B', ['d', null]), treeNode('c', 'C'), treeNode('d', 'D')]
 
@@ -117,6 +124,11 @@ describe('algorithm code', () => {
 			...(['height', 'height-levels', 'leaves', 'size'] as const).flatMap((m) => [measureTree(tree, 'a', m), measureTree(tree, 'a', m, { nulls: true })]),
 			{ ...bstExtreme(tree, 'a', 'min'), code: 'bst-min' },
 			{ ...bstExtreme(tree, 'a', 'max'), code: 'bst-max' },
+			// Lecture 9: the searches and components, on a graph in two pieces.
+			bfs(graph, 'a', false),
+			dfs(graph, 'a', false),
+			bfs(graph, 'a', true),
+			components(graph, { directed: false, weighted: false }),
 		]
 		// What the steps give values for (their pointers and variables), by code: some runs never reach a
 		// variable (a pop that underflows has no v), so all the runs of a code together.

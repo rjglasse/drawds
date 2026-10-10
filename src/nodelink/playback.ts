@@ -9,6 +9,8 @@ import { showCodeOf } from '../shapes/code/follow'
 export interface Strip {
 	title: string
 	items: string[]
+	/** A label under each item (an array's indexes: visited[] under each vertex's name). */
+	labels?: string[]
 }
 
 /** One step of an animated operation. */

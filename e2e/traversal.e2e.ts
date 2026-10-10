@@ -20,8 +20,10 @@ test('BFS from a node: narrated steps, the queue, discovery numbers; Enter leave
 	await sketchGraph(page, [300, 200], 6)
 	const before = await graph(page)
 	await traverseFrom(page, 'v0', 'bfs')
-	await expect(page.getByTestId('play-caption')).toHaveText('Start at A: discover it (1) and queue it')
+	await expect(page.getByTestId('play-caption')).toHaveText('Start at A: queue it and mark it visited (1)')
 	await expect(page.getByTestId('playback-strip').filter({ hasText: 'queue' })).toHaveCount(1)
+	// Lecture 9's visited[]: where the search has been, beside the queue.
+	await expect(page.getByTestId('playback-strip').filter({ hasText: 'visited[]' })).toHaveText('visited[]TAFBFCFDFEFF')
 	await page.keyboard.press('ArrowRight')
 	await expect(page.getByTestId('play-caption')).toHaveText('Dequeue A and look at its edges')
 	await page.keyboard.press('Enter')

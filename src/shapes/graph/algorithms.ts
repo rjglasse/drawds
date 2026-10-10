@@ -4,7 +4,8 @@ import type { Frame, FrameSets } from '../../nodelink/playback'
 import { edgeCellKey } from '../../nodelink/scene'
 import { findPath, singletons, union } from '../union-find/union-find'
 import type { GraphModel } from './model'
-import { neighbours, Recorder } from './traverse'
+import { neighbours, Recorder, visitedStrip } from './traverse'
+import type { Pointer } from '../../pointers/pointers'
 
 // Weighted-graph and DAG algorithms, step by step, in the colours of the traversals: the node being
 // worked on red, nodes waiting (in a queue) orange, finished nodes blue, chosen edges green; an
@@ -34,6 +35,8 @@ export interface GraphRun {
 	order?: string[]
 	/** Connected components: the pieces, each a list of nodes in the order found. */
 	pieces?: string[][]
+	/** Its code beside the graph (`src/shapes/graph/code.ts`), if it has some. */
+	code?: string
 }
 
 function helpers(model: GraphModel, { directed, weighted }: AlgorithmOptions) {
@@ -259,72 +262,91 @@ export function kruskal(model: GraphModel, options: AlgorithmOptions): GraphRun 
 const PIECE_COLOURS: MarkColor[] = ['blue', 'green', 'orange', 'red']
 
 /**
- * Connected components: take the nodes in label order; one that isn't in a piece yet starts a new
- * piece (counted), and a breadth-first search from it finds the rest of that piece, each node joining
- * as an edge reaches it. Edges count both ways (a directed graph's are taken as undirected). Pieces
- * take colours in turn and every node a badge with its piece's number.
+ * Connected components as lecture 9 counts them: a loop over the vertices in order (pointer v)
+ * checks visited[]; a vertex not visited yet starts a depth-first search, which marks its whole
+ * component (coloured, numbered), and every time a search completes the count goes up by one. A
+ * vertex the loop reaches already visited is skipped. Edges count both ways (a directed graph's are
+ * taken as undirected).
  */
 export function components(model: GraphModel, options: AlgorithmOptions): GraphRun {
 	const { name, byLabel } = helpers(model, { ...options, directed: false })
 	const adjacent = neighbours(model, false)
 	const rec = new Recorder()
-	const piece = new Map<string, number>()
+	const visited = new Set<string>()
 	const pieces: string[][] = []
 	const order = model.nodes.map((n) => n.id).sort(byLabel)
-	const queue: string[] = []
-	const strips = () => [
-		{ title: 'queue (front on the left)', items: queue.map(name) },
-		{ title: 'pieces', items: pieces.map((p, i) => `${i + 1}: ${p.map(name).join(' ')}`) },
-	]
+	const stack: string[] = []
+	let count = 0
+	const strips = () => [{ title: 'call stack (top on the right)', items: stack.map(name) }, visitedStrip(model, visited)]
+	const loop = (v: string): Pointer[] => [{ id: '#v', name: 'v', at: v }]
 	const both = options.directed ? ' (edges count both ways)' : ''
 	rec.add({
 		strips: strips(),
 		counts: { components: 0 },
-		caption: `Count the pieces${both}: take the nodes in order; one in no piece yet starts a new piece, and a search from it finds the rest`,
+		caption: `Count the components${both}: for each vertex v in order, if visited[v] is false, dfs(v), then count += 1`,
+		vars: { count: '0' },
 	})
-	for (const start of order) {
-		if (piece.has(start)) {
-			rec.add({ caption: `${name(start)} is in piece ${piece.get(start)} already: next`, ask: `Is ${name(start)} in a piece yet?`, askFocus: [start] })
+	for (const v of order) {
+		if (visited.has(v)) {
+			rec.add({
+				pointers: loop(v),
+				strips: strips(),
+				caption: `v = ${name(v)}: visited[${name(v)}] is true, a search found it already: skip`,
+				ask: `v = ${name(v)}: is visited[${name(v)}] true?`,
+				askFocus: [v],
+				line: 'skip',
+				vars: { v: name(v), count: String(count) },
+			})
 			continue
 		}
-		const k = pieces.length + 1
+		const k = count + 1
 		const colour = PIECE_COLOURS[(k - 1) % PIECE_COLOURS.length]
-		piece.set(start, k)
-		pieces.push([start])
-		queue.push(start)
 		rec.add({
-			flash: { [start]: colour },
-			badges: { [start]: String(k) },
+			pointers: loop(v),
 			strips: strips(),
-			counts: { components: k },
-			caption: `${name(start)} is in no piece yet: start piece ${k} there and search from it`,
-			ask: `Is ${name(start)} in a piece yet?`,
-			askFocus: [start],
+			caption: `v = ${name(v)}: visited[${name(v)}] is false, so dfs(${name(v)}): it marks everything ${name(v)} connects to`,
+			ask: `v = ${name(v)}: is visited[${name(v)}] true?`,
+			askFocus: [v],
+			line: 'search',
+			vars: { v: name(v), count: String(count) },
 		})
-		while (queue.length) {
-			const u = queue.shift()!
-			for (const { node: v, edge } of adjacent.get(u) ?? []) {
-				if (piece.has(v)) continue
-				piece.set(v, k)
-				pieces[k - 1].push(v)
-				queue.push(v)
-				rec.add({
-					flash: { [v]: colour, [edgeCellKey(edge)]: colour },
-					badges: { [v]: String(k) },
-					strips: strips(),
-					caption: `${name(u)}–${name(v)}: ${name(v)} joins piece ${k}`,
-				})
-			}
+		const piece: string[] = []
+		const dfs = (u: string, via?: { from: string; edge: string }) => {
+			visited.add(u)
+			piece.push(u)
+			stack.push(u)
+			rec.add({
+				pointers: loop(v),
+				flash: { [u]: colour, ...(via ? { [edgeCellKey(via.edge)]: colour } : {}) },
+				badges: { [u]: String(k) },
+				strips: strips(),
+				caption: via ? `${name(via.from)}–${name(u)}: dfs(${name(u)}) marks ${name(u)} visited` : `dfs(${name(u)}) marks ${name(u)} visited`,
+				line: 'mark',
+				vars: { v: name(v), u: name(u), count: String(count) },
+			})
+			for (const { node: w, edge } of adjacent.get(u) ?? []) if (!visited.has(w)) dfs(w, { from: u, edge })
+			stack.pop()
 		}
-		rec.add({ strips: strips(), caption: `The queue is empty: piece ${k} is ${pieces[k - 1].map(name).join(', ')}`, ask: false })
+		dfs(v)
+		pieces.push(piece)
+		count = k
+		rec.add({
+			pointers: loop(v),
+			strips: strips(),
+			counts: { components: count },
+			caption: `dfs(${name(v)}) is done: component ${k} is ${piece.map(name).join(', ')}. count += 1, so count = ${count}`,
+			ask: false,
+			line: 'count',
+			vars: { v: name(v), count: String(count) },
+		})
 	}
-	const n = pieces.length
 	rec.add({
 		strips: strips(),
-		caption: n === 1 ? 'Every node is in one piece: the graph is connected (1 component)' : `Every node is in a piece: ${n} components`,
+		caption: count === 1 ? 'Every vertex is visited: one search reached them all, so the graph is connected (1 component)' : `Every vertex is visited: ${count} searches, so ${count} components`,
 		ask: false,
+		vars: { count: String(count) },
 	})
-	return { frames: rec.frames, chosen: [], pieces }
+	return { frames: rec.frames, chosen: [], pieces, code: 'graph-components' }
 }
 
 /**

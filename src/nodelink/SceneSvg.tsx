@@ -439,8 +439,11 @@ export function stripSize(strip: Strip, { fontSize, labelFontSize }: SceneMetric
 	const box = fontSize * 1.9
 	const title = labelFontSize * 1.5
 	const longest = Math.max(0, ...strip.items.map((item) => item.length))
-	const itemW = Math.max(box, longest * fontSize * 0.85 * 0.6 + fontSize * 0.7)
-	return { box, itemW, title, w: Math.max(1, strip.items.length) * itemW, h: title + box }
+	const widest = Math.max(longest, ...(strip.labels ?? []).map((label) => label.length * 0.8))
+	const itemW = Math.max(box, widest * fontSize * 0.85 * 0.6 + fontSize * 0.7)
+	// Labels under the boxes take a line of their own.
+	const under = strip.labels ? labelFontSize * 1.4 : 0
+	return { box, itemW, title, under, w: Math.max(1, strip.items.length) * itemW, h: title + box + under }
 }
 
 /** Gap between strips stacked one under the other. */
@@ -506,6 +509,18 @@ export function StripSvg({
 						<text x={at.x + i * itemW + itemW / 2} y={y + box / 2} textAnchor="middle" fontSize={metrics.fontSize * 0.85} fill={colors.text}>
 							{item}
 						</text>
+						{strip.labels?.[i] !== undefined && (
+							<text
+								x={at.x + i * itemW + itemW / 2}
+								y={y + box + metrics.labelFontSize * 0.75}
+								textAnchor="middle"
+								fontSize={metrics.labelFontSize}
+								fill={colors.text}
+								opacity={0.55}
+							>
+								{strip.labels[i]}
+							</text>
+						)}
 					</g>
 				))
 			)}

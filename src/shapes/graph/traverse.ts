@@ -1,6 +1,6 @@
 import type { MarkColor } from '../../cells/marks'
 import { compareKeys } from '../../data/compare'
-import type { Frame } from '../../nodelink/playback'
+import type { Frame, Strip } from '../../nodelink/playback'
 import { edgeCellKey } from '../../nodelink/scene'
 import type { GraphModel } from './model'
 
@@ -19,6 +19,19 @@ export interface Traversal {
 	order: string[]
 	/** The edges that discovered a node: the BFS / DFS tree. */
 	treeEdges: string[]
+	/** Its code beside the graph (`src/shapes/graph/code.ts`). */
+	code: string
+}
+
+/**
+ * Lecture 9's visited[]: an array of booleans indexed by vertex, all false to begin with, flipped to
+ * true as a search marks each vertex (on entry for DFS, when queued for BFS). Vertices in label order.
+ */
+export function visitedStrip(model: GraphModel, seen: ReadonlySet<string> | readonly string[]): Strip {
+	const label = new Map(model.nodes.map((n) => [n.id, n.value]))
+	const has = (id: string) => (Array.isArray(seen) ? seen.includes(id) : (seen as ReadonlySet<string>).has(id))
+	const vertices = model.nodes.map((n) => n.id).sort((a, b) => compareKeys(label.get(a) ?? '', label.get(b) ?? '') || a.localeCompare(b))
+	return { title: 'visited[]', items: vertices.map((v) => (has(v) ? 'T' : 'F')), labels: vertices.map((v) => label.get(v) ?? v) }
 }
 
 /**
@@ -81,17 +94,17 @@ export function bfs(model: GraphModel, start: string, directed: boolean): Traver
 	const order = [start]
 	const treeEdges: string[] = []
 	const queue = [start]
-	const strips = () => [
-		{ title: 'queue (front on the left)', items: queue.map(name) },
-		{ title: 'visit order', items: order.map(name) },
-	]
+	// The queue, where to go next; visited[], where it has been (marked as each vertex is queued).
+	const strips = () => [{ title: 'queue (front on the left)', items: queue.map(name) }, visitedStrip(model, order)]
 	const link = directed ? '→' : '–'
 
 	rec.add({
 		flash: { [start]: WAITING },
 		badges: { [start]: '1' },
 		strips: strips(),
-		caption: `Start at ${name(start)}: discover it (1) and queue it`,
+		caption: `Start at ${name(start)}: queue it and mark it visited (1)`,
+		line: 'start',
+		vars: { s: name(start) },
 	})
 	let previous: string | undefined
 	while (queue.length) {
@@ -101,12 +114,15 @@ export function bfs(model: GraphModel, start: string, directed: boolean): Traver
 			strips: strips(),
 			caption: `Dequeue ${name(u)} and look at its ${directed ? 'out-' : ''}edges`,
 			ask: 'Which node comes off the queue next?',
+			line: 'dequeue',
+			vars: { v: name(u) },
 		})
 		for (const { node: v, edge } of adjacent.get(u) ?? []) {
 			// The same question whatever the answer: is the node at the far end of this edge new?
 			const ask = { ask: `${name(u)}${link}${name(v)}: is ${name(v)} new?`, askFocus: [edgeCellKey(edge)] }
+			const vars = { v: name(u), w: name(v) }
 			if (order.includes(v)) {
-				rec.look(edge, { caption: `${name(u)}${link}${name(v)}: ${name(v)} was already discovered`, ...ask })
+				rec.look(edge, { caption: `${name(u)}${link}${name(v)}: visited[${name(v)}] is already true`, ...ask, line: 'check', vars })
 				continue
 			}
 			order.push(v)
@@ -116,8 +132,10 @@ export function bfs(model: GraphModel, start: string, directed: boolean): Traver
 				flash: { [v]: WAITING, [edgeCellKey(edge)]: TREE },
 				badges: { [v]: String(order.length) },
 				strips: strips(),
-				caption: `${name(u)}${link}${name(v)}: ${name(v)} is new: discover it (${order.length}) and queue it`,
+				caption: `${name(u)}${link}${name(v)}: ${name(v)} is new: mark it visited (${order.length}) and queue it`,
 				...ask,
+				line: 'mark',
+				vars,
 			})
 		}
 		previous = u
@@ -125,9 +143,9 @@ export function bfs(model: GraphModel, start: string, directed: boolean): Traver
 	rec.add({
 		flash: previous ? { [previous]: DONE } : {},
 		strips: strips(),
-		caption: `Queue empty: done, ${ending(order.length, model.nodes.length)}`,
+		caption: `Queue empty: done, ${ending(order.length, model.nodes.length)}. Level by level: no vertex is fewer edges from the start than one before it`,
 	})
-	return { frames: rec.frames, order, treeEdges }
+	return { frames: rec.frames, order, treeEdges, code: 'graph-bfs' }
 }
 
 /**
@@ -143,10 +161,8 @@ export function dfs(model: GraphModel, start: string, directed: boolean): Traver
 	const order: string[] = []
 	const treeEdges: string[] = []
 	const stack: string[] = []
-	const strips = () => [
-		{ title: 'call stack (top on the right)', items: stack.map(name) },
-		{ title: 'visit order', items: order.map(name) },
-	]
+	// The call stack, where it has come from; visited[], where it has been (marked on entry).
+	const strips = () => [{ title: 'call stack (top on the right)', items: stack.map(name) }, visitedStrip(model, order)]
 	const link = directed ? '→' : '–'
 
 	const isNew = (u: string, v: string, edge: string) => ({ ask: `${name(u)}${link}${name(v)}: is ${name(v)} new?`, askFocus: [edgeCellKey(edge)] })
@@ -159,13 +175,20 @@ export function dfs(model: GraphModel, start: string, directed: boolean): Traver
 			badges: { [u]: String(order.length) },
 			strips: strips(),
 			caption: via
-				? `${name(via.from)}${link}${name(u)}: ${name(u)} is new: go deeper and visit it (${order.length})`
-				: `Visit ${name(start)} (1)`,
+				? `${name(via.from)}${link}${name(u)}: ${name(u)} is new: dfs(${name(u)}) goes deeper, marking it visited (${order.length})`
+				: `dfs(${name(start)}): mark it visited (1)`,
 			...(via && isNew(via.from, u, via.edge)),
+			line: 'mark',
+			vars: { v: name(u) },
 		})
 		for (const { node: v, edge } of adjacent.get(u) ?? []) {
 			if (order.includes(v)) {
-				rec.look(edge, { caption: `${name(u)}${link}${name(v)}: ${name(v)} was already visited`, ...isNew(u, v, edge) })
+				rec.look(edge, {
+					caption: `${name(u)}${link}${name(v)}: visited[${name(v)}] is true already`,
+					...isNew(u, v, edge),
+					line: 'check',
+					vars: { v: name(u), w: name(v) },
+				})
 				continue
 			}
 			visit(v, { from: u, edge })
@@ -180,8 +203,10 @@ export function dfs(model: GraphModel, start: string, directed: boolean): Traver
 				: `${name(u)} is done: finished, ${ending(order.length, model.nodes.length)}`,
 			ask: `Every edge from ${name(u)} tried: where does DFS go now?`,
 			askFocus: [u],
+			line: 'loop',
+			vars: { v: name(u) },
 		})
 	}
 	visit(start)
-	return { frames: rec.frames, order, treeEdges }
+	return { frames: rec.frames, order, treeEdges, code: 'graph-dfs' }
 }

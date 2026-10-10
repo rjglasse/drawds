@@ -283,7 +283,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 			...algorithms,
 			id: 'graph-components',
 			label: 'Count connected components',
-			run: () => this.runAlgorithm(shape.id, 'connected components', (s) => components(s.props, this.algorithmOptions(s)).frames),
+			run: () => this.runAlgorithm(shape.id, 'connected components', (s) => components(s.props, this.algorithmOptions(s)).frames, undefined, 'graph-components'),
 		}
 		return [pieces, ...this.directedOrNot(shape, algorithms)]
 	}
@@ -329,8 +329,12 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 	}
 
 	private traverse(id: GraphShape['id'], start: string, kind: 'bfs' | 'dfs') {
-		this.runAlgorithm(id, kind === 'bfs' ? 'breadth-first search' : 'depth-first search', (shape) =>
-			(kind === 'bfs' ? bfs : dfs)(shape.props, start, shape.props.direction === 'directed').frames
+		this.runAlgorithm(
+			id,
+			kind === 'bfs' ? 'breadth-first search' : 'depth-first search',
+			(shape) => (kind === 'bfs' ? bfs : dfs)(shape.props, start, shape.props.direction === 'directed').frames,
+			undefined,
+			`graph-${kind}`
 		)
 	}
 
@@ -348,7 +352,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		this.runAlgorithm(id, 'minimum spanning tree', (s) => kruskal(s.props, this.algorithmOptions(s)).frames, takeBack)
 	}
 
-	private runAlgorithm(id: GraphShape['id'], label: string, steps: (shape: GraphShape) => Frame[], onCancel?: () => void) {
+	private runAlgorithm(id: GraphShape['id'], label: string, steps: (shape: GraphShape) => Frame[], onCancel?: () => void, code?: string) {
 		const shape = this.editor.getShape(id) as GraphShape | undefined
 		if (!shape) return
 		const frames = steps(shape)
@@ -357,6 +361,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 			label,
 			frames,
 			onCancel,
+			code,
 			withMarks: (_update, highlights) => {
 				const current = (this.editor.getShape(id) as GraphShape | undefined) ?? shape
 				return this.withModel(current, current.props, { ...current.props.marks, ...highlights })

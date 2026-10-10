@@ -334,7 +334,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   per-editor atom; drop on a node = edge, in empty space = new node + edge). `algorithms.ts`: Dijkstra (distance
   badges, best edge green), Prim, Kruskal, topological sort (Kahn) as frames, reusing traverse.ts's `Recorder`
   (an edge only looked at flashes, then gets its colour back); unweighted graphs count every edge 1. `components`:
-  connected components (each node in no piece yet starts one, BFS finds the rest; pieces coloured and numbered).
+  connected components as lecture 9 counts them (a loop, pointer v, over the vertices: one visited already is skipped,
+  else dfs(v) marks its whole component, coloured and numbered, and count += 1). BFS and DFS show lecture 9's visited[]
+  (`visitedStrip`: booleans by vertex, a strip whose boxes have `labels`, marked on entry for DFS, when queued for BFS)
+  beside the queue or call stack, and their code (`src/shapes/graph/code.ts`, with v and w; components too).
 - `src/controls/` - on-canvas controls shown while a structure is the only selected shape
   (`showsStructureControls`): grow grips (tldraw `create` handles `grow` / `grow-start`, drawn only on hover,
   plus our own '+' `GrowGrip`; `grownCount` is pure) and `ControlButton` (HTML insert '+' / remove 'x',

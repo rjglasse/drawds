@@ -89,18 +89,38 @@ describe('connected components', () => {
 	it('counts the pieces: each node in no piece yet starts one, a search finds the rest', () => {
 		const run = components({ nodes: [...graph.nodes, node('y', 'Y'), node('x', 'X'), node('z', 'Z')], edges: [...graph.edges, edge('xz', 'x', 'z', 1)] }, weighted)
 		expect(run.pieces).toEqual([['a', 'b', 'c', 'd', 'e'], ['x', 'z'], ['y']])
-		expect(last(run.frames)).toBe('Every node is in a piece: 3 components')
+		expect(last(run.frames)).toBe('Every vertex is visited: 3 searches, so 3 components')
 		const end = stateAt(run.frames, run.frames.length - 1)
 		expect(end.badges).toMatchObject({ a: '1', e: '1', x: '2', z: '2', y: '3' })
 		expect(end.counts).toEqual({ components: 3 })
 		expect(end.flash).toMatchObject({ a: 'blue', x: 'green', y: 'orange', 'edge:xz': 'green' })
-		expect(run.frames.map((f) => f.caption)).toContain('B is in piece 1 already: next')
-		expect(run.frames.map((f) => f.caption)).toContain('X–Z: Z joins piece 2')
+		// Lecture 9: the loop skips what a search marked; a search marks its whole component.
+		expect(run.frames.map((f) => f.caption)).toContain('v = B: visited[B] is true, a search found it already: skip')
+		expect(run.frames.map((f) => f.caption)).toContain('X–Z: dfs(Z) marks Z visited')
+		expect(run.frames.map((f) => f.caption)).toContain('dfs(X) is done: component 2 is X, Z. count += 1, so count = 2')
 	})
 
 	it('a connected graph is one piece; a directed one counts edges both ways', () => {
-		expect(last(components(graph, weighted).frames)).toBe('Every node is in one piece: the graph is connected (1 component)')
+		expect(last(components(graph, weighted).frames)).toBe('Every vertex is visited: one search reached them all, so the graph is connected (1 component)')
 		expect(components(graph, { directed: true, weighted: true }).frames[0].caption).toContain('(edges count both ways)')
+	})
+})
+
+describe("lecture 9's components: a loop over visited[], one DFS per component", () => {
+	it('{0, 1, 2, 3} and {4, 5, 6}: the loop jumps from 0 to 4, skipping what dfs(0) marked', () => {
+		const split: GraphModel = {
+			nodes: '0123456'.split('').map((v, i) => ({ id: `v${v}`, value: v, x: i, y: 0 })),
+			edges: ['0-2', '2-3', '0-1', '4-5', '5-6'].map((p, i) => {
+				const [from, to] = p.split('-')
+				return { id: `e${i}`, from: `v${from}`, to: `v${to}`, weight: '1' }
+			}),
+		}
+		const run = components(split, { directed: false, weighted: false })
+		const searches = run.frames.filter((f) => f.line === 'search').map((f) => f.vars?.v)
+		expect(searches).toEqual(['0', '4'])
+		expect(run.frames.filter((f) => f.line === 'skip').map((f) => f.vars?.v)).toEqual(['1', '2', '3', '5', '6'])
+		expect(run.frames.at(-1)?.caption).toBe('Every vertex is visited: 2 searches, so 2 components')
+		expect(run.code).toBe('graph-components')
 	})
 })
 
