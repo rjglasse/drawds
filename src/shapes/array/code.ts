@@ -3,7 +3,8 @@ import type { CodeSource } from '../code/algorithms'
 // The array algorithms' code, as a code box beside the array shows it while one plays (see
 // `src/shapes/code/algorithms.ts`). The @tags at the ends of lines are the `line`s the steps in
 // `operations.ts` and `scans.ts` name, so a line reads as what its step shows; the $tags the
-// variables shown there (the steps' pointers, or what they `let`). Insertion sort is lecture 3's.
+// variables shown there (the steps' pointers, or what they `let`). Insertion sort is lecture 3's, the
+// shuffles lecture 2's (its names: numbers, the random index n).
 
 export const ARRAY_CODE: Record<string, CodeSource> = {
 	'linear-search': {
@@ -316,5 +317,33 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			    merged += a[i:mid + 1]                  @rest-left
 			    merged += a[j:hi + 1]                   @rest-right
 			    a[lo:hi + 1] = merged                   @copy`,
+	},
+	'unfair-shuffle': {
+		java: String.raw`
+			public void shuffleArray(int[] numbers) {
+			    for (int i = 0; i < numbers.length; i++) {      $i
+			        int n = rand.nextInt(numbers.length);       @pick $n
+			        swap(numbers, i, n);                        @swap
+			    }
+			}`,
+		python: String.raw`
+			def shuffle_array(numbers):
+			    for i in range(len(numbers)):                   $i
+			        n = random.randint(0, len(numbers) - 1)     @pick $n
+			        numbers[i], numbers[n] = numbers[n], numbers[i]     @swap`,
+	},
+	'fisher-yates': {
+		java: String.raw`
+			public void shuffleArray(int[] numbers) {
+			    for (int i = numbers.length - 1; i > 0; i--) {  $i
+			        int n = rand.nextInt(i + 1);                @pick $n
+			        swap(numbers, i, n);                        @swap
+			    }
+			}`,
+		python: String.raw`
+			def shuffle_array(numbers):
+			    for i in range(len(numbers) - 1, 0, -1):        $i
+			        n = random.randint(0, i)                    @pick $n
+			        numbers[i], numbers[n] = numbers[n], numbers[i]     @swap`,
 	},
 }

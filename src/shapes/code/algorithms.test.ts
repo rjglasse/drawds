@@ -13,6 +13,8 @@ import {
 	type ArrayState,
 } from '../array/operations'
 import { allUnique, findMax, sentinelSearch } from '../array/scans'
+import { fisherYates, unfairShuffle } from '../array/shuffles'
+import { mulberry32 } from '../../data/random'
 import { ALGORITHMS, algorithmCode, parseCode, shownValues, taggedLine } from './algorithms'
 import { codeShapeMigrations } from './code-shape-types'
 
@@ -85,6 +87,8 @@ describe('algorithm code', () => {
 			quicksort(array(7, 2, 9, 1, 5, 3)),
 			hoarePartition(array(5, 2, 9, 1, 7, 3)),
 			mergeSort(array(7, 2, 9, 1, 5, 3)),
+			unfairShuffle(array(7, 2, 9, 1), mulberry32(3)),
+			fisherYates(array(7, 2, 9, 1), mulberry32(3)),
 		]
 		for (const op of ops) {
 			expect(op.code && ALGORITHMS[op.code], `${op.frames[0]?.caption}`).toBeTruthy()

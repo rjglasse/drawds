@@ -115,6 +115,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   find the largest (`maxval` in a strip, n - 1 comparisons, updates counted), all unique? (every pair i < j, n(n - 1)/2
   at worst, a repeat stops it red), sentinel search (the key in an extra cell past the end, no i < n check, counts the
   checks saved). Scans in the Step by step menu's `scan` group; sentinel search with the searches, from a cell.
+- `src/shapes/array/shuffles.ts` - lecture 2's shuffles step by step (`shuffle` group), named as its slides name them
+  (the random index is the pointer `n`): the unfair shuffle (n from the whole array for every i) and Fisher-Yates (i
+  from len - 1 down to 1, n from 0..i, placed values green); a pick then a swap per i, picks from the pinned seed if
+  any (`seedForSketch`), the last step saying why (len^len runs against len! orders). `everyRun` (pure) lists every
+  run of picks and the order it leaves: on [1, 2, 3] the unfair one's 27 runs come out 5/5/5/4/4/4, Fisher-Yates' 6
+  once each (for the outcome tree, dds-szw.16).
 - Stacks and queues are a *kind* of array (`kind`, the Kind picker; `src/shapes/array/kinds.ts`): a stack
   stands upright (layout axis `'up'` in `getArrayMetrics`: index 0 at the origin, which rises as cells come,
   so index 0 stays put; use `metrics.axis` and `layout.boundaryAt`, never `props.direction`), a queue lies in a

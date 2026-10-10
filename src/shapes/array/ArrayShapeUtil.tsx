@@ -27,6 +27,7 @@ import { showsStructureControls } from '../../controls/visibility'
 import { extendValues, fillValues, insertValue } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
 import { mulberry32, newSeed } from '../../data/random'
+import { seedForSketch } from '../../data/seed'
 import { animationMs, isBusy, playOperation, playbackFor, type Frame } from '../../nodelink/playback'
 import { placePointers, type PointerAnchor } from '../../pointers/layout'
 import { prunePointers, type Pointer } from '../../pointers/pointers'
@@ -62,6 +63,7 @@ import {
 	type AuxRow,
 } from './operations'
 import { allUnique, findMax, sentinelSearch } from './scans'
+import { fisherYates, unfairShuffle } from './shuffles'
 import { movesAnything, rearrange, reversedOrder, shuffledOrder, sortedOrder } from './rearrange'
 import { arrayMarkers, frontOf, isUsed, usedIndices } from './kinds'
 import { dequeue, enqueue, peekQueue, peekStack, pop, push } from './stack-queue'
@@ -292,6 +294,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	override shapeOperations(shape: ArrayShape): NodeOperation[] {
 		const sorts = { group: 'sort' }
 		const scans = { group: 'scan' }
+		const shuffles = { group: 'shuffle' }
 		const sums = { group: 'sum' }
 		const actions = { section: 'actions' } as const
 		const capacity = { group: 'capacity' }
@@ -337,6 +340,23 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			// Scans counted in lectures 2 and 3: the largest value, and whether any two are equal.
 			...(n < 1 ? [] : [{ ...scans, id: 'array-find-max', label: 'Find the largest (maxval)', run: () => this.play(shape.id, 'find the largest', findMax) }]),
 			...(n < 2 ? [] : [{ ...scans, id: 'array-all-unique', label: 'All unique? (every pair)', run: () => this.play(shape.id, 'all unique?', allUnique) }]),
+			// Lecture 2's shuffles, step by step: random picks from the pinned seed, if there is one.
+			...(n < 2
+				? []
+				: [
+						{
+							...shuffles,
+							id: 'array-unfair-shuffle',
+							label: 'Unfair shuffle (swap with any)',
+							run: () => this.play(shape.id, 'unfair shuffle', (a) => unfairShuffle(a, mulberry32(seedForSketch()))),
+						},
+						{
+							...shuffles,
+							id: 'array-fisher-yates',
+							label: 'Fisher-Yates shuffle',
+							run: () => this.play(shape.id, 'Fisher-Yates shuffle', (a) => fisherYates(a, mulberry32(seedForSketch()))),
+						},
+					]),
 			// Sorting needs two values in use.
 			...(usedCount(shape.props) < 2
 				? []
