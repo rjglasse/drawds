@@ -35,7 +35,7 @@ describe('linked stack', () => {
 		const last = popFrom({ ...stack, nodes: nodes('3') })
 		expect(captions(last)[1]).toBe('top = top.next: null, so the stack is empty now')
 		expect(last.nodes).toEqual([])
-		expect(popFrom({ ...stack, nodes: [] })).toEqual({ frames: [{ caption: 'Pop: top is null, the stack is empty. Stack underflow' }] })
+		expect(popFrom({ ...stack, nodes: [] })).toEqual({ frames: [{ caption: 'Pop: top is null, the stack is empty. Stack underflow', line: 'empty' }], code: 'linked-pop' })
 	})
 
 	it('a doubly linked stack keeps its prev links', () => {

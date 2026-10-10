@@ -1,5 +1,5 @@
 import type { TLShapePartial, VecLike } from 'tldraw'
-import { pruneMarks, type MarkColor, type Marks } from '../../cells/marks'
+import { pruneMarks, type Marks } from '../../cells/marks'
 import { compareKeys } from '../../data/compare'
 import { fillValues, insertValue } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
@@ -7,8 +7,8 @@ import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import { prunePointers } from '../../pointers/pointers'
 import { playbackFor, playOperation, type Frame } from '../../nodelink/playback'
-import { assignInOrder, bstDelete, bstInsert, bstViolations } from './bst'
-import { bstBuild, bstExtreme, bstSearch } from './search'
+import { assignInOrder, bstViolations } from './bst'
+import { bstBuild, bstDeleteSteps, bstExtreme, bstInsertSteps, bstSearch } from './search'
 import { mulberry32 } from '../../data/random'
 import { seedForSketch } from '../../data/seed'
 import { shuffledOrder } from '../array/rearrange'
@@ -337,7 +337,7 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 		const shape = this.editor.getShape(id) as TreeShape | undefined
 		if (!shape || !shape.props.nodes.length) return
 		const { frames, found } = bstSearch(shape.props.nodes, key, { nulls: shape.props.nulls === 'show' })
-		this.play(shape, 'search', frames, false, { flash: found ? { [found]: 'green' } : {} })
+		this.play(shape, 'search', frames, false, { flash: found ? { [found]: 'green' } : {} }, 'bst-search')
 	}
 
 	private traverse(id: TreeShape['id'], start: string, order: TreeOrder) {
@@ -367,11 +367,6 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 		})
 	}
 
-	/** One step of an animation that highlights a node, saying why. */
-	private static highlight(id: string, color: MarkColor, caption?: string): Frame {
-		return { flash: { [id]: color }, caption }
-	}
-
 	// BST operations, animated: the comparison path lights up node by node (orange), then the
 	// result appears; highlights fade, or with Shift held become marks.
 
@@ -382,61 +377,37 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 	}
 
 	insertKey(shape: TreeShape, key: string, keep: boolean) {
-		const result = bstInsert(shape.props.nodes, key)
-		const valueOf = new Map(shape.props.nodes.map((n) => [n.id, n.value]))
-		// Each comparison on the way down; the last one says where the new key goes. In predict mode the
-		// class is asked each way first, the node to compare with pulsing.
-		const frames = result.path.map((id, i): Frame => {
-			const v = valueOf.get(id)!
-			const cmp = compareKeys(key, v)
-			const ask = { ask: i === 0 ? `Insert ${key}, starting at the root: ${key} vs ${v}, which way?` : `${key} vs ${v}: which way?`, askFocus: [id] }
-			if (cmp === 0) return { ...TreeShapeUtil.highlight(id, 'orange', `${key} = ${v}: already in the tree`), ...ask }
-			const [sign, side] = cmp < 0 ? ['<', 'left'] : ['>', 'right']
-			const last = i === result.path.length - 1
-			return {
-				...TreeShapeUtil.highlight(
-					id,
-					'orange',
-					last ? `${key} ${sign} ${v}, which has no ${side} child: ${key} goes there` : `${key} ${sign} ${v}: go ${side}`
-				),
-				...ask,
-			}
-		})
-		this.play(shape, 'insert key', frames, keep, {
-			nodes: result.found ? undefined : result.nodes,
-			// Found: the key was already there (blue); otherwise the new node (green).
-			flash: result.found ? { [result.found]: 'blue' } : { [result.id!]: 'green' },
-		})
+		const { result, frames } = bstInsertSteps(shape.props.nodes, key)
+		this.play(
+			shape,
+			'insert key',
+			frames,
+			keep,
+			{
+				nodes: result.found ? undefined : result.nodes,
+				// Found: the key was already there (blue); otherwise the new node (green).
+				flash: result.found ? { [result.found]: 'blue' } : { [result.id!]: 'green' },
+			},
+			'bst-insert'
+		)
 	}
 
 	removeNodeAnimated(shape: TreeShape, key: string, keep: boolean) {
 		if (shape.props.kind !== 'bst') return false
-		const result = bstDelete(shape.props.nodes, key)
-		const valueOf = new Map(shape.props.nodes.map((n) => [n.id, n.value]))
-		const v = valueOf.get(key)
-		const why = {
-			leaf: `Delete ${v}: a leaf, so just remove it`,
-			'one-child': `Delete ${v}: it has one child, which takes its place`,
-			'two-children': `Delete ${v}: two children, so its successor, the smallest key on its right, will take its place`,
-		}[result.kind]
+		const { result, frames } = bstDeleteSteps(shape.props.nodes, key)
 		const s = result.successor
-		const sv = s && valueOf.get(s)
-		const moves =
-			result.twoChildren === '3.1'
-				? `${sv} is ${v}'s right child, with no left child: it moves up into ${v}'s place and ${v}'s left subtree hangs on as its left (case 3.1)`
-				: `${sv} has no left child: its right subtree takes its place, then ${sv} moves up into ${v}'s place with both of ${v}'s subtrees (case 3.2)`
-		const frames = [
-			TreeShapeUtil.highlight(key, 'red', why),
-			...result.path.map((id, i) =>
-				TreeShapeUtil.highlight(id, 'orange', i === 0 ? `Go right to ${valueOf.get(id)}` : `Go left to ${valueOf.get(id)}`)
-			),
-			...(s ? [TreeShapeUtil.highlight(s, 'green', moves)] : []),
-		]
 		// With two children the successor node moves up: nodes are relinked, no key copied.
-		this.play(shape, 'delete key', frames, keep, {
-			nodes: result.nodes,
-			flash: s ? { [s]: 'green' } : {},
-		})
+		this.play(
+			shape,
+			'delete key',
+			frames,
+			keep,
+			{
+				nodes: result.nodes,
+				flash: s ? { [s]: 'green' } : {},
+			},
+			'bst-delete'
+		)
 		return true
 	}
 
@@ -445,7 +416,8 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 		label: string,
 		frames: Frame[],
 		keep: boolean,
-		result: { nodes?: TreeNode[]; flash: Marks }
+		result: { nodes?: TreeNode[]; flash: Marks },
+		code?: string
 	) {
 		const final = result.nodes && this.withNodes(shape, result.nodes)
 		playOperation(this.editor, {
@@ -453,6 +425,7 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 			label,
 			frames,
 			final,
+			code,
 			finalFlash: result.flash,
 			keep,
 			// Shift held: the highlights become marks, in the same undo step as the result.

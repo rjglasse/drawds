@@ -1,7 +1,8 @@
 import { compareKeys } from '../../data/compare'
 import type { Frame } from '../../nodelink/playback'
 import type { Pointer } from '../../pointers/pointers'
-import { bstInsert } from './bst'
+import type { MarkColor } from '../../cells/marks'
+import { bstDelete, bstInsert } from './bst'
 import { nullKey } from './layout'
 import type { TreeNode } from './tree-shape-types'
 
@@ -31,6 +32,8 @@ export function bstSearch(nodes: readonly TreeNode[], key: string, { nulls = fal
 	let prev: string | undefined
 	// Predict mode: after the start, every step answers the same question about the node curr is on.
 	let ask: Pick<Frame, 'ask' | 'askFocus'> = { ask: `Search for ${key}: where does curr start?` }
+	// The code's line for curr's last move: from the root, or down a side.
+	let line = 'start'
 	for (;;) {
 		frames.push({
 			pointers: curr(node.id),
@@ -38,6 +41,8 @@ export function bstSearch(nodes: readonly TreeNode[], key: string, { nulls = fal
 			dim: [...dim],
 			counts: { comparisons },
 			caption: `${how}. Is it ${key}?`,
+			line,
+			vars: { key, curr: node.value },
 			...ask,
 		})
 		ask = { ask: `${key} vs ${node.value}: what next?`, askFocus: [node.id] }
@@ -47,6 +52,8 @@ export function bstSearch(nodes: readonly TreeNode[], key: string, { nulls = fal
 				pointers: curr(node.id),
 				flash: { [node.id]: 'green' },
 				caption: `Yes: found ${key}, after ${comparisons} comparison${comparisons === 1 ? '' : 's'}`,
+				line: 'found',
+				vars: { key, curr: node.value },
 				...ask,
 			})
 			return { frames, found: node.id }
@@ -62,11 +69,14 @@ export function bstSearch(nodes: readonly TreeNode[], key: string, { nulls = fal
 				flash: { [node.id]: null },
 				dim: [...subtree(index, nodes[0].id)],
 				caption: `${key} ${sign} ${node.value}, but ${node.value} has no ${side} child: curr = null, so ${key} is not in the tree`,
+				line: 'missing',
+				vars: { key, curr: 'null' },
 				...ask,
 			})
 			return { frames }
 		}
 		how = `${key} ${sign} ${node.value}, so it can't be on the ${otherSide}: curr = curr.${side} (${index.get(next)!.value})`
+		line = side
 		prev = node.id
 		node = index.get(next)!
 		comparisons++
@@ -194,4 +204,64 @@ export function bstBuild(keys: readonly string[], order: 'sorted' | 'shuffled'):
 function clear(frames: readonly Frame[]): Record<string, null> {
 	const lit = new Set(frames.flatMap((f) => Object.keys(f.flash ?? {})))
 	return Object.fromEntries([...lit].map((k) => [k, null]))
+}
+
+/** One step that lights a node, saying why. */
+const highlight = (id: string, color: MarkColor, caption: string): Frame => ({ flash: { [id]: color }, caption })
+
+/**
+ * Insert `key`, step by step: each comparison on the way down (the last one says where the new key
+ * goes), each a line of the code. In predict mode the class is asked each way first.
+ */
+export function bstInsertSteps(nodes: readonly TreeNode[], key: string) {
+	const result = bstInsert(nodes, key)
+	const valueOf = new Map(nodes.map((n) => [n.id, n.value]))
+	const frames = result.path.map((id, i): Frame => {
+		const v = valueOf.get(id)!
+		const cmp = compareKeys(key, v)
+		const ask = { ask: i === 0 ? `Insert ${key}, starting at the root: ${key} vs ${v}, which way?` : `${key} vs ${v}: which way?`, askFocus: [id] }
+		const vars = { key, curr: v }
+		if (cmp === 0) return { ...highlight(id, 'orange', `${key} = ${v}: already in the tree`), ...ask, line: 'found', vars }
+		const [sign, side] = cmp < 0 ? ['<', 'left'] : ['>', 'right']
+		const last = i === result.path.length - 1
+		return {
+			...highlight(id, 'orange', last ? `${key} ${sign} ${v}, which has no ${side} child: ${key} goes there` : `${key} ${sign} ${v}: go ${side}`),
+			...ask,
+			line: last ? `hang-${side}` : side,
+			vars,
+		}
+	})
+	return { result, frames }
+}
+
+/**
+ * Delete node `id`, step by step: which case it is; with two children the walk to the successor
+ * (right once, then left as far as it goes) and how it is relinked (lecture 8b's 3.1 or 3.2).
+ */
+export function bstDeleteSteps(nodes: readonly TreeNode[], id: string) {
+	const result = bstDelete(nodes, id)
+	const valueOf = new Map(nodes.map((n) => [n.id, n.value]))
+	const v = valueOf.get(id)
+	const why = {
+		leaf: `Delete ${v}: a leaf, so just remove it`,
+		'one-child': `Delete ${v}: it has one child, which takes its place`,
+		'two-children': `Delete ${v}: two children, so its successor, the smallest key on its right, will take its place`,
+	}[result.kind]
+	const s = result.successor
+	const sv = s && valueOf.get(s)
+	const moves =
+		result.twoChildren === '3.1'
+			? `${sv} is ${v}'s right child, with no left child: it moves up into ${v}'s place and ${v}'s left subtree hangs on as its left (case 3.1)`
+			: `${sv} has no left child: its right subtree takes its place, then ${sv} moves up into ${v}'s place with both of ${v}'s subtrees (case 3.2)`
+	const node = { node: v ?? '' }
+	const frames: Frame[] = [
+		{ ...highlight(id, 'red', why), line: { leaf: 'leaf', 'one-child': 'one', 'two-children': 'two' }[result.kind], vars: node },
+		...result.path.map((p, i) => ({
+			...highlight(p, 'orange', i === 0 ? `Go right to ${valueOf.get(p)}` : `Go left to ${valueOf.get(p)}`),
+			line: i === 0 ? 'go-right' : 'go-left',
+			vars: { ...node, s: valueOf.get(p) ?? '' },
+		})),
+		...(s ? [{ ...highlight(s, 'green', moves), line: result.twoChildren === '3.2' ? 'deep' : 'move-up', vars: { ...node, s: sv ?? '' } }] : []),
+	]
+	return { result, frames }
 }

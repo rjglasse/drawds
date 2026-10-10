@@ -121,17 +121,19 @@ export function enqueue(start: QueueState, value: string): ArrayOperation {
 		return { frames: r.frames, result: r.state, finalFlash: { [used]: DONE } }
 	}
 	const rear = (front + used) % capacity
+	r.let('value', value)
 	if (used >= capacity) {
 		r.step(`Enqueue ${value}: size = capacity = ${capacity}, the queue is full (rear has come round to front)`, {
 			lit: { [rear]: GONE },
 			pointers: queueMarkers(front, rear),
+			line: 'full',
 		})
-		return { frames: r.frames }
+		return { frames: r.frames, code: 'queue-enqueue' }
 	}
 	const values = [...r.state.values]
 	values[rear] = value
 	r.set({ ...r.state, values })
-	r.step(`Enqueue ${value}: a[rear] = a[${rear}] = ${value}`, { lit: { [rear]: DONE }, pointers: queueMarkers(front, rear) })
+	r.step(`Enqueue ${value}: a[rear] = a[${rear}] = ${value}`, { lit: { [rear]: DONE }, pointers: queueMarkers(front, rear), line: 'store' })
 	const next = (rear + 1) % capacity
 	r.set({ ...r.state, used: used + 1 })
 	const wrap = next === 0 ? `: past the end, it wraps round to 0` : ''
@@ -139,8 +141,9 @@ export function enqueue(start: QueueState, value: string): ArrayOperation {
 	r.step(`rear = (rear + 1) % ${capacity} = ${next}${wrap}; size = ${used + 1}${full}`, {
 		lit: { [rear]: DONE },
 		pointers: queueMarkers(front, next),
+		line: 'rear',
 	})
-	return { frames: r.frames, result: r.state, finalFlash: { [rear]: DONE } }
+	return { frames: r.frames, result: r.state, finalFlash: { [rear]: DONE }, code: 'queue-enqueue' }
 }
 
 /**
@@ -153,13 +156,15 @@ export function dequeue(start: QueueState): ArrayOperation {
 	const capacity = start.values.length
 	const r = recorder(start, { moves: 0 })
 	const rear = fixed ? (front + used) % Math.max(1, capacity) : used
+	const code = fixed ? 'queue-dequeue' : undefined
 	if (used === 0) {
-		r.step('Dequeue: size = 0, the queue is empty', { pointers: queueMarkers(front, rear) })
-		return { frames: r.frames }
+		r.step('Dequeue: size = 0, the queue is empty', { pointers: queueMarkers(front, rear), line: 'empty' })
+		return { frames: r.frames, code }
 	}
 	const v = start.values[front]
 	const taken = [{ title: 'dequeued', items: [v] }]
-	r.step(`Dequeue: v = a[front] = a[${front}] = ${v}`, { lit: { [front]: LOOK }, pointers: queueMarkers(front, rear), strips: taken })
+	r.let('v', v)
+	r.step(`Dequeue: v = a[front] = a[${front}] = ${v}`, { lit: { [front]: LOOK }, pointers: queueMarkers(front, rear), strips: taken, line: 'take' })
 	if (fixed) {
 		const next = (front + 1) % capacity
 		r.set({ ...r.state, values: r.state.values.map((x, i) => (i === front ? '' : x)), used: used - 1, front: next })
@@ -167,8 +172,9 @@ export function dequeue(start: QueueState): ArrayOperation {
 		r.step(`front = (front + 1) % ${capacity} = ${next}${wrap}; size = ${used - 1}. Nothing moved: dequeued ${v}, the first in`, {
 			pointers: queueMarkers(next, rear),
 			strips: taken,
+			line: 'front',
 		})
-		return { frames: r.frames, result: r.state }
+		return { frames: r.frames, result: r.state, code }
 	}
 	// A list: a[0] goes, and every value after it moves one cell left.
 	for (let i = 0; i < used - 1; i++) {
@@ -192,7 +198,7 @@ export function peekQueue(start: QueueState): ArrayOperation {
 	const { used, front, fixed } = start
 	const r = recorder(start, {})
 	const rear = fixed ? (front + used) % Math.max(1, start.values.length) : used
-	if (used === 0) r.step('Peek: size = 0, the queue is empty: nothing to see', { pointers: queueMarkers(front, rear) })
-	else r.step(`Peek: a[front] = ${start.values[front]}, still first in line`, { lit: { [front]: PEEK }, pointers: queueMarkers(front, rear) })
-	return { frames: r.frames }
+	if (used === 0) r.step('Peek: size = 0, the queue is empty: nothing to see', { pointers: queueMarkers(front, rear), line: 'empty' })
+	else r.step(`Peek: a[front] = ${start.values[front]}, still first in line`, { lit: { [front]: PEEK }, pointers: queueMarkers(front, rear), line: 'peek' })
+	return { frames: r.frames, code: fixed ? 'queue-peek' : undefined }
 }

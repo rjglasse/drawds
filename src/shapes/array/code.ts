@@ -606,4 +606,116 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			        raise IndexError('peek at an empty stack')
 			    return self.a[self.top]             @peek $top`,
 	},
+	// Insert by shifting, the array growing by one cell (as a Python list does).
+	'array-insert': {
+		java: String.raw`
+			void insert(int k, int value) {               $k $value
+			    a = Arrays.copyOf(a, a.length + 1);       @grow
+			    for (int i = a.length - 1; i > k; i--)    $i
+			        a[i] = a[i - 1];                      @shift
+			    a[k] = value;                             @place
+			}`,
+		python: String.raw`
+			def insert(a, k, value):                  $k $value
+			    a.append(None)                        @grow
+			    for i in range(len(a) - 1, k, -1):    $i
+			        a[i] = a[i - 1]                   @shift
+			    a[k] = value                          @place`,
+	},
+	// Delete by shifting, the array shrinking by one cell.
+	'array-delete': {
+		java: String.raw`
+			void delete(int k) {                          $k
+			    for (int i = k; i < a.length - 1; i++)    @start $i
+			        a[i] = a[i + 1];                      @shift
+			    a = Arrays.copyOf(a, a.length - 1);       @shrink
+			}`,
+		python: String.raw`
+			def delete(a, k):                     $k
+			    for i in range(k, len(a) - 1):    @start $i
+			        a[i] = a[i + 1]               @shift
+			    a.pop()                           @shrink`,
+	},
+	// A fixed capacity: size counts the values in use, the rest are spare slots.
+	'array-insert-fixed': {
+		java: String.raw`
+			void insert(int k, int value) {                                       $k $value
+			    if (size == a.length) throw new IllegalStateException("full");    @full
+			    for (int i = size; i > k; i--)                                    @start $i
+			        a[i] = a[i - 1];                                              @shift
+			    a[k] = value;                                                     @place
+			    size++;
+			}`,
+		python: String.raw`
+			def insert(self, k, value):                      $k $value
+			    if self.size == len(self.a):                 @full
+			        raise IndexError("the array is full")
+			    for i in range(self.size, k, -1):            @start $i
+			        self.a[i] = self.a[i - 1]                @shift
+			    self.a[k] = value                            @place
+			    self.size += 1`,
+	},
+	// Delete with a fixed capacity: the last slot in use is spare again.
+	'array-delete-fixed': {
+		java: String.raw`
+			void delete(int k) {                      $k
+			    for (int i = k; i < size - 1; i++)    @start $i
+			        a[i] = a[i + 1];                  @shift
+			    size--;                               @shrink
+			}`,
+		python: String.raw`
+			def delete(self, k):                     $k
+			    for i in range(k, self.size - 1):    @start $i
+			        self.a[i] = self.a[i + 1]        @shift
+			    self.size -= 1                       @shrink`,
+	},
+	// Lecture 6's ArrayQueue, a circular buffer: rear and front wrap round, nothing moves.
+	'queue-enqueue': {
+		java: String.raw`
+			void enqueue(int value) {                                             $value
+			    if (size == a.length) throw new IllegalStateException("full");    @full
+			    a[rear] = value;                                                  @store $rear
+			    rear = (rear + 1) % a.length;                                     @rear
+			    size++;
+			}`,
+		python: String.raw`
+			def enqueue(self, value):                        $value
+			    if self.size == len(self.a):                 @full
+			        raise IndexError("the queue is full")
+			    self.a[self.rear] = value                    @store $rear
+			    self.rear = (self.rear + 1) % len(self.a)    @rear
+			    self.size += 1`,
+	},
+	// Dequeue: take a[front], then front moves on, round past the end.
+	'queue-dequeue': {
+		java: String.raw`
+			int dequeue() {
+			    if (size == 0) throw new NoSuchElementException();    @empty
+			    int v = a[front];                                     @take $front $v
+			    front = (front + 1) % a.length;                       @front
+			    size--;
+			    return v;
+			}`,
+		python: String.raw`
+			def dequeue(self):
+			    if self.size == 0:                             @empty
+			        raise IndexError("the queue is empty")
+			    v = self.a[self.front]                         @take $front $v
+			    self.front = (self.front + 1) % len(self.a)    @front
+			    self.size -= 1
+			    return v`,
+	},
+	// Peek at the front: nothing changes.
+	'queue-peek': {
+		java: String.raw`
+			int peek() {
+			    if (size == 0) throw new NoSuchElementException();    @empty
+			    return a[front];                                      @peek $front
+			}`,
+		python: String.raw`
+			def peek(self):
+			    if self.size == 0:                            @empty
+			        raise IndexError("the queue is empty")
+			    return self.a[self.front]                     @peek $front`,
+	},
 }

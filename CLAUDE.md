@@ -269,8 +269,13 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   values and, beside them, `while tests` (the test also runs when j > 0 stops it, comparing nothing: lectures 2-3's 54
   and 14 are the tests); its last step says why the two differ. Where a slide's count is off, drawds counts correctly. Picking another language swaps an unedited box to that language's version (`onBeforeUpdate`).
   The arrays' code is `src/shapes/array/code.ts` (searches, scans, every sort, shuffles, lecture 6's ArrayStack push / pop /
-  peek for a fixed stack; Java and Python), the lists' `src/shapes/list/code.ts` (lecture 5's indexOf for find, on a plain
-  list: curr shown by its node's value through `Frame.vars`, since a list pointer is at a node key).
+  peek for a fixed stack and ArrayQueue enqueue / dequeue / peek for the circular buffer, insert / delete by shifting, growing
+  or with a fixed capacity; Java and Python), the lists' `src/shapes/list/code.ts` (lecture 5's indexOf for find, size counted,
+  insert after / at the head, append, delete, reverse, and the linked stack's and queue's operations, `linked-*`: on a plain
+  singly linked list only, with a tail a version of its own (`plainCode`, `-tail`); curr, prev, node shown by their nodes'
+  values through `Frame.vars`, since a list pointer is at a node key), the trees' `src/shapes/tree/code.ts` (traversals,
+  measures, BST min / max, and lecture 8b's BST search, insert and delete as `bstInsertSteps` / `bstDeleteSteps` walk them,
+  delete's three cases with the successor relinked, 3.1 or 3.2), the graphs' `src/shapes/graph/code.ts`.
 - `src/shapes/hash/` - hash tables (node-link): `buckets: string[][]` (a chain per bucket, or one entry per slot with
   `TOMBSTONE` for deleted), strategy style `drawds:hash-strategy` chaining / probing (switching re-inserts the
   keys). Lecture 7: a hash code (`drawds:hash-code`: character codes added; the first three letters, A = 1, added, the

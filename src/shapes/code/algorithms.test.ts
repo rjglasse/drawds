@@ -3,6 +3,10 @@ import type { Frame } from '../../nodelink/playback'
 import {
 	binarySearch,
 	bubbleSort,
+	deleteAt,
+	deleteFixed,
+	insertAt,
+	insertFixed,
 	hoarePartition,
 	insertionSort,
 	linearSearch,
@@ -16,11 +20,12 @@ import {
 import { partition3Array, quicksort } from '../array/quicksorts'
 import { allUnique, findMax, sentinelSearch } from '../array/scans'
 import { fisherYates, unfairShuffle } from '../array/shuffles'
-import { peekStack, pop, push } from '../array/stack-queue'
-import { findInList } from '../list/operations'
+import { dequeue, enqueue, peekQueue, peekStack, pop, push } from '../array/stack-queue'
+import { appendToList, deleteFromList, findInList, insertIntoList, reverseList } from '../list/operations'
+import { dequeueFrom, enqueueOnto, peekAt, popFrom, pushOnto } from '../list/stack-queue'
 import { countNodes } from '../list/size'
 import { measureTree } from '../tree/measure'
-import { bstExtreme } from '../tree/search'
+import { bstDeleteSteps, bstExtreme, bstInsertSteps, bstSearch } from '../tree/search'
 import { bfs, dfs } from '../graph/traverse'
 import { components } from '../graph/algorithms'
 import { findCycle, shortestPath } from '../graph/paths'
@@ -30,12 +35,24 @@ import { ALGORITHMS, algorithmCode, parseCode, shownValues, taggedLine } from '.
 import { codeShapeMigrations } from './code-shape-types'
 
 const array = (...values: (string | number)[]): ArrayState => ({ values: values.map(String), marks: {} })
+const plainList = (values: string[]) => ({ nodes: values.map((value, i) => ({ id: `n${i}`, value, dx: 0, dy: 0 })), direction: 'right' as const, size: 'm' as const })
 const treeNode = (id: string, value: string, children: (string | null)[] = [null, null]) => ({ id, value, children, dx: 0, dy: 0 })
 // Two pieces: A-B-C in a triangle, D-E.
 const graph = {
 	nodes: ['A', 'B', 'C', 'D', 'E'].map((v, i) => ({ id: v.toLowerCase(), value: v, x: i, y: 0 })),
 	edges: [['a', 'b'], ['b', 'c'], ['a', 'c'], ['d', 'e']].map(([from, to], i) => ({ id: `e${i}`, from, to, weight: '1' })),
 }
+// A BST: 40 (20 (10, 30 (25, -)), 50 (-, 60)). Every delete case: a leaf (10), one child (50, 30), two
+// children with the successor deeper (20: 25, case 3.2) or the right child itself (40: 50, case 3.1).
+const bst = [
+	treeNode('a', '40', ['b', 'c']),
+	treeNode('b', '20', ['d', 'e']),
+	treeNode('c', '50', [null, 'g']),
+	treeNode('d', '10'),
+	treeNode('e', '30', ['f', null]),
+	treeNode('f', '25'),
+	treeNode('g', '60'),
+]
 // A, B and C, B with one child D: every kind of node.
 const tree = [treeNode('a', 'A', ['b', 'c']), treeNode('b', 'B', ['d', null]), treeNode('c', 'C'), treeNode('d', 'D')]
 
@@ -118,6 +135,18 @@ describe('algorithm code', () => {
 			mergeSort(array(7, 2, 9, 1, 5, 3)),
 			unfairShuffle(array(7, 2, 9, 1), mulberry32(3)),
 			fisherYates(array(7, 2, 9, 1), mulberry32(3)),
+			// Insert and delete by shifting, growing and with a fixed capacity; lecture 6's ArrayQueue.
+			insertAt(array(5, 7, 9), 1, '4'),
+			deleteAt(array(5, 7, 9), 0),
+			insertFixed(array(5, 7, 0, 0), 2, 1, '4'),
+			insertFixed(array(5, 7), 2, 1, '4'),
+			deleteFixed(array(5, 7, 9, 0), 3, 0),
+			enqueue({ ...array(5, 7, 0), used: 2, front: 0, fixed: true }, '4'),
+			enqueue({ ...array(5, 7), used: 2, front: 0, fixed: true }, '4'),
+			dequeue({ ...array(5, 7, 0), used: 2, front: 0, fixed: true }),
+			dequeue({ ...array(0, 0), used: 0, front: 0, fixed: true }),
+			peekQueue({ ...array(5, 7, 0), used: 2, front: 0, fixed: true }),
+			peekQueue({ ...array(0, 0), used: 0, front: 0, fixed: true }),
 			// Lecture 6's ArrayStack: a fixed stack.
 			push({ ...array(1, 2, 0), used: 2, fixed: true }, '7'),
 			push({ ...array(1, 2), used: 2, fixed: true }, '7'),
@@ -125,6 +154,34 @@ describe('algorithm code', () => {
 			pop({ ...array(0, 0), used: 0, fixed: true }),
 			peekStack({ ...array(1, 2, 0), used: 2, fixed: true }),
 			peekStack({ ...array(0), used: 0, fixed: true }),
+			// Lecture 5's list, changed: plain singly linked, with a tail and without; the linked stack and queue.
+			...[{}, { tail: 'tail' as const }].flatMap((variant) => {
+				const props = { ...plainList(['7', '3', '9']), ...variant }
+				return [
+					insertIntoList(props, 'n1', 'n9', '5'),
+					insertIntoList(props, 'n2', 'n9', '5'),
+					insertIntoList(props, undefined, 'n9', '5'),
+					insertIntoList({ ...props, nodes: [] }, undefined, 'n9', '5'),
+					appendToList(props, 'n9', '5'),
+					deleteFromList(props, 'n0'),
+					deleteFromList(props, 'n2'),
+					deleteFromList({ ...props, nodes: props.nodes.slice(0, 1) }, 'n0'),
+					reverseList(props),
+				]
+			}),
+			pushOnto({ ...plainList(['7', '3']), kind: 'stack' }, 'n9', '5'),
+			pushOnto({ ...plainList([]), kind: 'stack' }, 'n9', '5'),
+			popFrom({ ...plainList(['7', '3']), kind: 'stack' }),
+			popFrom({ ...plainList([]), kind: 'stack' }),
+			peekAt({ ...plainList(['7']), kind: 'stack' }),
+			peekAt({ ...plainList([]), kind: 'stack' }),
+			enqueueOnto({ ...plainList(['7', '3']), kind: 'queue' }, 'n9', '5'),
+			enqueueOnto({ ...plainList([]), kind: 'queue' }, 'n9', '5'),
+			dequeueFrom({ ...plainList(['7', '3']), kind: 'queue' }),
+			dequeueFrom({ ...plainList(['7']), kind: 'queue' }),
+			dequeueFrom({ ...plainList([]), kind: 'queue' }),
+			peekAt({ ...plainList(['7']), kind: 'queue' }),
+			peekAt({ ...plainList([]), kind: 'queue' }),
 			// Lecture 5's size, counted.
 			countNodes({ nodes: ['7', '3'].map((value, i) => ({ id: `n${i}`, value, dx: 0, dy: 0 })), direction: 'right', size: 'm' }),
 			// Lecture 5's indexOf.
@@ -134,6 +191,14 @@ describe('algorithm code', () => {
 			...(['pre', 'in', 'post', 'level'] as const).flatMap((order) => [traverseTree(tree, 'a', order), traverseTree(tree, 'a', order, { nulls: true })]),
 			...(['height', 'height-levels', 'leaves', 'size'] as const).flatMap((m) => [measureTree(tree, 'a', m), measureTree(tree, 'a', m, { nulls: true })]),
 			{ ...bstExtreme(tree, 'a', 'min'), code: 'bst-min' },
+			// Lecture 8b's BST: search, insert, delete (every case).
+			{ ...bstSearch(bst, '20'), code: 'bst-search' },
+			{ ...bstSearch(bst, '33'), code: 'bst-search' },
+			{ ...bstSearch(bst, '50'), code: 'bst-search' },
+			{ ...bstInsertSteps(bst, '33'), code: 'bst-insert' },
+			{ ...bstInsertSteps(bst, '20'), code: 'bst-insert' },
+			{ ...bstInsertSteps(bst, '10'), code: 'bst-insert' },
+			...['d', 'c', 'e', 'b', 'a'].map((id) => ({ ...bstDeleteSteps(bst, id), code: 'bst-delete' })),
 			{ ...bstExtreme(tree, 'a', 'max'), code: 'bst-max' },
 			// Lecture 9: the searches and components, on a graph in two pieces.
 			bfs(graph, 'a', false),

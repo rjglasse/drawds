@@ -162,4 +162,101 @@ export const TREE_CODE: Record<string, CodeSource> = {
 			        node = node.right           @step
 			    return node                     @found`,
 	},
+	// Lecture 8b's BST, walked as the steps walk it: search and insert go down from the root comparing.
+	'bst-search': {
+		java: String.raw`
+			Node search(int key) {                          $key
+			    Node curr = root;                           @start $curr
+			    while (curr != null) {
+			        if (key == curr.key) return curr;       @found
+			        if (key < curr.key) curr = curr.left;   @left
+			        else curr = curr.right;                 @right
+			    }
+			    return null;                                @missing
+			}`,
+		python: String.raw`
+			def search(self, key):                  $key
+			    curr = self.root                    @start $curr
+			    while curr is not None:
+			        if key == curr.key:
+			            return curr                 @found
+			        if key < curr.key:
+			            curr = curr.left            @left
+			        else:
+			            curr = curr.right           @right
+			    return None                         @missing`,
+	},
+	'bst-insert': {
+		java: String.raw`
+			void insert(int key) {                                  $key
+			    Node curr = root;                                   $curr
+			    while (true) {
+			        if (key == curr.key) return;                    @found
+			        if (key < curr.key) {                           @left
+			            if (curr.left == null) {
+			                curr.left = new Node(key); return;      @hang-left
+			            }
+			            curr = curr.left;
+			        } else {                                        @right
+			            if (curr.right == null) {
+			                curr.right = new Node(key); return;     @hang-right
+			            }
+			            curr = curr.right;
+			        }
+			    }
+			}`,
+		python: String.raw`
+			def insert(self, key):                      $key
+			    curr = self.root                        $curr
+			    while True:
+			        if key == curr.key:                 @found
+			            return
+			        if key < curr.key:                  @left
+			            if curr.left is None:
+			                curr.left = Node(key)       @hang-left
+			                return
+			            curr = curr.left
+			        else:                               @right
+			            if curr.right is None:
+			                curr.right = Node(key)      @hang-right
+			                return
+			            curr = curr.right`,
+	},
+	// Three cases; with two children the successor (the leftmost of the right subtree) is relinked
+	// into the node's place, no key copied: 3.1 it is the right child, 3.2 it is deeper.
+	// replace(x, y): x's parent (or the root) points at y instead.
+	'bst-delete': {
+		java: String.raw`
+			void delete(Node node) {                                $node
+			    if (node.left == null && node.right == null)        @leaf
+			        replace(node, null);
+			    else if (node.left == null || node.right == null)   @one
+			        replace(node, node.left != null ? node.left : node.right);
+			    else {                                              @two
+			        Node s = node.right;                            @go-right $s
+			        while (s.left != null) s = s.left;              @go-left
+			        if (s != node.right) {                          @deep
+			            replace(s, s.right);
+			            s.right = node.right;
+			        }
+			        s.left = node.left;                             @move-up
+			        replace(node, s);
+			    }
+			}`,
+		python: String.raw`
+			def delete(self, node):                             $node
+			    if node.left is None and node.right is None:    @leaf
+			        self.replace(node, None)
+			    elif node.left is None or node.right is None:   @one
+			        self.replace(node, node.left or node.right)
+			    else:                                           @two
+			        s = node.right                              @go-right $s
+			        while s.left is not None:                   @go-left
+			            s = s.left
+			        if s is not node.right:                     @deep
+			            self.replace(s, s.right)
+			            s.right = node.right
+			        s.left = node.left                          @move-up
+			        self.replace(node, s)`,
+	},
 }

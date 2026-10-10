@@ -1081,16 +1081,17 @@ export function deleteAt(start: ArrayState, k: number): ArrayOperation {
 	const n = start.values.length
 	const r = recorder(start, { moves: 0 })
 	const v = start.values[k]
+	r.let('k', k)
 	r.step(
 		k === n - 1
 			? `Delete a[${k}] = ${v}, the last value: nothing has to move`
 			: `Delete a[${k}] = ${v}: every value after it moves one cell left`,
-		{ lit: { [k]: GONE }, pointers: [ptr('i', k)], ask: `Delete a[${k}]: what has to happen to the values after it?`, askFocus: [k] }
+		{ lit: { [k]: GONE }, pointers: [ptr('i', k)], ask: `Delete a[${k}]: what has to happen to the values after it?`, askFocus: [k], line: 'start' }
 	)
 	for (let i = k; i < n - 1; i++) {
 		r.set(copied(r.state, i + 1, i))
 		r.counts.moves++
-		r.step(`a[${i}] = a[${i + 1}] (${r.state.values[i]})`, { pointers: [ptr('i', i)], moves: [[i + 1, i]], ask: 'Which value moves next, and where to?' })
+		r.step(`a[${i}] = a[${i + 1}] (${r.state.values[i]})`, { pointers: [ptr('i', i)], moves: [[i + 1, i]], ask: 'Which value moves next, and where to?', line: 'shift' })
 	}
 	// The last step shows the result, so the array stays as it is once the operation is done.
 	const result = withoutCell(start, k)
@@ -1098,8 +1099,9 @@ export function deleteAt(start: ArrayState, k: number): ArrayOperation {
 	const moved = r.counts.moves
 	r.step(`The array shrinks by one cell (it grows and shrinks, like a Python list). ${moved} value${moved === 1 ? '' : 's'} moved`, {
 		ask: 'Every value after it has moved: what now?',
+		line: 'shrink',
 	})
-	return { frames: r.frames, result }
+	return { frames: r.frames, result, code: 'array-delete' }
 }
 
 /**
@@ -1109,11 +1111,13 @@ export function deleteAt(start: ArrayState, k: number): ArrayOperation {
 export function insertAt(start: ArrayState, k: number, value: string): ArrayOperation {
 	const n = start.values.length
 	const r = recorder({ values: [...start.values, ''], marks: start.marks }, { moves: 0 })
+	r.let('k', k)
+	r.let('value', value)
 	r.step(
 		k === n
 			? `Insert ${value} at the end: the array grows by one cell, and nothing has to move`
 			: `Insert ${value} at index ${k}. First the array grows by one cell, to make room`,
-		{ lit: { [n]: LOOK }, ask: `Insert ${value} at index ${k}: where does the room come from?` }
+		{ lit: { [n]: LOOK }, ask: `Insert ${value} at index ${k}: where does the room come from?`, line: 'grow' }
 	)
 	for (let i = n; i > k; i--) {
 		r.set(copied(r.state, i - 1, i))
@@ -1124,6 +1128,7 @@ export function insertAt(start: ArrayState, k: number, value: string): ArrayOper
 			moves: [[i - 1, i]],
 			// The first is the lesson: copying from the front would overwrite what hasn't moved yet.
 			ask: i === n ? 'There is room at the end: which value moves first?' : 'Which value moves next, and where to?',
+			line: 'shift',
 		})
 	}
 	const result = withCell(start, k, value)
@@ -1133,8 +1138,9 @@ export function insertAt(start: ArrayState, k: number, value: string): ArrayOper
 		lit: { [k]: DONE },
 		pointers: [ptr('i', k)],
 		ask: `Every value from index ${k} on has moved: what now?`,
+		line: 'place',
 	})
-	return { frames: r.frames, result, finalFlash: { [k]: DONE } }
+	return { frames: r.frames, result, finalFlash: { [k]: DONE }, code: 'array-insert' }
 }
 
 /** The array without cell k: later values (and their marks) one index down. */
@@ -1191,38 +1197,43 @@ export function insertFixed(start: ArrayState, used: number, k: number, value: s
 	if (used >= capacity) {
 		r.step(`size = capacity = ${capacity}: the array is full, so there is no room for ${value}. Grow it first (Capacity > Grow)`, {
 			lit: { [capacity - 1]: GONE },
+			line: 'full',
 		})
-		return { frames: r.frames }
+		return { frames: r.frames, code: 'array-insert-fixed' }
 	}
-	r.step(`Insert ${value} at index ${k}: size ${used} < capacity ${capacity}, so a[${used}] is free`, { lit: { [used]: LOOK } })
+	r.let('k', k)
+	r.let('value', value)
+	r.step(`Insert ${value} at index ${k}: size ${used} < capacity ${capacity}, so a[${used}] is free`, { lit: { [used]: LOOK }, line: 'start' })
 	for (let i = used; i > k; i--) {
 		r.set(copied(r.state, i - 1, i))
 		r.counts.moves++
 		const why = i === used ? ': from the end, so nothing is overwritten' : ''
-		r.step(`a[${i}] = a[${i - 1}] (${r.state.values[i]})${why}`, { pointers: [ptr('i', i)], moves: [[i - 1, i]] })
+		r.step(`a[${i}] = a[${i - 1}] (${r.state.values[i]})${why}`, { pointers: [ptr('i', i)], moves: [[i - 1, i]], line: 'shift' })
 	}
 	const result = { ...withUsedCell(start, used, k, value), used: used + 1 }
 	r.set(result)
-	r.step(`a[${k}] = ${value}; size = ${used + 1}. ${plural(r.counts.moves, 'value')} moved`, { lit: { [k]: DONE }, pointers: [ptr('i', k)] })
-	return { frames: r.frames, result, finalFlash: { [k]: DONE } }
+	r.step(`a[${k}] = ${value}; size = ${used + 1}. ${plural(r.counts.moves, 'value')} moved`, { lit: { [k]: DONE }, pointers: [ptr('i', k)], line: 'place' })
+	return { frames: r.frames, result, finalFlash: { [k]: DONE }, code: 'array-insert-fixed' }
 }
 
 /** Delete a[k] of a fixed array: the used values after it move left, then the last used slot is spare. */
 export function deleteFixed(start: ArrayState, used: number, k: number): ArrayOperation {
 	const r = recorder({ ...start, used }, { moves: 0 })
+	r.let('k', k)
 	r.step(`Delete a[${k}] = ${start.values[k]}: the values after it, up to a[size - 1], move one cell left`, {
 		lit: { [k]: GONE },
 		pointers: [ptr('i', k)],
+		line: 'start',
 	})
 	for (let i = k; i < used - 1; i++) {
 		r.set(copied(r.state, i + 1, i))
 		r.counts.moves++
-		r.step(`a[${i}] = a[${i + 1}] (${r.state.values[i]})`, { pointers: [ptr('i', i)], moves: [[i + 1, i]] })
+		r.step(`a[${i}] = a[${i + 1}] (${r.state.values[i]})`, { pointers: [ptr('i', i)], moves: [[i + 1, i]], line: 'shift' })
 	}
 	const result = { ...withoutUsedCell(start, k), used: used - 1 }
 	r.set(result)
-	r.step(`size = ${used - 1}: a[${used - 1}] is a spare slot again. ${plural(r.counts.moves, 'value')} moved`)
-	return { frames: r.frames, result }
+	r.step(`size = ${used - 1}: a[${used - 1}] is a spare slot again. ${plural(r.counts.moves, 'value')} moved`, { line: 'shrink' })
+	return { frames: r.frames, result, code: 'array-delete-fixed' }
 }
 
 /**
