@@ -442,3 +442,32 @@ describe('deleting the last node (lecture 5)', () => {
 		expect(after!.map((n) => n.value)).toEqual(['7', '3', '9'])
 	})
 })
+
+describe("lecture 5's empty list", () => {
+	const one = { ...props, tail: 'tail' as const, nodes: [nodes[0]] }
+	const empty = { ...props, tail: 'tail' as const, nodes: [] }
+
+	it('deleting the only node leaves head and tail null', () => {
+		const { frames, nodes: after } = deleteFromList(one, 'n0')
+		expect(after).toEqual([])
+		expect(frames.map((f) => f.caption)).toEqual([
+			'Delete the head, 7',
+			'head = head.next: null, nothing left',
+			'tail = null: it was the only node, so the list is empty',
+			'Nothing points at 7 any more: it is out of the list',
+		])
+	})
+
+	it('inserting into it: the node points at null, then head and tail both point at it', () => {
+		const { frames, nodes: after } = insertIntoList(empty, undefined, 'n9', '2')
+		expect(after!.map((n) => n.value)).toEqual(['2'])
+		expect(frames.map((f) => f.caption)).toEqual([
+			'node = new Node(2): its next is null for now',
+			'node.next = head: null, as the list is empty',
+			'head = node: 2 is the first node now',
+			'tail = node: 2 is the last node too, the only one',
+		])
+		// Appending to it is the same.
+		expect(appendToList(empty, 'n9', '2').frames.map((f) => f.caption)).toEqual(frames.map((f) => f.caption))
+	})
+})

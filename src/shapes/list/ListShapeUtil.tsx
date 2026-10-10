@@ -147,7 +147,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 
 	/** A list keeps at least one node; delete the shape to remove it entirely. A stack or queue pops or dequeues. */
 	canRemoveNode(shape: ListShape) {
-		return shape.props.kind === 'list' && shape.props.nodes.length > 1
+		return shape.props.kind === 'list' && (shape.props.nodes.length > 1 || canBeEmpty(shape.props))
 	}
 
 	// Pointers (curr, prev...) sit below the list (right of a vertical one), clear of the head label,
@@ -233,7 +233,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 				...change,
 				run: run('insert', () => this.insertOp(props(), undefined)),
 			},
-			...(nodes.length > 1
+			...(nodes.length > 1 || canBeEmpty(shape.props)
 				? [{ id: 'list-delete', label: `Delete ${node.value}`, ...change, run: run('delete', () => deleteFromList(props(), key)) }]
 				: []),
 			...(nodes.length > 1 && ends ? [{ id: 'list-reverse', label: 'Reverse the list', ...walk, run: run('reverse', () => reverseList(props())) }] : []),
@@ -276,10 +276,18 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 
 	override shapeOperations(shape: ListShape): NodeOperation[] {
 		const { kind, nodes } = shape.props
-		if (kind === 'list') return []
 		const id = shape.id
 		const props = () => (this.editor.getShape(id) as ListShape | undefined)?.props ?? shape.props
 		const run = (label: string, op: () => ListOperation) => () => this.play(id, label, op)
+		// An empty list (lecture 5 starts from one) has no node to right-click: its inserts are here.
+		if (kind === 'list') {
+			if (nodes.length) return []
+			const change = { group: 'change' }
+			return [
+				{ ...change, id: 'list-insert-head', label: 'Insert at the head', run: run('insert', () => this.insertOp(props(), undefined)) },
+				{ ...change, id: 'list-append', label: 'Append at the end', run: run('append', () => this.appendOp(props())) },
+			]
+		}
 		const promptAt = nodes[0]?.id ?? NULL_KEY
 		if (kind === 'stack') {
 			const stack = { group: 'stack' }
@@ -452,4 +460,10 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 	private updateNodes(shape: ListShape, f: (node: ListNode, i: number) => ListNode): TLShapePartial<ListShape> {
 		return { id: shape.id, type: LIST_SHAPE_TYPE, props: { nodes: shape.props.nodes.map(f) } }
 	}
-}
+}/**
+ * Whether a list may have no nodes (lecture 5's empty list: head and tail null). Not a circular list
+ * or one with a sentinel, whose empty forms are another story, nor a list with a cycle.
+ */
+const canBeEmpty = (props: ListShape['props']) => props.ends !== 'circular' && props.sentinel !== 'sentinel' && !props.cycleTo
+
+

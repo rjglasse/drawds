@@ -54,13 +54,26 @@ test('removing the head makes the next node the head, in place', async ({ page }
 	expect(after.edges).toContainEqual(['#head', 'n1'])
 })
 
-test('the last node has no x', async ({ page }) => {
+test("a plain list's last node has an x too (the list can be empty, as lecture 5 starts); a circular list keeps its last node", async ({ page }) => {
 	await sketchList(page, [300, 250], 2)
 	await hoverNode(page, 'n1')
 	await page.getByTestId('remove-node-n1').click()
 	expect(await ids(page)).toEqual(['n0'])
+	await page.evaluate(() => {
+		const editor = window.editor!
+		const shape = editor.getCurrentPageShapes()[0]
+		editor.updateShape({ id: shape.id, type: 'linked-list', props: { ends: 'circular' } } as never)
+	})
 	await hoverNode(page, 'n0')
 	await expect(page.getByTestId('remove-node-n0')).toHaveCount(0)
+	await page.evaluate(() => {
+		const editor = window.editor!
+		const shape = editor.getCurrentPageShapes()[0]
+		editor.updateShape({ id: shape.id, type: 'linked-list', props: { ends: 'null' } } as never)
+	})
+	await hoverNode(page, 'n0')
+	await page.getByTestId('remove-node-n0').click()
+	expect(await ids(page)).toEqual([])
 })
 
 test('the start grip inserts at the head and the old nodes stay put', async ({ page }) => {

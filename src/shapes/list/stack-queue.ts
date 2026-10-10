@@ -1,6 +1,6 @@
 import type { MarkColor } from '../../cells/marks'
 import type { Frame } from '../../nodelink/playback'
-import type { Scene, SceneEdge, SceneNode } from '../../nodelink/scene'
+import type { Scene, SceneEdge } from '../../nodelink/scene'
 import { HEAD_KEY, NULL_KEY, NULL_PREV_KEY, TAIL_KEY, getListMetrics, listAxis, listScene } from './layout'
 import {
 	CHANGED,
@@ -9,6 +9,7 @@ import {
 	LOOK,
 	TAIL_EDGE,
 	besideList,
+	freshNode,
 	edgeMark,
 	listOf,
 	next,
@@ -27,25 +28,6 @@ import {
 // or front and rear, point at null. A doubly linked one keeps its prev links up to date too.
 
 const PEEK: MarkColor = 'blue'
-
-/** A new node, drawn off the list's line beside `at` (the first node, or the null of an empty list). */
-function freshNode(props: ListProps, key: string, value: string, at: { x: number; y: number }): SceneNode {
-	const { v } = listOf(props)
-	const m = getListMetrics(props.size, v.doubly)
-	const node: SceneNode = {
-		key,
-		kind: 'list-node',
-		x: at.x,
-		y: at.y,
-		w: m.nodeW,
-		h: m.nodeH,
-		value,
-		pointer: { side: props.direction === 'left' ? 'left' : 'right', width: m.pointerW, ...(v.doubly ? { back: true } : {}) },
-		editable: false,
-		draggable: false,
-	}
-	return besideList(node, key, value, at, props)
-}
 
 /** Builds a step's scene as arrows are added and re-pointed; each step lights the arrow it changed. */
 function stepper(props: ListProps, scene: Scene, frames: Frame[], pointers: () => Frame['pointers']) {

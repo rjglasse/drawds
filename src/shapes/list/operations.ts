@@ -86,6 +86,25 @@ export function besideList(template: SceneNode, key: string, value: string, at: 
 	return { ...template, key, value, x: at.x + side.x * away, y: at.y + side.y * away, editable: false, draggable: false, ghost: undefined }
 }
 
+/** A new node, drawn off the list's line beside `at` (the first node, or the null of an empty list). */
+export function freshNode(props: ListProps, key: string, value: string, at: { x: number; y: number }): SceneNode {
+	const { v } = listOf(props)
+	const m = getListMetrics(props.size, v.doubly)
+	const node: SceneNode = {
+		key,
+		kind: 'list-node',
+		x: at.x,
+		y: at.y,
+		w: m.nodeW,
+		h: m.nodeH,
+		value,
+		pointer: { side: props.direction === 'left' ? 'left' : 'right', width: m.pointerW, ...(v.doubly ? { back: true } : {}) },
+		editable: false,
+		draggable: false,
+	}
+	return besideList(node, key, value, at, props)
+}
+
 /**
  * The bend that takes a label's arrow round the node under it (`around`) to a new node off the line,
  * just clear of it: the head's arrow curves back along the list, the tail's on along it, where
@@ -216,7 +235,6 @@ export function insertIntoList(props: ListProps, afterId: string | undefined, id
 	// With a sentinel there is always a node before: inserting at the front is inserting after it.
 	const after = afterId ?? (v.sentinel ? SENTINEL_KEY : undefined)
 	const base = listScene(props)
-	const template = nodeOf(base, nodes[0].id)
 	const i = after === undefined ? -1 : chain.indexOf(after)
 	const nextKey = after === undefined ? chain[0] : (chain[i + 1] ?? end)
 	// Between curr and curr.next; after the last node of a circular list (or one with a cycle), curr.next
@@ -225,11 +243,12 @@ export function insertIntoList(props: ListProps, afterId: string | undefined, id
 	const half = getListMetrics(props.size, v.doubly).step / 2
 	const at =
 		after === undefined
-			? nodeOf(base, chain[0])
+			? nodeOf(base, chain[0] ?? NULL_KEY)
 			: nextKey === NULL_KEY || chain.indexOf(nextKey) > i
 				? { x: (nodeOf(base, after).x + nodeOf(base, nextKey).x) / 2, y: (nodeOf(base, after).y + nodeOf(base, nextKey).y) / 2 }
 				: { x: nodeOf(base, after).x + axis.x * half, y: nodeOf(base, after).y + axis.y * half }
-	const fresh = besideList(template, id, value, at, props)
+	// Beside the list's first node (or, the list empty, beside the null head points at).
+	const fresh = nodes.length ? besideList(nodeOf(base, nodes[0].id), id, value, at, props) : freshNode(props, id, value, at)
 	const edges: SceneEdge[] = []
 	let scene = { ...base, nodes: [...base.nodes, fresh] }
 	const add = (edge: SceneEdge) => {
@@ -276,6 +295,16 @@ export function insertIntoList(props: ListProps, afterId: string | undefined, id
 		if (v.tail && after === lastId) {
 			point({ [TAIL_EDGE]: id }, { [TAIL_EDGE]: roundLabel(scene, props, TAIL_KEY, after, id) })
 			step(`tail = node: ${value} is the last node now`, light(edgeMark(TAIL_EDGE)))
+		}
+	} else if (!chain.length) {
+		// Lecture 5's empty list: head (and tail) point at null, and the first node is both ends.
+		add({ key: next(id), from: id, to: NULL_KEY, directed: true, fromPointer: true, ...arrows })
+		step('node.next = head: null, as the list is empty', light(edgeMark(next(id))))
+		point({ [HEAD_EDGE]: id }, { [HEAD_EDGE]: roundLabel(scene, props, HEAD_KEY, NULL_KEY, id) })
+		step(`head = node: ${value} is the first node now`, light(edgeMark(HEAD_EDGE)))
+		if (v.tail) {
+			point({ [TAIL_EDGE]: id }, { [TAIL_EDGE]: roundLabel(scene, props, TAIL_KEY, NULL_KEY, id) })
+			step(`tail = node: ${value} is the last node too, the only one`, light(edgeMark(TAIL_EDGE)))
 		}
 	} else {
 		const head = chain[0]
@@ -336,13 +365,18 @@ export function deleteFromList(props: ListProps, id: string): ListOperation {
 		// The head, and no sentinel in front of it.
 		frames.push({ pointers: [pointer('curr', id)], flash: { [id]: GONE }, caption: `Delete the head, ${target.value}`, counts: { 'nodes visited': 1 }, ask: false })
 		point({ [HEAD_EDGE]: nextKey })
-		frames.push({ scene, pointers: [pointer('curr', id)], flash: { [edgeMark(HEAD_EDGE)]: CHANGED }, caption: `head = head.next: the list starts at ${nextName} now`, ask: NEXT_LINE })
+		frames.push({ scene, pointers: [pointer('curr', id)], flash: { [edgeMark(HEAD_EDGE)]: CHANGED }, caption: nextKey === NULL_KEY ? 'head = head.next: null, nothing left' : `head = head.next: the list starts at ${nextName} now`, ask: NEXT_LINE })
 		let lit = edgeMark(HEAD_EDGE)
 		const step = (caption: string, key: string) => {
 			frames.push({ scene, pointers: [pointer('curr', id)], flash: { [lit]: null, [edgeMark(key)]: CHANGED }, caption, ask: NEXT_LINE })
 			lit = edgeMark(key)
 		}
-		if (v.doubly) {
+		// The only node: the list is empty now, head (and tail) pointing at null.
+		if (v.tail && id === lastId) {
+			point({ [TAIL_EDGE]: NULL_KEY }, { [TAIL_EDGE]: roundLabel(scene, props, TAIL_KEY, id, NULL_KEY) })
+			step('tail = null: it was the only node, so the list is empty', TAIL_EDGE)
+		}
+		if (v.doubly && nextKey !== NULL_KEY) {
 			point({ [prevOf(nextKey)]: v.circular ? lastId : NULL_PREV_KEY })
 			step(v.circular ? `head.prev = last: ${nextName} points back round at ${name(lastId)}` : `head.prev = null: nothing comes before ${nextName}`, prevOf(nextKey))
 		}
@@ -620,6 +654,8 @@ export function insertSorted(props: ListProps, id: string, value: string): ListO
  */
 export function appendToList(props: ListProps, id: string, value: string): ListOperation {
 	const { nodes } = props
+	// Nothing to walk to, no tail to follow: the new node is the head (and tail), as inserting there.
+	if (!nodes.length) return insertIntoList(props, undefined, id, value)
 	const { v, chain, lastId, end, name, arrows } = listOf(props)
 	const base = listScene(props)
 	const last = nodeOf(base, lastId)

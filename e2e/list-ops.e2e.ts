@@ -217,3 +217,23 @@ test("Floyd: slow and fast meet in a cycle, then find where it starts; without o
 	await page.keyboard.press('Enter')
 	expect(await values(page)).toEqual(['10', '20', '30', '40', '50'])
 })
+
+test("lecture 5's empty list: delete the only node, then insert into the empty list from its menu", async ({ page }) => {
+	await sketchList(page, [200, 200], 1)
+	await page.evaluate(() => {
+		const editor = window.editor!
+		const shape = editor.getCurrentPageShapes()[0]
+		editor.updateShape({ id: shape.id, type: 'linked-list', props: { tail: 'tail' } } as never)
+	})
+	await listOp(page, 'n0', 'list-delete')
+	await stepToEnd(page)
+	await page.keyboard.press('Enter')
+	expect(await values(page)).toEqual([])
+	// Right-click the empty list (on its null, where the node was): Step by step > Insert at the head.
+	await rightClick(page, [200, 200])
+	await page.getByTestId('context-menu-sub.drawds-list-steps-button').click()
+	await page.getByTestId('context-menu.list-insert-head').click()
+	await stepToEnd(page)
+	await page.keyboard.press('Enter')
+	expect(await values(page)).toHaveLength(1)
+})

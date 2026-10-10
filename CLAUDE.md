@@ -438,6 +438,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   (find, insert after / at the head, delete, reverse, find the middle with slow / fast, insert in order,
   append, print, print backwards, Floyd's cycle detection), narrated as the code a teacher writes. Once the result is in, steps are
   drawn less the move the commit made (`PlaybackView.committed`), so a new head doesn't shift them or the bar.
+- A plain list (not circular, no sentinel, no cycle: `canBeEmpty`) can be empty, as lecture 5 starts: head and tail point
+  at null. Deleting its only node empties it (tail = null too); empty, its menu offers Insert at the head and Append
+  (`shapeOperations`), both making the new node head and tail; the grips still grow it.
 - List variants (`src/ui/ListPickers.tsx`, four combinable toggles): `links` singly / doubly (a `pointer.back`
   prev compartment, `<-` edges with `fromPointer: 'prev'` in parallel `lane`s), `tail` (a `#tail` label),
   `ends` null / circular, `sentinel` (a dashed `#sentinel` ghost node first in `chainKeys`), plus `cycleTo`
