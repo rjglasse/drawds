@@ -4,7 +4,7 @@ import { currentPlayback } from '../nodelink/playback'
 import { StripSvg, stripGap, stripsHeight } from '../nodelink/SceneSvg'
 import { PointersSvg } from '../pointers/PointersSvg'
 import { BandSvg } from './BandSvg'
-import { placementFor } from './placement'
+import { barSpot, placementFor } from './placement'
 import { PlayBar } from './PlayBar'
 
 /**
@@ -27,11 +27,14 @@ export function PlaybackOverlay() {
 			const placement = placementFor(util as CellShapeUtil<TLShape>, shape, view)
 			const transform = editor.getShapePageTransform(shape)
 			const toViewport = (p: { x: number; y: number }) => editor.pageToViewport(transform.applyToPoint(p))
+			// Close under the structure if the bar fits beside what follows it, at this zoom; else under that.
+			const spot = barSpot(placement, editor.getZoomLevel())
 			return {
 				view,
 				layout,
 				strip: toViewport(placement.strip),
-				bar: toViewport(placement.bar),
+				bar: toViewport(spot),
+				barWidth: spot.maxWidth,
 				origin: toViewport({ x: 0, y: 0 }),
 				zoom: editor.getZoomLevel(),
 				colors: editor.getCurrentTheme().colors[editor.getColorMode()],
@@ -40,7 +43,7 @@ export function PlaybackOverlay() {
 		[editor]
 	)
 	if (!placed) return null
-	const { view, layout, strip, bar, origin, zoom, colors } = placed
+	const { view, layout, strip, bar, barWidth, origin, zoom, colors } = placed
 	const { metrics } = layout
 	return (
 		<>
@@ -100,7 +103,7 @@ export function PlaybackOverlay() {
 					</g>
 				</svg>
 			) : null}
-			<PlayBar editor={editor} view={view} at={bar} colors={colors} />
+			<PlayBar editor={editor} view={view} at={bar} maxWidth={barWidth} colors={colors} />
 		</>
 	)
 }

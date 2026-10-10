@@ -49,12 +49,15 @@ export function PlayBar({
 	editor,
 	view,
 	at,
+	maxWidth,
 	colors,
 }: {
 	editor: Editor
 	view: PlaybackView
 	/** Top-left corner of the bar, in the viewport (it is drawn in front of the canvas). */
 	at: VecLike
+	/** As wide as it may be there (screen px), beside something tall: the caption wraps under the buttons if it must. */
+	maxWidth?: number
 	colors: TLThemeColors
 }) {
 	const last = view.step >= view.steps - 1
@@ -128,6 +131,7 @@ export function PlayBar({
 				left: at.x,
 				top: at.y,
 				display: 'flex',
+				...(maxWidth === undefined ? {} : { maxWidth, flexWrap: 'wrap' as const, boxSizing: 'border-box' as const }),
 				// Top-aligned: a caption that wraps grows the bar downwards, leaving the buttons put.
 				alignItems: 'flex-start',
 				padding: '3px 6px',
@@ -247,7 +251,7 @@ export function PlayBar({
 				style={{
 					padding: '4px 8px 4px 6px',
 					width: 'max-content',
-					maxWidth: 400,
+					maxWidth: maxWidth === undefined ? 400 : Math.min(400, maxWidth - 16),
 					whiteSpace: 'normal',
 					lineHeight: 1.3,
 					fontWeight: asking ? 600 : undefined,

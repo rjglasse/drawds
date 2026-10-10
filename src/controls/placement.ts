@@ -7,7 +7,38 @@ import { stripSize, stripsHeight } from '../nodelink/SceneSvg'
 /** Where an operation's strips and play bar go, in shape space. */
 export interface Placement {
 	strip: { x: number; y: number }
+	/** Under everything beside the structure too: where the bar goes when it can't fit closer. */
 	bar: { x: number; y: number }
+	/**
+	 * Closer spots, highest first: right under the structure (and its strips), then under each thing
+	 * beside it that reaches lower, each with how wide the bar may be there before it would run into
+	 * something beside the structure reaching further down (a tall code box past a recursion tree);
+	 * Infinity when nothing does. The overlay takes the first the bar fits at the zoom it is drawn at.
+	 */
+	spots: { x: number; y: number; room: number }[]
+}
+
+/** The narrowest a play bar may be (screen px): its buttons, the counts and a little caption. */
+export const MIN_BAR_WIDTH = 480
+
+/** Where the bar goes at `zoom`: the highest spot it fits (and how wide it may be there), else under everything. */
+export function barSpot({ bar, spots }: Placement, zoom: number): { x: number; y: number; maxWidth?: number } {
+	const spot = spots.find((s) => s.room * zoom >= MIN_BAR_WIDTH)
+	if (!spot) return bar
+	return spot.room === Infinity ? { x: spot.x, y: spot.y } : { x: spot.x, y: spot.y, maxWidth: spot.room * zoom }
+}
+
+/**
+ * The spots, highest first: under the structure, then under each box beside it in turn, each with
+ * its room: up to the nearest box still reaching below it (Infinity: none), less a gap. Boxes are in
+ * shape space, right of `left`.
+ */
+export function barSpots(left: number, closeY: number, beside: readonly { x: number; y: number; w: number; h: number }[], gap: number) {
+	const ys = [closeY, ...beside.map((b) => b.y + b.h + gap).filter((y) => y > closeY)].sort((a, b) => a - b)
+	return [...new Set(ys)].map((y) => {
+		const blocking = beside.filter((b) => b.y + b.h > y && b.x > left)
+		return { x: left, y, room: blocking.length ? Math.min(...blocking.map((b) => b.x)) - left - gap : Infinity }
+	})
 }
 
 const placements = new WeakMap<
@@ -57,7 +88,12 @@ export function placementFor(util: CellShapeUtil<TLShape>, shape: TLShape, view:
 	const top = bottom + gap
 	const inTheWay = beside.some((b) => b.x < left + widest && b.x + b.w > left && b.y < top + tallest && b.y + b.h > top)
 	const strip = { x: left, y: tallest && inTheWay ? under + gap : top }
-	const placement = { strip, bar: { x: left, y: Math.max(tallest ? strip.y + tallest + gap : strip.y, under + gap) } }
+	const closeY = tallest ? strip.y + tallest + gap : strip.y
+	const placement = {
+		strip,
+		bar: { x: left, y: Math.max(closeY, under + gap) },
+		spots: barSpots(left, closeY, beside, gap),
+	}
 	placements.set(frames, { props: shape.props, meta: shape.meta, committed, followers, placement })
 	return placement
 }

@@ -211,9 +211,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   (`freeTopBelow`, pure), selected, one undo step; followers stay with the original.
 - `src/cells/followers.ts` - shapes that follow a structure (`graphId` on graph views, `structureId` on recursion trees
   and code boxes): `followersOf` is what the lesson log records and replays with an operation and what step export
-  draws; the play bar goes under followers beside a structure, and its strips too if one is in their way, else they
-  stay right under it (`besideBoxes`, used by `placementFor` in `src/controls/placement.ts`); they are deleted with it
-  (`deleteFollowersWithTheirStructure`, an after-delete side effect registered in App's onMount).
+  draws; the strips go under followers beside a structure if one is in their way, else they stay right under it
+  (`besideBoxes`, used by `placementFor` in `src/controls/placement.ts`), and the play bar takes the highest spot it fits
+  at the zoom it is drawn at (`barSpots` / `barSpot`: under the structure, then under each follower in turn, as wide as
+  the room before the next follower reaching lower, its caption wrapping under the buttons; `MIN_BAR_WIDTH`), so a tall
+  code box doesn't push it off screen; they are deleted with it (`deleteFollowersWithTheirStructure`, an after-delete
+  side effect registered in App's onMount).
 - `src/shapes/recursion/` - recursion trees (dds-szw.13): a recursive operation's frames carry `calls` (`{ call:
   'sum(0, 3)' }` made by the call running, `{ returns: '9' }` by it), `calls.ts` (pure) replays them into a `CallRun`
   (each call's caller, result, the steps it opened and returned at), `callStates` per step (running red: the call

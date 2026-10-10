@@ -133,14 +133,19 @@ test("Kruskal opens its union-find beside the graph: finds and unions step with 
 	await page.keyboard.press('ArrowRight')
 	await expect(caption(page)).toHaveText('A–B (4): find(A) = C, find(B) = C, one tree already, so it would close a cycle: skip it')
 	expect(await parentRow(page)).toBe('CCCEE')
-	// The bar sits under the view, not over it.
-	const [viewBottom, barTop] = await page.evaluate(() => {
+	// The bar keeps clear of the view: under it, or (room enough) beside it, stopping short of it.
+	const [view, bar] = await page.evaluate(() => {
 		const e = window.editor!
-		const view = e.getCurrentPageShapes().find((s) => s.type === 'graph-view')!
-		const b = e.getShapePageBounds(view)!
-		return [e.pageToViewport({ x: b.minX, y: b.maxY }).y, document.querySelector('[data-testid="play-bar"]')!.getBoundingClientRect().top]
+		const shape = e.getCurrentPageShapes().find((s) => s.type === 'graph-view')!
+		const b = e.getShapePageBounds(shape)!
+		const [tl, br] = [e.pageToViewport({ x: b.minX, y: b.minY }), e.pageToViewport({ x: b.maxX, y: b.maxY })]
+		const r = document.querySelector('[data-testid="play-bar"]')!.getBoundingClientRect()
+		return [
+			{ left: tl.x, top: tl.y, right: br.x, bottom: br.y },
+			{ left: r.left, top: r.top, right: r.right, bottom: r.bottom },
+		]
 	})
-	expect(barTop).toBeGreaterThan(viewBottom)
+	expect(bar.top > view.bottom || bar.right < view.left).toBe(true)
 	// Cancelled before the result: the view it opened goes again.
 	await page.keyboard.press('Escape')
 	await expect(page.getByTestId('play-bar')).toHaveCount(0)
