@@ -524,6 +524,9 @@ export function playOperation(
 		commit(editor, false)
 		return dismiss(editor, false)
 	}
+	// The structure is the selection while its operation is open: it can be started from the menu over
+	// it while something else is selected, and another shape selected is what closes a finished one.
+	if (editor.getOnlySelectedShapeId() !== shapeId) editor.select(shapeId)
 	p.detach.push(attachKeys(editor))
 	fitRoom(editor, shapeId, frames)
 	show(p)

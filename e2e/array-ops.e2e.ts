@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { ArrayShapeProps } from '../src/shapes/array/array-shape-types'
-import { CELL, open, rightClick, shapesOfType, sketchArray, withEditor } from './helpers'
+import { arrayStep, CELL, open, rightClick, shapesOfType, sketchArray, withEditor } from './helpers'
 
 const props = async (page: Page) => (await shapesOfType<ArrayShapeProps>(page, 'array'))[0].props
 const values = async (page: Page) => (await props(page)).values
@@ -22,7 +22,8 @@ async function setValues(page: Page, values: string[], marks: Record<string, str
 async function arrayOp(page: Page, i: number, submenu: string, item: string) {
 	await rightClick(page, [200 + i * CELL, 200])
 	await page.getByTestId(`context-menu-sub.drawds-${submenu}-button`).click()
-	await page.getByTestId(`context-menu.${item}`).click()
+	if (submenu === 'array-steps') await arrayStep(page, item)
+	else await page.getByTestId(`context-menu.${item}`).click()
 }
 
 /** Step to the end (operations open paused), where the result is in and the bar waits. */

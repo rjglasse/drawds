@@ -35,6 +35,25 @@ export async function rightClick(page: Page, at: [number, number]) {
 	await page.mouse.click(...at, { button: 'right' })
 }
 
+/** Where an array's Step by step item sits: in a category of its own (stacks and queues have none). */
+function arrayCategory(item: string): string {
+	if (/^array-(insertion-sort|selection-sort|bubble-sort|partition|quicksort|hoare-partition|merge-sort)$/.test(item)) return 'sorts'
+	if (/^array-(unfair|fisher-yates)/.test(item)) return 'shuffles'
+	return 'basics'
+}
+
+/**
+ * With an array's Step by step menu open: click `item`, opening its category first (Basics, Sorts,
+ * Shuffles) if the menu has one for it; a stack's or queue's items are right there.
+ */
+export async function arrayStep(page: Page, item: string) {
+	const category = page.getByTestId(`context-menu-sub.drawds-array-steps-${arrayCategory(item)}-button`)
+	const direct = page.getByTestId(`context-menu.${item}`)
+	await expect(category.or(direct).first()).toBeVisible()
+	if (await category.isVisible()) await category.click()
+	await direct.click()
+}
+
 /** Wait for the page's CSS transitions to end (pointers sliding to a new element, say), from the next frame. */
 export async function transitionsDone(page: Page) {
 	await page.evaluate(async () => {

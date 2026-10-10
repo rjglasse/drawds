@@ -402,8 +402,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   default `section`), then a submenu named by `menuName(shape)` (`section: 'actions'`: instant changes, e.g. Sort,
   Mirror, Insert a row, New values), then **Show** (`section: 'show'`: views beside it, indices), then the shared
   Mark and Pointer; empty ones are left out. A `group` keeps a family (searches, sorts, traversals) together
-  behind a divider, and `submenu` puts a long one in a submenu of its own (the array's Shuffles; test id
-  `context-menu-sub.drawds-<menuId>-<section>-<label slug>-button`); a menu taller than the window scrolls (drawds.css); element operations come before whole-structure ones and name the element ("Pre-order from
+  behind a divider; `submenu` is a category, a submenu of its own listed first in its section (`CATEGORIES` order in
+  overrides.tsx: Basics, Sorts, Shuffles, others, Misc last; Misc only for what fits nowhere else). An array's Step by
+  step is all categories: Basics (searches, insert / delete, scans, sums, capacity), Sorts, Shuffles; test ids
+  `context-menu-sub.drawds-array-steps-basics-button` etc., e2e's `arrayStep(page, item)` opens the right one. A menu
+  taller than the window scrolls (drawds.css). An operation selects its structure when it opens (it can be started
+  from the menu over it while something else is selected, and a finished one closes when another shape is selected); element operations come before whole-structure ones and name the element ("Pre-order from
   42"). Submenu test ids follow the sections: `context-menu-sub.drawds-<menuId>-<steps|actions|show>-button`.
   `moves(shape)` lists the structure's gestures, buttons and settings for the style panel's "What can I do?"
   (`src/ui/StructureHint.tsx`, a popover; the shared moves are added there).

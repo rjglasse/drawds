@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { RecursionTreeShapeProps } from '../src/shapes/recursion/recursion-tree-shape-types'
-import { CELL, open, rightClick, shapesOfType, sketchArray, withEditor } from './helpers'
+import { arrayStep, CELL, open, rightClick, shapesOfType, sketchArray, withEditor } from './helpers'
 
 const caption = (page: Page) => page.getByTestId('play-caption')
 const trees = (page: Page) => shapesOfType<RecursionTreeShapeProps>(page, 'recursion-tree')
@@ -20,7 +20,7 @@ async function setValues(page: Page, values: string[]) {
 async function sum(page: Page, item: 'array-sum-halves' | 'array-sum-rest') {
 	await rightClick(page, [200, 200])
 	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
-	await page.getByTestId(`context-menu.${item}`).click()
+	await arrayStep(page, item)
 	await expect(page.getByTestId('play-bar')).toBeVisible()
 }
 

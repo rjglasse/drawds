@@ -275,7 +275,9 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   cycles 1x, 2x, 4x, ½x (localStorage `drawds:speed`). An operation with code (an array's searches, scans and sorts)
   has `play-code` (</>): a code box to the structure's right shows the algorithm, the step's line lit
   (`[data-step-line]` gives its index) with a pc arrow (`[data-pointer="pc"]`); pressed again, it goes. Later
-  operations on that structure show their code in it. Shuffles (in Step by step's own submenu, `context-menu-sub.drawds-array-steps-shuffles-button`: `context-menu.array-unfair-shuffle`,
+  operations on that structure show their code in it. An array's Step by step is in categories: `context-menu-sub.drawds-array-steps-basics-button` (searches, insert /
+  delete, scans, sums, capacity), `-sorts-button`, `-shuffles-button`; open the category before clicking an item (a
+  stack's or queue's items stay directly in Step by step). Shuffles (`context-menu.array-unfair-shuffle`,
   `array-fisher-yates`; pointers i and n) and their outcomes in a view beside the array
   (`[data-testid="shuffle-outcomes"]` with `data-kind` / `data-mode`): `array-unfair-every-run`,
   `array-fisher-yates-every-run` (tree, up to 3 values; nodes `[data-node-depth]`), `array-unfair-many`,
@@ -318,13 +320,14 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `context-menu.clean-copy` (a copy underneath without marks or pointers, selected). The style panel's
   `[data-testid="structure-hint"]` opens "What can I do?" (`structure-hint-content`) for the selected structure.
 - **Array operations**: `rclick` a cell, `clicksel` a submenu (stable ids):
-  `[data-testid="context-menu-sub.drawds-array-steps-button"]` (items `context-menu.array-binary-search`,
-  `array-binary-search-value` (opens `key-prompt`), `array-linear-search`, `array-linear-search-value`,
-  `array-sentinel-search` / `-value`, the scans `array-find-max` (a `maxval` strip) and `array-all-unique`,
-  `array-insert`, `array-delete`, `array-insertion-sort`, `array-selection-sort`, `array-bubble-sort`,
-  `array-partition`, `array-quicksort`, `array-hoare-partition`, `array-merge-sort`, and when every value is a number
-  `array-sum-rest`, `array-sum-halves`: these open a `recursion-tree` shape to the array's right, `[data-testid="recursion-tree"]`,
-  each call a `[data-call="sum(0, 3)"]` group), `drawds-array-actions`
+  `[data-testid="context-menu-sub.drawds-array-steps-button"]`, then a category: `-steps-basics-button` (items
+  `context-menu.array-binary-search`, `array-binary-search-value` (opens `key-prompt`), `array-linear-search`,
+  `array-linear-search-value`, `array-sentinel-search` / `-value`, `array-insert`, `array-delete`, the scans
+  `array-find-max` (a `maxval` strip) and `array-all-unique`, and when every value is a number `array-sum-rest`,
+  `array-sum-halves`: these open a `recursion-tree` shape to the array's right, `[data-testid="recursion-tree"]`, each
+  call a `[data-call="sum(0, 3)"]` group), `-steps-sorts-button` (`array-insertion-sort`, `array-selection-sort`,
+  `array-bubble-sort`, `array-partition`, `array-quicksort`, `array-hoare-partition`, `array-merge-sort`) or
+  `-steps-shuffles-button`; `drawds-array-actions`
   (instant: `array-sort`, `array-sort-descending`, `array-shuffle`, `array-reverse`, `array-reroll`) or
   `drawds-array-show` (`array-indices`). The step's pointers (lo, mid, hi, i, j, min) are drawn in front of the canvas:
   `[data-pointer="lo"]`; running totals are `[data-testid="play-counts"]` ("comparisons 3 · swaps 1").

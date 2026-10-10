@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { CodeShapeProps } from '../src/shapes/code/code-shape-types'
-import { CELL, open, rightClick, shapesOfType, sketchArray, transitionsDone } from './helpers'
+import { arrayStep, CELL, open, rightClick, shapesOfType, sketchArray, transitionsDone } from './helpers'
 
 // The running algorithm's code beside the array (the play bar's </> button): the line each step is
 // on lit, a pc arrow beside it.
@@ -23,7 +23,7 @@ async function sketch(page: Page, values: string[]) {
 async function steps(page: Page, i: number, item: string) {
 	await rightClick(page, [200 + i * CELL, 200])
 	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
-	await page.getByTestId(`context-menu.${item}`).click()
+	await arrayStep(page, item)
 }
 
 /** The code box's line `i`, as drawn. */

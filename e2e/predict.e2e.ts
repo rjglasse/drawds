@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { TreeShapeProps } from '../src/shapes/tree/tree-shape-types'
-import { insertKey, nodeScreenPosition, open, rightClick, shapesOfType, sketchArray, sketchGraph, sketchTree } from './helpers'
+import { arrayStep, insertKey, nodeScreenPosition, open, rightClick, shapesOfType, sketchArray, sketchGraph, sketchTree } from './helpers'
 
 const tree = async (page: Page) => (await shapesOfType<TreeShapeProps>(page, 'binary-tree'))[0].props
 const caption = (page: Page) => page.getByTestId('play-caption')
@@ -136,7 +136,7 @@ test('hash insert asks which bucket the key hashes to', async ({ page }) => {
 })
 
 /** An array at (200, 200) holding `values`, selected; right-click cell `i` > Step by step > `item`. */
-async function arrayStep(page: Page, values: string[], i: number, item: string) {
+async function arrayOperation(page: Page, values: string[], i: number, item: string) {
 	await sketchArray(page, [200, 200], values.length)
 	await page.evaluate((values) => {
 		const e = window.editor!
@@ -145,13 +145,13 @@ async function arrayStep(page: Page, values: string[], i: number, item: string) 
 	}, values)
 	await rightClick(page, [200 + i * 48, 200])
 	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
-	await page.getByTestId(`context-menu.${item}`).click()
+	await arrayStep(page, item)
 }
 
 test('binary search asks where mid is, then "found it, or which half?" with that cell pulsing', async ({ page }) => {
 	await predicting(page)
 	await open(page)
-	await arrayStep(page, ['10', '20', '30', '40', '50'], 3, 'array-binary-search')
+	await arrayOperation(page, ['10', '20', '30', '40', '50'], 3, 'array-binary-search')
 	await expect(asking(page)).toHaveText('Binary search for 40: where do lo and hi start?')
 	await page.keyboard.press('ArrowRight')
 	await expect(caption(page)).toHaveText('lo = 0, hi = 4: 40 could be anywhere in a[0..4]')
@@ -170,7 +170,7 @@ test('binary search asks where mid is, then "found it, or which half?" with that
 test('bubble sort: "swap or leave?", then the swap itself shows in one press, either way', async ({ page }) => {
 	await predicting(page)
 	await open(page)
-	await arrayStep(page, ['20', '10', '30'], 0, 'array-bubble-sort')
+	await arrayOperation(page, ['20', '10', '30'], 0, 'array-bubble-sort')
 	await expect(asking(page)).toHaveText('a[0] = 20 vs a[1] = 10: swap them or leave them?')
 	await expect(page.locator('[data-pulse]')).toHaveCount(2)
 	await page.keyboard.press('ArrowRight')

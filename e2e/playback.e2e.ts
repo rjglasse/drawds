@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { TreeShapeProps } from '../src/shapes/tree/tree-shape-types'
-import { insertKey, open, rightClick, shapesOfType, sketchArray, sketchHeap, sketchTree } from './helpers'
+import { arrayStep, insertKey, open, rightClick, shapesOfType, sketchArray, sketchHeap, sketchTree } from './helpers'
 
 const tree = async (page: Page) => (await shapesOfType<TreeShapeProps>(page, 'binary-tree'))[0].props
 const caption = (page: Page) => page.getByTestId('play-caption')
@@ -171,13 +171,13 @@ test('the play bar holds still: its buttons stay put as captions, strips and row
 	await sketchArray(page, [200, 250], 6)
 	await rightClick(page, [200, 250])
 	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
-	await page.getByTestId('context-menu.array-bubble-sort').click()
+	await arrayStep(page, 'array-bubble-sort')
 	await holdsStill(8)
 	await page.keyboard.press('Escape')
 	// A fixed array growing: a second row appears under it, then goes.
 	await page.getByTestId('style.array-sizing.fixed').click()
 	await rightClick(page, [200, 250])
 	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
-	await page.getByTestId('context-menu.array-grow').click()
+	await arrayStep(page, 'array-grow')
 	await holdsStill(7)
 })

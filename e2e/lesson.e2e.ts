@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { insertKey, open, rightClick, sketchArray, sketchTree, withEditor } from './helpers'
+import { arrayStep, insertKey, open, rightClick, sketchArray, sketchTree, withEditor } from './helpers'
 
 const counter = (page: Page) => page.getByTestId('play-counter')
 const caption = (page: Page) => page.getByTestId('play-caption')
@@ -46,7 +46,7 @@ async function teach(page: Page) {
 	await sketchArray(page, [200, 500], 4)
 	await rightClick(page, [200, 500])
 	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
-	await page.getByTestId('context-menu.array-bubble-sort').click()
+	await arrayStep(page, 'array-bubble-sort')
 	await page.keyboard.press('ArrowRight')
 	await page.keyboard.press('ArrowRight')
 	await page.keyboard.press('Escape')

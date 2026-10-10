@@ -253,8 +253,8 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		// Stacks and queues work by their own operations, offered on the whole shape.
 		if (kind !== 'array' || !Number.isInteger(k) || k < 0 || k >= n) return []
 		const v = values[k]
-		const search = { group: 'search' }
-		const shift = { group: 'shift' }
+		const search = { group: 'search', submenu: 'Basics' }
+		const shift = { group: 'shift', submenu: 'Basics' }
 		const find = (id: string, label: string, op: typeof binarySearch): NodeOperation[] => [
 			...(v.trim() ? [{ ...search, id, label: `${label} for ${v}`, run: () => this.play(shape.id, label, (a) => op(a, v)) }] : []),
 			{
@@ -294,12 +294,13 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	}
 
 	override shapeOperations(shape: ArrayShape): NodeOperation[] {
-		const sorts = { group: 'sort' }
-		const scans = { group: 'scan' }
+		// Step by step in categories: Basics, Sorts, Shuffles (Misc, if ever needed: see NodeOperationsMenu).
+		const sorts = { group: 'sort', submenu: 'Sorts' }
+		const scans = { group: 'scan', submenu: 'Basics' }
 		const shuffles = { group: 'shuffle', submenu: 'Shuffles' }
-		const sums = { group: 'sum' }
+		const sums = { group: 'sum', submenu: 'Basics' }
 		const actions = { section: 'actions' } as const
-		const capacity = { group: 'capacity' }
+		const capacity = { group: 'capacity', submenu: 'Basics' }
 		const sort = (id: string, label: string, op: (a: ArrayState) => ArrayOperation): NodeOperation => ({
 			...sorts,
 			id,

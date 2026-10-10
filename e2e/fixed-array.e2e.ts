@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { ArrayShapeProps } from '../src/shapes/array/array-shape-types'
-import { CELL, handlePosition, open, rightClick, shapesOfType, sketchArray } from './helpers'
+import { arrayStep, CELL, handlePosition, open, rightClick, shapesOfType, sketchArray } from './helpers'
 
 const props = async (page: Page) => (await shapesOfType<ArrayShapeProps>(page, 'array'))[0].props
 
@@ -85,7 +85,8 @@ async function stepToEnd(page: Page) {
 async function arrayMenu(page: Page, submenu: string, item: string, at = 200) {
 	await rightClick(page, [at, 200])
 	await page.getByTestId(`context-menu-sub.drawds-${submenu}-button`).click()
-	await page.getByTestId(`context-menu.${item}`).click()
+	if (submenu === 'array-steps') await arrayStep(page, item)
+	else await page.getByTestId(`context-menu.${item}`).click()
 }
 
 test('insert into a full fixed array stops; Grow doubles it via newArr, one copy per value', async ({ page }) => {

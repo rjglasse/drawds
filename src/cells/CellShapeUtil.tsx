@@ -53,7 +53,10 @@ export interface NodeOperation {
 	section?: MenuSection
 	/** A family of operations (searches, sorts, traversals): kept together, divided from the others. */
 	group?: string
-	/** A submenu of its own for a family too long to list (the shuffles): its label. */
+	/**
+	 * The category it is listed under in its section, a submenu of its own: an array's Step by step
+	 * has Basics, Sorts and Shuffles (and Misc, kept for what fits nowhere else). Groups divide it.
+	 */
 	submenu?: string
 	/** Ask for a value first (the prompt's placeholder); `run` gets it. */
 	prompt?: string

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { CELL, menusClosed, open, rightClick, sketchArray, sketchGraph, withEditor } from './helpers'
+import { arrayStep, CELL, menusClosed, open, rightClick, sketchArray, sketchGraph, withEditor } from './helpers'
 
 const cellAt = (i: number): [number, number] => [300 + i * CELL, 200]
 const cues = (page: Page, color?: string) => page.locator(color ? `[data-cue="${color}"]` : '[data-cue]')
@@ -53,7 +53,7 @@ test("an operation's highlights get shapes too, and marked edges a line pattern"
 	await sketchArray(page, [300, 200], 4)
 	await rightClick(page, cellAt(0))
 	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
-	await page.getByTestId('context-menu.array-bubble-sort').click()
+	await arrayStep(page, 'array-bubble-sort')
 	// Step 1 compares the first two values: both orange.
 	await expect(cues(page, 'orange')).toHaveCount(2)
 	await page.keyboard.press('Escape')

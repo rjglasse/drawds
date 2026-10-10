@@ -300,6 +300,9 @@ function MarkMenu() {
  * DFS from it), captured then like the mark target, then those on the whole structure (an array's
  * sorts).
  */
+/** Categories of operations in a menu section, in this order; others come before Misc, which stays last. */
+const CATEGORIES = ['Basics', 'Sorts', 'Shuffles', 'Misc']
+
 function NodeOperationsMenu() {
 	const editor = useEditor()
 	const [target] = useState(() => markTargetUnderPointer(editor))
@@ -337,9 +340,16 @@ function NodeOperationsMenu() {
 		/>
 	)
 	// The same layout for every structure: Step by step, then its own name (instant changes), then
-	// Show; families of operations divided within each, a long one in a submenu of its own. Test ids
-	// follow the sections (and submenus), not the labels.
+	// Show; within each, categories first (submenus of their own, in CATEGORIES' order, Misc last),
+	// then the rest, families divided. Test ids follow the sections and categories, not the labels.
 	const slug = (label: string) => label.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+	const rank = (category: string) => (CATEGORIES.indexOf(category) < 0 ? CATEGORIES.length - 1.5 : CATEGORIES.indexOf(category))
+	const families = (ops: NodeOperation[], id: string) =>
+		[...new Set(ops.map((op) => op.group ?? ''))].map((group) => (
+			<TldrawUiMenuGroup key={group} id={`${id}-${group || 'items'}`}>
+				{ops.filter((op) => (op.group ?? '') === group).map(item)}
+			</TldrawUiMenuGroup>
+		))
 	const sections: [MenuSection, string][] = [
 		['steps', 'Step by step'],
 		['actions', util.menuName?.(shape) ?? shape.type],
@@ -351,23 +361,25 @@ function NodeOperationsMenu() {
 				const ops = operations.filter((op) => (op.section ?? 'steps') === section)
 				if (!ops.length) return null
 				const id = `drawds-${util.menuId ?? shape.type}-${section}`
-				const groups = [...new Set(ops.map((op) => op.group ?? ''))]
+				const categories = [...new Set(ops.flatMap((op) => (op.submenu ? [op.submenu] : [])))].sort((a, b) => rank(a) - rank(b))
 				return (
 					<TldrawUiMenuSubmenu key={section} id={id} label={label}>
-						{groups.map((group) => {
-							const inGroup = ops.filter((op) => (op.group ?? '') === group)
-							const submenus = [...new Set(inGroup.flatMap((op) => (op.submenu ? [op.submenu] : [])))]
-							return (
-								<TldrawUiMenuGroup key={group} id={`${id}-${group || 'items'}`}>
-									{inGroup.filter((op) => !op.submenu).map(item)}
-									{submenus.map((sub) => (
-										<TldrawUiMenuSubmenu key={sub} id={`${id}-${slug(sub)}`} label={sub}>
-											<TldrawUiMenuGroup id={`${id}-${slug(sub)}-items`}>{inGroup.filter((op) => op.submenu === sub).map(item)}</TldrawUiMenuGroup>
-										</TldrawUiMenuSubmenu>
-									))}
-								</TldrawUiMenuGroup>
-							)
-						})}
+						{categories.length > 0 && (
+							<TldrawUiMenuGroup id={`${id}-categories`}>
+								{categories.map((category) => (
+									<TldrawUiMenuSubmenu key={category} id={`${id}-${slug(category)}`} label={category}>
+										{families(
+											ops.filter((op) => op.submenu === category),
+											`${id}-${slug(category)}`
+										)}
+									</TldrawUiMenuSubmenu>
+								))}
+							</TldrawUiMenuGroup>
+						)}
+						{families(
+							ops.filter((op) => !op.submenu),
+							id
+						)}
 					</TldrawUiMenuSubmenu>
 				)
 			})}

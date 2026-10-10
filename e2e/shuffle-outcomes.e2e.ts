@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { CELL, menusClosed, open, rightClick, shapesOfType, sketchArray } from './helpers'
+import { arrayStep, CELL, menusClosed, open, rightClick, shapesOfType, sketchArray } from './helpers'
 
 // Every run of a shuffle as a tree, and many runs tallied (lecture 2), in a view beside the array.
 
@@ -15,8 +15,7 @@ async function sketch(page: Page, values: string[]) {
 async function steps(page: Page, item: string) {
 	await rightClick(page, [200, 200])
 	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
-	await page.getByTestId('context-menu-sub.drawds-array-steps-shuffles-button').click()
-	await page.getByTestId(`context-menu.${item}`).click()
+	await arrayStep(page, item)
 }
 
 async function stepToEnd(page: Page) {

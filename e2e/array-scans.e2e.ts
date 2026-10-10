@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { ArrayShapeProps } from '../src/shapes/array/array-shape-types'
-import { CELL, open, rightClick, shapesOfType, sketchArray } from './helpers'
+import { arrayStep, CELL, open, rightClick, shapesOfType, sketchArray } from './helpers'
 
 // Lectures 2 and 3's scans, counted: find the largest, all unique?, sentinel search.
 
@@ -21,7 +21,7 @@ async function sketch(page: Page, values: string[]) {
 async function steps(page: Page, i: number, item: string) {
 	await rightClick(page, [200 + i * CELL, 200])
 	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
-	await page.getByTestId(`context-menu.${item}`).click()
+	await arrayStep(page, item)
 }
 
 async function stepToEnd(page: Page) {
