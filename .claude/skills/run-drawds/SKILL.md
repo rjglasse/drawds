@@ -246,6 +246,11 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `hash-find-key` (prompt), `hash-rehash`; `drawds-hash-actions` has `hash-reroll`.
 - **Value range**: `style.fill-range.small` (0-9), `medium`, `large` (0-999), `signed` (-50..50)
   under Fill, for arrays, lists, trees and heaps; redraws the selected values.
+- **Seed**: the style panel's `[data-testid="seed-input"]` (with a structure tool out: `clicksel` it, `type 42`,
+  `key Enter` pins 42 for every new sketch; with one structure selected it shows that one's seed, read-only) and the
+  lock `seed-pin` (`data-pinned` when pinned; pins the shown seed or unpins). `seed-pinned-note` / `seed-unpin` when
+  the selected structure has another seed. The pin is localStorage `drawds:seed`, so it outlasts `nav`: unpin
+  (`eval localStorage.removeItem('drawds:seed')`) before relying on random values. New seeds are 1-9999.
 - **Graphs**: `shapes` lists graph edges as `A-B:7` (`A->B:7` when directed; `:7` is the
   weight, stored even when unweighted). Options with the graph tool or a graph selected:
   `[data-testid="style.graph-direction.directed"]`, `style.graph-weights.weighted`,

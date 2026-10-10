@@ -16,9 +16,9 @@ export function mulberry32(seed: number): Rng {
 	}
 }
 
-/** A fresh 32-bit seed. */
+/** A fresh seed, short enough to note down and type in again (1 to 9999). */
 export function newSeed(): number {
-	return Math.floor(Math.random() * 2 ** 32)
+	return 1 + Math.floor(Math.random() * 9999)
 }
 
 /** Random integer in the inclusive range [min, max]. */

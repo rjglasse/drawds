@@ -16,6 +16,7 @@ const SHARED = [
 	'Point at an element and press 1–4 to mark it, 0 to clear (main menu: Colour-blind cues adds a shape to each colour)',
 	'Right-click an element: Step by step (animated), then its own name (instant changes), Show, Mark, Pointer',
 	'Right-click it, then its own name > Clean copy: the same one again underneath, without marks or pointers',
+	'Seed (above): pin it and every new sketch gets the same values (same length; trees and graphs also need the same drag)',
 	'While an operation plays: Space, ← → or a clicker, Enter finishes, Esc cancels; the ? on its bar asks the class first',
 ]
 

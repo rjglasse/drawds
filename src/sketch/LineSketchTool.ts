@@ -10,7 +10,7 @@ import {
 	type VecLike,
 } from 'tldraw'
 import { CellShapeUtil } from '../cells/CellShapeUtil'
-import { newSeed } from '../data/random'
+import { seedForSketch } from '../data/seed'
 import { INITIAL_SKETCH, nextSketchState, sameSketch, type SketchState } from './line-sketch'
 
 export interface DragToolConfig<S extends TLShape, G> {
@@ -27,8 +27,8 @@ export interface DragToolConfig<S extends TLShape, G> {
 }
 
 /**
- * A press-and-drag tool: press to create a shape (with a fresh seed), drag to reshape it live,
- * release to select it. One undo step per sketch; Esc cancels.
+ * A press-and-drag tool: press to create a shape (with a fresh seed, or the pinned one), drag to
+ * reshape it live, release to select it. One undo step per sketch; Esc cancels.
  */
 export function createDragTool<S extends TLShape, G>(config: DragToolConfig<S, G>): TLStateNodeConstructor {
 	class Idle extends StateNode {
@@ -64,7 +64,7 @@ export function createDragTool<S extends TLShape, G>(config: DragToolConfig<S, G
 			this.editor.createShape({
 				id: this.shapeId,
 				type: config.type,
-				props: { seed: newSeed() },
+				props: { seed: seedForSketch() },
 			} as unknown as TLShapePartial<S>)
 			this.update(true)
 		}

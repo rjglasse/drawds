@@ -247,7 +247,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   since handles can't be clicked). New values come from `extendValues` in `src/data/fill.ts` (end or start).
 - `src/data/` - seeded RNG (`mulberry32`) and fill generators (`fillValues`, `extendValues`, `insertValue`, each
   taking a `range`: 0-9, 0-99, 0-999, -50..50); `fill-style.ts` has the `drawds:fill` and `drawds:fill-range`
-  StyleProps (every filled shape stores `range`) plus `refillSelectedShapes`.
+  StyleProps (every filled shape stores `range`) plus `refillSelectedShapes`. `newSeed` is short (1-9999, to note
+  down). `seed.ts`: a pinned seed (localStorage `drawds:seed`) that `createDragTool` gives every new sketch instead
+  (`seedForSketch`), so the same length draws the same values; set from the style panel's Seed row
+  (`src/ui/SeedPicker.tsx`: with a tool out, type one; one structure selected, its seed read-only and the lock pins it).
 - `src/export/` - an operation's steps as images (`exportSteps`: the play bar's download button, and in dev
   `window.drawdsSteps` / the driver's `steps`): puts the result in first, then for each step `showStep` + tldraw's
   `toImage` over one area (the union of every step, optionally grown to an `aspect`), named `01-caption-words.png`.

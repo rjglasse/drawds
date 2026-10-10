@@ -42,6 +42,7 @@ import { operationPrompt } from '../controls/prompt'
 import { pointerState } from '../pointers/state'
 import { ArrayPickers, arrayPickerTranslations } from './ArrayPickers'
 import { FillPicker, fillPickerTranslations } from './FillPicker'
+import { SeedPicker } from './SeedPicker'
 import { invariantPickerTranslations } from './InvariantPicker'
 import { ListPickers, listPickerTranslations } from './ListPickers'
 import { GraphPickers, GraphViewPickers, graphPickerTranslations, graphViewPickerTranslations } from './GraphPickers'
@@ -468,6 +469,7 @@ export const components: TLComponents = {
 		<DefaultStylePanel {...props}>
 			<DefaultStylePanelContent />
 			<FillPicker />
+			<SeedPicker />
 			<ArrayPickers />
 			<ListPickers />
 			<TreePickers />
