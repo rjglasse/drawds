@@ -57,6 +57,14 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 - If a required sync or push is blocked, stop and report the exact command and error.
 <!-- END BEADS INTEGRATION -->
 
+## Git and beads here
+
+One feature branch per piece of work, fast-forwarded into main once the user OKs the merge, then deleted; push main
+when asked. Beads' JSONL exports (`.beads/issues.jsonl`, `.beads/interactions.jsonl`) are git-ignored: never commit
+them, so no "Beads: sync" commits. The issue database itself goes to GitHub under `refs/dolt/data` with
+`bd dolt push` (run it whenever main is pushed; `dolt.auto-push` is off), and a fresh clone gets it back with
+`bd bootstrap`.
+
 
 ## Build & Test
 

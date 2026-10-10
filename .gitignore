@@ -4,6 +4,10 @@
 *.db
 .beads-credential-key
 .beads/proxieddb/
+# Beads' JSONL exports: rewritten on every issue change, so not committed. The issues live in the
+# Dolt database, backed up to GitHub under refs/dolt/data (bd dolt push / bd dolt pull).
+.beads/issues.jsonl
+.beads/interactions.jsonl
 node_modules/
 dist/
 *.tsbuildinfo
