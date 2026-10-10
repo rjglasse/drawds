@@ -299,7 +299,8 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `context-menu-sub.drawds-heap-steps-button` then `heap-build`, or `drawds-heap-actions` then `heap-shuffle`.
 - **Context menus** have one layout on every structure: `context-menu-sub.drawds-<array|matrix|list|tree|heap|hash|graph>-steps-button`
   (Step by step: animated), `-actions-` (named after the structure: instant changes), `-show-` (views, indices),
-  then the shared `drawds-mark` and `drawds-pointer`; each only when it has items. The style panel's
+  then the shared `drawds-mark` and `drawds-pointer`; each only when it has items. Every structure's `-actions-` submenu ends with
+  `context-menu.clean-copy` (a copy underneath without marks or pointers, selected). The style panel's
   `[data-testid="structure-hint"]` opens "What can I do?" (`structure-hint-content`) for the selected structure.
 - **Array operations**: `rclick` a cell, `clicksel` a submenu (stable ids):
   `[data-testid="context-menu-sub.drawds-array-steps-button"]` (items `context-menu.array-binary-search`,

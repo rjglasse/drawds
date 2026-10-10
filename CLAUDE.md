@@ -137,6 +137,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   (`viewHighlights`: a node to its row / column headers or list head, `edge:<id>` to its cells or list entries).
   Created from the graph's menu (`showGraphView`, to its right). The matrix reuses `MatrixSvg` with `rowLabels` /
   `colLabels` and `row:<r>` / `col:<c>` header tints.
+- `src/cells/clean-copy.ts` - Clean copy, last in every structure's own submenu (`NodeOperationsMenu` adds it): the
+  same props (values, shape, seed) without marks or pointers, under the original past anything in the way
+  (`freeTopBelow`, pure), selected, one undo step; followers stay with the original.
 - `src/cells/followers.ts` - shapes that follow a structure (`graphId` on graph views, `structureId` on recursion trees):
   `followersOf` is what the lesson log records and replays with an operation and what step export draws; strips and
   the play bar go under followers beside a structure (`bottomBeside` in a `playbackLayout`); they are deleted with it

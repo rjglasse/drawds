@@ -29,6 +29,7 @@ import {
 } from 'tldraw'
 import { useState } from 'react'
 import { clearMarks, markElement, markTargetUnderPointer } from '../cells/marking'
+import { cleanCopy } from '../cells/clean-copy'
 import { CUE_GLYPHS, setColourCues, showsColourCues } from '../cells/cues'
 import { MARK_COLORS, MARK_MEANINGS, type MarkColor } from '../cells/marks'
 import { PlaybackOverlay } from '../controls/PlaybackOverlay'
@@ -292,7 +293,18 @@ function NodeOperationsMenu() {
 	const [operations] = useState(() => {
 		if (!target) return []
 		const { util, shape, key } = target
-		return [...(key !== undefined ? (util.nodeOperations?.(shape, key) ?? []) : []), ...(util.shapeOperations?.(shape) ?? [])]
+		// Every structure's own submenu ends with a clean copy: the same one again, fresh.
+		const copy: NodeOperation = {
+			section: 'actions',
+			group: 'copy',
+			id: 'clean-copy',
+			label: 'Clean copy (no marks or pointers)',
+			run: () => {
+				const current = editor.getShape(shape.id)
+				if (current) cleanCopy(editor, current)
+			},
+		}
+		return [...(key !== undefined ? (util.nodeOperations?.(shape, key) ?? []) : []), ...(util.shapeOperations?.(shape) ?? []), copy]
 	})
 	if (!target || !operations.length) return null
 	const { util, shape } = target
