@@ -55,8 +55,8 @@ test('lists, trees and heaps follow the same layout', async ({ page }) => {
 	await sketchTree(page, [600, 200], 2, 1)
 	expect((await submenusAt(page, await nodeScreenPosition(page, 'n'))).map(([label]) => label)).toEqual(['Step by step', 'Binary tree', 'Mark', 'Pointer'])
 	await page.getByTestId('style.tree-kind.bst').click()
-	// A BST changes only through its own (step by step) insert and delete: no instant changes.
-	expect((await submenusAt(page, await nodeScreenPosition(page, 'n'))).map(([label]) => label)).toEqual(['Step by step', 'Mark', 'Pointer'])
+	// A BST changes only through its own (step by step) insert and delete: its own submenu just has Clean copy.
+	expect((await submenusAt(page, await nodeScreenPosition(page, 'n'))).map(([label]) => label)).toEqual(['Step by step', 'Binary search tree', 'Mark', 'Pointer'])
 	await page.evaluate(() => void window.editor!.deleteShapes([...window.editor!.getCurrentPageShapeIds()]))
 	await sketchHeap(page, [600, 200], 5)
 	expect(await submenusAt(page, await nodeScreenPosition(page, '1'))).toEqual(
@@ -75,7 +75,7 @@ test('hash tables and graphs follow the same layout', async ({ page }) => {
 	await page.evaluate(() => void window.editor!.deleteShapes([...window.editor!.getCurrentPageShapeIds()]))
 	await sketchGraph(page, [300, 250], 5)
 	expect(await submenusAt(page, await nodeScreenPosition(page, 'v0'))).toEqual(
-		['Step by step', 'Show', 'Mark', 'Pointer'].map((label, i) => [label, ids('graph', 'steps', 'show', 'mark', 'pointer')[i]])
+		['Step by step', 'Graph', 'Show', 'Mark', 'Pointer'].map((label, i) => [label, ids('graph', 'steps', 'actions', 'show', 'mark', 'pointer')[i]])
 	)
 })
 
@@ -86,6 +86,8 @@ test('the style panel says what can be done with the selected structure', async 
 	await expect(hint).toContainText('Array')
 	await expect(hint).toContainText('Drag the dot under a cell onto another cell to swap them')
 	await expect(hint).toContainText('press 1–4 to mark it')
+	await expect(hint).toContainText('Clean copy')
+	await expect(hint).toContainText('Seed (above)')
 	await page.keyboard.press('Escape')
 	await page.keyboard.press('Escape')
 	await page.evaluate(() => void window.editor!.deleteShapes([...window.editor!.getCurrentPageShapeIds()]))
@@ -95,7 +97,7 @@ test('the style panel says what can be done with the selected structure', async 
 	await expect(hint).toContainText("Drag from the dot on a node's right edge")
 	// Nothing selected: no hint.
 	await page.keyboard.press('Escape')
-	await page.evaluate(() => window.editor!.selectNone())
+	await page.evaluate(() => void window.editor!.selectNone())
 	await expect(page.getByTestId('structure-hint')).toHaveCount(0)
 })
 
