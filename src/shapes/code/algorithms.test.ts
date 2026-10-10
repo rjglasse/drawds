@@ -1,0 +1,102 @@
+import { describe, expect, it } from 'vitest'
+import {
+	binarySearch,
+	bubbleSort,
+	hoarePartition,
+	insertionSort,
+	linearSearch,
+	mergeSort,
+	partitionArray,
+	quicksort,
+	selectionSort,
+	type ArrayOperation,
+	type ArrayState,
+} from '../array/operations'
+import { allUnique, findMax, sentinelSearch } from '../array/scans'
+import { ALGORITHMS, algorithmCode, parseCode, taggedLine } from './algorithms'
+import { codeShapeMigrations } from './code-shape-types'
+
+const array = (...values: (string | number)[]): ArrayState => ({ values: values.map(String), marks: {} })
+
+describe('algorithm code', () => {
+	it('takes the tags off the ends of lines and the indentation the first line has', () => {
+		const code = parseCode(
+			`
+			def f(a):
+			    @cache  # a decorator stays
+			    x = a[0]              @init
+			    return x  # done      @found @missing`,
+			'python'
+		)
+		expect(code.text).toBe('def f(a):\n    @cache  # a decorator stays\n    x = a[0]\n    return x  # done')
+		expect(code.lines).toEqual({ init: 2, found: 3, missing: 3 })
+	})
+
+	it('C falls back to Java (not written yet); an algorithm without code has none', () => {
+		expect(algorithmCode('bubble-sort', 'c')?.language).toBe('java')
+		expect(algorithmCode('bubble-sort', 'python')?.text).toMatch(/^def bubble_sort\(a\):/)
+		expect(algorithmCode('no-such-sort', 'java')).toBeUndefined()
+	})
+
+	it('finds a tagged line in code edited since, by what it says', () => {
+		const sort = algorithmCode('bubble-sort', 'java')!
+		const swap = sort.lines.swap
+		expect(taggedLine(sort.text, sort, 'swap')).toBe(swap)
+		// A comment added at the top: the swap is a line further down.
+		expect(taggedLine(`// Lecture 3\n${sort.text}`, sort, 'swap')).toBe(swap + 1)
+		expect(taggedLine('int x;', sort, 'swap')).toBeUndefined()
+		expect(taggedLine(sort.text, sort, 'no-such-line')).toBeUndefined()
+	})
+
+	it('every line a step of an array operation names is in its code, in Java and Python', () => {
+		const ops: ArrayOperation[] = [
+			linearSearch(array(5, 7, 9), '9'),
+			linearSearch(array(5, 7, 9), '4'),
+			binarySearch(array(1, 3, 5, 7, 9, 11), '9'),
+			binarySearch(array(1, 3, 5, 7, 9, 11), '2'),
+			sentinelSearch(array(5, 7, 9), '7'),
+			sentinelSearch(array(5, 7, 9), '4'),
+			findMax(array(3, 9, 2, 9, 5)),
+			allUnique(array(4, 1, 3)),
+			allUnique(array(1, 2, 1)),
+			insertionSort(array(5, 2, 4, 1, 3)),
+			selectionSort(array(5, 2, 4, 1, 3)),
+			selectionSort(array(1, 2, 3)),
+			bubbleSort(array(5, 2, 4, 1, 3)),
+			bubbleSort(array(1, 2, 3)),
+			partitionArray(array(7, 2, 9, 1, 5)),
+			partitionArray(array(1, 2, 9)),
+			quicksort(array(7, 2, 9, 1, 5, 3)),
+			hoarePartition(array(5, 2, 9, 1, 7, 3)),
+			mergeSort(array(7, 2, 9, 1, 5, 3)),
+		]
+		for (const op of ops) {
+			expect(op.code && ALGORITHMS[op.code], `${op.frames[0]?.caption}`).toBeTruthy()
+			const lines = op.frames.flatMap((f) => (f.line ? [f.line] : []))
+			expect(lines.length).toBeGreaterThan(0)
+			for (const language of ['java', 'python'] as const) {
+				const code = algorithmCode(op.code!, language)!
+				expect(code.language).toBe(language)
+				for (const line of lines) expect(code.lines, `${op.code} ${language} @${line}`).toHaveProperty(line)
+			}
+		}
+	})
+
+	it('a step names the line it shows: bubble sort compares, swaps, and checks after each pass', () => {
+		const op = bubbleSort(array(2, 1, 3))
+		expect(op.frames.map((f) => f.line)).toEqual(['compare', 'swap', 'compare', 'pass', 'compare', 'sorted', undefined])
+	})
+})
+
+describe('code box migrations', () => {
+	it('code boxes saved before they could follow a structure follow none', () => {
+		const [addFollowing] = codeShapeMigrations.sequence
+		if (!('up' in addFollowing) || typeof addFollowing.down !== 'function') throw new Error('expected a props migration')
+		const props: Record<string, unknown> = { code: 'x = 1' }
+		addFollowing.up(props)
+		expect(props).toMatchObject({ structureId: '', algorithm: '' })
+		addFollowing.down(props)
+		expect(props).not.toHaveProperty('structureId')
+		expect(props).not.toHaveProperty('algorithm')
+	})
+})

@@ -32,7 +32,6 @@ import { placePointers, type PointerAnchor } from '../../pointers/layout'
 import { prunePointers, type Pointer } from '../../pointers/pointers'
 import { ARRAY_SHAPE_TYPE, arrayShapeMigrations, arrayShapeProps, usedCount, type ArrayShape } from './array-shape-types'
 import { arrayCells } from './cells'
-import { bottomBeside } from '../../cells/followers'
 import { openRecursionTree } from '../recursion/RecursionTreeShapeUtil'
 import {
 	allNumbers,
@@ -415,7 +414,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			const props = f.props as Partial<ArrayState> | undefined
 			return props?.values ? { ...f, props: { ...props, values: padded(props.values, capacity) } } : f
 		})
-		const { finalFlash } = op
+		const { finalFlash, code } = op
 		const result = op.result && { ...op.result, values: padded(op.result.values, capacity) }
 		const final = result && this.withValues(shape, result, result.used, result.front)
 		// A recursive operation's calls go in a tree beside the array (Esc before the result takes it away).
@@ -427,6 +426,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			final,
 			finalFlash,
 			onCancel,
+			code,
 			// Shift: the highlights become marks, on the cells there are afterwards.
 			withMarks: (_update, highlights) => {
 				const after = result ?? { values, marks }
@@ -872,8 +872,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const bottom = Math.max(layout.box.y + layout.box.h, ...slots.map((b) => b.y + b.h), auxBounds ? auxBounds.y + auxBounds.h : -Infinity)
 		return {
 			left: layout.box.x,
-			// Under a recursion tree beside the array too.
-			bottom: bottomBeside(this.editor, shape, bottom),
+			bottom,
 			metrics: sceneMetrics,
 			color: shape.props.color,
 			fontFamily: this.getFontFamily(shape),

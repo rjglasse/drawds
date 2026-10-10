@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { exportSteps, saveStepImages } from '../export/steps'
+import { codeBoxesOf, hideCodeOf, showCodeOf } from '../shapes/code/follow'
 import { getColorValue, useValue, type Editor, type TLThemeColors, type VecLike } from 'tldraw'
 import {
 	cancelPlayback,
@@ -26,6 +27,8 @@ const ICONS = {
 	cancel: 'M4 4L12 12M12 4L4 12',
 	// Fast-forward: play by itself.
 	autoplay: 'M2 4L7.5 8L2 12Z M8.5 4L14 8L8.5 12Z',
+	// </>: the code beside the structure.
+	code: 'M5.5 4.5L2 8L5.5 11.5 M10.5 4.5L14 8L10.5 11.5 M9.2 3L6.8 13',
 	// A question mark: predict mode.
 	predict: 'M5.2 5.6A2.8 2.8 0 1 1 9.4 8C8.5 8.6 8 9.2 8 10.2 M8 13.2V13.3',
 	// A download arrow: every step as images.
@@ -39,7 +42,8 @@ const ICONS = {
  * pointer moves while it plays. Operations open paused on their first step (unless autoplay is
  * on). Once the result is in the bar stays: step back through it or replay it, then Done (Shift
  * keeps the highlights as marks). Keys do the same (see `playback.ts`). In predict mode (the ? toggle)
- * each step is first a question in the narration's place, and the next press shows the answer.
+ * each step is first a question in the narration's place, and the next press shows the answer. An
+ * operation with code has a </> toggle: its code beside the structure, the line each step is on lit.
  */
 export function PlayBar({
 	editor,
@@ -62,6 +66,8 @@ export function PlayBar({
 	const atStart = view.step === 0 && (asking || !(predict && view.paused && !view.done))
 	const violet = getColorValue(colors, 'violet', 'solid')
 	const speed = useValue('playback speed', playbackSpeed, [])
+	const { code, shapeId } = view
+	const showsCode = useValue('shows code', () => !!code && codeBoxesOf(editor, shapeId).length > 0, [editor, code, shapeId])
 	const button = (
 		testId: string,
 		label: string,
@@ -201,6 +207,14 @@ export function PlayBar({
 				{button('play-predict', 'Predict: ask the class about each step before showing it', 'predict', () => setPredict(editor, !predict), {
 					pressed: predict,
 				})}
+				{code &&
+					button(
+						'play-code',
+						'Code: the algorithm beside the structure, the line each step is on lit',
+						'code',
+						() => (showsCode ? hideCodeOf(editor, shapeId) : showCodeOf(editor, shapeId, code, { open: true })),
+						{ pressed: showsCode }
+					)}
 				{button('play-export', 'Save every step as numbered images (for slides and notes)', 'export', () => {
 					void exportSteps(editor).then(saveStepImages)
 				})}

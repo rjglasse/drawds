@@ -161,3 +161,21 @@ test('matrices saved before labels existed load with their indices', async ({ pa
 	expect(loaded).toEqual([expect.objectContaining({ rowLabels: [], colLabels: [] })])
 	await expect(page.locator('[data-row-index="1"]')).toHaveText('1')
 })
+
+test('code boxes saved before they could follow a structure load as code of their own', async ({ page }) => {
+	await open(page)
+	const loaded = await withEditor(page, (editor) => {
+		editor.createShape({ type: 'code', x: 200, y: 200, props: { code: 'x = 1', language: 'python' } } as never)
+		const doc = structuredClone(editor.getSnapshot().document)
+		;(doc.schema as { sequences: Record<string, number> }).sequences['com.tldraw.shape.code'] = 0
+		for (const record of Object.values(doc.store) as { typeName: string; type?: string; props?: Record<string, unknown> }[]) {
+			if (record.typeName !== 'shape' || record.type !== 'code' || !record.props) continue
+			delete record.props.structureId
+			delete record.props.algorithm
+		}
+		editor.loadSnapshot({ document: doc })
+		return editor.getCurrentPageShapes().map((s) => s.props)
+	})
+	expect(loaded).toEqual([expect.objectContaining({ code: 'x = 1', structureId: '', algorithm: '' })])
+	await expect(page.getByTestId('code-box')).toHaveCount(1)
+})

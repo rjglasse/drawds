@@ -3,6 +3,7 @@ import type { MarkColor, Marks } from '../cells/marks'
 import type { Pointer } from '../pointers/pointers'
 import type { Scene } from './scene'
 import { isTyping, swallowKeyUp } from '../controls/keys'
+import { showCodeOf } from '../shapes/code/follow'
 
 /** A row of values shown under the structure while an operation runs (a queue, a stack, an output). */
 export interface Strip {
@@ -55,6 +56,11 @@ export interface Frame {
 	 * the structure (see `src/shapes/recursion/`).
 	 */
 	calls?: CallEvent[]
+	/**
+	 * The line of the operation's code this step is on (a tag in its code, see
+	 * `src/shapes/code/algorithms.ts`), lit in a code box following the structure.
+	 */
+	line?: string
 }
 
 /**
@@ -158,6 +164,8 @@ export interface PlaybackView extends StepState {
 	question?: string
 	/** Elements the question is about, pulsing. */
 	pulse?: string[]
+	/** The operation's code (an algorithm with code, see `src/shapes/code/algorithms.ts`), if it has some. */
+	code?: string
 	/**
 	 * The shape just before and after the result went in. Steps shown afterwards undo the move it
 	 * made (a list's new head moves the shape's origin back), so they stay where they were.
@@ -227,6 +235,7 @@ interface Operation {
 	onClose?(): void
 	/** Played again from a record (the lesson log): not recorded, and its result stays out of the undo history. */
 	replay: boolean
+	code?: string
 	/** When each step came on screen (step, epoch ms), for lining the steps up with a transcript. */
 	shown: [number, number][]
 	/** Told when the operation closes, if it is being recorded. */
@@ -257,6 +266,8 @@ export interface OperationRecord {
 	frames: Frame[]
 	final?: TLShapePartial
 	finalFlash?: Marks
+	/** The algorithm whose code it shows, if it has some. */
+	code?: string
 }
 
 /** How an operation ended: its result in or cancelled, and when each step came on screen (step, epoch ms). */
@@ -434,6 +445,7 @@ export function playOperation(
 		onCancel,
 		onClose,
 		replay = false,
+		code,
 	}: {
 		shapeId: TLShapeId
 		label: string
@@ -449,13 +461,18 @@ export function playOperation(
 		onClose?(): void
 		/** Played again from a record: not recorded, and the result stays out of the undo history. */
 		replay?: boolean
+		/** The algorithm it runs, if it has code: a code box following the structure shows it, its lines lit. */
+		code?: string
 	}
 ) {
 	const p = player(editor)
 	if (p.op) finishPlayback(editor)
 	clearTimeout(p.timer)
 	const paused = !autoplayAtom.get()
-	const ended = replay || !frames.length ? undefined : recorders.get(editor)?.({ shapeId, label, frames, final, finalFlash })
+	// A code box following the structure shows this algorithm's code (Esc puts back what it showed),
+	// as the record of it keeps it.
+	const takeBack = code && !replay && frames.length ? showCodeOf(editor, shapeId, code, { open: false }) : undefined
+	const ended = replay || !frames.length ? undefined : recorders.get(editor)?.({ shapeId, label, frames, final, finalFlash, code })
 	p.op = {
 		shapeId,
 		label,
@@ -464,9 +481,15 @@ export function playOperation(
 		finalFlash,
 		keep,
 		withMarks,
-		onCancel,
+		onCancel: takeBack
+			? () => {
+					takeBack()
+					onCancel?.()
+				}
+			: onCancel,
 		onClose,
 		replay,
+		code,
 		shown: [],
 		ended: ended || undefined,
 		step: 0,
@@ -521,6 +544,7 @@ function show(p: Player, { back = false, still = false } = {}) {
 		committed: op.committed,
 		question: asked && (asked.ask || DEFAULT_QUESTION),
 		pulse: asked?.askFocus,
+		code: op.code,
 	})
 }
 

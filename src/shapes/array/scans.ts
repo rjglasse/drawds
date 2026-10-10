@@ -29,24 +29,31 @@ export function findMax(start: ArrayState): ArrayOperation {
 		pointers: [ptr('i', 0)],
 		strips: held(0),
 		ask: 'Find the largest value: where does maxval start?',
+		line: 'init',
 	})
 	for (let i = 1; i < n; i++) {
 		r.counts.comparisons++
 		const step = { pointers: [ptr('i', i)], strips: held(at), ask: `a[${i}] = ${values[i]} vs maxval = ${values[at]}: a new largest?`, askFocus: [i] }
 		if (compareKeys(values[i], values[at]) > 0) {
 			r.counts.updates++
-			r.step(`i = ${i}: a[${i}] = ${values[i]} > maxval = ${values[at]}, so maxval = ${values[i]}`, { ...step, lit: { [at]: LOOK, [i]: HELD }, strips: held(i) })
+			r.step(`i = ${i}: a[${i}] = ${values[i]} > maxval = ${values[at]}, so maxval = ${values[i]}`, {
+				...step,
+				lit: { [at]: LOOK, [i]: HELD },
+				strips: held(i),
+				line: 'update',
+			})
 			at = i
 		} else {
-			r.step(`i = ${i}: a[${i}] = ${values[i]} ≤ maxval = ${values[at]}: no change`, { ...step, lit: { [at]: HELD, [i]: LOOK } })
+			r.step(`i = ${i}: a[${i}] = ${values[i]} ≤ maxval = ${values[at]}: no change`, { ...step, lit: { [at]: HELD, [i]: LOOK }, line: 'compare' })
 		}
 	}
 	r.step(`The largest is ${values[at]} (index ${at}): ${times(n - 1, 'comparison')}, n - 1 for any order of ${n} values`, {
 		lit: { [at]: DONE },
 		strips: held(at),
 		ask: false,
+		line: 'done',
 	})
-	return { frames: r.frames, finalFlash: { [at]: DONE } }
+	return { frames: r.frames, finalFlash: { [at]: DONE }, code: 'find-max' }
 }
 
 /**
@@ -67,17 +74,19 @@ export function allUnique(start: ArrayState): ArrayOperation {
 				r.step(`a[${i}] = a[${j}] = ${values[i]}: not all unique, return false after ${times(r.counts.comparisons, 'comparison')}`, {
 					...step,
 					lit: { [i]: GONE, [j]: GONE },
+					line: 'repeat',
 				})
-				return { frames: r.frames, finalFlash: { [i]: GONE, [j]: GONE } }
+				return { frames: r.frames, finalFlash: { [i]: GONE, [j]: GONE }, code: 'all-unique' }
 			}
-			r.step(`a[${i}] = ${values[i]} ≠ a[${j}] = ${values[j]}`, { ...step, lit: { [i]: HELD, [j]: LOOK } })
+			r.step(`a[${i}] = ${values[i]} ≠ a[${j}] = ${values[j]}`, { ...step, lit: { [i]: HELD, [j]: LOOK }, line: 'compare' })
 		}
 	}
 	r.step(`No two are equal: all unique, return true after ${times(pairs, 'comparison')}, every pair: n(n - 1)/2 = ${n}·${n - 1}/2, the worst case`, {
 		lit: lit(0, n - 1, DONE),
 		ask: false,
+		line: 'unique',
 	})
-	return { frames: r.frames, finalFlash: lit(0, n - 1, DONE) }
+	return { frames: r.frames, finalFlash: lit(0, n - 1, DONE), code: 'all-unique' }
 }
 
 /**
@@ -94,17 +103,22 @@ export function sentinelSearch(start: ArrayState, target: string): ArrayOperatio
 	r.step(`a[${n}] = ${target}: the key goes one past the end as a sentinel, so the search is sure to stop`, {
 		lit: { [n]: HELD },
 		ask: `Search for ${target} without checking i < n: how can the loop be sure to stop?`,
+		line: 'sentinel',
 	})
 	let i = 0
 	for (;;) {
 		r.counts.comparisons++
 		const step = { pointers: [ptr('i', i)], dim: span(0, i - 1), ask: `i = ${i}: a[${i}] = ${withSentinel.values[i]} vs ${target}: stop or go on?`, askFocus: [i] }
 		if (compareKeys(withSentinel.values[i], target) === 0) {
-			r.step(`i = ${i}: a[${i}] = ${target}, so the loop stops`, { ...step, lit: { [i]: i < n ? DONE : HELD, ...(i < n ? { [n]: HELD } : {}) } })
+			r.step(`i = ${i}: a[${i}] = ${target}, so the loop stops`, {
+				...step,
+				lit: { [i]: i < n ? DONE : HELD, ...(i < n ? { [n]: HELD } : {}) },
+				line: 'compare',
+			})
 			break
 		}
 		r.counts['i < n checks saved']++
-		r.step(`i = ${i}: a[${i}] = ${values[i]} ≠ ${target}: i = ${i + 1}, no i < n check needed`, { ...step, lit: { [i]: LOOK, [n]: HELD } })
+		r.step(`i = ${i}: a[${i}] = ${values[i]} ≠ ${target}: i = ${i + 1}, no i < n check needed`, { ...step, lit: { [i]: LOOK, [n]: HELD }, line: 'compare' })
 		i++
 	}
 	r.set(start)
@@ -114,7 +128,7 @@ export function sentinelSearch(start: ArrayState, target: string): ArrayOperatio
 		found
 			? `i = ${i} < n = ${n}: found ${target} at index ${i}. The sentinel comes out again; ${times(saved, 'i < n check')} saved`
 			: `i = n = ${n}: only the sentinel matched, so ${target} is not in the array. It comes out again; ${times(saved, 'i < n check')} saved`,
-		{ pointers: [ptr('i', i)], lit: found ? { [i]: DONE } : {}, ask: false }
+		{ pointers: [ptr('i', i)], lit: found ? { [i]: DONE } : {}, ask: false, line: found ? 'found' : 'missing' }
 	)
-	return { frames: r.frames, finalFlash: found ? { [i]: DONE } : undefined }
+	return { frames: r.frames, finalFlash: found ? { [i]: DONE } : undefined, code: 'sentinel-search' }
 }

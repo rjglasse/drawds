@@ -5,6 +5,7 @@ import {
 	SVGContainer,
 	getColorValue,
 	type TLDefaultColorStyle,
+	type TLShapeId,
 	type TLFontFace,
 	type TLThemeColors,
 	type SvgExportContext,
@@ -15,8 +16,11 @@ import { CueBadge } from '../../cells/CueBadge'
 import { cueBadgeAt, showsColourCues } from '../../cells/cues'
 import { beginCellEdit, getEditingCell, type EditableCells } from '../../cells/editable-cells'
 import { pruneMarks } from '../../cells/marks'
-import { POINTER_FONT_SCALE, pointerReachSideways, type PointerAnchor } from '../../pointers/layout'
+import { exportingStep } from '../../export/exporting'
+import { playbackFor, shownFrame } from '../../nodelink/playback'
+import { POINTER_FONT_SCALE, placePointers, pointerReachSideways, type PointerAnchor } from '../../pointers/layout'
 import { prunePointers } from '../../pointers/pointers'
+import { algorithmCode, taggedLine } from './algorithms'
 import { CODE_TYPE, codeShapeMigrations, codeShapeProps, type CodeShape } from './code-shape-types'
 import { applyEdit, closeBraceEdit, indentEdit, newlineEdit, type CodeEdit } from './editing'
 import { highlightLines, type CodeLanguage, type TokenKind } from './highlight'
@@ -43,12 +47,18 @@ const TOKEN_COLORS: Record<Exclude<TokenKind, 'plain'>, TLDefaultColorStyle> = {
 	meta: 'red',
 }
 
-/** The layout, with room on the left for the shape's pointers' labels and arrows. */
+/** The pointer at the line a step is on, in a box showing an operation's code. */
+const PC = 'pc'
+
+/**
+ * The layout, with room on the left for the shape's pointers' labels and arrows (and, in a box that
+ * shows an algorithm's code, for the pc arrow that walks it while it plays).
+ */
 function layoutOf(shape: CodeShape) {
-	const { code, size, lineNumbers, pointers } = shape.props
+	const { code, size, lineNumbers, pointers, algorithm } = shape.props
 	const metrics = getCodeMetrics(size)
 	const left = pointerReachSideways(
-		pointers.map((p) => p.name),
+		[...pointers.map((p) => p.name), ...(algorithm ? [PC] : [])],
 		metrics.fontSize * POINTER_FONT_SCALE
 	)
 	return getCodeLayout(code, metrics, { lineNumbers, left })
@@ -89,14 +99,54 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 	readonly cells = codeCells
 
 	getDefaultProps(): CodeShape['props'] {
-		return { code: '', language: 'java', lineNumbers: false, marks: {}, pointers: [], color: 'black', size: 'm' }
+		return { code: '', language: 'java', lineNumbers: false, marks: {}, pointers: [], structureId: '', algorithm: '', color: 'black', size: 'm' }
 	}
 
 	getGeometry(shape: CodeShape) {
 		const { box } = layoutOf(shape)
 		const body = new Rectangle2d({ x: box.x, y: box.y, width: box.w, height: box.h, isFilled: true })
-		const pointers = this.pointerGeometry(shape)
+		// The room the pc arrow walks in counts in the bounds, so it is drawn inside them.
+		const room = shape.props.algorithm && box.x > 0 ? [new Rectangle2d({ x: 0, y: box.y, width: box.x, height: box.h, isFilled: false })] : []
+		const pointers = [...room, ...this.pointerGeometry(shape)]
 		return pointers.length ? new Group2d({ children: [body, ...pointers] }) : body
+	}
+
+	/**
+	 * While an operation with this box's code plays on the structure it follows: the line the step on
+	 * screen is on, if it is on one (in predict mode, while a step is asked about, the one before it).
+	 * `live`: the canvas, or exporting the structure's steps.
+	 */
+	private following(shape: CodeShape, live: boolean): { line?: number } | undefined {
+		const { structureId, algorithm, code, language } = shape.props
+		if (!live || !structureId || !algorithm) return undefined
+		const view = playbackFor(this.editor, structureId as TLShapeId)
+		if (!view || view.fading || view.code !== algorithm) return undefined
+		const tag = view.frames[shownFrame({ step: view.step, asking: view.question !== undefined })]?.line
+		const source = algorithmCode(algorithm, language)
+		return { line: tag && source ? taggedLine(code, source, tag) : undefined }
+	}
+
+	/** The shape's pointers laid out, plus pc at the line a step is on. */
+	private withPc(shape: CodeShape, line: number) {
+		const pc = { id: `#${PC}`, name: PC, at: lineKey(line) }
+		return placePointers([...shape.props.pointers, pc], (key) => this.pointerAnchor(shape, key), this.getPointerFontSize(shape))
+	}
+
+	/**
+	 * Picking another language for a box showing an algorithm's code (not edited since) shows the
+	 * algorithm in that language.
+	 */
+	override onBeforeUpdate(prev: CodeShape, next: CodeShape) {
+		let synced = next
+		const { algorithm } = next.props
+		if (algorithm && prev.props.language !== next.props.language && prev.props.code === next.props.code) {
+			const was = algorithmCode(algorithm, prev.props.language)
+			const now = algorithmCode(algorithm, next.props.language)
+			if (was && now && was.text === prev.props.code && now.text !== was.text) {
+				synced = { ...next, props: { ...next.props, code: now.text, ...kept(next, now.text) } }
+			}
+		}
+		return super.onBeforeUpdate(prev, synced) ?? (synced === next ? undefined : synced)
 	}
 
 	/** Room made on the left for pointers (`layoutOf`): the shape moves so the code stays put. */
@@ -173,6 +223,7 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 			'Point at a line and press 1–4 to light it (0 clears)',
 			'Right-click a line: Pointer > pc, then click pc and step it with ↑ ↓ as you walk through the code',
 			'Right-click: Show > Line numbers',
+			'Beside a structure (the play bar\'s </> button), it shows the code of what plays, the line each step is on lit',
 		]
 	}
 
@@ -196,11 +247,12 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 		const layout = layoutOf(shape)
 		const editing = this.getEditingKey(shape) === CODE_KEY
 		const cell = getEditingCell(this.editor)
+		const step = this.following(shape, true)?.line
 		return (
 			<>
 				<SVGContainer>
-					<CodeSvg shape={shape} layout={layout} metrics={metrics} colors={colors} fontFamily={this.getFontFamily()} cues={showsColourCues()} />
-					{this.renderPointers(shape, colors)}
+					<CodeSvg shape={shape} layout={layout} metrics={metrics} colors={colors} fontFamily={this.getFontFamily()} cues={showsColourCues()} step={step} />
+					{this.renderPointers(shape, colors, step === undefined ? {} : { placed: this.withPc(shape, step) })}
 				</SVGContainer>
 				{this.renderPointerOverlays(shape, colors)}
 				{editing && cell && (
@@ -221,6 +273,9 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 
 	override toSvg(shape: CodeShape, ctx: SvgExportContext) {
 		const colors = this.editor.getCurrentTheme().colors[ctx.colorMode]
+		// Exporting its structure's steps: the step's line, as on the canvas.
+		const live = !!shape.props.structureId && !!exportingStep(this.editor, shape.props.structureId as TLShapeId)
+		const step = this.following(shape, live)?.line
 		return (
 			<>
 				<CodeSvg
@@ -230,8 +285,9 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 					colors={colors}
 					fontFamily={this.getFontFamily()}
 					cues={showsColourCues()}
+					step={step}
 				/>
-				{this.renderPointers(shape, colors, { exporting: true })}
+				{this.renderPointers(shape, colors, { exporting: true, ...(step === undefined ? {} : { placed: this.withPc(shape, step) }) })}
 			</>
 		)
 	}
@@ -256,7 +312,13 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 	}
 }
 
-/** The box, lit lines, line numbers and the highlighted code: the canvas and exports alike. */
+/** The colour of the line a step is on (a debugger's current line), apart from the marks' four. */
+const STEP_COLOR: TLDefaultColorStyle = 'yellow'
+
+/**
+ * The box, lit lines, line numbers and the highlighted code: the canvas and exports alike. `step`:
+ * the line an operation's step is on, lit over any mark.
+ */
 export function CodeSvg({
 	shape,
 	layout,
@@ -264,6 +326,7 @@ export function CodeSvg({
 	colors,
 	fontFamily,
 	cues,
+	step,
 }: {
 	shape: CodeShape
 	layout: CodeLayout
@@ -271,6 +334,7 @@ export function CodeSvg({
 	colors: TLThemeColors
 	fontFamily: string
 	cues?: boolean
+	step?: number
 }) {
 	const { code, language, lineNumbers, marks, color } = shape.props
 	const { box } = layout
@@ -316,6 +380,19 @@ export function CodeSvg({
 					</g>
 				)
 			})}
+			{step !== undefined && step < lines.length && (
+				<rect
+					data-step-line={step}
+					x={layout.rowBox(step).x + strokeWidth * 1.5}
+					y={layout.rowBox(step).y}
+					width={layout.rowBox(step).w - strokeWidth * 3}
+					height={layout.rowBox(step).h}
+					rx={lineH * 0.15}
+					fill={getColorValue(colors, STEP_COLOR, 'semi')}
+					stroke={getColorValue(colors, STEP_COLOR, 'solid')}
+					strokeWidth={strokeWidth}
+				/>
+			)}
 			{lineNumbers &&
 				lines.map((_, i) => (
 					<text

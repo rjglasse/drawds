@@ -40,6 +40,8 @@ export interface ArrayOperation {
 	result?: ArrayState
 	/** Highlights on the result. */
 	finalFlash?: Marks
+	/** Its code (an algorithm in `code.ts`), if it has some: the line each step is on is its frame's `line`. */
+	code?: string
 }
 
 export const ptr = (name: string, at: number): Pointer => ({ id: `#${name}`, name, at: String(at) })
@@ -66,6 +68,8 @@ interface Step {
 	askFocus?: (number | string)[]
 	/** Recursive calls made and returned at this step, for the recursion tree beside the array. */
 	calls?: CallEvent[]
+	/** The line of the operation's code this step is on (a tag in `code.ts`). */
+	line?: string
 }
 
 /**
@@ -86,7 +90,7 @@ export function recorder(start: ArrayState, counts: Record<string, number>) {
 		set(next: ArrayState) {
 			state = next
 		},
-		step(caption: string, { lit: next = {}, pointers = [], dim = [], swaps, moves, strips, ask, askFocus, calls }: Step = {}) {
+		step(caption: string, { lit: next = {}, pointers = [], dim = [], swaps, moves, strips, ask, askFocus, calls, line }: Step = {}) {
 			const flash: Record<string, MarkColor | null> = {}
 			for (const key of Object.keys(shown)) if (!next[key]) flash[key] = null
 			for (const [key, color] of Object.entries(next)) if (shown[key] !== color) flash[key] = color
@@ -106,6 +110,7 @@ export function recorder(start: ArrayState, counts: Record<string, number>) {
 				...(ask === undefined ? {} : { ask }),
 				...(askFocus ? { askFocus: askFocus.map(String) } : {}),
 				...(calls ? { calls } : {}),
+				...(line ? { line } : {}),
 			})
 		},
 	}
@@ -148,6 +153,7 @@ export function binarySearch(start: ArrayState, target: string): ArrayOperation 
 	r.step(`lo = 0, hi = ${hi}: ${target} could be anywhere in a[0..${hi}]`, {
 		pointers: [ptr('lo', lo), ptr('hi', hi)],
 		ask: `Binary search for ${target}: where do lo and hi start?`,
+		line: 'init',
 	})
 	while (lo <= hi) {
 		const mid = Math.floor((lo + hi) / 2)
@@ -158,6 +164,7 @@ export function binarySearch(start: ArrayState, target: string): ArrayOperation 
 			...at,
 			lit: { [mid]: LOOK },
 			ask: `lo = ${lo}, hi = ${hi}: which index is mid?`,
+			line: 'mid',
 		})
 		const c = compareKeys(v, target)
 		// The same question whatever the answer: found, or which half is left.
@@ -167,8 +174,9 @@ export function binarySearch(start: ArrayState, target: string): ArrayOperation 
 				...at,
 				lit: { [mid]: DONE },
 				...half,
+				line: 'found',
 			})
-			return { frames: r.frames, finalFlash: { [mid]: DONE } }
+			return { frames: r.frames, finalFlash: { [mid]: DONE }, code: 'binary-search' }
 		}
 		if (c < 0) {
 			lo = mid + 1
@@ -176,6 +184,7 @@ export function binarySearch(start: ArrayState, target: string): ArrayOperation 
 				pointers: [ptr('lo', lo), ptr('mid', mid), ptr('hi', hi)],
 				dim: outside(lo, hi),
 				...half,
+				line: 'right',
 			})
 		} else {
 			hi = mid - 1
@@ -183,6 +192,7 @@ export function binarySearch(start: ArrayState, target: string): ArrayOperation 
 				pointers: [ptr('lo', lo), ptr('mid', mid), ptr('hi', hi)],
 				dim: outside(lo, hi),
 				...half,
+				line: 'left',
 			})
 		}
 	}
@@ -190,8 +200,9 @@ export function binarySearch(start: ArrayState, target: string): ArrayOperation 
 		pointers: [ptr('lo', lo), ptr('hi', hi)],
 		dim: span(0, n - 1),
 		ask: `lo = ${lo}, hi = ${hi}: does the search go on?`,
+		line: 'missing',
 	})
-	return { frames: r.frames }
+	return { frames: r.frames, code: 'binary-search' }
 }
 
 /** Linear search for `target`: i walks from the start, comparing each value, fading the ones it passed. */
@@ -203,13 +214,18 @@ export function linearSearch(start: ArrayState, target: string): ArrayOperation 
 		r.counts.comparisons++
 		const step = { pointers: [ptr('i', i)], dim: span(0, i - 1), ask: `i = ${i}: is a[${i}] the ${target} we want?`, askFocus: [i] }
 		if (compareKeys(values[i], target) === 0) {
-			r.step(`i = ${i}: a[${i}] = ${values[i]}. Found ${target} at index ${i}`, { ...step, lit: { [i]: DONE } })
-			return { frames: r.frames, finalFlash: { [i]: DONE } }
+			r.step(`i = ${i}: a[${i}] = ${values[i]}. Found ${target} at index ${i}`, { ...step, lit: { [i]: DONE }, line: 'found' })
+			return { frames: r.frames, finalFlash: { [i]: DONE }, code: 'linear-search' }
 		}
-		r.step(`i = ${i}: a[${i}] = ${values[i]} ≠ ${target}, so on to the next`, { ...step, lit: { [i]: LOOK } })
+		r.step(`i = ${i}: a[${i}] = ${values[i]} ≠ ${target}, so on to the next`, { ...step, lit: { [i]: LOOK }, line: 'compare' })
 	}
-	r.step(`i = ${n}: past the end, so ${target} is not in the array`, { pointers: [ptr('i', n)], dim: span(0, n - 1), ask: `i = ${n}: what now?` })
-	return { frames: r.frames }
+	r.step(`i = ${n}: past the end, so ${target} is not in the array`, {
+		pointers: [ptr('i', n)],
+		dim: span(0, n - 1),
+		ask: `i = ${n}: what now?`,
+		line: 'missing',
+	})
+	return { frames: r.frames, code: 'linear-search' }
 }
 
 // Sorting. Counts of comparisons and swaps run in the play bar, so a class can compare algorithms.
@@ -218,10 +234,10 @@ function sortCounts() {
 	return { comparisons: 0, swaps: 0 }
 }
 
-function sorted(r: ReturnType<typeof recorder>, n: number): ArrayOperation {
+function sorted(r: ReturnType<typeof recorder>, n: number, code: string): ArrayOperation {
 	const { comparisons, swaps } = r.counts
 	r.step(`Sorted: ${comparisons} comparisons, ${swaps} swaps`, { lit: lit(0, n - 1, DONE), ask: false })
-	return { frames: r.frames, result: r.state }
+	return { frames: r.frames, result: r.state, code }
 }
 
 /**
@@ -237,6 +253,7 @@ export function insertionSort(start: ArrayState): ArrayOperation {
 			lit: { ...lit(0, i - 1, DONE), [i]: LOOK },
 			pointers: [ptr('i', i), ptr('j', i)],
 			ask: `The sorted part is a[0..${i - 1}]: which value goes into it next?`,
+			line: 'outer',
 		})
 		let j = i
 		while (j > 0) {
@@ -248,7 +265,7 @@ export function insertionSort(start: ArrayState): ArrayOperation {
 				...(also === undefined ? {} : { [also]: LOOK }),
 			})
 			const pointers = [ptr('i', i), ptr('j', j)]
-			const ask = { ask: `a[${j - 1}] = ${x} vs a[${j}] = ${y}: swap them or not?`, askFocus: [j - 1, j] }
+			const ask = { ask: `a[${j - 1}] = ${x} vs a[${j}] = ${y}: swap them or not?`, askFocus: [j - 1, j], line: 'compare' }
 			r.counts.comparisons++
 			if (compareKeys(x, y) <= 0) {
 				r.step(`a[${j - 1}] = ${x} ≤ a[${j}] = ${y}: ${y} is in place`, { lit: lit(0, i, DONE), pointers, ...ask })
@@ -262,12 +279,15 @@ export function insertionSort(start: ArrayState): ArrayOperation {
 				pointers: [ptr('i', i), ptr('j', j - 1)],
 				swaps: [[j - 1, j]],
 				ask: false,
+				line: 'swap',
 			})
 			j--
-			if (j === 0) r.step(`j = 0: ${y} is the smallest so far, at the front`, { lit: lit(0, i, DONE), pointers: [ptr('i', i), ptr('j', 0)], ask: false })
+			if (j === 0) {
+				r.step(`j = 0: ${y} is the smallest so far, at the front`, { lit: lit(0, i, DONE), pointers: [ptr('i', i), ptr('j', 0)], ask: false, line: 'compare' })
+			}
 		}
 	}
-	return sorted(r, n)
+	return sorted(r, n, 'insertion-sort')
 }
 
 /**
@@ -283,6 +303,7 @@ export function selectionSort(start: ArrayState): ArrayOperation {
 			lit: { ...lit(0, i - 1, DONE), [i]: LOOK },
 			pointers: [ptr('i', i), ptr('min', min)],
 			ask: false,
+			line: 'init',
 		})
 		for (let j = i + 1; j < n; j++) {
 			const [x, m] = [r.state.values[j], r.state.values[min]]
@@ -293,6 +314,7 @@ export function selectionSort(start: ArrayState): ArrayOperation {
 					lit: { ...lit(0, i - 1, DONE), [j]: LOOK },
 					pointers: [ptr('i', i), ptr('j', j), ptr('min', j)],
 					...ask,
+					line: 'update',
 				})
 				min = j
 			} else {
@@ -300,12 +322,18 @@ export function selectionSort(start: ArrayState): ArrayOperation {
 					lit: { ...lit(0, i - 1, DONE), [j]: LOOK, [min]: LOOK },
 					pointers: [ptr('i', i), ptr('j', j), ptr('min', min)],
 					...ask,
+					line: 'compare',
 				})
 			}
 		}
 		const placed = { ask: `The scan is done and min = ${min}: what happens at index ${i}?`, askFocus: [i] }
 		if (min === i) {
-			r.step(`a[${i}] = ${r.state.values[i]} is already the smallest: no swap`, { lit: lit(0, i, DONE), pointers: [ptr('i', i), ptr('min', min)], ...placed })
+			r.step(`a[${i}] = ${r.state.values[i]} is already the smallest: no swap`, {
+				lit: lit(0, i, DONE),
+				pointers: [ptr('i', i), ptr('min', min)],
+				...placed,
+				line: 'noswap',
+			})
 			continue
 		}
 		const v = r.state.values[min]
@@ -316,9 +344,10 @@ export function selectionSort(start: ArrayState): ArrayOperation {
 			pointers: [ptr('i', i), ptr('min', min)],
 			swaps: [[i, min]],
 			...placed,
+			line: 'swap',
 		})
 	}
-	return sorted(r, n)
+	return sorted(r, n, 'selection-sort')
 }
 
 /**
@@ -335,7 +364,7 @@ export function bubbleSort(start: ArrayState): ArrayOperation {
 		for (let j = 0; j < end; j++) {
 			const [x, y] = [r.state.values[j], r.state.values[j + 1]]
 			const step = { lit: { ...settled, [j]: LOOK, [j + 1]: LOOK }, pointers: [ptr('j', j)] }
-			const ask = { ask: `a[${j}] = ${x} vs a[${j + 1}] = ${y}: swap them or leave them?`, askFocus: [j, j + 1] }
+			const ask = { ask: `a[${j}] = ${x} vs a[${j + 1}] = ${y}: swap them or leave them?`, askFocus: [j, j + 1], line: 'compare' }
 			r.counts.comparisons++
 			if (compareKeys(x, y) <= 0) {
 				r.step(`Pass ${pass}: a[${j}] = ${x} ≤ a[${j + 1}] = ${y}: leave them`, { ...step, ...ask })
@@ -345,16 +374,16 @@ export function bubbleSort(start: ArrayState): ArrayOperation {
 			r.set(swapped(r.state, j, j + 1))
 			r.counts.swaps++
 			swaps++
-			r.step(`swap(a[${j}], a[${j + 1}])`, { ...step, swaps: [[j, j + 1]], ask: false })
+			r.step(`swap(a[${j}], a[${j + 1}])`, { ...step, swaps: [[j, j + 1]], ask: false, line: 'swap' })
 		}
 		const over = { ask: `Pass ${pass} is over: what do we know now?` }
 		if (!swaps) {
-			r.step(`No swaps in pass ${pass}: every neighbour is in order, so the array is sorted`, { lit: lit(0, n - 1, DONE), ...over })
+			r.step(`No swaps in pass ${pass}: every neighbour is in order, so the array is sorted`, { lit: lit(0, n - 1, DONE), ...over, line: 'sorted' })
 			break
 		}
-		r.step(`End of pass ${pass}: ${r.state.values[end]} has bubbled up to index ${end}`, { lit: lit(end, n - 1, DONE), ...over })
+		r.step(`End of pass ${pass}: ${r.state.values[end]} has bubbled up to index ${end}`, { lit: lit(end, n - 1, DONE), ...over, line: 'pass' })
 	}
-	return sorted(r, n)
+	return sorted(r, n, 'bubble-sort')
 }
 
 // Quicksort (Lomuto's partition): the last value of the range is the pivot (red); i marks the end of
@@ -374,10 +403,11 @@ function partition(r: Recorder, lo: number, hi: number, settled: Marks, around: 
 		lit: shown(),
 		pointers: at(lo),
 		ask: `Partition a[${lo}..${hi}] (Lomuto): which value is the pivot?`,
+		line: 'pivot',
 	})
 	for (let j = lo; j < hi; j++) {
 		const x = r.state.values[j]
-		const side = { ask: `a[${j}] = ${x} vs the pivot ${p}: which side does it belong on?`, askFocus: [j] }
+		const side = { ask: `a[${j}] = ${x} vs the pivot ${p}: which side does it belong on?`, askFocus: [j], line: 'compare' }
 		r.counts.comparisons++
 		if (compareKeys(x, p) >= 0) {
 			r.step(`a[${j}] = ${x} ≥ ${p}: it stays on the right`, { ...around, lit: shown({ [j]: LOOK }), pointers: at(j), ...side })
@@ -385,7 +415,7 @@ function partition(r: Recorder, lo: number, hi: number, settled: Marks, around: 
 		}
 		r.step(`a[${j}] = ${x} < ${p}: it belongs with the smaller values`, { ...around, lit: shown({ [j]: LOOK }), pointers: at(j), ...side })
 		// Where i says the smaller values end: the same question whether or not a swap is needed.
-		const where = { ask: `${x} belongs with the smaller values: what happens to i, and where does ${x} go?`, askFocus: [j] }
+		const where = { ask: `${x} belongs with the smaller values: what happens to i, and where does ${x} go?`, askFocus: [j], line: 'swap' }
 		i++
 		if (i === j) {
 			r.step(`i = ${i}, which is j: a[${j}] is in place already`, { ...around, lit: shown(), pointers: at(j), ...where })
@@ -412,6 +442,7 @@ function partition(r: Recorder, lo: number, hi: number, settled: Marks, around: 
 			swaps: to === hi ? undefined : [[to, hi]],
 			ask: `Every value is compared: where does the pivot ${p} go?`,
 			askFocus: [hi],
+			line: 'place',
 		}
 	)
 	return to
@@ -423,7 +454,7 @@ export function partitionArray(start: ArrayState): ArrayOperation {
 	const r = recorder(start, sortCounts())
 	const settled: Marks = {}
 	const p = partition(r, 0, n - 1, settled, {})
-	return { frames: r.frames, result: r.state, finalFlash: { [p]: DONE } }
+	return { frames: r.frames, result: r.state, finalFlash: { [p]: DONE }, code: 'partition' }
 }
 
 /** Predict mode's question before each recursive call: the call stack is under the array. */
@@ -448,9 +479,10 @@ export function quicksort(start: ArrayState): ArrayOperation {
 				...around,
 				lit: { ...settled },
 				ask: NEXT_CALL,
+				line: 'base',
 			})
 		} else {
-			r.step(`quicksort(${lo}, ${hi}): partition a[${lo}..${hi}]`, { ...around, lit: { ...settled }, ask: NEXT_CALL })
+			r.step(`quicksort(${lo}, ${hi}): partition a[${lo}..${hi}]`, { ...around, lit: { ...settled }, ask: NEXT_CALL, line: 'partition' })
 			const p = partition(r, lo, hi, settled, around)
 			sort(lo, p - 1)
 			sort(p + 1, hi)
@@ -464,7 +496,7 @@ export function quicksort(start: ArrayState): ArrayOperation {
 		strips: [{ title: 'call stack', items: [] }],
 		ask: false,
 	})
-	return { frames: r.frames, result: r.state }
+	return { frames: r.frames, result: r.state, code: 'quicksort' }
 }
 
 /**
@@ -481,7 +513,7 @@ export function hoarePartition(start: ArrayState): ArrayOperation {
 	let pivotAt = 0
 	const shown = (extra: Marks = {}): Marks => ({ [pivotAt]: PIVOT, ...extra })
 	const at = () => [ptr('i', i), ptr('j', j)]
-	r.step(`pivot = a[0] = ${p}. i starts before the array, j after it`, { lit: shown(), pointers: at(), ask: false })
+	r.step(`pivot = a[0] = ${p}. i starts before the array, j after it`, { lit: shown(), pointers: at(), ask: false, line: 'pivot' })
 	for (;;) {
 		do {
 			i++
@@ -493,6 +525,7 @@ export function hoarePartition(start: ArrayState): ArrayOperation {
 				pointers: at(),
 				ask: `i = ${i}: does i stop at a[${i}] = ${x}?`,
 				askFocus: [i],
+				line: 'left',
 			})
 			if (stop) break
 		} while (i < n - 1)
@@ -506,6 +539,7 @@ export function hoarePartition(start: ArrayState): ArrayOperation {
 				pointers: at(),
 				ask: `j = ${j}: does j stop at a[${j}] = ${x}?`,
 				askFocus: [j],
+				line: 'right',
 			})
 			if (stop) break
 		} while (j > 0)
@@ -514,13 +548,13 @@ export function hoarePartition(start: ArrayState): ArrayOperation {
 		r.counts.swaps++
 		if (pivotAt === i) pivotAt = j
 		else if (pivotAt === j) pivotAt = i
-		r.step(`i < j: swap(a[${i}], a[${j}]), so each goes to its side`, { lit: shown(), pointers: at(), swaps: [[i, j]], ask: BOTH_STOPPED })
+		r.step(`i < j: swap(a[${i}], a[${j}]), so each goes to its side`, { lit: shown(), pointers: at(), swaps: [[i, j]], ask: BOTH_STOPPED, line: 'swap' })
 	}
 	r.step(
 		`i = ${i} ≥ j = ${j}: the pointers have crossed. a[0..${j}] ≤ ${p} ≤ a[${j + 1}..${n - 1}]; unlike Lomuto's, the pivot isn't necessarily in its final place`,
-		{ lit: { ...lit(0, j, SMALL), [pivotAt]: PIVOT }, pointers: at(), ask: BOTH_STOPPED }
+		{ lit: { ...lit(0, j, SMALL), [pivotAt]: PIVOT }, pointers: at(), ask: BOTH_STOPPED, line: 'crossed' }
 	)
-	return { frames: r.frames, result: r.state }
+	return { frames: r.frames, result: r.state, code: 'hoare-partition' }
 }
 
 const BOTH_STOPPED = 'i and j have both stopped: what now?'
@@ -542,7 +576,13 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 	const sort = (lo: number, hi: number) => {
 		calls.push(`${lo}..${hi}`)
 		if (lo === hi) {
-			r.step(`mergeSort(${lo}, ${hi}): one value, a[${lo}], is sorted`, { dim: outside(lo, hi), strips: strips(), lit: { [lo]: DONE }, ask: NEXT_CALL })
+			r.step(`mergeSort(${lo}, ${hi}): one value, a[${lo}], is sorted`, {
+				dim: outside(lo, hi),
+				strips: strips(),
+				lit: { [lo]: DONE },
+				ask: NEXT_CALL,
+				line: 'base',
+			})
 			calls.pop()
 			return
 		}
@@ -551,6 +591,7 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 			dim: outside(lo, hi),
 			strips: strips(),
 			ask: NEXT_CALL,
+			line: 'split',
 		})
 		sort(lo, mid)
 		sort(mid + 1, hi)
@@ -568,23 +609,28 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 			lit: halves,
 			pointers: [ptr('i', i), ptr('j', j)],
 			ask: `Both halves of a[${lo}..${hi}] are sorted: what now?`,
+			line: 'merge',
 		})
 		while (i <= mid || j <= hi) {
 			// Which half the next value comes from (i and j can be equal once the left half is used up).
 			let left: boolean
 			let why: string
+			let line: string
 			if (i > mid) {
 				left = false
 				why = `The left half is used up: take a[${j}] = ${values[j]}`
+				line = 'rest-right'
 			} else if (j > hi) {
 				left = true
 				why = `The right half is used up: take a[${i}] = ${values[i]}`
+				line = 'rest-left'
 			} else {
 				r.counts.comparisons++
 				left = compareKeys(values[i], values[j]) <= 0
 				why = left
 					? `a[${i}] = ${values[i]} ≤ a[${j}] = ${values[j]}: take ${values[i]}`
 					: `a[${j}] = ${values[j]} < a[${i}] = ${values[i]}: take ${values[j]}`
+				line = left ? 'left' : 'right'
 			}
 			const ask =
 				i <= mid && j <= hi
@@ -600,6 +646,7 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 				lit: { ...halves, [take]: LOOK },
 				pointers: [ptr('i', i), ptr('j', j)],
 				...ask,
+				line,
 			})
 		}
 		// Copy the run back: marks travel with their values.
@@ -617,6 +664,7 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 			lit: lit(lo, hi, DONE),
 			moves: from.map((old, k): [number, number] => [old, lo + k]).filter(([a, b]) => a !== b),
 			ask: false,
+			line: 'copy',
 		})
 		calls.pop()
 	}
@@ -630,7 +678,7 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 		],
 		ask: false,
 	})
-	return { frames: r.frames, result: r.state }
+	return { frames: r.frames, result: r.state, code: 'merge-sort' }
 }
 
 // Summing recursively (lecture 1's recursive strategies): the last value plus the sum of the rest

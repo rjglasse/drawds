@@ -23,16 +23,17 @@ export function deleteFollowersWithTheirStructure(editor: Editor) {
 }
 
 /**
- * `bottom` (shape space), or lower if a follower beside the structure (overlapping its height: a
- * union-find, a tall matrix, a recursion tree) reaches further down: strips and the play bar go
- * under that, so they never cover it while it follows the steps.
+ * The followers beside the structure (overlapping its height: a union-find, a tall matrix, a
+ * recursion tree, a code box), as boxes in the structure's shape space. An operation's strips and
+ * play bar keep clear of them, so they never cover one while it follows the steps.
  */
-export function bottomBeside(editor: Editor, shape: TLShape, bottom: number): number {
+export function besideBoxes(editor: Editor, shape: TLShape): { x: number; y: number; w: number; h: number }[] {
 	const own = editor.getShapePageBounds(shape)
-	if (!own) return bottom
-	const beside = followersOf(editor, shape.id).flatMap((f) => {
+	if (!own) return []
+	return followersOf(editor, shape.id).flatMap((f) => {
 		const b = editor.getShapePageBounds(f)
-		return b && b.minY < own.maxY && b.maxY > own.minY ? [editor.getPointInShapeSpace(shape, { x: b.minX, y: b.maxY }).y] : []
+		if (!b || b.minY >= own.maxY || b.maxY <= own.minY) return []
+		const at = editor.getPointInShapeSpace(shape, { x: b.minX, y: b.minY })
+		return [{ x: at.x, y: at.y, w: b.w, h: b.h }]
 	})
-	return Math.max(bottom, ...beside)
 }

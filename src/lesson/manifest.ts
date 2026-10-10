@@ -26,6 +26,8 @@ export interface LessonEntry {
 	final?: Record<string, unknown>
 	/** Highlights the result adds (the new node, green). */
 	finalFlash?: Record<string, string>
+	/** The algorithm whose code a code box beside it showed, its lines lit. */
+	code?: string
 	/** The store schema the records were saved with, to migrate them when replayed by a newer drawds. */
 	schema: unknown
 }

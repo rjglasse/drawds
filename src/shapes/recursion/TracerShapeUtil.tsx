@@ -10,7 +10,6 @@ import {
 } from 'tldraw'
 import { CellShapeUtil, type CellFont, type NodeOperation, type PlaybackLayout } from '../../cells/CellShapeUtil'
 import type { EditableCells } from '../../cells/editable-cells'
-import { bottomBeside } from '../../cells/followers'
 import { cueBadgeAt, showsColourCues } from '../../cells/cues'
 import { CueBadge } from '../../cells/CueBadge'
 import type { MarkColor } from '../../cells/marks'
@@ -167,7 +166,7 @@ export class TracerShapeUtil extends CellShapeUtil<TracerShape> {
 		const { layout } = modelOf(shape)
 		return {
 			left: 0,
-			bottom: bottomBeside(this.editor, shape, layout.box.h),
+			bottom: layout.box.h,
 			metrics: { fontSize: layout.fontSize, labelFontSize: layout.fontSize * 0.85, strokeWidth: layout.strokeWidth },
 			color: shape.props.color,
 			fontFamily: this.fontFamily(shape),

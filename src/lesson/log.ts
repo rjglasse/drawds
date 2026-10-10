@@ -46,7 +46,7 @@ export function clearLesson(editor: Editor) {
  */
 export function startLessonLog(editor: Editor) {
 	putBack(editor)
-	return recordOperations(editor, ({ shapeId, label, frames, final, finalFlash }) => {
+	return recordOperations(editor, ({ shapeId, label, frames, final, finalFlash, code }) => {
 		const shape = editor.getShape(shapeId)
 		if (!shape) return
 		const entry: LessonEntry = json({
@@ -59,6 +59,7 @@ export function startLessonLog(editor: Editor) {
 			frames: frames as LessonEntry['frames'],
 			final: final as LessonEntry['final'],
 			finalFlash,
+			...(code ? { code } : {}),
 			schema: editor.store.schema.serialize(),
 		})
 		writeLesson(editor, [...lessonOf(editor), entry])
@@ -123,6 +124,7 @@ export function replayEntry(editor: Editor, id: string): boolean {
 		frames: entry.frames as unknown as Frame[],
 		final: entry.final as never,
 		finalFlash: entry.finalFlash as Marks | undefined,
+		code: entry.code,
 		replay: true,
 		onClose: () => putBack(editor),
 	})

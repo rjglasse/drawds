@@ -3,6 +3,7 @@ import {
 	DefaultSizeStyle,
 	StyleProp,
 	T,
+	createShapePropsMigrationIds,
 	createShapePropsMigrationSequence,
 	type RecordProps,
 	type TLDefaultColorStyle,
@@ -31,6 +32,13 @@ export interface CodeShapeProps {
 	marks: Marks
 	/** Named pointers at lines (`L<i>`). */
 	pointers: Pointer[]
+	/**
+	 * The structure it follows ('' for none): while an operation with code plays on it, the box shows
+	 * that code, the step's line lit (`src/shapes/code/follow.ts`). It goes when the structure does.
+	 */
+	structureId: string
+	/** The algorithm whose code it shows ('' for code of its own), so its lines can be found. */
+	algorithm: string
 	color: TLDefaultColorStyle
 	size: TLDefaultSizeStyle
 }
@@ -49,9 +57,29 @@ export const codeShapeProps: RecordProps<CodeShape> = {
 	lineNumbers: T.boolean,
 	marks: marksValidator,
 	pointers: pointersValidator,
+	structureId: T.string,
+	algorithm: T.string,
 	color: DefaultColorStyle,
 	size: DefaultSizeStyle,
 }
 
+const versions = createShapePropsMigrationIds(CODE_TYPE, {
+	AddFollowing: 1,
+})
+
 /** Code boxes are persisted in the browser, so every props change needs a step here. */
-export const codeShapeMigrations = createShapePropsMigrationSequence({ sequence: [] })
+export const codeShapeMigrations = createShapePropsMigrationSequence({
+	sequence: [
+		{
+			id: versions.AddFollowing,
+			up(props) {
+				props.structureId = ''
+				props.algorithm = ''
+			},
+			down(props) {
+				delete props.structureId
+				delete props.algorithm
+			},
+		},
+	],
+})

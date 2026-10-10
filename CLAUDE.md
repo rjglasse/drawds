@@ -152,9 +152,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
 - `src/cells/clean-copy.ts` - Clean copy, last in every structure's own submenu (`NodeOperationsMenu` adds it): the
   same props (values, shape, seed) without marks or pointers, under the original past anything in the way
   (`freeTopBelow`, pure), selected, one undo step; followers stay with the original.
-- `src/cells/followers.ts` - shapes that follow a structure (`graphId` on graph views, `structureId` on recursion trees):
-  `followersOf` is what the lesson log records and replays with an operation and what step export draws; strips and
-  the play bar go under followers beside a structure (`bottomBeside` in a `playbackLayout`); they are deleted with it
+- `src/cells/followers.ts` - shapes that follow a structure (`graphId` on graph views, `structureId` on recursion trees
+  and code boxes): `followersOf` is what the lesson log records and replays with an operation and what step export
+  draws; the play bar goes under followers beside a structure, and its strips too if one is in their way, else they
+  stay right under it (`besideBoxes`, used by `placementFor` in `src/controls/placement.ts`); they are deleted with it
   (`deleteFollowersWithTheirStructure`, an after-delete side effect registered in App's onMount).
 - `src/shapes/recursion/` - recursion trees (dds-szw.13): a recursive operation's frames carry `calls` (`{ call:
   'sum(0, 3)' }` made by the call running, `{ returns: '9' }` by it), `calls.ts` (pure) replays them into a `CallRun`
@@ -191,6 +192,14 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   (pc, here) sit left of a line, stepped with the arrow keys: the layout makes room for them on the left (`left`,
   `pointerReachSideways`) and `layoutOffset` moves the shape so the code stays put. `convert.ts`: right-click a tldraw
   text box > Make a code box (its plain text, the language guessed from telltale signs by `guessLanguage`, pure).
+  The running algorithm's code (dds-2tt.4): a code box can follow a structure (props `structureId`, `algorithm`;
+  `follow.ts`). The play bar's </> button (shown when the operation has `code`) opens one to the structure's right or
+  takes it away; while one is there, every operation with code shows its algorithm in it (`playOperation`'s `code`
+  replaces the box's code, Esc puts the old back), the frame's `line` lit yellow with a pc arrow (room kept on the
+  left whenever `algorithm` is set). `algorithms.ts` (pure): each algorithm written per language with `@tag`s at line
+  ends (`parseCode`), `algorithmCode` (C falls back to Java for now), `taggedLine` (finds a tag's line in code edited
+  since, by its text). Picking another language swaps an unedited box to that language's version (`onBeforeUpdate`).
+  The arrays' code is `src/shapes/array/code.ts` (searches, scans, every sort; Java and Python).
 - `src/shapes/hash/` - hash tables (node-link): `buckets: string[][]` (a chain per bucket, or one entry per slot with
   `TOMBSTONE` for deleted), strategy style `drawds:hash-strategy` chaining / probing (switching re-inserts the
   keys). `hash.ts` is pure: `hashOf` (k mod m, or character codes added; with how, for captions), `buildTable`,
@@ -356,6 +365,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   whichever way the step goes (BFS / DFS "A–B: is B new?", BST "30 vs 21: which way?", hashing "which bucket does
   h(22) give?", binary search "found it, or which half?", sorts "swap them or not?", recursion "which call comes
   next?", list code "which line comes next?"); array operations pass `ask` / `askFocus` to the recorder's `step`.
+  An operation with code names its algorithm (`playOperation`'s `code`; arrays return it as `ArrayOperation.code`) and
+  each frame the line it shows (`Frame.line`, a tag in that algorithm's code in every language; a frame without one
+  lights nothing). Write the code as the steps run it, so the lit line reads as what the step shows; the unit test in
+  `src/shapes/code/algorithms.test.ts` checks every tag a step names is in each language's code.
 - Operations from a node (BFS / DFS on graphs, pre/in/post/level-order on trees and heaps, an array's searches):
   implement `nodeOperations(shape, key)` (on `CellShapeUtil`); they appear in that element's context menu.
   Whole-structure operations (an array's sorts) go in `shapeOperations(shape)`, shown wherever it is clicked.

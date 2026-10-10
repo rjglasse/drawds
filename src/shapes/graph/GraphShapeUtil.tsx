@@ -13,8 +13,7 @@ import { GROW_HANDLE_ID } from '../../controls/grow'
 import { GrowGrip } from '../../controls/GrowGrip'
 import { showsStructureControls } from '../../controls/visibility'
 import { arrowHead, routeEdge } from '../../nodelink/geometry'
-import type { PlaybackLayout, PointerDirection } from '../../cells/CellShapeUtil'
-import { bottomBeside } from '../../cells/followers'
+import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { spatialNeighbor } from '../../nodelink/geometry'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import { prunePointers } from '../../pointers/pointers'
@@ -323,15 +322,6 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 			"Right-click a node: Step by step has BFS, DFS, Dijkstra, Prim, Kruskal (with its union-find beside the graph) and connected components; Show puts its adjacency matrix, lists or union-find beside it",
 			'Style panel: Edges (directed or not), Weights, Labels, and Density, Pieces, Order for a new sketch',
 		]
-	}
-
-	/**
-	 * The strips and play bar go under the graph and under any view beside it (overlapping its height:
-	 * a union-find or a matrix taller than the graph), so they never cover a view while it follows the steps.
-	 */
-	override playbackLayout(shape: GraphShape, frame: Frame | undefined): PlaybackLayout {
-		const layout = super.playbackLayout(shape, frame)
-		return { ...layout, bottom: bottomBeside(this.editor, shape, layout.bottom) }
 	}
 
 	private algorithmOptions(shape: GraphShape) {
