@@ -1,4 +1,4 @@
-import { createShapeId, type Editor, type TLShape } from 'tldraw'
+import { createShapeId, type Editor, type TLCreateShapePartial, type TLShape } from 'tldraw'
 import type { Box } from '../nodelink/geometry'
 import { ROOM_KEY } from '../nodelink/playback'
 import { CellShapeUtil } from './CellShapeUtil'
@@ -47,7 +47,9 @@ export function cleanCopy(editor: Editor, shape: TLShape) {
 	const { [ROOM_KEY]: _room, ...meta } = shape.meta
 	const id = createShapeId()
 	editor.markHistoryStoppingPoint('clean copy')
-	editor.createShape({ id, type: shape.type, parentId: shape.parentId, x: at.x, y: at.y, rotation: shape.rotation, props, meta })
+	// Any shape's partial (the union of every shape type's is too big for TypeScript to check).
+	const copy = { id, type: shape.type, parentId: shape.parentId, x: at.x, y: at.y, rotation: shape.rotation, props, meta }
+	editor.createShape(copy as TLCreateShapePartial)
 	editor.select(id)
 	editor.zoomToSelectionIfOffscreen(64)
 }

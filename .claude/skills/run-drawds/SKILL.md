@@ -275,7 +275,11 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   cycles 1x, 2x, 4x, ½x (localStorage `drawds:speed`). An operation with code (an array's searches, scans and sorts)
   has `play-code` (</>): a code box to the structure's right shows the algorithm, the step's line lit
   (`[data-step-line]` gives its index) with a pc arrow (`[data-pointer="pc"]`); pressed again, it goes. Later
-  operations on that structure show their code in it. Values show after their lines (`[data-value-line]`: `i = 2`);
+  operations on that structure show their code in it. Shuffles (in Step by step's own submenu, `context-menu-sub.drawds-array-steps-shuffles-button`: `context-menu.array-unfair-shuffle`,
+  `array-fisher-yates`; pointers i and n) and their outcomes in a view beside the array
+  (`[data-testid="shuffle-outcomes"]` with `data-kind` / `data-mode`): `array-unfair-every-run`,
+  `array-fisher-yates-every-run` (tree, up to 3 values; nodes `[data-node-depth]`), `array-unfair-many`,
+  `array-fisher-yates-many` (tally, up to 4 values; bars `[data-order][data-count]` in `[data-testid="shuffle-tally"]`). Values show after their lines (`[data-value-line]`: `i = 2`);
   right-click the box (no operation open), `context-menu-sub.drawds-code-show-button`, `context-menu.code-line-counts`
   for the times column (`[data-count-line]`: `×5`). Its language: `eval` an `updateShape` with
   `props: { language: 'python' }` (the style panel's picker needs the box selected, which closes the bar).

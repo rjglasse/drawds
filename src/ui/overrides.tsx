@@ -337,7 +337,9 @@ function NodeOperationsMenu() {
 		/>
 	)
 	// The same layout for every structure: Step by step, then its own name (instant changes), then
-	// Show; families of operations divided within each. Test ids follow the sections, not the labels.
+	// Show; families of operations divided within each, a long one in a submenu of its own. Test ids
+	// follow the sections (and submenus), not the labels.
+	const slug = (label: string) => label.toLowerCase().replace(/[^a-z0-9]+/g, '-')
 	const sections: [MenuSection, string][] = [
 		['steps', 'Step by step'],
 		['actions', util.menuName?.(shape) ?? shape.type],
@@ -352,11 +354,20 @@ function NodeOperationsMenu() {
 				const groups = [...new Set(ops.map((op) => op.group ?? ''))]
 				return (
 					<TldrawUiMenuSubmenu key={section} id={id} label={label}>
-						{groups.map((group) => (
-							<TldrawUiMenuGroup key={group} id={`${id}-${group || 'items'}`}>
-								{ops.filter((op) => (op.group ?? '') === group).map(item)}
-							</TldrawUiMenuGroup>
-						))}
+						{groups.map((group) => {
+							const inGroup = ops.filter((op) => (op.group ?? '') === group)
+							const submenus = [...new Set(inGroup.flatMap((op) => (op.submenu ? [op.submenu] : [])))]
+							return (
+								<TldrawUiMenuGroup key={group} id={`${id}-${group || 'items'}`}>
+									{inGroup.filter((op) => !op.submenu).map(item)}
+									{submenus.map((sub) => (
+										<TldrawUiMenuSubmenu key={sub} id={`${id}-${slug(sub)}`} label={sub}>
+											<TldrawUiMenuGroup id={`${id}-${slug(sub)}-items`}>{inGroup.filter((op) => op.submenu === sub).map(item)}</TldrawUiMenuGroup>
+										</TldrawUiMenuSubmenu>
+									))}
+								</TldrawUiMenuGroup>
+							)
+						})}
 					</TldrawUiMenuSubmenu>
 				)
 			})}

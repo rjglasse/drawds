@@ -89,3 +89,9 @@
 .drawds-code-editor::selection {
 	background: rgba(70, 120, 255, 0.28);
 }
+
+/* A menu taller than the room the window leaves it scrolls (a structure's Step by step can be long):
+   Radix tells its popper how much room there is. */
+.tlui-menu {
+	max-height: var(--radix-popper-available-height, 100vh);
+}

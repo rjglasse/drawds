@@ -10,6 +10,7 @@ const caption = (page: Page) => page.getByTestId('play-caption')
 async function shuffle(page: Page, item: string) {
 	await rightClick(page, [200 + CELL, 200])
 	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
+	await page.getByTestId('context-menu-sub.drawds-array-steps-shuffles-button').click()
 	await page.getByTestId(`context-menu.${item}`).click()
 }
 

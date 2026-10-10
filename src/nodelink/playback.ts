@@ -71,6 +71,19 @@ export interface Frame {
 	 * more than their body when the loop runs out), for the code box's times column.
 	 */
 	runs?: Record<string, number>
+	/** How much of a shuffle's outcomes the view beside the array shows (`src/shapes/outcomes/`). */
+	outcomes?: FrameOutcomes
+}
+
+/**
+ * A shuffle's outcomes at a step: every run as a tree, revealed down to pick `level` (past the last
+ * pick, the leaves coloured by order and their tally too), or the first `runs` of many runs tallied.
+ */
+export interface FrameOutcomes {
+	kind: 'unfair' | 'fisher-yates'
+	mode: 'tree' | 'tally'
+	level?: number
+	runs?: number
 }
 
 /**

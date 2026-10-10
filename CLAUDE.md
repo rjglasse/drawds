@@ -120,7 +120,17 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   from len - 1 down to 1, n from 0..i, placed values green); a pick then a swap per i, picks from the pinned seed if
   any (`seedForSketch`), the last step saying why (len^len runs against len! orders). `everyRun` (pure) lists every
   run of picks and the order it leaves: on [1, 2, 3] the unfair one's 27 runs come out 5/5/5/4/4/4, Fisher-Yates' 6
-  once each (for the outcome tree, dds-szw.16).
+  once each.
+- `src/shapes/outcomes/` - a shuffle's outcomes (dds-szw.16, lecture 2's "Draw: Unfair / FY Shuffle Permutations" and
+  its demo "run a shuffle many times and show the distribution"), a `shuffle-outcomes` shape following the array
+  (`structureId`; `kind` unfair / fisher-yates, `mode` tree / tally, the start `values`, a `seed`). `outcomes.ts` (pure):
+  `outcomeTree` (a level per pick, a child per n), `tallyOf` (every order, by `everyOrder`, its count), `simulate`
+  (seeded runs, more extend fewer), and the array operations: `everyRunOperation` (the tree a level at a time, then the
+  leaves coloured by order and the tally: fair or not) and `manyRunsOperation` (1, 10, 100, 1000 runs per order). Frames
+  say how much shows (`Frame.outcomes`: `level` or `runs`); not playing, the view shows all of it. `layout.ts`: the tree
+  over its leaves, bars on a share scale (full height = 1.5 fair shares, capped) with the fair share dashed; six or
+  fewer orders get a colour each. The tree for up to three values (`TREE_MAX`), the tally up to four (`TALLY_MAX`);
+  `openOutcomes` puts one to the right (a tally with the same values takes the new seed), Esc takes it back.
 - Stacks and queues are a *kind* of array (`kind`, the Kind picker; `src/shapes/array/kinds.ts`): a stack
   stands upright (layout axis `'up'` in `getArrayMetrics`: index 0 at the origin, which rises as cells come,
   so index 0 stays put; use `metrics.axis` and `layout.boundaryAt`, never `props.direction`), a queue lies in a
@@ -392,7 +402,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   default `section`), then a submenu named by `menuName(shape)` (`section: 'actions'`: instant changes, e.g. Sort,
   Mirror, Insert a row, New values), then **Show** (`section: 'show'`: views beside it, indices), then the shared
   Mark and Pointer; empty ones are left out. A `group` keeps a family (searches, sorts, traversals) together
-  behind a divider; element operations come before whole-structure ones and name the element ("Pre-order from
+  behind a divider, and `submenu` puts a long one in a submenu of its own (the array's Shuffles; test id
+  `context-menu-sub.drawds-<menuId>-<section>-<label slug>-button`); a menu taller than the window scrolls (drawds.css); element operations come before whole-structure ones and name the element ("Pre-order from
   42"). Submenu test ids follow the sections: `context-menu-sub.drawds-<menuId>-<steps|actions|show>-button`.
   `moves(shape)` lists the structure's gestures, buttons and settings for the style panel's "What can I do?"
   (`src/ui/StructureHint.tsx`, a popover; the shared moves are added there).

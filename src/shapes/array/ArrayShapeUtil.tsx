@@ -63,7 +63,9 @@ import {
 	type AuxRow,
 } from './operations'
 import { allUnique, findMax, sentinelSearch } from './scans'
-import { fisherYates, unfairShuffle } from './shuffles'
+import { fisherYates, unfairShuffle, type ShuffleKind } from './shuffles'
+import { everyRunOperation, manyRunsOperation, TALLY_MAX, TREE_MAX, type OutcomesMode } from '../outcomes/outcomes'
+import { openOutcomes } from '../outcomes/OutcomesShapeUtil'
 import { movesAnything, rearrange, reversedOrder, shuffledOrder, sortedOrder } from './rearrange'
 import { arrayMarkers, frontOf, isUsed, usedIndices } from './kinds'
 import { dequeue, enqueue, peekQueue, peekStack, pop, push } from './stack-queue'
@@ -294,7 +296,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	override shapeOperations(shape: ArrayShape): NodeOperation[] {
 		const sorts = { group: 'sort' }
 		const scans = { group: 'scan' }
-		const shuffles = { group: 'shuffle' }
+		const shuffles = { group: 'shuffle', submenu: 'Shuffles' }
 		const sums = { group: 'sum' }
 		const actions = { section: 'actions' } as const
 		const capacity = { group: 'capacity' }
@@ -356,6 +358,39 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 							label: 'Fisher-Yates shuffle',
 							run: () => this.play(shape.id, 'Fisher-Yates shuffle', (a) => fisherYates(a, mulberry32(seedForSketch()))),
 						},
+						// Every run (lecture 2's drawings) for up to three values; many runs tallied for up to four.
+						...(n > TREE_MAX
+							? []
+							: [
+									{
+										...shuffles,
+										id: 'array-unfair-every-run',
+										label: 'Every run of the unfair shuffle (tree)',
+										run: () => this.playOutcomes(shape.id, 'unfair', 'tree'),
+									},
+									{
+										...shuffles,
+										id: 'array-fisher-yates-every-run',
+										label: 'Every run of Fisher-Yates (tree)',
+										run: () => this.playOutcomes(shape.id, 'fisher-yates', 'tree'),
+									},
+								]),
+						...(n > TALLY_MAX
+							? []
+							: [
+									{
+										...shuffles,
+										id: 'array-unfair-many',
+										label: 'Run the unfair shuffle many times',
+										run: () => this.playOutcomes(shape.id, 'unfair', 'tally'),
+									},
+									{
+										...shuffles,
+										id: 'array-fisher-yates-many',
+										label: 'Run Fisher-Yates many times',
+										run: () => this.playOutcomes(shape.id, 'fisher-yates', 'tally'),
+									},
+								]),
 					]),
 			// Sorting needs two values in use.
 			...(usedCount(shape.props) < 2
@@ -421,7 +456,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		id: ArrayShape['id'],
 		label: string,
 		operation: (array: ArrayState) => ArrayOperation,
-		{ whole = false }: { whole?: boolean } = {}
+		{ whole = false, opened }: { whole?: boolean; opened?: () => void } = {}
 	) {
 		const shape = this.editor.getShape(id) as ArrayShape | undefined
 		if (!shape) return
@@ -437,8 +472,16 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const { finalFlash, code } = op
 		const result = op.result && { ...op.result, values: padded(op.result.values, capacity) }
 		const final = result && this.withValues(shape, result, result.used, result.front)
-		// A recursive operation's calls go in a tree beside the array (Esc before the result takes it away).
-		const onCancel = openRecursionTree(this.editor, shape, frames, label)
+		// A recursive operation's calls go in a tree beside the array (Esc before the result takes it away,
+		// and whatever else was `opened` beside it for this operation).
+		const tree = openRecursionTree(this.editor, shape, frames, label)
+		const onCancel =
+			tree || opened
+				? () => {
+						tree?.()
+						opened?.()
+					}
+				: undefined
 		playOperation(this.editor, {
 			shapeId: id,
 			label,
@@ -454,6 +497,19 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 				return final ? { ...final, props: { ...final.props, marks: kept } } : this.withMarks(shape, kept)
 			},
 		})
+	}
+
+	/**
+	 * A shuffle's outcomes, played on the array as it is: every run as a tree, or many runs tallied,
+	 * in a view beside it (opened first; Esc takes it back).
+	 */
+	private playOutcomes(id: ArrayShape['id'], kind: ShuffleKind, mode: OutcomesMode) {
+		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		if (!shape) return
+		const seed = seedForSketch()
+		const opened = openOutcomes(this.editor, shape, { kind, mode, values: inUse(shape.props).values, seed })
+		const label = `${mode === 'tree' ? 'every run of' : 'many runs of'} ${kind === 'unfair' ? 'the unfair shuffle' : 'Fisher-Yates'}`
+		this.play(id, label, (a) => (mode === 'tree' ? everyRunOperation(a, kind) : manyRunsOperation(a, kind, seed)), { opened })
 	}
 
 	/** Insert a value that fits the fill mode (as growing does), at index k. */
