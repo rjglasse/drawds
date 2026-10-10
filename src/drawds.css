@@ -83,3 +83,9 @@
 		animation: none;
 	}
 }
+
+/* The code box's editor: its own text is see-through over the highlighted code, so its selection
+   must be too (CodeShapeUtil). */
+.drawds-code-editor::selection {
+	background: rgba(70, 120, 255, 0.28);
+}

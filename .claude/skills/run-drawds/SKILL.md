@@ -339,6 +339,12 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   (`data-state` red / orange / green / plain), the lit code line `[data-lit]` (`data-line` base / recursive / print),
   a value dropping down `[data-flowing]`, overflow `[data-testid="tracer-stack"][data-overflow]`. fib opens a
   `recursion-tree` beside it; chains (gcd, fact, sum, sayHello) don't.
+- **Code box**: `key Shift+C`, `click x y` (the first line starts at the click) opens it for typing (`state`:
+  focused "Code"); `type`, `key Enter` (keeps the indentation), `key Tab` / `Shift+Tab`, `key Escape` finishes.
+  The driver's `type` squashes runs of spaces. Language `style.code-language.c|java|python` (with the tool or a box
+  selected). Drawn tokens: `[data-testid="code-box"] tspan[data-kind=keyword|type|constant|string|number|comment|meta]`;
+  the editor `[data-testid="code-editor"]`. Marks keyed `L<i>` (point at a line, `key 3`); `rclick`,
+  `context-menu-sub.drawds-code-show-button`, `context-menu.code-line-numbers`. The tool sits under the toolbar's ^.
 - **Pointers**: `rclick` an element, `clicksel [data-testid="context-menu-sub.drawds-pointer-button"]`,
   then `[data-testid="context-menu.pointer-i"]` (names depend on the structure; `pointer-custom`
   opens a name prompt, `key-prompt`). **Wait ~400 ms between context menus**: a menu that is

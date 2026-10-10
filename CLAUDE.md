@@ -175,6 +175,15 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   whole run (a spare slot unless it overflows), main's slot kept still via `layoutOffset`; Java code under the stack,
   the step's line lit (base green, recursive orange, print blue). Its recursion tree opens only when calls branch
   (`branches`: fib); a chain is what the stack shows.
+- `src/shapes/code/` - code boxes (dds-9h0; Shift+C, a click places one and opens it for typing): an algorithm in
+  C / Java / Python (style `drawds:code-language`), syntax highlighted as students see code everywhere else.
+  `highlight.ts` is a pure tokenizer over the whole code (so a comment or string over several lines colours each);
+  token kinds map to theme colours in `CodeSvg`, the one component for canvas and export. The editor is a see-through
+  textarea laid exactly over the drawn text (same mono font, size and line height, `layout.ts`), so the code
+  highlights as it is typed; `editing.ts` (pure): Tab / Shift+Tab, Enter keeping the indent (one more after `{` or a
+  Python `:`), `}` stepping out, each one range replaced via `execCommand('insertText')` so the browser's own undo
+  keeps up. Esc or Cmd/Ctrl+Enter finish; an empty box goes; a new box's first edit goes on from its creation mark
+  (`beginCellEdit`'s `markId`), so one undo removes it. Lines mark like cells (`L<i>`); Show > Line numbers.
 - `src/shapes/hash/` - hash tables (node-link): `buckets: string[][]` (a chain per bucket, or one entry per slot with
   `TOMBSTONE` for deleted), strategy style `drawds:hash-strategy` chaining / probing (switching re-inserts the
   keys). `hash.ts` is pure: `hashOf` (k mod m, or character codes added; with how, for captions), `buildTable`,

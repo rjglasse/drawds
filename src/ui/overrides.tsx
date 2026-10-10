@@ -57,14 +57,16 @@ import unionFindIconUrl from './icons/union-find.svg'
 import recursionIconUrl from './icons/recursion.svg'
 import matrixIconUrl from './icons/matrix.svg'
 import hashIconUrl from './icons/hash.svg'
+import codeIconUrl from './icons/code.svg'
 import { HashPickers, hashPickerTranslations } from './HashPickers'
 import { TreePickers, treePickerTranslations } from './TreePickers'
 import { UnionFindPickers, unionFindPickerTranslations } from './UnionFindPickers'
 import { TracerPickers, tracerPickerTranslations } from './TracerPickers'
+import { CodePickers, codePickerTranslations } from './CodePickers'
 import { StructureHint } from './StructureHint'
 
 /** Our structure tools, in toolbar order. */
-const STRUCTURE_TOOLS = ['array', 'matrix', 'linked-list', 'binary-tree', 'heap', 'union-find', 'hash-table', 'graph', 'recursion-tracer'] as const
+const STRUCTURE_TOOLS = ['array', 'matrix', 'linked-list', 'binary-tree', 'heap', 'union-find', 'hash-table', 'graph', 'recursion-tracer', 'code'] as const
 
 const RELAYOUT = 'drawds.relayout'
 
@@ -155,6 +157,13 @@ export const uiOverrides: TLUiOverrides = {
 			kbd: 'shift+r',
 			onSelect: () => editor.setCurrentTool('recursion-tracer'),
 		}
+		tools.code = {
+			id: 'code',
+			icon: maskIcon(codeIconUrl),
+			label: 'Code (C, Java, Python)',
+			kbd: 'shift+c',
+			onSelect: () => editor.setCurrentTool('code'),
+		}
 		return tools
 	},
 	actions(editor, actions, helpers) {
@@ -219,6 +228,7 @@ export const uiOverrides: TLUiOverrides = {
 			...heapPickerTranslations,
 			...unionFindPickerTranslations,
 			...tracerPickerTranslations,
+			...codePickerTranslations,
 			...invariantPickerTranslations,
 			...graphPickerTranslations,
 			...graphViewPickerTranslations,
@@ -476,6 +486,7 @@ export const components: TLComponents = {
 			<HeapPickers />
 			<UnionFindPickers />
 			<TracerPickers />
+			<CodePickers />
 			<HashPickers />
 			<GraphPickers />
 			<GraphViewPickers />

@@ -1,8 +1,9 @@
-import { useLayoutEffect, useRef, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, type KeyboardEvent, type PointerEvent, type ReactNode, type RefObject } from 'react'
 import {
 	Rectangle2d,
 	ShapeUtil,
 	Vec,
+	type Editor,
 	type TLDefaultColorStyle,
 	type TLShape,
 	type TLShapePartial,
@@ -316,6 +317,38 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 	}
 }
 
+/**
+ * Focus an in-place editor as it opens (then `onFocus`, e.g. select its text). A double-click starts
+ * editing on its second press, before that press's mousedown, whose default action would move focus
+ * to the canvas container: cancel just that focus change.
+ */
+export function useFocusOnEdit<E extends HTMLInputElement | HTMLTextAreaElement>(
+	editor: Editor,
+	ref: RefObject<E | null>,
+	onFocus?: (element: E) => void
+) {
+	useLayoutEffect(() => {
+		if (ref.current) {
+			ref.current.focus()
+			onFocus?.(ref.current)
+		}
+		if (!editor.inputs.getIsPointing()) return
+		const doc = editor.getContainer().ownerDocument
+		const keepFocus = (e: MouseEvent) => {
+			e.preventDefault()
+			stop()
+		}
+		const stop = () => {
+			doc.removeEventListener('mousedown', keepFocus, true)
+			doc.removeEventListener('pointerup', stop, true)
+		}
+		doc.addEventListener('mousedown', keepFocus, true)
+		doc.addEventListener('pointerup', stop, true)
+		return stop
+		// Once, as the editor opens.
+	}, [editor])
+}
+
 function caretAt(input: HTMLInputElement, edge: 'start' | 'end') {
 	const { selectionStart: start, selectionEnd: end, value } = input
 	if (start === 0 && end === value.length) return true // whole value selected
@@ -339,27 +372,7 @@ function CellInput<S extends TLShape>({
 }) {
 	const { editor, cells } = util
 	const ref = useRef<HTMLInputElement>(null)
-
-	useLayoutEffect(() => {
-		ref.current?.focus()
-		ref.current?.select()
-		if (!editor.inputs.getIsPointing()) return
-
-		// A double-click starts editing on its second press, before that press's mousedown, whose
-		// default action would move focus to the canvas container. Cancel just that focus change.
-		const doc = editor.getContainer().ownerDocument
-		const keepFocus = (e: MouseEvent) => {
-			e.preventDefault()
-			stop()
-		}
-		const stop = () => {
-			doc.removeEventListener('mousedown', keepFocus, true)
-			doc.removeEventListener('pointerup', stop, true)
-		}
-		doc.addEventListener('mousedown', keepFocus, true)
-		doc.addEventListener('pointerup', stop, true)
-		return stop
-	}, [editor])
+	useFocusOnEdit(editor, ref, (input) => input.select())
 
 	const latest = () => editor.getShape(shape.id) as S | undefined
 

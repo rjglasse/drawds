@@ -55,9 +55,11 @@ export function getEditingCell(editor: Editor): EditingCell | null {
 	return editingCellAtom(editor).get()
 }
 
-/** Start editing a cell. Each cell edit is its own undo step. */
-export function beginCellEdit(editor: Editor, shapeId: TLShapeId, key: CellKey) {
-	const markId = editor.markHistoryStoppingPoint('edit cell')
+/**
+ * Start editing a cell. Each cell edit is its own undo step, unless it goes on from `markId` (a shape
+ * created to be typed into: one undo takes both back).
+ */
+export function beginCellEdit(editor: Editor, shapeId: TLShapeId, key: CellKey, markId = editor.markHistoryStoppingPoint('edit cell')) {
 	editingCellAtom(editor).set({ shapeId, key, markId })
 }
 
