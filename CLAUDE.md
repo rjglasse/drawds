@@ -111,6 +111,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   are blank spare slots; `usedCount(props)` everywhere, operations run on the used part (`play` pads frames back)
   unless `{ whole: true }` (insertFixed / deleteFixed / appendFixed / growFixed / appendMany). A step can show a
   second row under the array (`props.aux`: newArr), with `moves` keyed `aux:<i>` between the rows.
+- `src/shapes/array/scans.ts` - lectures 2-3's counted scans (Levitin's MaxElement, UniqueElements, SequentialSearch2):
+  find the largest (`maxval` in a strip, n - 1 comparisons, updates counted), all unique? (every pair i < j, n(n - 1)/2
+  at worst, a repeat stops it red), sentinel search (the key in an extra cell past the end, no i < n check, counts the
+  checks saved). Scans in the Step by step menu's `scan` group; sentinel search with the searches, from a cell.
 - Stacks and queues are a *kind* of array (`kind`, the Kind picker; `src/shapes/array/kinds.ts`): a stack
   stands upright (layout axis `'up'` in `getArrayMetrics`: index 0 at the origin, which rises as cells come,
   so index 0 stays put; use `metrics.axis` and `layout.boundaryAt`, never `props.direction`), a queue lies in a

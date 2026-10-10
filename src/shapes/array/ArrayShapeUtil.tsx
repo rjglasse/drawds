@@ -62,6 +62,7 @@ import {
 	type ArrayState,
 	type AuxRow,
 } from './operations'
+import { allUnique, findMax, sentinelSearch } from './scans'
 import { movesAnything, rearrange, reversedOrder, shuffledOrder, sortedOrder } from './rearrange'
 import { arrayMarkers, frontOf, isUsed, usedIndices } from './kinds'
 import { dequeue, enqueue, peekQueue, peekStack, pop, push } from './stack-queue'
@@ -264,6 +265,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		return [
 			...find('array-binary-search', 'Binary search', binarySearch),
 			...find('array-linear-search', 'Linear search', linearSearch),
+			...find('array-sentinel-search', 'Sentinel search', sentinelSearch),
 			...(sizing === 'fixed'
 				? [
 						{
@@ -290,6 +292,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	override shapeOperations(shape: ArrayShape): NodeOperation[] {
 		const sorts = { group: 'sort' }
+		const scans = { group: 'scan' }
 		const sums = { group: 'sum' }
 		const actions = { section: 'actions' } as const
 		const capacity = { group: 'capacity' }
@@ -330,7 +333,11 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 						})),
 					]
 				: []
+		const n = usedCount(shape.props)
 		return [
+			// Scans counted in lectures 2 and 3: the largest value, and whether any two are equal.
+			...(n < 1 ? [] : [{ ...scans, id: 'array-find-max', label: 'Find the largest (maxval)', run: () => this.play(shape.id, 'find the largest', findMax) }]),
+			...(n < 2 ? [] : [{ ...scans, id: 'array-all-unique', label: 'All unique? (every pair)', run: () => this.play(shape.id, 'all unique?', allUnique) }]),
 			// Sorting needs two values in use.
 			...(usedCount(shape.props) < 2
 				? []

@@ -45,10 +45,10 @@ export interface ArrayOperation {
 export const ptr = (name: string, at: number): Pointer => ({ id: `#${name}`, name, at: String(at) })
 
 /** Cell keys from..to (inclusive). */
-const span = (from: number, to: number) => Array.from({ length: Math.max(0, to - from + 1) }, (_, k) => String(from + k))
+export const span = (from: number, to: number) => Array.from({ length: Math.max(0, to - from + 1) }, (_, k) => String(from + k))
 
 /** The same colour on cells from..to. */
-const lit = (from: number, to: number, color: MarkColor): Marks => Object.fromEntries(span(from, to).map((k) => [k, color]))
+export const lit = (from: number, to: number, color: MarkColor): Marks => Object.fromEntries(span(from, to).map((k) => [k, color]))
 
 export const isSorted = (values: readonly string[]) => values.every((v, i) => i === 0 || compareKeys(values[i - 1], v) <= 0)
 

@@ -310,6 +310,7 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
 - **Array operations**: `rclick` a cell, `clicksel` a submenu (stable ids):
   `[data-testid="context-menu-sub.drawds-array-steps-button"]` (items `context-menu.array-binary-search`,
   `array-binary-search-value` (opens `key-prompt`), `array-linear-search`, `array-linear-search-value`,
+  `array-sentinel-search` / `-value`, the scans `array-find-max` (a `maxval` strip) and `array-all-unique`,
   `array-insert`, `array-delete`, `array-insertion-sort`, `array-selection-sort`, `array-bubble-sort`,
   `array-partition`, `array-quicksort`, `array-hoare-partition`, `array-merge-sort`, and when every value is a number
   `array-sum-rest`, `array-sum-halves`: these open a `recursion-tree` shape to the array's right, `[data-testid="recursion-tree"]`,
