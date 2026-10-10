@@ -104,13 +104,28 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `drawds-swap` keyframes keyed per move: crossing values arc (forward over, back under), a one-way shift slides
   straight. `ArrayShapeUtil.slide` animates once, then forgets.
 - `src/shapes/array/operations.ts` - array algorithms as pure frame generators over `{values, marks}` (marks
-  travel): binary / linear search, insertion / selection / bubble sort, Lomuto and Hoare partitions, quicksort
-  (range faded with `dim`, open calls as a `call stack` strip), merge sort (a `merged` strip, copy-back as
-  `moves`), insert / delete by shifting. Fixed capacity (`sizing` 'fixed', the Length picker in
-  `src/ui/ArrayPickers.tsx`): cells are the capacity, `used` (shown as "size") counts the values in use, the rest
-  are blank spare slots; `usedCount(props)` everywhere, operations run on the used part (`play` pads frames back)
-  unless `{ whole: true }` (insertFixed / deleteFixed / appendFixed / growFixed / appendMany). A step can show a
-  second row under the array (`props.aux`: newArr), with `moves` keyed `aux:<i>` between the rows.
+  travel): binary / linear search, insertion / selection / bubble sort, Lomuto and Hoare partitions, merge sort (a
+  `merged` strip, copy-back as `moves`), insert / delete by shifting. Fixed capacity (`sizing` 'fixed', the Length
+  picker in `src/ui/ArrayPickers.tsx`): cells are the capacity, `used` (shown as "size") counts the values in use,
+  the rest are blank spare slots; `usedCount(props)` everywhere, operations run on the used part (`play` pads frames
+  back) unless `{ whole: true }` (insertFixed / deleteFixed / appendFixed / growFixed / appendMany). A step can show
+  a second row under the array (`props.aux`: newArr), with `moves` keyed `aux:<i>` between the rows. Quicksort is
+  `quicksorts.ts` (range faded with `dim`, open calls as a `call stack` strip, counts calls and max depth), with
+  lecture 10a's improvements one at a time (`variant`): a random pivot (`k` from lo..hi, seeded, swapped to hi), the
+  median of three (a value, not their average: `medianOf3`'s 2-3 comparisons, then to hi; ranges of two just
+  partition), three-way (Dijkstra's lt / i / gt inside quicksort, Sedgewick's way, pivot a[hi]: equal values green
+  at once; also alone, `partition3Array`) and a cut-off to insertion sort (k asked for, `$CUTOFF`; every call of at
+  most k values insertion sorts, j stopping at lo); each ends with plain quicksort's counts on the same input, and
+  with many equal values says only three ways helps. `sort-counts.ts`: every sort's counts without its steps
+  (`countSort` over `ranks`, quicksorts on a stack of their own), the same numbers by the same names (its test runs
+  both on every kind of input).
+- Counts as n grows (lecture 10b, `src/shapes/growth/`, dds-szw.23): the lecture times sorts; drawds counts their
+  comparisons, at n = 10, 100, 1000 on sorted, reversed, random and 0-2-only input (`growthInput`, pure), each count
+  over its factor (×10 linear, ×15 n log n, ×100 quadratic) and a "grows as" row from the analysis (`GROWTH`: one run's
+  factor can't tell n from n log n). A `sort-growth` shape following the array (`structureId`; `sort`, `seed`,
+  `cutoff`), filled a row at a time by `growthOperation` (`Frame.growth`: the rows shown, the rest '?'), opened by
+  `openGrowth`. Sorts > "Counts as n grows: <the sort last played on the array>" (`lastSorts`, insertion sort first).
+  Fill range 0-2 (`few`) is the lecture's data with max 2.
 - Loop invariants (lecture 4, dds-szw.7): `Frame.band` `{ from, to, label }` puts a labelled bracket under array cells
   (right of a column), laid out by the array's `playbackLayout` (`band`, below the indices; strips go under it) and drawn
   in front of the canvas and in exported steps (`src/controls/BandSvg.tsx`). `sumWithInvariant`: lecture 4's sum with a
@@ -343,8 +358,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   plus our own '+' `GrowGrip`; `grownCount` is pure) and `ControlButton` (HTML insert '+' / remove 'x',
   since handles can't be clicked). New values come from `extendValues` in `src/data/fill.ts` (end or start).
 - `src/data/` - seeded RNG (`mulberry32`) and fill generators (`fillValues`, `extendValues`, `insertValue`, each
-  taking a `range`: 0-9, 0-99, 0-999, -50..50); `fill-style.ts` has the `drawds:fill` and `drawds:fill-range`
-  StyleProps (every filled shape stores `range`) plus `refillSelectedShapes`. `newSeed` is short (1-9999, to note
+  taking a `range`: 0-2, 0-9, 0-99, 0-999, -50..50; sorted runs from 0-2 grow by 0 or 1, kept in range);
+  `fill-style.ts` has the `drawds:fill` and `drawds:fill-range` StyleProps (every filled shape stores `range`) plus `refillSelectedShapes`. `newSeed` is short (1-9999, to note
   down). `seed.ts`: a pinned seed (localStorage `drawds:seed`) that `createDragTool` gives every new sketch instead
   (`seedForSketch`), so the same length draws the same values; set from the style panel's Seed row
   (`src/ui/SeedPicker.tsx`: with a tool out, type one; one structure selected, its seed read-only and the lock pins it).

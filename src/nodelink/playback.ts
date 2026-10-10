@@ -75,6 +75,8 @@ export interface Frame {
 	runs?: Record<string, number>
 	/** How much of a shuffle's outcomes the view beside the array shows (`src/shapes/outcomes/`). */
 	outcomes?: FrameOutcomes
+	/** How many rows of a sort's counts table beside the array show (`src/shapes/growth/`). */
+	growth?: { sort: string; rows: number }
 	/**
 	 * A labelled bracket along cells `from`..`to` of an array: what holds over them at this step (a
 	 * loop invariant over the part done so far).

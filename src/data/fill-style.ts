@@ -7,7 +7,7 @@ export const FillStyle = StyleProp.defineEnum('drawds:fill', {
 	values: FILL_MODES,
 })
 
-/** The numbers random fills draw from: 0-9, 0-99, 0-999 or -50..50. */
+/** The numbers random fills draw from: 0-2, 0-9, 0-99, 0-999 or -50..50. */
 export const FillRangeStyle = StyleProp.defineEnum('drawds:fill-range', {
 	defaultValue: 'medium' as FillRange,
 	values: FILL_RANGES,

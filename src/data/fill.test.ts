@@ -192,6 +192,22 @@ describe('fill ranges', () => {
 		expect(within(fillValues('ascending', 5, 8, { range: 'small' }), 0, 9)).toBe(true)
 	})
 
+	it('few values (0-2): every one used, then repeats, sorted runs too, growing in the range', () => {
+		const few = fillValues('random', 3, 9, { range: 'few' })
+		expect(within(few, 0, 2)).toBe(true)
+		expect(new Set(few.slice(0, 3)).size).toBe(3)
+		const up = fillValues('ascending', 3, 9, { range: 'few' })
+		expect(up).toEqual([...up].sort())
+		expect(new Set(up)).toEqual(new Set(['0', '1', '2']))
+		const grown = extendValues(up, 'ascending', 3, 14, { range: 'few' })
+		expect(within(grown, 0, 2)).toBe(true)
+		expect(grown).toEqual([...grown].sort())
+		const down = extendValues(fillValues('descending', 3, 4, { range: 'few' }), 'descending', 3, 10, { range: 'few', atStart: true })
+		expect(within(down, 0, 2)).toBe(true)
+		expect(down).toEqual([...down].sort().reverse())
+		expect(within([insertValue('2', undefined, 'ascending', 4, 1, [], 'few')], 0, 2)).toBe(true)
+	})
+
 	it('growth and insertion stay in the range', () => {
 		const grown = extendValues(fillValues('random', 4, 3, { range: 'small' }), 'random', 4, 8, { range: 'small' })
 		expect(within(grown, 0, 9)).toBe(true)

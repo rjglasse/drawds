@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { callDepth, callRun, levelSizes, repeatedCalls } from '../recursion/calls'
-import { mergeSort, quicksort, recursiveBinarySearch, sumWithInvariant } from './operations'
+import { mergeSort, recursiveBinarySearch, sumWithInvariant } from './operations'
+import { quicksort } from './quicksorts'
 
 // Lecture 4's recursion: merge sort and quicksort feed the recursion tree (each call the values it
 // gets, returning them sorted, the values each level works on added up), and binary search

@@ -244,7 +244,7 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `type 22`, `key Enter`. A key's x deletes it (`hover k:22` or `hover s3`, then `remove-node-<key>`); its
   menu `context-menu-sub.drawds-hash-steps-button` has `hash-find`, `hash-delete`, and (anywhere)
   `hash-find-key` (prompt), `hash-rehash`; `drawds-hash-actions` has `hash-reroll`.
-- **Value range**: `style.fill-range.small` (0-9), `medium`, `large` (0-999), `signed` (-50..50)
+- **Value range**: `style.fill-range.few` (0-2), `small` (0-9), `medium`, `large` (0-999), `signed` (-50..50)
   under Fill, for arrays, lists, trees and heaps; redraws the selected values.
 - **Seed**: the style panel's `[data-testid="seed-input"]` (with a structure tool out: `clicksel` it, `type 42`,
   `key Enter` pins 42 for every new sketch; with one structure selected it shows that one's seed, read-only) and the
@@ -326,7 +326,11 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   `array-find-max` (a `maxval` strip) and `array-all-unique`, and when every value is a number `array-sum-rest`,
   `array-sum-halves`: these open a `recursion-tree` shape to the array's right, `[data-testid="recursion-tree"]`, each
   call a `[data-call="sum(0, 3)"]` group), `-steps-sorts-button` (`array-insertion-sort`, `array-selection-sort`,
-  `array-bubble-sort`, `array-partition`, `array-quicksort`, `array-hoare-partition`, `array-merge-sort`) or
+  `array-bubble-sort`, `array-merge-sort`, `array-partition`, `array-hoare-partition`, `array-partition-3way`,
+  `array-quicksort`, `array-quicksort-random` (pointer `k`), `array-quicksort-median`, `array-quicksort-3way` (pointers
+  `lt`, `i`, `gt`), `array-quicksort-cutoff` (opens `key-prompt`: the cut-off), `array-sort-growth` ("Counts as n grows:"
+  the sort last played; a `[data-testid="sort-growth"]` table to the right, `data-rows` = rows shown, cells
+  `[data-count]`, `[data-growth]`)) or
   `-steps-shuffles-button`; `drawds-array-actions`
   (instant: `array-sort`, `array-sort-descending`, `array-shuffle`, `array-reverse`, `array-reroll`) or
   `drawds-array-show` (`array-indices`). The step's pointers (lo, mid, hi, i, j, min) are drawn in front of the canvas:

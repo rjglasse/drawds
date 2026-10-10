@@ -11,6 +11,7 @@ import { GraphShapeUtil } from './shapes/graph/GraphShapeUtil'
 import { GraphViewShapeUtil } from './shapes/graph-view/GraphViewShapeUtil'
 import { RecursionTreeShapeUtil } from './shapes/recursion/RecursionTreeShapeUtil'
 import { OutcomesShapeUtil } from './shapes/outcomes/OutcomesShapeUtil'
+import { GrowthShapeUtil } from './shapes/growth/GrowthShapeUtil'
 import { TracerShapeTool } from './shapes/recursion/TracerShapeTool'
 import { TracerShapeUtil } from './shapes/recursion/TracerShapeUtil'
 import { CodeShapeTool } from './shapes/code/CodeShapeTool'
@@ -34,7 +35,7 @@ import { clearStaleRooms } from './nodelink/playback'
 import { components, uiOverrides } from './ui/overrides'
 
 // Defined at module level so they aren't recreated on every render.
-const shapeUtils = [ArrayShapeUtil, MatrixShapeUtil, ListShapeUtil, TreeShapeUtil, HeapShapeUtil, UnionFindShapeUtil, HashShapeUtil, GraphShapeUtil, GraphViewShapeUtil, RecursionTreeShapeUtil, OutcomesShapeUtil, TracerShapeUtil, CodeShapeUtil]
+const shapeUtils = [ArrayShapeUtil, MatrixShapeUtil, ListShapeUtil, TreeShapeUtil, HeapShapeUtil, UnionFindShapeUtil, HashShapeUtil, GraphShapeUtil, GraphViewShapeUtil, RecursionTreeShapeUtil, OutcomesShapeUtil, GrowthShapeUtil, TracerShapeUtil, CodeShapeUtil]
 const tools = [ArrayShapeTool, MatrixShapeTool, ListShapeTool, TreeShapeTool, HeapShapeTool, UnionFindShapeTool, HashShapeTool, GraphShapeTool, TracerShapeTool, CodeShapeTool]
 // Digits mark the element under the pointer (1-4, 0 clears), so tldraw's "press n for the nth
 // toolbar tool" shortcuts are off; every tool still has its letter shortcut.

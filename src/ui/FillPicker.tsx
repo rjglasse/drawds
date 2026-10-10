@@ -46,6 +46,7 @@ const label = (text: string, size: number) =>
 	)
 
 const RANGE_ITEMS: StyleValuesForUi<FillRange> = [
+	{ value: 'few', icon: label('0-2', 11) },
 	{ value: 'small', icon: label('0-9', 11) },
 	{ value: 'medium', icon: label('0-99', 10) },
 	{ value: 'large', icon: label('999', 11) },
@@ -62,6 +63,7 @@ export const fillPickerTranslations: Record<string, string> = {
 	'fill-mode-style.descending': 'Descending',
 	'fill-mode-style.nearly-sorted': 'Nearly sorted',
 	'fill-mode-style.letters': 'Letters',
+	'fill-range-style.few': 'Numbers 0 to 2 (few values, many repeats)',
 	'fill-range-style.small': 'Numbers 0 to 9',
 	'fill-range-style.medium': 'Numbers 0 to 99',
 	'fill-range-style.large': 'Numbers 0 to 999',

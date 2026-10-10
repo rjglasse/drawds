@@ -52,7 +52,6 @@ import {
 	linearSearch,
 	mergeSort,
 	partitionArray,
-	quicksort,
 	selectionSort,
 	sumByHalves,
 	sumByRest,
@@ -65,10 +64,14 @@ import {
 	type ArrayState,
 	type AuxRow,
 } from './operations'
+import { parseCutoff, partition3Array, quicksort } from './quicksorts'
 import { allUnique, findMax, sentinelSearch } from './scans'
 import { fisherYates, unfairShuffle, type ShuffleKind } from './shuffles'
 import { everyRunOperation, manyRunsOperation, TALLY_MAX, TREE_MAX, type OutcomesMode } from '../outcomes/outcomes'
 import { openOutcomes } from '../outcomes/OutcomesShapeUtil'
+import { growthOperation, SORT_NAMES } from '../growth/growth'
+import { openGrowth } from '../growth/GrowthShapeUtil'
+import { COUNTED_SORTS, type CountedSort } from './sort-counts'
 import { movesAnything, rearrange, reversedOrder, shuffledOrder, sortedOrder } from './rearrange'
 import { arrayMarkers, frontOf, isUsed, usedIndices } from './kinds'
 import { dequeue, enqueue, peekQueue, peekStack, pop, push } from './stack-queue'
@@ -311,17 +314,21 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	override shapeOperations(shape: ArrayShape): NodeOperation[] {
 		// Step by step in categories: Basics, Sorts, Shuffles (Misc, if ever needed: see NodeOperationsMenu).
 		const sorts = { group: 'sort', submenu: 'Sorts' }
+		const partitions = { group: 'partition', submenu: 'Sorts' }
+		const quicksorts = { group: 'quicksort', submenu: 'Sorts' }
 		const scans = { group: 'scan', submenu: 'Basics' }
 		const shuffles = { group: 'shuffle', submenu: 'Shuffles' }
 		const sums = { group: 'sum', submenu: 'Basics' }
 		const actions = { section: 'actions' } as const
 		const capacity = { group: 'capacity', submenu: 'Basics' }
-		const sort = (id: string, label: string, op: (a: ArrayState) => ArrayOperation): NodeOperation => ({
-			...sorts,
+		const sort = (id: string, label: string, op: (a: ArrayState) => ArrayOperation, family = sorts): NodeOperation => ({
+			...family,
 			id,
 			label,
 			run: () => this.play(shape.id, label.toLowerCase(), op),
 		})
+		// Lecture 10b: the sort last played here (insertion sort to begin with), counted as n grows.
+		const counted = this.lastSorts.get(shape.id) ?? { sort: 'insertion-sort' as const, cutoff: 3 }
 		const order = (id: string, label: string, make: (values: string[]) => number[]): NodeOperation => ({
 			...actions,
 			id,
@@ -422,10 +429,33 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 						sort('array-insertion-sort', 'Insertion sort', insertionSort),
 						sort('array-selection-sort', 'Selection sort', selectionSort),
 						sort('array-bubble-sort', 'Bubble sort', bubbleSort),
-						sort('array-partition', 'Partition around the last value', partitionArray),
-						sort('array-quicksort', 'Quicksort', quicksort),
-						sort('array-hoare-partition', 'Hoare partition around the first value', hoarePartition),
 						sort('array-merge-sort', 'Merge sort', mergeSort),
+						sort('array-partition', 'Partition around the last value', partitionArray, partitions),
+						sort('array-hoare-partition', 'Hoare partition around the first value', hoarePartition, partitions),
+						sort('array-partition-3way', 'Three-way partition (Dutch flag)', partition3Array, partitions),
+						// Lecture 10: quicksort, and its improvements one at a time.
+						sort('array-quicksort', 'Quicksort', (a) => quicksort(a), quicksorts),
+						sort('array-quicksort-random', 'Quicksort, random pivot', (a) => quicksort(a, 'quicksort-random', { rng: mulberry32(seedForSketch()) }), quicksorts),
+						sort('array-quicksort-median', 'Quicksort, median-of-three pivot', (a) => quicksort(a, 'quicksort-median'), quicksorts),
+						sort('array-quicksort-3way', 'Quicksort, three-way partition', (a) => quicksort(a, 'quicksort-3way'), quicksorts),
+						{
+							...quicksorts,
+							id: 'array-quicksort-cutoff',
+							label: 'Quicksort, cut-off to insertion sort',
+							prompt: 'Cut-off, e.g. 3',
+							promptAt: '0',
+							run: (k?: string) =>
+								this.play(shape.id, 'quicksort, cut-off to insertion sort', (a) => quicksort(a, 'quicksort-cutoff', { cutoff: parseCutoff(k) }), {
+									cutoff: parseCutoff(k),
+								}),
+						},
+						{
+							group: 'growth',
+							submenu: 'Sorts',
+							id: 'array-sort-growth',
+							label: `Counts as n grows: ${SORT_NAMES[counted.sort].toLowerCase()}`,
+							run: () => this.playGrowth(shape.id, counted.sort, counted.cutoff),
+						},
 					]),
 			// Summing recursively, two ways, each with its recursion tree beside the array.
 			...(usedCount(shape.props) < 1 || !allNumbers(shape.props.values.slice(0, usedCount(shape.props)))
@@ -476,11 +506,14 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	 * Play an operation on the array as it is now; its result (if any) is one undo step. It works on
 	 * the values in use: a fixed array's spare slots are added back to every step, blank.
 	 */
+	/** The sort last played on each array (and its cut-off), for its counts as n grows. */
+	private readonly lastSorts = new Map<ArrayShape['id'], { sort: CountedSort; cutoff: number }>()
+
 	private play(
 		id: ArrayShape['id'],
 		label: string,
 		operation: (array: ArrayState) => ArrayOperation,
-		{ whole = false, opened }: { whole?: boolean; opened?: () => void } = {}
+		{ whole = false, opened, cutoff = 3 }: { whole?: boolean; opened?: () => void; cutoff?: number } = {}
 	) {
 		const shape = this.editor.getShape(id) as ArrayShape | undefined
 		if (!shape) return
@@ -494,6 +527,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			return props?.values ? { ...f, props: { ...props, values: padded(props.values, capacity) } } : f
 		})
 		const { finalFlash, code } = op
+		if (code && (COUNTED_SORTS as readonly string[]).includes(code)) this.lastSorts.set(id, { sort: code as CountedSort, cutoff })
 		const result = op.result && { ...op.result, values: padded(op.result.values, capacity) }
 		const final = result && this.withValues(shape, result, result.used, result.front)
 		// A recursive operation's calls go in a tree beside the array (Esc before the result takes it away,
@@ -534,6 +568,17 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const opened = openOutcomes(this.editor, shape, { kind, mode, values: inUse(shape.props).values, seed })
 		const label = `${mode === 'tree' ? 'every run of' : 'many runs of'} ${kind === 'unfair' ? 'the unfair shuffle' : 'Fisher-Yates'}`
 		this.play(id, label, (a) => (mode === 'tree' ? everyRunOperation(a, kind) : manyRunsOperation(a, kind, seed)), { opened })
+	}
+
+	/**
+	 * A sort's comparisons at n = 10, 100 and 1000 on four kinds of input, filled in a row at a time in
+	 * a table beside the array (opened first, unless one counts that sort already; Esc takes it back).
+	 */
+	private playGrowth(id: ArrayShape['id'], sort: CountedSort, cutoff: number) {
+		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		if (!shape) return
+		const { seed, opened } = openGrowth(this.editor, shape, { sort, seed: seedForSketch(), cutoff })
+		this.play(id, `${SORT_NAMES[sort].toLowerCase()} as n grows`, (a) => growthOperation(a, sort, seed, cutoff), { opened })
 	}
 
 	/** Insert a value that fits the fill mode (as growing does), at index k. */

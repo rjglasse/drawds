@@ -53,7 +53,7 @@ nothing changed. Once the result is in, the bar stays to step back through it or
 
 | Structure | Step by step |
 |---|---|
-| Array | binary and linear search; insertion, selection, bubble, quick and merge sort; Lomuto and Hoare partitions; insert and delete by shifting; growing a full array (doubling against +1); recursive sums |
+| Array | binary and linear search; insertion, selection, bubble, quick and merge sort; Lomuto, Hoare and three-way partitions; quicksort with a random pivot, the median of three, three ways or a cut-off to insertion sort; a sort's comparisons as n grows (n = 10, 100, 1000, four kinds of input); insert and delete by shifting; growing a full array (doubling against +1); recursive sums |
 | Stack, queue | push, pop, peek; enqueue, dequeue, a circular buffer wrapping round; overflow and underflow |
 | Linked list | find, insert, delete, append, insert in order, reverse, find the middle (slow and fast), print backwards, Floyd's cycle detection |
 | Tree, BST, heap | pre-, in-, post- and level-order; BST search, insert, delete (all three cases); heap insert, extract, build-heap |
@@ -128,7 +128,8 @@ arcing past each other so students can follow. One undo per swap; Esc cancels.
 ### Fill
 
 The style panel's **Fill** picker chooses how values are generated: random (all different), random with repeats,
-empty, ascending, descending, nearly sorted, or letters, in a range of 0-9, 0-99, 0-999 or -50..50. Changing it on a
+empty, ascending, descending, nearly sorted, or letters, in a range of 0-2 (few values, many repeats), 0-9, 0-99,
+0-999 or -50..50. Changing it on a
 selected shape regenerates its values from the same random draw, so switching from random to ascending sorts the
 same numbers (undo brings typed values back).
 

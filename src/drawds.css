@@ -95,3 +95,15 @@
 .tlui-menu {
 	max-height: var(--radix-popper-available-height, 100vh);
 }
+
+/* The Fill's value ranges (0-2, 0-9, 0-99, 999, ±50) in one row: five narrower buttons where tldraw's
+   pickers have four (FillPicker). */
+.tlui-grid[data-testid='style.fill-range'] {
+	grid-template-columns: repeat(5, 1fr);
+	width: 100%;
+}
+
+.tlui-grid[data-testid='style.fill-range'] > button {
+	width: auto;
+	min-width: 0;
+}

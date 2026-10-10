@@ -361,7 +361,7 @@ export function linearSearch(start: ArrayState, target: string): ArrayOperation 
 
 // Sorting. Counts of comparisons and swaps run in the play bar, so a class can compare algorithms.
 
-function sortCounts() {
+export function sortCounts() {
 	return { comparisons: 0, swaps: 0 }
 }
 
@@ -565,11 +565,15 @@ export function bubbleSort(start: ArrayState): ArrayOperation {
 
 // Quicksort (Lomuto's partition): the last value of the range is the pivot (red); i marks the end of
 // the values smaller than it (blue), j walks the rest; then the pivot swaps into its final place.
+// Quicksort itself and lecture 10's improvements are in `quicksorts.ts`.
 
 export type Recorder = ReturnType<typeof recorder>
 
+/** What every step of a recursive call shows around its range: the rest faded, the call stack. */
+export type Around = Pick<Step, 'dim' | 'strips'>
+
 /** Steps of partitioning a[lo..hi] around a[hi]; returns the pivot's final index. */
-function partition(r: Recorder, lo: number, hi: number, settled: Marks, around: Pick<Step, 'dim' | 'strips'>): number {
+export function partition(r: Recorder, lo: number, hi: number, settled: Marks, around: Around): number {
 	const p = r.state.values[hi]
 	let i = lo - 1
 	r.let('lo', lo)
@@ -638,69 +642,14 @@ export function partitionArray(start: ArrayState): ArrayOperation {
 }
 
 /** Predict mode's question before each recursive call: the call stack is under the array. */
-const NEXT_CALL = 'Which call comes next?'
-
-/**
- * Quicksort: partition, then sort each side the same way. The range being worked on is the one
- * not faded; the calls still open are a stack under the array (the innermost on the right).
- */
-export function quicksort(start: ArrayState): ArrayOperation {
-	const n = start.values.length
-	const r = recorder(start, sortCounts())
-	const settled: Marks = {}
-	const calls: string[] = []
-	const outside = (lo: number, hi: number) => span(0, n - 1).filter((k) => Number(k) < lo || Number(k) > hi)
-	// For the recursion tree: a call returns after its inner calls, with no step of its own, so its
-	// return goes with the next step.
-	const tree = callEvents(r)
-	const sort = (lo: number, hi: number) => {
-		calls.push(`${lo}..${hi}`)
-		r.let('lo', lo)
-		r.let('hi', hi)
-		r.let('pivot', undefined)
-		const around = { dim: outside(lo, hi), strips: [{ title: 'call stack', items: [...calls] }] }
-		const call = tree.call(lo, hi)
-		if (lo >= hi) {
-			if (lo === hi) settled[String(lo)] = DONE
-			r.step(`quicksort(${lo}, ${hi}): ${lo === hi ? `one value, a[${lo}], is sorted` : 'no values: nothing to do'}`, {
-				...around,
-				lit: { ...settled },
-				ask: NEXT_CALL,
-				line: 'base',
-				calls: tree.events(call, tree.returns(lo, hi)),
-			})
-		} else {
-			r.step(`quicksort(${lo}, ${hi}): partition a[${lo}..${hi}]`, {
-				...around,
-				lit: { ...settled },
-				ask: NEXT_CALL,
-				line: 'partition',
-				calls: tree.events(call),
-			})
-			const p = partition(r, lo, hi, settled, around)
-			sort(lo, p - 1)
-			sort(p + 1, hi)
-			tree.later(tree.returns(lo, hi))
-		}
-		calls.pop()
-	}
-	sort(0, n - 1)
-	const { comparisons, swaps } = r.counts
-	r.step(`Every call has returned: sorted, with ${comparisons} comparisons and ${swaps} swaps. ${tree.summary(n)}`, {
-		lit: lit(0, n - 1, DONE),
-		strips: [{ title: 'call stack', items: [] }],
-		ask: false,
-		calls: tree.events(),
-	})
-	return { frames: r.frames, result: r.state, code: 'quicksort' }
-}
+export const NEXT_CALL = 'Which call comes next?'
 
 /**
  * A sort's calls for the recursion tree beside the array: each call shows the values it is handed
  * (told apart by its range) and returns them sorted; its size is how many values it works on, so
  * each level's work adds up beside the tree. Returns a step can't carry wait for the next.
  */
-function callEvents(r: Recorder) {
+export function callEvents(r: Recorder) {
 	const pending: CallEvent[] = []
 	const values = (lo: number, hi: number) => (lo > hi ? '[ ]' : r.state.values.slice(lo, hi + 1).join(' '))
 	let depth = 0

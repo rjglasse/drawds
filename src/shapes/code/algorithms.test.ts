@@ -8,12 +8,12 @@ import {
 	linearSearch,
 	mergeSort,
 	partitionArray,
-	quicksort,
 	recursiveBinarySearch,
 	selectionSort,
 	sumWithInvariant,
 	type ArrayState,
 } from '../array/operations'
+import { partition3Array, quicksort } from '../array/quicksorts'
 import { allUnique, findMax, sentinelSearch } from '../array/scans'
 import { fisherYates, unfairShuffle } from '../array/shuffles'
 import { peekStack, pop, push } from '../array/stack-queue'
@@ -105,6 +105,13 @@ describe('algorithm code', () => {
 			partitionArray(array(7, 2, 9, 1, 5)),
 			partitionArray(array(1, 2, 9)),
 			quicksort(array(7, 2, 9, 1, 5, 3)),
+			// Lecture 10's improvements.
+			quicksort(array(7, 2, 9, 1, 5, 3), 'quicksort-random', { rng: mulberry32(2) }),
+			quicksort(array(7, 2, 9, 1, 5, 3), 'quicksort-median'),
+			quicksort(array(9, 4), 'quicksort-median'),
+			quicksort(array(2, 0, 2, 1, 2, 0, 1), 'quicksort-3way'),
+			partition3Array(array(2, 0, 2, 1, 2, 0, 1)),
+			quicksort(array(7, 2, 9, 1, 5, 3, 8), 'quicksort-cutoff', { cutoff: 3 }),
 			hoarePartition(array(5, 2, 9, 1, 7, 3)),
 			mergeSort(array(7, 2, 9, 1, 5, 3)),
 			unfairShuffle(array(7, 2, 9, 1), mulberry32(3)),

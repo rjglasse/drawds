@@ -37,7 +37,7 @@ export async function rightClick(page: Page, at: [number, number]) {
 
 /** Where an array's Step by step item sits: in a category of its own (stacks and queues have none). */
 function arrayCategory(item: string): string {
-	if (/^array-(insertion-sort|selection-sort|bubble-sort|partition|quicksort|hoare-partition|merge-sort)$/.test(item)) return 'sorts'
+	if (/^array-(insertion-sort|selection-sort|bubble-sort|partition|quicksort|hoare-partition|merge-sort|sort-growth)/.test(item)) return 'sorts'
 	if (/^array-(unfair|fisher-yates)/.test(item)) return 'shuffles'
 	return 'basics'
 }

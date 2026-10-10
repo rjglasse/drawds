@@ -12,10 +12,13 @@ export const FILL_MODES = [
 ] as const
 export type FillMode = (typeof FILL_MODES)[number]
 
-/** The numbers random fills draw from (letters are always A..Z). */
-export const FILL_RANGES = ['small', 'medium', 'large', 'signed'] as const
+/**
+ * The numbers random fills draw from (letters are always A..Z). `few` is 0-2, values repeating on
+ * purpose (lecture 10b's data with max 2: quicksort's hard case of many equal values).
+ */
+export const FILL_RANGES = ['few', 'small', 'medium', 'large', 'signed'] as const
 export type FillRange = (typeof FILL_RANGES)[number]
-const RANGE: Record<FillRange, [number, number]> = { small: [0, 9], medium: [0, 99], large: [0, 999], signed: [-50, 50] }
+const RANGE: Record<FillRange, [number, number]> = { few: [0, 2], small: [0, 9], medium: [0, 99], large: [0, 999], signed: [-50, 50] }
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
@@ -49,6 +52,16 @@ function draws(kind: Kind, seed: number, count: number, distinct: boolean, range
 function firstAbsent(kind: Kind, seed: number, present: ReadonlySet<string>, range: FillRange = 'medium'): string {
 	const order = draws(kind, seed, poolSize(kind, range), true, range)
 	return order.find((v) => !present.has(v)) ?? order[present.size % order.length]
+}
+
+/**
+ * The next value of a sorted run past `from` (`up` +1 ascending, -1 descending): a few on; from a
+ * few values (0-2), the same one or the next, kept in the range.
+ */
+function stepFrom(from: number, up: number, range: FillRange, rng: Rng): number {
+	if (range !== 'few') return from + up * randomInt(1, 9, rng)
+	const [lo, hi] = RANGE[range]
+	return Math.min(hi, Math.max(lo, from + up * randomInt(0, 1, rng)))
 }
 
 const sortedInts = (seed: number, count: number, range: FillRange) =>
@@ -162,8 +175,8 @@ export function insertValue(
 				const [lo, hi] = [Math.min(a, b), Math.max(a, b)]
 				return String(hi - lo >= 2 ? randomInt(lo + 1, hi - 1, rng) : randomInt(lo, hi, rng))
 			}
-			if (a !== undefined) return String(a + up * randomInt(1, 9, rng))
-			if (b !== undefined) return String(b - up * randomInt(1, 9, rng))
+			if (a !== undefined) return String(stepFrom(a, up, range, rng))
+			if (b !== undefined) return String(stepFrom(b, -up, range, rng))
 			return firstAbsent('number', saltedSeed, new Set(existing), range)
 		}
 	}
@@ -198,9 +211,9 @@ function nextValue(
 			return draws('number', seed, index + 1, false, range)[index]
 		case 'ascending':
 		case 'nearly-sorted':
-			return String(base + dir * randomInt(1, 9, rng))
+			return String(stepFrom(base, dir, range, rng))
 		case 'descending':
-			return String(base - dir * randomInt(1, 9, rng))
+			return String(stepFrom(base, -dir, range, rng))
 	}
 }
 

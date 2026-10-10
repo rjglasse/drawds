@@ -17,12 +17,12 @@ import {
 	linearSearch,
 	mergeSort,
 	partitionArray,
-	quicksort,
 	selectionSort,
 	sumByHalves,
 	sumByRest,
 	type ArrayOperation,
 } from './operations'
+import { quicksort } from './quicksorts'
 import { callRun } from '../recursion/calls'
 import { rearrange, reversedOrder, shuffledOrder, sortedOrder } from './rearrange'
 import { mulberry32 } from '../../data/random'

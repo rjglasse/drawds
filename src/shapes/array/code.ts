@@ -6,6 +6,32 @@ import type { CodeSource } from '../code/algorithms'
 // variables shown there (the steps' pointers, or what they `let`). Insertion sort is lecture 3's, the
 // shuffles lecture 2's (its names: numbers, the random index n).
 
+// Lomuto's partition, as quicksort and its variants call it (lecture 10's, CLRS's): the last value is the pivot.
+const JAVA_PARTITION = String.raw`
+			int partition(int[] a, int lo, int hi) {
+			    int pivot = a[hi];                      @pivot $pivot
+			    int i = lo - 1;                         $i
+			    for (int j = lo; j < hi; j++) {         $j
+			        if (a[j] < pivot) {                 @compare
+			            i++;
+			            swap(a, i, j);                  @swap
+			        }
+			    }
+			    swap(a, i + 1, hi);                     @place
+			    return i + 1;
+			}`
+
+const PYTHON_PARTITION = String.raw`
+			def partition(a, lo, hi):
+			    pivot = a[hi]                           @pivot $pivot
+			    i = lo - 1                              $i
+			    for j in range(lo, hi):                 $j
+			        if a[j] < pivot:                    @compare
+			            i += 1
+			            a[i], a[j] = a[j], a[i]         @swap
+			    a[i + 1], a[hi] = a[hi], a[i + 1]       @place
+			    return i + 1`
+
 export const ARRAY_CODE: Record<string, CodeSource> = {
 	'linear-search': {
 		java: String.raw`
@@ -261,35 +287,179 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			        quicksort(a, p + 1, hi);
 			    }
 			}
-
-			int partition(int[] a, int lo, int hi) {
-			    int pivot = a[hi];                      @pivot $pivot
-			    int i = lo - 1;                         $i
-			    for (int j = lo; j < hi; j++) {         $j
-			        if (a[j] < pivot) {                 @compare
-			            i++;
-			            swap(a, i, j);                  @swap
-			        }
-			    }
-			    swap(a, i + 1, hi);                     @place
-			    return i + 1;
-			}`,
+			${JAVA_PARTITION}`,
 		python: String.raw`
 			def quicksort(a, lo, hi):               $lo $hi
 			    if lo < hi:                             @base
 			        p = partition(a, lo, hi)            @partition
 			        quicksort(a, lo, p - 1)
 			        quicksort(a, p + 1, hi)
+			${PYTHON_PARTITION}`,
+	},
+	// Lecture 10's improvements, one at a time.
+	'quicksort-random': {
+		java: String.raw`
+			void quicksort(int[] a, int lo, int hi) {           $lo $hi
+			    if (lo < hi) {                                  @base
+			        int k = lo + rand.nextInt(hi - lo + 1);     @pick $k
+			        swap(a, k, hi);                             @toend
+			        int p = partition(a, lo, hi);               @partition
+			        quicksort(a, lo, p - 1);
+			        quicksort(a, p + 1, hi);
+			    }
+			}
+			${JAVA_PARTITION}`,
+		python: String.raw`
+			def quicksort(a, lo, hi):                   $lo $hi
+			    if lo < hi:                                 @base
+			        k = random.randint(lo, hi)              @pick $k
+			        a[k], a[hi] = a[hi], a[k]               @toend
+			        p = partition(a, lo, hi)                @partition
+			        quicksort(a, lo, p - 1)
+			        quicksort(a, p + 1, hi)
+			${PYTHON_PARTITION}`,
+	},
+	'quicksort-median': {
+		java: String.raw`
+			void quicksort(int[] a, int lo, int hi) {                   $lo $hi
+			    if (lo < hi) {                                          @base
+			        if (hi - lo >= 2) { // three values or more
+			            int m = medianOf3(a, lo, (lo + hi) / 2, hi);    @median $mid $m
+			            swap(a, m, hi);                                 @tohi
+			        }
+			        int p = partition(a, lo, hi);                       @partition
+			        quicksort(a, lo, p - 1);
+			        quicksort(a, p + 1, hi);
+			    }
+			}
 
-			def partition(a, lo, hi):
-			    pivot = a[hi]                           @pivot $pivot
-			    i = lo - 1                              $i
-			    for j in range(lo, hi):                 $j
-			        if a[j] < pivot:                    @compare
-			            i += 1
-			            a[i], a[j] = a[j], a[i]         @swap
-			    a[i + 1], a[hi] = a[hi], a[i + 1]       @place
-			    return i + 1`,
+			// The index of the middle value of a[i], a[j] and a[k].
+			int medianOf3(int[] a, int i, int j, int k) {
+			    if (a[i] < a[j]) {
+			        if (a[j] < a[k]) return j;
+			        return a[i] < a[k] ? k : i;
+			    }
+			    if (a[i] < a[k]) return i;
+			    return a[j] < a[k] ? k : j;
+			}
+			${JAVA_PARTITION}`,
+		python: String.raw`
+			def quicksort(a, lo, hi):                           $lo $hi
+			    if lo < hi:                                         @base
+			        if hi - lo >= 2:  # three values or more
+			            m = median_of_3(a, lo, (lo + hi) // 2, hi)  @median $mid $m
+			            a[m], a[hi] = a[hi], a[m]                   @tohi
+			        p = partition(a, lo, hi)                        @partition
+			        quicksort(a, lo, p - 1)
+			        quicksort(a, p + 1, hi)
+
+			# The index of the middle value of a[i], a[j] and a[k].
+			def median_of_3(a, i, j, k):
+			    if a[i] < a[j]:
+			        if a[j] < a[k]:
+			            return j
+			        return k if a[i] < a[k] else i
+			    if a[i] < a[k]:
+			        return i
+			    return k if a[j] < a[k] else j
+			${PYTHON_PARTITION}`,
+	},
+	// Dijkstra's three-way partition (the Dutch national flag), inside quicksort as Sedgewick writes it.
+	'quicksort-3way': {
+		java: String.raw`
+			void quicksort(int[] a, int lo, int hi) {           $lo $hi
+			    if (lo >= hi) return;                           @base
+			    int pivot = a[hi];                              @pivot $pivot
+			    int lt = lo, i = lo, gt = hi;                   $lt $i $gt
+			    while (i <= gt) {
+			        if (a[i] < pivot) swap(a, lt++, i++);       @less @less-swap
+			        else if (a[i] > pivot) swap(a, i, gt--);    @more @more-swap
+			        else i++;                                   @equal
+			    }
+			    quicksort(a, lo, lt - 1);                       @split
+			    quicksort(a, gt + 1, hi);
+			}`,
+		python: String.raw`
+			def quicksort(a, lo, hi):                   $lo $hi
+			    if lo >= hi:                                @base
+			        return
+			    pivot = a[hi]                               @pivot $pivot
+			    lt, i, gt = lo, lo, hi                      $lt $i $gt
+			    while i <= gt:
+			        if a[i] < pivot:                        @less
+			            a[lt], a[i] = a[i], a[lt]           @less-swap
+			            lt, i = lt + 1, i + 1
+			        elif a[i] > pivot:                      @more
+			            a[i], a[gt] = a[gt], a[i]           @more-swap
+			            gt -= 1
+			        else:
+			            i += 1                              @equal
+			    quicksort(a, lo, lt - 1)                    @split
+			    quicksort(a, gt + 1, hi)`,
+	},
+	'partition-3way': {
+		java: String.raw`
+			// Then a[lo..lt-1] < pivot, a[lt..gt] == pivot, a[gt+1..hi] > pivot.
+			int[] partition3(int[] a, int lo, int hi) {
+			    int pivot = a[hi];                              @pivot $pivot
+			    int lt = lo, i = lo, gt = hi;                   $lt $i $gt
+			    while (i <= gt) {
+			        if (a[i] < pivot) swap(a, lt++, i++);       @less @less-swap
+			        else if (a[i] > pivot) swap(a, i, gt--);    @more @more-swap
+			        else i++;                                   @equal
+			    }
+			    return new int[] { lt, gt };                    @split
+			}`,
+		python: String.raw`
+			# Then a[lo:lt] < pivot, a[lt:gt + 1] == pivot, a[gt + 1:hi + 1] > pivot.
+			def partition3(a, lo, hi):
+			    pivot = a[hi]                               @pivot $pivot
+			    lt, i, gt = lo, lo, hi                      $lt $i $gt
+			    while i <= gt:
+			        if a[i] < pivot:                        @less
+			            a[lt], a[i] = a[i], a[lt]           @less-swap
+			            lt, i = lt + 1, i + 1
+			        elif a[i] > pivot:                      @more
+			            a[i], a[gt] = a[gt], a[i]           @more-swap
+			            gt -= 1
+			        else:
+			            i += 1                              @equal
+			    return lt, gt                               @split`,
+	},
+	'quicksort-cutoff': {
+		java: String.raw`
+			void quicksort(int[] a, int lo, int hi) {           $lo $hi
+			    if (hi - lo + 1 <= CUTOFF) {                    @small $CUTOFF
+			        insertionSort(a, lo, hi);
+			        return;
+			    }
+			    int p = partition(a, lo, hi);                   @partition
+			    quicksort(a, lo, p - 1);
+			    quicksort(a, p + 1, hi);
+			}
+
+			void insertionSort(int[] a, int lo, int hi) {
+			    for (int i = lo + 1; i <= hi; i++)                      $i
+			        for (int j = i; j > lo && a[j - 1] > a[j]; j--)     @is-compare $j
+			            swap(a, j, j - 1);                              @is-swap
+			}
+			${JAVA_PARTITION}`,
+		python: String.raw`
+			def quicksort(a, lo, hi):                   $lo $hi
+			    if hi - lo + 1 <= CUTOFF:                   @small $CUTOFF
+			        insertion_sort(a, lo, hi)
+			        return
+			    p = partition(a, lo, hi)                    @partition
+			    quicksort(a, lo, p - 1)
+			    quicksort(a, p + 1, hi)
+
+			def insertion_sort(a, lo, hi):
+			    for i in range(lo + 1, hi + 1):             $i
+			        j = i
+			        while j > lo and a[j - 1] > a[j]:       @is-compare $j
+			            a[j], a[j - 1] = a[j - 1], a[j]     @is-swap
+			            j -= 1
+			${PYTHON_PARTITION}`,
 	},
 	'hoare-partition': {
 		java: String.raw`
