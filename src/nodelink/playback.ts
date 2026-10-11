@@ -742,9 +742,11 @@ function keepingWhatWasAdded(editor: Editor, present: Present | undefined, takeB
 		const parent = lost.find((p) => p.id === s.parentId)
 		return parent ? depth(parent) + 1 : 0
 	}
+	// And in the order they were stacked (the store's order is not theirs).
+	const order = (a: TLShape, b: TLShape) => depth(a) - depth(b) || (a.index < b.index ? -1 : a.index > b.index ? 1 : 0)
 	editor.markHistoryStoppingPoint('keep what was added')
 	editor.run(() => {
-		editor.createShapes([...lost].sort((a, b) => depth(a) - depth(b)))
+		editor.createShapes([...lost].sort(order))
 		editor.createBindings(unbound as TLBinding[])
 	})
 }
