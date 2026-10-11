@@ -97,9 +97,13 @@ export function recorder(start: ArrayState, counts: Record<string, number>) {
 		counting(...tags: string[]) {
 			for (const tag of tags) runs[tag] = 0
 		},
-		/** The code ran these lines (once each, in order) on its way to the next step. */
+		/**
+		 * The code ran these lines (once each, in order) on its way to the next step. Only the lines
+		 * `counting` named count: steps shared with operations that don't count (quicksort's partition,
+		 * which its variants call too) say what they ran either way.
+		 */
 		ran(...tags: string[]) {
-			for (const tag of tags) runs[tag] = (runs[tag] ?? 0) + 1
+			for (const tag of tags) if (tag in runs) runs[tag]++
 		},
 		/** Set a variable (undefined: it goes out of scope); later steps show it. */
 		let(name: string, value: string | number | boolean | undefined) {
@@ -167,6 +171,7 @@ export function binarySearch(start: ArrayState, target: string): ArrayOperation 
 	const n = values.length
 	const r = recorder(start, { comparisons: 0 })
 	r.let('key', target)
+	r.counting('init', 'loop', 'mid', 'compare', 'found', 'less', 'right', 'left', 'missing')
 	const outside = (lo: number, hi: number) => span(0, n - 1).filter((k) => Number(k) < lo || Number(k) > hi)
 	let lo = 0
 	let hi = n - 1
@@ -178,6 +183,7 @@ export function binarySearch(start: ArrayState, target: string): ArrayOperation 
 			ask: 'Can binary search work on this array?',
 		})
 	}
+	r.ran('init')
 	r.step(`lo = 0, hi = ${hi}: ${target} could be anywhere in a[0..${hi}]`, {
 		pointers: [ptr('lo', lo), ptr('hi', hi)],
 		ask: `Binary search for ${target}: where do lo and hi start?`,
@@ -188,6 +194,7 @@ export function binarySearch(start: ArrayState, target: string): ArrayOperation 
 		const v = values[mid]
 		const at = { pointers: [ptr('lo', lo), ptr('mid', mid), ptr('hi', hi)], dim: outside(lo, hi) }
 		r.counts.comparisons++
+		r.ran('loop', 'mid')
 		r.step(`mid = (${lo} + ${hi}) / 2 = ${mid}. Is a[${mid}] = ${v} equal to ${target}?`, {
 			...at,
 			lit: { [mid]: LOOK },
@@ -197,7 +204,9 @@ export function binarySearch(start: ArrayState, target: string): ArrayOperation 
 		const c = compareKeys(v, target)
 		// The same question whatever the answer: found, or which half is left.
 		const half = { ask: `a[${mid}] = ${v} vs ${target}: found it, or which half is left?`, askFocus: [mid] }
+		r.ran('compare')
 		if (c === 0) {
+			r.ran('found')
 			r.step(`Yes: found ${target} at index ${mid}, after ${r.counts.comparisons} comparison${r.counts.comparisons === 1 ? '' : 's'}`, {
 				...at,
 				lit: { [mid]: DONE },
@@ -206,6 +215,7 @@ export function binarySearch(start: ArrayState, target: string): ArrayOperation 
 			})
 			return { frames: r.frames, finalFlash: { [mid]: DONE }, code: 'binary-search' }
 		}
+		r.ran('less', c < 0 ? 'right' : 'left')
 		if (c < 0) {
 			lo = mid + 1
 			r.step(`${v} < ${target}, so ${target} can only be right of mid: lo = mid + 1 = ${lo}`, {
@@ -224,6 +234,7 @@ export function binarySearch(start: ArrayState, target: string): ArrayOperation 
 			})
 		}
 	}
+	r.ran('loop', 'missing')
 	r.step(`lo = ${lo} > hi = ${hi}: the pointers have crossed, so ${target} is not in the array`, {
 		pointers: [ptr('lo', lo), ptr('hi', hi)],
 		dim: span(0, n - 1),
@@ -244,6 +255,7 @@ export function recursiveBinarySearch(start: ArrayState, target: string): ArrayO
 	const n = values.length
 	const r = recorder(start, { comparisons: 0, calls: 0, 'max depth': 0 })
 	r.let('key', target)
+	r.counting('base', 'missing', 'mid', 'compare', 'found', 'less', 'right', 'left')
 	const stack: string[] = []
 	const outside = (low: number, high: number) => span(0, n - 1).filter((k) => Number(k) < low || Number(k) > high)
 	const unsorted = values.findIndex((v, i) => i > 0 && compareKeys(values[i - 1], v) > 0)
@@ -265,7 +277,9 @@ export function recursiveBinarySearch(start: ArrayState, target: string): ArrayO
 		const call: CallEvent = { call: name, id: `${low}..${high}` }
 		const around = { dim: outside(low, high), strips: [{ title: 'call stack', items: [...stack] }] }
 		const ends = [ptr('low', low), ptr('high', high)]
+		r.ran('base')
 		if (low > high) {
+			r.ran('missing')
 			r.step(`${name}: low > high, nothing left to search: return -1`, {
 				...around,
 				pointers: ends,
@@ -281,6 +295,7 @@ export function recursiveBinarySearch(start: ArrayState, target: string): ArrayO
 		const at = [ptr('low', low), ptr('mid', mid), ptr('high', high)]
 		r.counts.comparisons++
 		r.let('mid', mid)
+		r.ran('mid')
 		r.step(`${name}: mid = (${low} + ${high}) / 2 = ${mid}. Is a[${mid}] = ${v} the key ${target}?`, {
 			...around,
 			pointers: at,
@@ -291,12 +306,15 @@ export function recursiveBinarySearch(start: ArrayState, target: string): ArrayO
 		})
 		const c = compareKeys(v, target)
 		const half = { ask: `a[${mid}] = ${v} vs ${target}: found it, or which half is left?`, askFocus: [mid] }
+		r.ran('compare')
 		if (c === 0) {
+			r.ran('found')
 			r.step(`a[${mid}] = ${target}: found, so return ${mid}`, { ...around, pointers: at, lit: { [mid]: DONE }, calls: [{ returns: String(mid) }], ...half, line: 'found' })
 			stack.pop()
 			return mid
 		}
 		const [next, line] = c < 0 ? [`binarySearch(${mid + 1}, ${high})`, 'right'] : [`binarySearch(${low}, ${mid - 1})`, 'left']
+		r.ran('less', line)
 		r.step(`${v} ${c < 0 ? '<' : '>'} ${target}: the key can only be ${c < 0 ? 'right' : 'left'} of mid, so return ${next}`, {
 			...around,
 			pointers: at,
@@ -574,6 +592,9 @@ export type Recorder = ReturnType<typeof recorder>
 /** What every step of a recursive call shows around its range: the rest faded, the call stack. */
 export type Around = Pick<Step, 'dim' | 'strips'>
 
+/** The lines of Lomuto's partition, counted when an operation counts them (see `recorder`'s `ran`). */
+export const PARTITION_LINES = ['pivot', 'init', 'loop', 'compare', 'grow', 'swap', 'place', 'result']
+
 /** Steps of partitioning a[lo..hi] around a[hi]; returns the pivot's final index. */
 export function partition(r: Recorder, lo: number, hi: number, settled: Marks, around: Around): number {
 	const p = r.state.values[hi]
@@ -584,6 +605,7 @@ export function partition(r: Recorder, lo: number, hi: number, settled: Marks, a
 	// Settled cells, the pivot, the smaller values so far, and whatever else this step lights.
 	const shown = (extra: Marks = {}): Marks => ({ ...settled, ...lit(lo, i, SMALL), [hi]: PIVOT, ...extra })
 	const at = (j?: number) => [ptr('i', i), ...(j === undefined ? [] : [ptr('j', j)])]
+	r.ran('pivot', 'init')
 	r.step(`pivot = a[${hi}] = ${p}. i = ${i}: no values smaller than the pivot yet`, {
 		...around,
 		lit: shown(),
@@ -595,6 +617,7 @@ export function partition(r: Recorder, lo: number, hi: number, settled: Marks, a
 		const x = r.state.values[j]
 		const side = { ask: `a[${j}] = ${x} vs the pivot ${p}: which side does it belong on?`, askFocus: [j], line: 'compare' }
 		r.counts.comparisons++
+		r.ran('loop', 'compare')
 		if (compareKeys(x, p) >= 0) {
 			r.step(`a[${j}] = ${x} ≥ ${p}: it stays on the right`, { ...around, lit: shown({ [j]: LOOK }), pointers: at(j), ...side })
 			continue
@@ -603,6 +626,8 @@ export function partition(r: Recorder, lo: number, hi: number, settled: Marks, a
 		// Where i says the smaller values end: the same question whether or not a swap is needed.
 		const where = { ask: `${x} belongs with the smaller values: what happens to i, and where does ${x} go?`, askFocus: [j], line: 'swap' }
 		i++
+		// The code swaps a[i] with itself when i reaches j: the line runs, nothing moves.
+		r.ran('grow', 'swap')
 		if (i === j) {
 			r.step(`i = ${i}, which is j: a[${j}] is in place already`, { ...around, lit: shown(), pointers: at(j), ...where })
 			continue
@@ -612,6 +637,7 @@ export function partition(r: Recorder, lo: number, hi: number, settled: Marks, a
 		r.step(`i = ${i}; swap(a[${i}], a[${j}])`, { ...around, lit: shown(), pointers: at(j), swaps: [[i, j]], ...where })
 	}
 	const to = i + 1
+	r.ran('loop', 'place', 'result')
 	if (to !== hi) {
 		r.set(swapped(r.state, to, hi))
 		r.counts.swaps++
@@ -638,6 +664,7 @@ export function partition(r: Recorder, lo: number, hi: number, settled: Marks, a
 export function partitionArray(start: ArrayState): ArrayOperation {
 	const n = start.values.length
 	const r = recorder(start, sortCounts())
+	r.counting(...PARTITION_LINES)
 	const settled: Marks = {}
 	const p = partition(r, 0, n - 1, settled, {})
 	return { frames: r.frames, result: r.state, finalFlash: { [p]: DONE }, code: 'partition' }
@@ -703,10 +730,17 @@ export function hoarePartition(start: ArrayState): ArrayOperation {
 	r.let('pivot', p)
 	const shown = (extra: Marks = {}): Marks => ({ [pivotAt]: PIVOT, ...extra })
 	const at = () => [ptr('i', i), ptr('j', j)]
+	// Python writes each do-while as a step, then a while that steps again: its lines count apart.
+	r.counting('pivot', 'init', 'round', 'step-i', 'left', 'more-i', 'step-j', 'right', 'more-j', 'crossed', 'done', 'swap')
+	r.ran('pivot', 'init')
 	r.step(`pivot = a[0] = ${p}. i starts before the array, j after it`, { lit: shown(), pointers: at(), ask: false, line: 'pivot' })
 	for (;;) {
+		r.ran('round')
+		let first = true
 		do {
 			i++
+			r.ran(first ? 'step-i' : 'more-i', 'left')
+			first = false
 			r.counts.comparisons++
 			const x = r.state.values[i]
 			const stop = compareKeys(x, p) >= 0
@@ -719,8 +753,11 @@ export function hoarePartition(start: ArrayState): ArrayOperation {
 			})
 			if (stop) break
 		} while (i < n - 1)
+		first = true
 		do {
 			j--
+			r.ran(first ? 'step-j' : 'more-j', 'right')
+			first = false
 			r.counts.comparisons++
 			const x = r.state.values[j]
 			const stop = compareKeys(x, p) <= 0
@@ -733,7 +770,12 @@ export function hoarePartition(start: ArrayState): ArrayOperation {
 			})
 			if (stop) break
 		} while (j > 0)
-		if (i >= j) break
+		r.ran('crossed')
+		if (i >= j) {
+			r.ran('done')
+			break
+		}
+		r.ran('swap')
 		r.set(swapped(r.state, i, j))
 		r.counts.swaps++
 		if (pivotAt === i) pivotAt = j
@@ -757,6 +799,10 @@ const BOTH_STOPPED = 'i and j have both stopped: what now?'
 export function mergeSort(start: ArrayState): ArrayOperation {
 	const n = start.values.length
 	const r = recorder(start, { comparisons: 0, copies: 0 })
+	r.counting(
+		...['base', 'leaf', 'split', 'sort-left', 'sort-right', 'merge', 'alloc', 'start', 'loop', 'compare', 'left', 'next-i', 'right', 'next-j'],
+		...['rest-left-loop', 'rest-left', 'rest-next-i', 'rest-right-loop', 'rest-right', 'rest-next-j', 'copy-loop', 'copy']
+	)
 	const calls: string[] = []
 	const outside = (lo: number, hi: number) => span(0, n - 1).filter((k) => Number(k) < lo || Number(k) > hi)
 	const strips = (merged: string[] = []) => [
@@ -774,13 +820,15 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 		calls.push(`${lo}..${hi}`)
 		call(lo, hi)
 		const made = tree.call(lo, hi)
+		r.ran('base')
 		if (lo === hi) {
+			r.ran('leaf')
 			r.step(`mergeSort(${lo}, ${hi}): one value, a[${lo}], is sorted`, {
 				dim: outside(lo, hi),
 				strips: strips(),
 				lit: { [lo]: DONE },
 				ask: NEXT_CALL,
-				line: 'base',
+				line: 'leaf',
 				calls: tree.events(made, tree.returns(lo, hi)),
 			})
 			calls.pop()
@@ -788,6 +836,7 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 		}
 		const mid = Math.floor((lo + hi) / 2)
 		call(lo, hi, mid)
+		r.ran('split')
 		r.step(`mergeSort(${lo}, ${hi}): sort a[${lo}..${mid}] and a[${mid + 1}..${hi}], then merge them`, {
 			dim: outside(lo, hi),
 			strips: strips(),
@@ -795,7 +844,9 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 			line: 'split',
 			calls: tree.events(made),
 		})
+		r.ran('sort-left')
 		sort(lo, mid)
+		r.ran('sort-right')
 		sort(mid + 1, hi)
 		// Merge: i and j walk the two sorted halves; the smaller front value goes next.
 		const values = r.state.values
@@ -807,6 +858,7 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 		const taken = () => from.map(String)
 		call(lo, hi, mid)
 		r.let('k', 0)
+		r.ran('merge', 'alloc', 'start')
 		r.step(`Merge a[${lo}..${mid}] (blue) and a[${mid + 1}..${hi}] (green), both sorted`, {
 			dim: outside(lo, hi),
 			strips: strips(),
@@ -815,26 +867,36 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 			ask: `Both halves of a[${lo}..${hi}] are sorted: what now?`,
 			line: 'merge',
 		})
+		// The code's three loops, in turn: both halves, then what is left of the left one, then of the right one.
+		let loop: 'both' | 'rest-left' | 'rest-right' = 'both'
 		while (i <= mid || j <= hi) {
 			// Which half the next value comes from (i and j can be equal once the left half is used up).
 			let left: boolean
 			let why: string
 			let line: string
-			if (i > mid) {
-				left = false
-				why = `The left half is used up: take a[${j}] = ${values[j]}`
-				line = 'rest-right'
-			} else if (j > hi) {
-				left = true
-				why = `The right half is used up: take a[${i}] = ${values[i]}`
-				line = 'rest-left'
-			} else {
+			if (i <= mid && j <= hi) {
 				r.counts.comparisons++
 				left = compareKeys(values[i], values[j]) <= 0
 				why = left
 					? `a[${i}] = ${values[i]} ≤ a[${j}] = ${values[j]}: take ${values[i]}`
 					: `a[${j}] = ${values[j]} < a[${i}] = ${values[i]}: take ${values[j]}`
 				line = left ? 'left' : 'right'
+				r.ran('loop', 'compare', line, left ? 'next-i' : 'next-j')
+			} else {
+				// A loop's last test, as the next one starts: both halves' when one is used up, the left
+				// one's (maybe its only one) before the right one's.
+				if (loop === 'both') {
+					r.ran('loop')
+					loop = 'rest-left'
+				}
+				if (loop === 'rest-left' && i > mid) {
+					r.ran('rest-left-loop')
+					loop = 'rest-right'
+				}
+				left = loop === 'rest-left'
+				why = left ? `The right half is used up: take a[${i}] = ${values[i]}` : `The left half is used up: take a[${j}] = ${values[j]}`
+				line = loop
+				r.ran(`${loop}-loop`, loop, left ? 'rest-next-i' : 'rest-next-j')
 			}
 			const ask =
 				i <= mid && j <= hi
@@ -854,6 +916,11 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 				line,
 			})
 		}
+		// The rest loops' last tests (the left one's, unless it ended already), then the copy loop.
+		if (loop === 'rest-left') r.ran('rest-left-loop')
+		r.ran('rest-right-loop')
+		for (let k = 0; k < merged.length; k++) r.ran('copy-loop', 'copy')
+		r.ran('copy-loop')
 		// Copy the run back: marks travel with their values.
 		const marks: Marks = { ...r.state.marks }
 		for (let k = lo; k <= hi; k++) delete marks[String(k)]
@@ -876,6 +943,9 @@ export function mergeSort(start: ArrayState): ArrayOperation {
 		calls.pop()
 	}
 	sort(0, n - 1)
+	r.let('lo', undefined)
+	r.let('hi', undefined)
+	r.let('mid', undefined)
 	const { comparisons, copies } = r.counts
 	r.step(`Every call has returned: sorted, with ${comparisons} comparisons and ${copies} copies. ${tree.summary(n)}`, {
 		lit: lit(0, n - 1, DONE),

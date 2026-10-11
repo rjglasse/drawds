@@ -276,9 +276,13 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   Times each line runs (prop `lineCounts`) puts a column at the right, `×n` per counted line, ticking up as the steps
   go: frames carry `runs` (cumulative, by tag), which the array recorder keeps (`r.counting(...tags)` from 0, then
   `r.ran(...tags)` for every line the code runs on its way to the next step: loop headers once per test, so one more
-  than their body when the loop runs out; a line's count is its tags' sum). Counted so far: linear search, max,
-  unique, insertion sort (lecture 3's: `key = a[i]`, worst case while n(n + 1)/2 - 1), selection and bubble sort;
-  `src/shapes/array/line-counts.test.ts` pins the lecture's totals. Insertion sort's play bar counts comparisons of two
+  than their body when the loop runs out; a line's count is its tags' sum; `ran` ignores tags `counting` didn't name, so
+  steps shared with uncounted operations, quicksort's variants calling Lomuto's partition, say what they run either way).
+  Every tagged line runs as often in each language, so one-liners that run two ways are split (`if (a[mid] == key)` /
+  `return mid;`) and a line only one language has (Python's `i += 1` before Hoare's inner while) gets a tag of its own.
+  Counted: linear, binary (both), sentinel search, max, unique (all three), insertion sort (lecture 3's: `key = a[i]`,
+  worst case while n(n + 1)/2 - 1), selection and bubble sort, both partitions, plain quicksort and merge sort (2n - 1
+  calls, the copy-back n log₂ n); `src/shapes/array/line-counts.test.ts` pins the totals. Insertion sort's play bar counts comparisons of two
   values and, beside them, `while tests` (the test also runs when j > 0 stops it, comparing nothing: lectures 2-3's 54
   and 14 are the tests); its last step says why the two differ. Where a slide's count is off, drawds counts correctly. Picking another language swaps an unedited box to that language's version (`onBeforeUpdate`).
   The arrays' code is `src/shapes/array/code.ts` (searches, scans, every sort, shuffles, lecture 6's ArrayStack push / pop /

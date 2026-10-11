@@ -10,41 +10,41 @@ import type { CodeSource } from '../code/algorithms'
 const C_PARTITION = String.raw`
 			int partition(int a[], int lo, int hi) {
 			    int pivot = a[hi];                 @pivot $pivot
-			    int i = lo - 1;                    $i
-			    for (int j = lo; j < hi; j++) {    $j
+			    int i = lo - 1;                    @init $i
+			    for (int j = lo; j < hi; j++) {    @loop $j
 			        if (a[j] < pivot) {            @compare
-			            i++;
+			            i++;                       @grow
 			            swap(&a[i], &a[j]);        @swap
 			        }
 			    }
 			    swap(&a[i + 1], &a[hi]);           @place
-			    return i + 1;
+			    return i + 1;                      @result
 			}`
 
 const JAVA_PARTITION = String.raw`
 			int partition(int[] a, int lo, int hi) {
 			    int pivot = a[hi];                      @pivot $pivot
-			    int i = lo - 1;                         $i
-			    for (int j = lo; j < hi; j++) {         $j
+			    int i = lo - 1;                         @init $i
+			    for (int j = lo; j < hi; j++) {         @loop $j
 			        if (a[j] < pivot) {                 @compare
-			            i++;
+			            i++;                            @grow
 			            swap(a, i, j);                  @swap
 			        }
 			    }
 			    swap(a, i + 1, hi);                     @place
-			    return i + 1;
+			    return i + 1;                           @result
 			}`
 
 const PYTHON_PARTITION = String.raw`
 			def partition(a, lo, hi):
 			    pivot = a[hi]                           @pivot $pivot
-			    i = lo - 1                              $i
-			    for j in range(lo, hi):                 $j
+			    i = lo - 1                              @init $i
+			    for j in range(lo, hi):                 @loop $j
 			        if a[j] < pivot:                    @compare
-			            i += 1
+			            i += 1                          @grow
 			            a[i], a[j] = a[j], a[i]         @swap
 			    a[i + 1], a[hi] = a[hi], a[i + 1]       @place
-			    return i + 1`
+			    return i + 1                            @result`
 
 export const ARRAY_CODE: Record<string, CodeSource> = {
 	'linear-search': {
@@ -77,33 +77,39 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 		c: String.raw`
 			int binarySearch(int a[], int n, int key) {     $key
 			    int lo = 0, hi = n - 1;                     @init $lo $hi
-			    while (lo <= hi) {
+			    while (lo <= hi) {                          @loop
 			        int mid = (lo + hi) / 2;                @mid $mid
-			        if (a[mid] == key) return mid;          @found
-			        else if (a[mid] < key) lo = mid + 1;    @right
-			        else hi = mid - 1;                      @left
+			        if (a[mid] == key)                      @compare
+			            return mid;                         @found
+			        else if (a[mid] < key)                  @less
+			            lo = mid + 1;                       @right
+			        else
+			            hi = mid - 1;                       @left
 			    }
 			    return -1;                                  @missing
 			}`,
 		java: String.raw`
 			int binarySearch(int[] a, int key) {      $key
 			    int lo = 0, hi = a.length - 1;            @init $lo $hi
-			    while (lo <= hi) {
+			    while (lo <= hi) {                        @loop
 			        int mid = (lo + hi) / 2;              @mid $mid
-			        if (a[mid] == key) return mid;        @found
-			        else if (a[mid] < key) lo = mid + 1;  @right
-			        else hi = mid - 1;                    @left
+			        if (a[mid] == key)                    @compare
+			            return mid;                       @found
+			        else if (a[mid] < key)                @less
+			            lo = mid + 1;                     @right
+			        else
+			            hi = mid - 1;                     @left
 			    }
 			    return -1;                                @missing
 			}`,
 		python: String.raw`
 			def binary_search(a, key):          $key
 			    lo, hi = 0, len(a) - 1              @init $lo $hi
-			    while lo <= hi:
+			    while lo <= hi:                     @loop
 			        mid = (lo + hi) // 2            @mid $mid
-			        if a[mid] == key:
+			        if a[mid] == key:               @compare
 			            return mid                  @found
-			        elif a[mid] < key:
+			        elif a[mid] < key:              @less
 			            lo = mid + 1                @right
 			        else:
 			            hi = mid - 1                @left
@@ -112,32 +118,36 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 	'binary-search-recursive': {
 		c: String.raw`
 			int binarySearch(int a[], int key, int low, int high) {    $key $low $high
-			    if (low > high) return -1;                             @missing
+			    if (low > high)                                        @base
+			        return -1;                                         @missing
 			    int mid = (low + high) / 2;                            @mid $mid
-			    if (a[mid] == key) return mid;                         @found
-			    if (a[mid] < key)
+			    if (a[mid] == key)                                     @compare
+			        return mid;                                        @found
+			    if (a[mid] < key)                                      @less
 			        return binarySearch(a, key, mid + 1, high);        @right
 			    else
 			        return binarySearch(a, key, low, mid - 1);         @left
 			}`,
 		java: String.raw`
 			int binarySearch(int[] a, int key, int low, int high) {     $key $low $high
-			    if (low > high) return -1;                              @missing
+			    if (low > high)                                         @base
+			        return -1;                                          @missing
 			    int mid = (low + high) / 2;                             @mid $mid
-			    if (a[mid] == key) return mid;                          @found
-			    if (a[mid] < key)
+			    if (a[mid] == key)                                      @compare
+			        return mid;                                         @found
+			    if (a[mid] < key)                                       @less
 			        return binarySearch(a, key, mid + 1, high);         @right
 			    else
 			        return binarySearch(a, key, low, mid - 1);          @left
 			}`,
 		python: String.raw`
 			def binary_search(a, key, low, high):          $key $low $high
-			    if low > high:
+			    if low > high:                              @base
 			        return -1                               @missing
 			    mid = (low + high) // 2                     @mid $mid
-			    if a[mid] == key:
+			    if a[mid] == key:                           @compare
 			        return mid                              @found
-			    if a[mid] < key:
+			    if a[mid] < key:                            @less
 			        return binary_search(a, key, mid + 1, high)     @right
 			    return binary_search(a, key, low, mid - 1)          @left`,
 	},
@@ -145,32 +155,36 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 		c: String.raw`
 			int sentinelSearch(int a[], int n, int key) {    $n $key
 			    a[n] = key; // past the end: the sentinel    @sentinel
-			    int i = 0;
+			    int i = 0;                                   @init
 			    while (a[i] != key) {                        @compare $i
-			        i++;
+			        i++;                                     @next
 			    }
-			    if (i < n) return i;                         @found
+			    if (i < n)                                   @check
+			        return i;                                @found
 			    return -1;                                   @missing
 			}`,
 		java: String.raw`
 			int sentinelSearch(int[] a, int n, int key) {   $n $key
 			    a[n] = key; // past the end: the sentinel   @sentinel
-			    int i = 0;
+			    int i = 0;                                  @init
 			    while (a[i] != key) {                       @compare $i
-			        i++;
+			        i++;                                    @next
 			    }
-			    if (i < n) return i;                        @found
+			    if (i < n)                                  @check
+			        return i;                               @found
 			    return -1;                                  @missing
 			}`,
 		python: String.raw`
 			def sentinel_search(a, key):        $key
-			    n = len(a)                          $n
+			    n = len(a)                          @n $n
 			    a.append(key)  # the sentinel       @sentinel
-			    i = 0
+			    i = 0                               @init
 			    while a[i] != key:                  @compare $i
-			        i += 1
-			    a.pop()
-			    return i if i < n else -1           @found @missing`,
+			        i += 1                          @next
+			    a.pop()                             @restore
+			    if i < n:                           @check
+			        return i                        @found
+			    return -1                           @missing`,
 	},
 	'sum-invariant': {
 		c: String.raw`
@@ -441,47 +455,47 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 		c: String.raw`
 			int partition(int a[], int lo, int hi) {    $lo $hi
 			    int pivot = a[hi];                      @pivot $pivot
-			    int i = lo - 1;                         $i
-			    for (int j = lo; j < hi; j++) {         $j
+			    int i = lo - 1;                         @init $i
+			    for (int j = lo; j < hi; j++) {         @loop $j
 			        if (a[j] < pivot) {                 @compare
-			            i++;
+			            i++;                            @grow
 			            swap(&a[i], &a[j]);             @swap
 			        }
 			    }
 			    swap(&a[i + 1], &a[hi]);                @place
-			    return i + 1;
+			    return i + 1;                           @result
 			}`,
 		java: String.raw`
 			int partition(int[] a, int lo, int hi) {    $lo $hi
 			    int pivot = a[hi];                      @pivot $pivot
-			    int i = lo - 1;                         $i
-			    for (int j = lo; j < hi; j++) {         $j
+			    int i = lo - 1;                         @init $i
+			    for (int j = lo; j < hi; j++) {         @loop $j
 			        if (a[j] < pivot) {                 @compare
-			            i++;
+			            i++;                            @grow
 			            swap(a, i, j);                  @swap
 			        }
 			    }
 			    swap(a, i + 1, hi);                     @place
-			    return i + 1;
+			    return i + 1;                           @result
 			}`,
 		python: String.raw`
 			def partition(a, lo, hi):               $lo $hi
 			    pivot = a[hi]                           @pivot $pivot
-			    i = lo - 1                              $i
-			    for j in range(lo, hi):                 $j
+			    i = lo - 1                              @init $i
+			    for j in range(lo, hi):                 @loop $j
 			        if a[j] < pivot:                    @compare
-			            i += 1
+			            i += 1                          @grow
 			            a[i], a[j] = a[j], a[i]         @swap
 			    a[i + 1], a[hi] = a[hi], a[i + 1]       @place
-			    return i + 1`,
+			    return i + 1                            @result`,
 	},
 	quicksort: {
 		c: String.raw`
 			void quicksort(int a[], int lo, int hi) {    $lo $hi
 			    if (lo < hi) {                           @base
 			        int p = partition(a, lo, hi);        @partition
-			        quicksort(a, lo, p - 1);
-			        quicksort(a, p + 1, hi);
+			        quicksort(a, lo, p - 1);             @sort-left
+			        quicksort(a, p + 1, hi);             @sort-right
 			    }
 			}
 			${C_PARTITION}`,
@@ -489,8 +503,8 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			void quicksort(int[] a, int lo, int hi) {   $lo $hi
 			    if (lo < hi) {                          @base
 			        int p = partition(a, lo, hi);       @partition
-			        quicksort(a, lo, p - 1);
-			        quicksort(a, p + 1, hi);
+			        quicksort(a, lo, p - 1);            @sort-left
+			        quicksort(a, p + 1, hi);            @sort-right
 			    }
 			}
 			${JAVA_PARTITION}`,
@@ -498,8 +512,8 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			def quicksort(a, lo, hi):               $lo $hi
 			    if lo < hi:                             @base
 			        p = partition(a, lo, hi)            @partition
-			        quicksort(a, lo, p - 1)
-			        quicksort(a, p + 1, hi)
+			        quicksort(a, lo, p - 1)             @sort-left
+			        quicksort(a, p + 1, hi)             @sort-right
 			${PYTHON_PARTITION}`,
 	},
 	// Lecture 10's improvements, one at a time.
@@ -747,103 +761,122 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 		c: String.raw`
 			int hoarePartition(int a[], int lo, int hi) {
 			    int pivot = a[lo];                   @pivot $pivot
-			    int i = lo - 1, j = hi + 1;
-			    while (true) {
+			    int i = lo - 1, j = hi + 1;          @init
+			    while (true) {                       @round
 			        do i++; while (a[i] < pivot);    @left $i
 			        do j--; while (a[j] > pivot);    @right $j
-			        if (i >= j) return j;            @crossed
+			        if (i >= j)                      @crossed
+			            return j;                    @done
 			        swap(&a[i], &a[j]);              @swap
 			    }
 			}`,
 		java: String.raw`
 			int hoarePartition(int[] a, int lo, int hi) {
 			    int pivot = a[lo];                      @pivot $pivot
-			    int i = lo - 1, j = hi + 1;
-			    while (true) {
+			    int i = lo - 1, j = hi + 1;             @init
+			    while (true) {                          @round
 			        do i++; while (a[i] < pivot);       @left $i
 			        do j--; while (a[j] > pivot);       @right $j
-			        if (i >= j) return j;               @crossed
+			        if (i >= j)                         @crossed
+			            return j;                       @done
 			        swap(a, i, j);                      @swap
 			    }
 			}`,
 		python: String.raw`
 			def hoare_partition(a, lo, hi):
 			    pivot = a[lo]                           @pivot $pivot
-			    i, j = lo - 1, hi + 1
-			    while True:
-			        i += 1
+			    i, j = lo - 1, hi + 1                   @init
+			    while True:                             @round
+			        i += 1                              @step-i
 			        while a[i] < pivot:                 @left $i
-			            i += 1
-			        j -= 1
+			            i += 1                          @more-i
+			        j -= 1                              @step-j
 			        while a[j] > pivot:                 @right $j
-			            j -= 1
+			            j -= 1                          @more-j
 			        if i >= j:                          @crossed
-			            return j
+			            return j                        @done
 			        a[i], a[j] = a[j], a[i]             @swap`,
 	},
 	'merge-sort': {
 		c: String.raw`
 			void mergeSort(int a[], int lo, int hi) {          $lo $hi
-			    if (lo == hi) return;                          @base
+			    if (lo == hi)                                  @base
+			        return;                                    @leaf
 			    int mid = (lo + hi) / 2;                       @split $mid
-			    mergeSort(a, lo, mid);
-			    mergeSort(a, mid + 1, hi);
+			    mergeSort(a, lo, mid);                         @sort-left
+			    mergeSort(a, mid + 1, hi);                     @sort-right
 			    merge(a, lo, mid, hi);                         @merge
 			}
 
 			void merge(int a[], int lo, int mid, int hi) {
-			    int merged[hi - lo + 1];
-			    int i = lo, j = mid + 1, k = 0;
-			    while (i <= mid && j <= hi) {                  $i $j $k
-			        if (a[i] <= a[j]) merged[k++] = a[i++];    @left
-			        else merged[k++] = a[j++];                 @right
+			    int merged[hi - lo + 1];                       @alloc
+			    int i = lo, j = mid + 1, k = 0;                @start
+			    while (i <= mid && j <= hi) {                  @loop $i $j $k
+			        if (a[i] <= a[j])                          @compare
+			            merged[k++] = a[i++];                  @left
+			        else
+			            merged[k++] = a[j++];                  @right
 			    }
-			    while (i <= mid) merged[k++] = a[i++];         @rest-left
-			    while (j <= hi) merged[k++] = a[j++];          @rest-right
-			    for (k = 0; k < hi - lo + 1; k++) a[lo + k] = merged[k];  @copy
+			    while (i <= mid)                               @rest-left-loop
+			        merged[k++] = a[i++];                      @rest-left
+			    while (j <= hi)                                @rest-right-loop
+			        merged[k++] = a[j++];                      @rest-right
+			    for (k = 0; k < hi - lo + 1; k++)              @copy-loop
+			        a[lo + k] = merged[k];                     @copy
 			}`,
 		java: String.raw`
 			void mergeSort(int[] a, int lo, int hi) {               $lo $hi
-			    if (lo == hi) return;                               @base
+			    if (lo == hi)                                       @base
+			        return;                                         @leaf
 			    int mid = (lo + hi) / 2;                            @split $mid
-			    mergeSort(a, lo, mid);
-			    mergeSort(a, mid + 1, hi);
+			    mergeSort(a, lo, mid);                              @sort-left
+			    mergeSort(a, mid + 1, hi);                          @sort-right
 			    merge(a, lo, mid, hi);                              @merge
 			}
 
 			void merge(int[] a, int lo, int mid, int hi) {
-			    int[] merged = new int[hi - lo + 1];
-			    int i = lo, j = mid + 1, k = 0;
-			    while (i <= mid && j <= hi) {                       $i $j $k
-			        if (a[i] <= a[j]) merged[k++] = a[i++];         @left
-			        else merged[k++] = a[j++];                      @right
+			    int[] merged = new int[hi - lo + 1];                @alloc
+			    int i = lo, j = mid + 1, k = 0;                     @start
+			    while (i <= mid && j <= hi) {                       @loop $i $j $k
+			        if (a[i] <= a[j])                               @compare
+			            merged[k++] = a[i++];                       @left
+			        else
+			            merged[k++] = a[j++];                       @right
 			    }
-			    while (i <= mid) merged[k++] = a[i++];              @rest-left
-			    while (j <= hi) merged[k++] = a[j++];               @rest-right
-			    for (k = 0; k < merged.length; k++) a[lo + k] = merged[k];  @copy
+			    while (i <= mid)                                    @rest-left-loop
+			        merged[k++] = a[i++];                           @rest-left
+			    while (j <= hi)                                     @rest-right-loop
+			        merged[k++] = a[j++];                           @rest-right
+			    for (k = 0; k < merged.length; k++)                 @copy-loop
+			        a[lo + k] = merged[k];                          @copy
 			}`,
 		python: String.raw`
 			def merge_sort(a, lo, hi):              $lo $hi
 			    if lo == hi:                            @base
-			        return
+			        return                              @leaf
 			    mid = (lo + hi) // 2                    @split $mid
-			    merge_sort(a, lo, mid)
-			    merge_sort(a, mid + 1, hi)
+			    merge_sort(a, lo, mid)                  @sort-left
+			    merge_sort(a, mid + 1, hi)              @sort-right
 			    merge(a, lo, mid, hi)                   @merge
 
 			def merge(a, lo, mid, hi):
-			    merged = []
-			    i, j = lo, mid + 1
-			    while i <= mid and j <= hi:             $i $j
-			        if a[i] <= a[j]:
+			    merged = []                             @alloc
+			    i, j = lo, mid + 1                      @start
+			    while i <= mid and j <= hi:             @loop $i $j
+			        if a[i] <= a[j]:                    @compare
 			            merged.append(a[i])             @left
-			            i += 1
+			            i += 1                          @next-i
 			        else:
 			            merged.append(a[j])             @right
-			            j += 1
-			    merged += a[i:mid + 1]                  @rest-left
-			    merged += a[j:hi + 1]                   @rest-right
-			    a[lo:hi + 1] = merged                   @copy`,
+			            j += 1                          @next-j
+			    while i <= mid:                         @rest-left-loop
+			        merged.append(a[i])                 @rest-left
+			        i += 1                              @rest-next-i
+			    while j <= hi:                          @rest-right-loop
+			        merged.append(a[j])                 @rest-right
+			        j += 1                              @rest-next-j
+			    for k in range(len(merged)):            @copy-loop
+			        a[lo + k] = merged[k]               @copy`,
 	},
 	'unfair-shuffle': {
 		c: String.raw`

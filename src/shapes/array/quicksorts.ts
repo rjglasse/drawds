@@ -4,6 +4,7 @@ import { randomInt, type Rng } from '../../data/random'
 import type { CallEvent } from '../../nodelink/playback'
 import {
 	NEXT_CALL,
+	PARTITION_LINES,
 	callEvents,
 	lit,
 	partition,
@@ -62,6 +63,8 @@ export function quicksort(start: ArrayState, variant: QuicksortVariant = 'quicks
 	const outside = (lo: number, hi: number) => span(0, n - 1).filter((k) => Number(k) < lo || Number(k) > hi)
 	const less = (i: number, j: number) => compareKeys(r.state.values[i], r.state.values[j]) < 0
 	if (variant === 'quicksort-cutoff') r.let('CUTOFF', cutoff)
+	// Plain quicksort's lines are counted; the variants' code has lines of its own.
+	if (variant === 'quicksort') r.counting('base', 'partition', 'sort-left', 'sort-right', ...PARTITION_LINES)
 	// For the recursion tree: a call returns after its inner calls, with no step of its own, so its
 	// return goes with the next step.
 	const tree = callEvents(r)
@@ -79,6 +82,7 @@ export function quicksort(start: ArrayState, variant: QuicksortVariant = 'quicks
 		const name = `quicksort(${lo}, ${hi})`
 		const size = Math.max(0, hi - lo + 1)
 		const first = { ...around, lit: { ...settled }, ask: NEXT_CALL }
+		r.ran('base')
 		if (variant === 'quicksort-cutoff' && size <= cutoff) {
 			if (size === 1) settled[String(lo)] = DONE
 			if (size < 2) {
@@ -163,10 +167,13 @@ export function quicksort(start: ArrayState, variant: QuicksortVariant = 'quicks
 				}
 			} else {
 				const why = variant === 'quicksort-median' ? ': two values, too few for three samples' : ''
+				r.ran('partition')
 				r.step(`${name}: partition a[${lo}..${hi}]${why}`, { ...first, line: 'partition', calls: tree.events(call) })
 			}
 			const p = partition(r, lo, hi, settled, around)
+			r.ran('sort-left')
 			sort(lo, p - 1)
+			r.ran('sort-right')
 			sort(p + 1, hi)
 			tree.later(tree.returns(lo, hi))
 		}

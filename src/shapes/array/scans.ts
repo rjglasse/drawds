@@ -236,6 +236,8 @@ export function sentinelSearch(start: ArrayState, target: string): ArrayOperatio
 	const r = recorder(start, { comparisons: 0, 'i < n checks saved': 0 })
 	r.let('key', target)
 	r.let('n', n)
+	r.counting('n', 'sentinel', 'init', 'compare', 'next', 'restore', 'check', 'found', 'missing')
+	r.ran('n', 'sentinel')
 	const withSentinel = { ...r.state, values: [...values, target] }
 	r.set(withSentinel)
 	r.step(`a[${n}] = ${target}: the key goes one past the end as a sentinel, so the search is sure to stop`, {
@@ -244,8 +246,10 @@ export function sentinelSearch(start: ArrayState, target: string): ArrayOperatio
 		line: 'sentinel',
 	})
 	let i = 0
+	r.ran('init')
 	for (;;) {
 		r.counts.comparisons++
+		r.ran('compare')
 		const step = { pointers: [ptr('i', i)], dim: span(0, i - 1), ask: `i = ${i}: a[${i}] = ${withSentinel.values[i]} vs ${target}: stop or go on?`, askFocus: [i] }
 		if (compareKeys(withSentinel.values[i], target) === 0) {
 			r.step(`i = ${i}: a[${i}] = ${target}, so the loop stops`, {
@@ -256,12 +260,14 @@ export function sentinelSearch(start: ArrayState, target: string): ArrayOperatio
 			break
 		}
 		r.counts['i < n checks saved']++
+		r.ran('next')
 		r.step(`i = ${i}: a[${i}] = ${values[i]} ≠ ${target}: i = ${i + 1}, no i < n check needed`, { ...step, lit: { [i]: LOOK, [n]: HELD }, line: 'compare' })
 		i++
 	}
 	r.set(start)
 	const saved = r.counts['i < n checks saved']
 	const found = i < n
+	r.ran('restore', 'check', found ? 'found' : 'missing')
 	r.step(
 		found
 			? `i = ${i} < n = ${n}: found ${target} at index ${i}. The sentinel comes out again; ${times(saved, 'i < n check')} saved`

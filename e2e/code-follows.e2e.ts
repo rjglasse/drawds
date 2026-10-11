@@ -147,3 +147,20 @@ test("Show > Times each line runs: lecture 3's column ticks up and ends on the t
 	// n = 3: the for test n times, its body n - 1, the while test n(n + 1)/2 - 1, the swaps n(n - 1)/2.
 	expect(await counts()).toEqual(['×3', '×2', '×2', '×5', '×3', '×3'])
 })
+
+test('Times each line runs for merge sort: 2n - 1 calls, n of them one value; the copy-back n log₂ n', async ({ page }) => {
+	await sketch(page, ['3', '1', '4', '2'])
+	await steps(page, 0, 'array-merge-sort')
+	await page.getByTestId('play-code').click()
+	await expect(page.getByTestId('code-box')).toBeVisible()
+	await page.evaluate(() => {
+		const editor = window.editor!
+		const box = editor.getCurrentPageShapes().find((s) => s.type === 'code')!
+		editor.updateShape({ id: box.id, type: 'code', props: { lineCounts: true } } as never)
+	})
+	while (!(await page.getByTestId('play-done').count())) await page.keyboard.press('ArrowRight')
+	// mergeSort's lines, then merge's: its loop, the two rest loops and the copy-back, header then body.
+	expect(await page.locator('[data-count-line]').allTextContents()).toEqual(
+		['×7', '×4', '×3', '×3', '×3', '×3'].concat(['×3', '×3', '×8', '×5', '×2', '×3', '×5', '×2', '×4', '×1', '×11', '×8'])
+	)
+})
