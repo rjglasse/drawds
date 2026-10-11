@@ -17,15 +17,13 @@ import {
 	buildByInsertion,
 	buildHeapSteps,
 	childIndices,
-	heapInsert,
-	heapRemoveAt,
 	heapViolations,
 	heapify,
 	parentIndex,
-	type HeapType,
-	type Sift,
 } from './heap'
+import { heapCode } from './code'
 import { HEAP_SHAPE_TYPE, heapShapeMigrations, heapShapeProps, type HeapShape } from './heap-shape-types'
+import { insertSteps, removeSteps } from './steps'
 import { arrayKey, heapScene, heapTreeNodes, indexOfKey } from './layout'
 
 /** Highlight index i in both views (tree node and array cell). */
@@ -238,7 +236,7 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 		if (!shape) return
 		const { frames, values, swaps } = buildHeapSteps(shape.props.values, shape.props.heapType)
 		const after = swaps.reduce((m, [a, b]) => swapMarks(m, String(a), String(b)), shape.props.marks)
-		this.play(shape, 'build heap', frames.map(inBothViews), false, values, after, {})
+		this.play(shape, 'build heap', frames.map(inBothViews), false, values, after, {}, heapCode('build', shape.props.heapType))
 	}
 
 	/** Shuffle the values (marks with them): the heap property is broken until it is rebuilt. */
@@ -281,37 +279,15 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 		const i = indexOfKey(key)
 		const { values, heapType, marks } = shape.props
 		if (i === undefined) return false
-		const result = heapRemoveAt(values, i, heapType)
+		const { frames, result, code } = removeSteps(values, i, heapType)
 		const last = values.length - 1
-		const moved = values.slice(0, -1)
-		if (i < moved.length) moved[i] = values[last]
 		// The removed value's mark goes; the last value's mark moves with it into the gap.
 		let after: Marks = { ...marks }
 		delete after[String(i)]
 		if (i < last && marks[String(last)]) after[String(i)] = marks[String(last)]
 		delete after[String(last)]
-		const frames: Frame[] = [
-			{
-				flash: both(i, 'red'),
-				caption: i === 0 ? `Extract the ${heapType}, ${values[0]}` : `Remove ${values[i]} (index ${i})`,
-				ask: false,
-			},
-			...(i < last
-				? [
-						{
-							props: { values: moved },
-							flash: both(i, 'orange'),
-							caption: `Move the last value, ${values[last]}, into index ${i}`,
-							ask: `${values[i]} is going: what fills its place?`,
-							askFocus: bothKeys(i),
-						},
-					]
-				: []),
-			// heapRemoveAt sifts the moved value up only if it now beats its parent, which means a swap.
-			...this.siftFrames(moved, result, heapType, result.swaps.length > 0 && result.swaps[0][1] < result.swaps[0][0]),
-		]
 		after = result.swaps.reduce((m, [a, b]) => swapMarks(m, String(a), String(b)), after)
-		this.play(shape, 'remove from heap', frames, keep, result.values, after, result.at >= 0 ? both(result.at, 'green') : {})
+		this.play(shape, 'remove from heap', frames.map(inBothViews), keep, result.values, after, result.at >= 0 ? both(result.at, 'green') : {}, code)
 		return true
 	}
 
@@ -322,58 +298,9 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 
 	insertKey(shape: HeapShape, value: string, keep: boolean) {
 		const { values, heapType, marks } = shape.props
-		const result = heapInsert(values, value, heapType)
-		const appended = [...values, value]
-		const frames: Frame[] = [
-			{
-				props: { values: appended },
-				flash: both(values.length, 'orange'),
-				caption: `Append ${value} at the end (index ${values.length})`,
-				ask: `Insert ${value}: where does it go first?`,
-			},
-			...this.siftFrames(appended, result, heapType, true),
-		]
+		const { frames, result, code } = insertSteps(values, value, heapType)
 		const after = result.swaps.reduce((m, [a, b]) => swapMarks(m, String(a), String(b)), marks)
-		this.play(shape, 'insert into heap', frames, keep, result.values, after, both(result.at, 'green'))
-	}
-
-	/**
-	 * One frame per swap of a sift that moves a value `up` or down from `start` (the two values arc
-	 * between their nodes), then one showing where it came to rest and why.
-	 */
-	private siftFrames(start: readonly string[], sift: Sift, type: HeapType, up: boolean): Frame[] {
-		const values = [...start]
-		// In a min heap smaller values go up; in a max heap larger ones.
-		const [beats, yields, holds, child] = type === 'min' ? ['<', '≥', '≤', 'smaller'] : ['>', '≤', '≥', 'larger']
-		// Predict mode asks the same at every step, swap or stop: compare with the parent (up), or the
-		// children (down). With nothing to compare (the root, a leaf) there is nothing to guess.
-		const ask = (i: number): Pick<Frame, 'ask' | 'askFocus'> => {
-			if (up) return i === 0 ? { ask: false } : { ask: `${values[i]} vs its parent ${values[parentIndex(i)]}: swap or stop?`, askFocus: bothKeys(i, parentIndex(i)) }
-			const kids = childIndices(i).filter((c) => c < values.length)
-			return kids.length
-				? { ask: `${values[i]} vs its children (${kids.map((c) => values[c]).join(', ')}): swap with one, or stop?`, askFocus: bothKeys(i, ...kids) }
-				: { ask: false }
-		}
-		const frames: Frame[] = sift.swaps.map(([a, b]) => {
-			const caption = up
-				? `${values[a]} ${beats} ${values[b]}, its parent: swap them`
-				: `${values[b]} ${beats} ${values[a]}: ${values[b]} is the ${child} child, so swap them`
-			const question = ask(a)
-			;[values[a], values[b]] = [values[b], values[a]]
-			return { props: { values: [...values] }, swaps: swapPairs(a, b), flash: { ...both(a, 'orange'), ...both(b, 'orange') }, caption, ...question }
-		})
-		const at = sift.at
-		if (at < 0) return frames
-		const v = values[at]
-		const kids = childIndices(at).filter((c) => c < values.length)
-		const caption = up
-			? at === 0
-				? `${v} is at the root: done`
-				: `${v} ${yields} ${values[parentIndex(at)]}, its parent: done`
-			: kids.length
-				? `${v} ${holds} its children (${kids.map((c) => values[c]).join(', ')}): done`
-				: `${v} has no children: done`
-		return [...frames, { props: { values: [...values] }, flash: both(at, 'green'), caption, ...ask(at) }]
+		this.play(shape, 'insert into heap', frames.map(inBothViews), keep, result.values, after, both(result.at, 'green'), code)
 	}
 
 	private play(
@@ -383,7 +310,8 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 		keep: boolean,
 		values: string[],
 		marks: Marks,
-		finalFlash: Marks
+		finalFlash: Marks,
+		code?: string
 	) {
 		const keys = values.map((_, i) => String(i))
 		// Pointers stay at their index in either view; one past the new end goes.
@@ -400,6 +328,7 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 			final,
 			finalFlash,
 			keep,
+			code,
 			// Shift held: highlights become marks (stored per index, so drop the array-view keys).
 			withMarks: (_update, highlights) => {
 				const kept = Object.fromEntries(Object.entries(highlights).filter(([key]) => !key.startsWith('a')))

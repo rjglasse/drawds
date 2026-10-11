@@ -300,7 +300,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   prev, node, slow, fast, last shown by their nodes'
   values through `Frame.vars`, since a list pointer is at a node key), the trees' `src/shapes/tree/code.ts` (traversals,
   measures, BST min / max, and lecture 8b's BST search, insert and delete as `bstInsertSteps` / `bstDeleteSteps` walk them,
-  delete's three cases with the successor relinked, 3.1 or 3.2), the graphs' `src/shapes/graph/code.ts`.
+  delete's three cases with the successor relinked, 3.1 or 3.2), the graphs' `src/shapes/graph/code.ts`, the heaps'
+  `src/shapes/heap/code.ts`.
 - `src/shapes/hash/` - hash tables (node-link): `buckets: string[][]` (a chain per bucket, or one entry per slot with
   `TOMBSTONE` for deleted), strategy style `drawds:hash-strategy` chaining / probing (switching re-inserts the
   keys). Lecture 7: a hash code (`drawds:hash-code`: character codes added; the first three letters, A = 1, added, the
@@ -348,7 +349,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
 - `src/shapes/heap/` - heaps stored as their array (`values`, index i's children 2i+1, 2i+2), drawn as the
   implicit complete tree (keys `"i"`) plus the array (keys `"a" + i`); marks keyed by index. `heap.ts` is pure
   (sift up/down with swaps + path, insert, removeAt, heapify, violations, `buildHeapSteps`: Floyd as frames, keyed
-  by index; `inBothViews` lights tree and array). Heap menu: build heap step by step, shuffle values.
+  by index; `inBothViews` lights tree and array); `steps.ts` (pure) the insert and remove steps, keyed by index too. Heap
+  menu: build heap step by step, shuffle values. Code (`code.ts`, `heapCode(op, type)`): a min heap's and a max heap's,
+  the same but for the comparison and the names: insert with its sift up inline, extractMin / Max and removeAt with
+  siftUp / siftDown beside them, buildHeap calling siftDown.
 - `src/shapes/union-find/` - union-find (disjoint sets), node-link: `parent` (a root is its own parent), `sizes`,
   `ranks` (kept as the code keeps them, meaningful at roots), `labels`; styles `drawds:uf-union` size / rank / naive and
   `drawds:uf-compress` on / off (`src/ui/UnionFindPickers.tsx`). Drawn as a forest (`forestPositions`: n-ary tidy trees

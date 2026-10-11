@@ -35,6 +35,9 @@ import {
 } from '../list/operations'
 import { dequeueFrom, enqueueOnto, peekAt, popFrom, pushOnto } from '../list/stack-queue'
 import { countNodes } from '../list/size'
+import { heapCode } from '../heap/code'
+import { buildHeapSteps } from '../heap/heap'
+import { insertSteps, removeSteps } from '../heap/steps'
 import { measureTree } from '../tree/measure'
 import { bstDeleteSteps, bstExtreme, bstInsertSteps, bstSearch } from '../tree/search'
 import { bfs, dfs } from '../graph/traverse'
@@ -223,6 +226,20 @@ describe('algorithm code', () => {
 			{ ...bstInsertSteps(bst, '10'), code: 'bst-insert' },
 			...['d', 'c', 'e', 'b', 'a'].map((id) => ({ ...bstDeleteSteps(bst, id), code: 'bst-delete' })),
 			{ ...bstExtreme(tree, 'a', 'max'), code: 'bst-max' },
+			// Heaps, min and max: insert (sifting up), extract the root, remove from the middle (down, and up),
+			// remove the last, build bottom-up.
+			...(['min', 'max'] as const).flatMap((type) => {
+				const heap = type === 'min' ? ['1', '10', '2', '11', '12', '3', '4'] : ['12', '4', '11', '3', '2', '10', '9']
+				return [
+					insertSteps(heap, type === 'min' ? '0' : '13', type),
+					insertSteps(heap, type === 'min' ? '99' : '-1', type),
+					removeSteps(heap, 0, type),
+					removeSteps(heap, 1, type),
+					removeSteps(heap, 3, type),
+					removeSteps(heap, 6, type),
+					{ ...buildHeapSteps(['5', '9', '1', '7', '3', '8'], type), code: heapCode('build', type) },
+				]
+			}),
 			// Lecture 9: the searches and components, on a graph in two pieces.
 			bfs(graph, 'a', false),
 			dfs(graph, 'a', false),

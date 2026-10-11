@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { arrayStep, insertKey, nodeScreenPosition, open, rightClick, sketchArray, sketchList, sketchTree } from './helpers'
+import { arrayStep, hoverNode, insertKey, nodeScreenPosition, open, rightClick, sketchArray, sketchHeap, sketchList, sketchTree } from './helpers'
 
 // The code beside more operations: BST insert, a list's delete, an array's insert by shifting. Each
 // opens its code (the play bar's </>) and lights the line its step is on.
@@ -86,4 +86,22 @@ test("a list variant's own code: insert at the head of a doubly linked circular 
 	await expect.poll(() => litLine(page)).toContain('Node last = head.prev;')
 	while (!(await page.getByTestId('play-done').count())) await page.keyboard.press('ArrowRight')
 	await expect(page.locator('[data-code-line]').filter({ hasText: 'last.next = node;' })).toHaveCount(1)
+})
+
+test("a heap's code: insert's sift up in the same function; extract the min, then siftDown's lines", async ({ page }) => {
+	await sketchHeap(page, [600, 120], 7)
+	await insertKey(page, '-1')
+	await page.getByTestId('play-code').click()
+	await expect.poll(() => litLine(page)).toContain('heap[size] = value;')
+	await page.keyboard.press('ArrowRight')
+	await expect.poll(() => litLine(page)).toContain('swap(heap, i, p);')
+	await page.keyboard.press('Escape')
+
+	await hoverNode(page, '0')
+	await page.getByTestId('remove-node-0').click()
+	await expect.poll(() => litLine(page)).toContain('int min = heap[0];')
+	await page.keyboard.press('ArrowRight')
+	await expect.poll(() => litLine(page)).toContain('heap[0] = heap[--size];')
+	while (!(await page.getByTestId('play-done').count())) await page.keyboard.press('ArrowRight')
+	await expect.poll(() => litLine(page)).toContain('return;')
 })
