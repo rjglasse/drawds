@@ -33,6 +33,7 @@ import { showBoardNameInTitle } from './files/board'
 import { BoardFileKeys } from './files/BoardFileKeys'
 import { clearStaleRooms } from './nodelink/playback'
 import { startCodeLog } from './transcript/log'
+import { startTrackingWithCode } from './transcript/transcript'
 import { components, uiOverrides } from './ui/overrides'
 
 // Defined at module level so they aren't recreated on every render.
@@ -80,8 +81,10 @@ function onMount(editor: Editor) {
 		showBoardNameInTitle(editor),
 		clearStaleRooms(editor),
 		startLessonLog(editor),
-		// Every move on an array kept as code, for the code beside it.
+		// Every move on a structure kept as code, for the code beside it.
 		startCodeLog(editor),
+		// Tracking with code, a new structure gets the code beside it.
+		startTrackingWithCode(editor),
 	]
 	return () => cleanups.forEach((f) => f())
 }

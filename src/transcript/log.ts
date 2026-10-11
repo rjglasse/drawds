@@ -236,6 +236,12 @@ const TRACKED: Record<string, Tracked<unknown>> = {
 /** Whether a shape's moves are logged. */
 export const isLogged = (shape: TLShape) => !!TRACKED[shape.type]?.follows(shape.props)
 
+/** Whether a structure of this kind is being drawn (its creating drag). */
+export const isSketching = (editor: Editor, shape: TLShape) => {
+	const tracked = TRACKED[shape.type]
+	return !!tracked && editor.isIn(tracked.sketching)
+}
+
 /** A structure's log, if it has one yet. */
 export const logOf = (shape: TLShape): Move[] | undefined => {
 	const log = shape.meta[LOG_KEY]

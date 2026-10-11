@@ -16,6 +16,7 @@ import { diffUnionFind, type UnionFindMove, type UnionFindState } from './union-
 import { recount, singletons, union } from '../shapes/union-find/union-find'
 import { unionFindCode } from '../shapes/union-find/code'
 import { diffTree, shapeOf, treeArgs, type TreeMove } from './tree-moves'
+import { codeSpot } from './transcript'
 
 const v = (...xs: (number | string)[]) => xs.map(String)
 
@@ -711,5 +712,22 @@ describe('a stack or queue change as the move a teacher made', () => {
 		expect(renderListLog(log, 'c').split('\n')).toEqual(['Stack *s = stackOf(2, (int[]){3, 1});    // top first', 'push(s, 4);', 'pop(s);', 's->top->next->value = 9;'])
 		const q: ListMove[] = [{ op: 'new', name: 'q', values: [], kind: 'queue' }, { op: 'enqueue', v: '5' }, { op: 'dequeue' }]
 		expect(renderListLog(q, 'java').split('\n')).toEqual(['LinkedQueue q = new LinkedQueue();', 'q.enqueue(5);', 'q.dequeue();'])
+	})
+})
+
+describe('where the code beside a structure goes', () => {
+	const structure = { x: 0, y: 0, w: 100, h: 50 }
+	const box = { x: 116, y: 0, w: 200, h: 40 }
+	it('to its right, if nothing is in the way', () => {
+		expect(codeSpot(structure, box, [])).toEqual({ x: 0, y: 0 })
+		expect(codeSpot(structure, box, [{ x: 0, y: 200, w: 400, h: 50 }])).toEqual({ x: 0, y: 0 })
+		// Half the gap clear of anything else is enough.
+		expect(codeSpot(structure, box, [{ x: 324, y: 0, w: 50, h: 50 }])).toEqual({ x: 0, y: 0 })
+	})
+	it('else under it, past anything in the way there', () => {
+		// Another structure to its right: the code goes straight under it.
+		expect(codeSpot(structure, box, [{ x: 200, y: 0, w: 100, h: 40 }])).toEqual({ x: -116, y: 66 })
+		// Something under it too, reaching lower: under that.
+		expect(codeSpot(structure, box, [{ x: 200, y: 0, w: 100, h: 40 }, { x: 0, y: 90, w: 80, h: 60 }])).toEqual({ x: -116, y: 158 })
 	})
 })

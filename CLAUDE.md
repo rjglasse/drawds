@@ -259,8 +259,18 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   Show > Code beside it (`toggleTranscript`). The Python of 200 random array logs, 400 list logs (many repeated values)
   300 tree logs, 300 graph logs, 300 heap logs, 400 hash table logs (against classes made of their own Python code;
   every scheme, deleted markers, keys typed anywhere), 300 matrix logs and 400 union-find logs (against the code's own
-  union and find per kind), run, rebuilt their structures. The code box goes right of the structure, past its grips
-  (`toggleTranscript`). Stacks and queues: 400 array logs and 300 linked ones against lecture 6's code, run, rebuilt.
+  union and find per kind), run, rebuilt their structures. The code box goes right of the structure, past its grips,
+  or under it if something else is in the way there (`codeSpot`, pure). Stacks and queues: 400 array logs and 300
+  linked ones against lecture 6's code, run, rebuilt. A drag of a 40-node graph's node costs the log ~2-3 µs a change.
+  Track with code (dds-2tt.5, main menu: a toggle and Code language), the board's setting in its document meta
+  (`mode.ts`: `drawdsCode` {on, language}), so a reload and a board file keep it. It is out of undo, as the lesson
+  log is (an undo puts back the whole document record), and what it does to boxes is an undo step of its own. On
+  (`trackWithCode`): a box beside every structure on the board without one; off takes every one away. While on, a
+  new structure gets its box when its drag ends, in the undo step that drew it (`startTrackingWithCode`: an
+  after-create handler queues it, a tick waits out the sketch). Not when it can redo (an undo brought the structure
+  back), nor a replay's (an operation open), nor a board loaded (side effects off). Code language (`codeIn`): every
+  transcript, and every algorithm box beside a structure still as drawds wrote it, switches; new boxes start in it
+  (`codeLanguage`: the board's, else the style panel's last).
 - `src/cells/clean-copy.ts` - Clean copy, last in every structure's own submenu (`NodeOperationsMenu` adds it): the
   same props (values, shape, seed) without marks or pointers, under the original past anything in the way
   (`freeTopBelow`, pure), selected, one undo step; followers stay with the original.

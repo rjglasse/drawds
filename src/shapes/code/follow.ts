@@ -1,7 +1,8 @@
 import type { Editor, TLShape, TLShapeId } from 'tldraw'
 import { followersOf } from '../../cells/followers'
 import { algorithmCode } from './algorithms'
-import { CODE_TYPE, CodeLanguageStyle, type CodeShape } from './code-shape-types'
+import { CODE_TYPE, type CodeShape } from './code-shape-types'
+import { codeLanguage } from '../../transcript/mode'
 
 // A code box can follow a structure (`structureId`), like a graph's views: while an operation with
 // code plays on it (`playOperation`'s `code`), the box shows that algorithm's code, the line each
@@ -45,7 +46,7 @@ function createCodeBox(editor: Editor, structure: TLShape, algorithm: string) {
 	const bounds = editor.getShapePageBounds(structure)
 	if (!bounds) return
 	const right = Math.max(bounds.maxX, ...followersOf(editor, structure.id).map((f) => editor.getShapePageBounds(f)?.maxX ?? -Infinity))
-	const code = algorithmCode(algorithm, editor.getStyleForNextShape(CodeLanguageStyle))!
+	const code = algorithmCode(algorithm, codeLanguage(editor))!
 	const { size } = structure.props as { size?: CodeShape['props']['size'] }
 	editor.createShape<CodeShape>({
 		type: CODE_TYPE,

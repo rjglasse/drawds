@@ -36,6 +36,9 @@ import { MARK_COLORS, MARK_MEANINGS, type MarkColor } from '../cells/marks'
 import { PlaybackOverlay } from '../controls/PlaybackOverlay'
 import { openBoard, saveBoard } from '../files/board'
 import { LessonDialog } from '../lesson/LessonDialog'
+import type { CodeLanguage } from '../shapes/code/highlight'
+import { codeLanguage, codeMode } from '../transcript/mode'
+import { codeIn, trackWithCode } from '../transcript/transcript'
 import type { MenuSection, NodeOperation } from '../cells/CellShapeUtil'
 import { NodeLinkShapeUtil } from '../nodelink/NodeLinkShapeUtil'
 import { placePointer, removePointer, type Pointer } from '../pointers/pointers'
@@ -254,6 +257,31 @@ function DisplayMenuGroup() {
 	return (
 		<TldrawUiMenuGroup id="drawds-display">
 			<TldrawUiMenuCheckboxItem id="drawds-colour-cues" label="Colour-blind cues" checked={cues} toggle onSelect={() => setColourCues(!cues)} />
+		</TldrawUiMenuGroup>
+	)
+}
+
+const CODE_LANGUAGES: [CodeLanguage, string][] = [
+	['python', 'Python'],
+	['java', 'Java'],
+	['c', 'C'],
+]
+
+/** The board's Track with code: the code beside every structure, and the language its code is in. */
+function CodeMenuGroup() {
+	const editor = useEditor()
+	const on = useValue('track with code', () => codeMode(editor).on, [editor])
+	const language = useValue('code language', () => codeLanguage(editor), [editor])
+	return (
+		<TldrawUiMenuGroup id="drawds-code">
+			<TldrawUiMenuCheckboxItem id="drawds-track-with-code" label="Track with code" checked={on} toggle onSelect={() => trackWithCode(editor, !on)} />
+			<TldrawUiMenuSubmenu id="drawds-code-language" label="Code language">
+				<TldrawUiMenuGroup id="drawds-code-languages">
+					{CODE_LANGUAGES.map(([id, label]) => (
+						<TldrawUiMenuCheckboxItem key={id} id={`drawds-code-${id}`} label={label} checked={language === id} onSelect={() => codeIn(editor, id)} />
+					))}
+				</TldrawUiMenuGroup>
+			</TldrawUiMenuSubmenu>
 		</TldrawUiMenuGroup>
 	)
 }
@@ -484,6 +512,7 @@ export const components: TLComponents = {
 				))}
 				<TldrawUiMenuActionItem actionId={LESSON_ACTION} />
 			</TldrawUiMenuGroup>
+			<CodeMenuGroup />
 			{/* tldraw's DefaultMainMenuContent, with our display settings before its preferences. */}
 			<TldrawUiMenuGroup id="basic">
 				<EditSubmenu />

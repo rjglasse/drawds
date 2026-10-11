@@ -1,5 +1,6 @@
 import { createShapeId, renderPlaintextFromRichText, type Editor, type TLTextShape } from 'tldraw'
-import { CODE_TYPE, CodeLanguageStyle, type CodeShape } from './code-shape-types'
+import { CODE_TYPE, type CodeShape } from './code-shape-types'
+import { codeLanguage } from '../../transcript/mode'
 import type { CodeLanguage } from './highlight'
 import { INDENT } from './layout'
 
@@ -23,11 +24,11 @@ export function guessLanguage(code: string, fallback: CodeLanguage): CodeLanguag
 
 /**
  * A text box made a code box, where it was: its text as the code (tabs as spaces, no trailing
- * blank lines), the language guessed from it (else the style panel's). One undo step.
+ * blank lines), the language guessed from it (else the board's). One undo step.
  */
 export function makeCodeBox(editor: Editor, text: TLTextShape) {
 	const code = renderPlaintextFromRichText(editor, text.props.richText).replace(/\t/g, INDENT).replace(/\s+$/, '')
-	const language = guessLanguage(code, editor.getStyleForNextShape(CodeLanguageStyle))
+	const language = guessLanguage(code, codeLanguage(editor))
 	const id = createShapeId()
 	editor.markHistoryStoppingPoint('make a code box')
 	editor.createShape<CodeShape>({
