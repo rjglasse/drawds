@@ -373,6 +373,57 @@ const WRITTEN: Record<string, CodeSource> = {
 			        fast = fast.next.next
 			    return slow                                     @done`,
 	},
+	// Merge two sorted lists: tail.next takes the smaller of a and b, nodes re-pointed, none copied.
+	'list-merge': {
+		c: String.raw`
+			Node *merge(Node *a, Node *b) {
+			    Node dummy = { .next = NULL };
+			    Node *tail = &dummy;                                 @start $a $b
+			    while (a != NULL && b != NULL) {
+			        if (a->value <= b->value) {                      @compare $a $b
+			            tail->next = a;                              @take-a
+			            a = a->next;                                 @next-a $a
+			        } else {
+			            tail->next = b;                              @take-b
+			            b = b->next;                                 @next-b $b
+			        }
+			        tail = tail->next;                               @advance $tail
+			    }
+			    tail->next = (a != NULL) ? a : b;                    @rest
+			    return dummy.next;                                   @done
+			}`,
+		java: String.raw`
+			static Node merge(Node a, Node b) {
+			    Node dummy = new Node(0);
+			    Node tail = dummy;                                   @start $a $b
+			    while (a != null && b != null) {
+			        if (a.value <= b.value) {                        @compare $a $b
+			            tail.next = a;                               @take-a
+			            a = a.next;                                  @next-a $a
+			        } else {
+			            tail.next = b;                               @take-b
+			            b = b.next;                                  @next-b $b
+			        }
+			        tail = tail.next;                                @advance $tail
+			    }
+			    tail.next = (a != null) ? a : b;                     @rest
+			    return dummy.next;                                   @done
+			}`,
+		python: String.raw`
+			def merge(a, b):
+			    dummy = Node(0)
+			    tail = dummy                                         @start $a $b
+			    while a is not None and b is not None:
+			        if a.value <= b.value:                           @compare $a $b
+			            tail.next = a                                @take-a
+			            a = a.next                                   @next-a $a
+			        else:
+			            tail.next = b                                @take-b
+			            b = b.next                                   @next-b $b
+			        tail = tail.next                                 @advance $tail
+			    tail.next = a if a is not None else b                @rest
+			    return dummy.next                                    @done`,
+	},
 	// Insert in order: prev and curr walk until curr's value isn't smaller, then the node goes between them.
 	'list-insert-sorted': {
 		c: String.raw`

@@ -35,7 +35,7 @@ import { StepExtrasSvg } from '../export/StepExtrasSvg'
 import { POINTER_FONT_SCALE, placePointers, type PlacedPointer, type PointerAnchor, type PointerSide } from '../pointers/layout'
 import { boxContains, labelBox, nodeBox, nodeContains, routeScene, spatialNeighbor, type EdgeRoute } from './geometry'
 import { hoveredEdge, hoveredNode } from './hover'
-import { ROOM_KEY, animationMs, isBusy, isLastFrame, playbackFor, roomOf, type Frame, type PlaybackView, type Room } from './playback'
+import { ROOM_KEY, animationMs, isBusy, isCovered, isLastFrame, playbackFor, roomOf, type Frame, type PlaybackView, type Room } from './playback'
 import { edgeCellKey, translateScene, type Scene, type SceneEdge, type SceneNode } from './scene'
 import { sceneCells } from './scene-cells'
 import { SceneSvg } from './SceneSvg'
@@ -251,6 +251,8 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	}
 
 	component(shape: S) {
+		// Another operation's steps draw it (a list being merged in): drawn there, not here.
+		if (isCovered(this.editor, shape.id)) return null
 		const colors = this.editor.getCurrentTheme().colors[this.editor.getColorMode()]
 		const controls = showsStructureControls(this.editor, shape)
 		const zoom = this.editor.getZoomLevel()

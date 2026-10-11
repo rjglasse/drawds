@@ -12,6 +12,7 @@ import { playOperation } from '../../nodelink/playback'
 import type { Scene, SceneEdge } from '../../nodelink/scene'
 import type { PointerAnchor } from '../../pointers/layout'
 import { prunePointers } from '../../pointers/pointers'
+import { canMerge, mergeSortedLists } from './merge'
 import {
 	NULL_KEY,
 	SENTINEL_KEY,
@@ -247,6 +248,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 			...(nodes.length > 1 || canBeEmpty(shape.props)
 				? [{ id: 'list-delete', label: `Delete ${node.value}`, ...change, run: run('delete', () => deleteFromList(props(), key)) }]
 				: []),
+			...this.mergeOperations(shape).map((op) => ({ ...op, ...change })),
 			...(nodes.length > 1 && ends ? [{ id: 'list-reverse', label: 'Reverse the list', ...walk, run: run('reverse', () => reverseList(props())) }] : []),
 			// A list with a cycle has no end to append at or print to.
 			...(v.cycleTo
@@ -463,6 +465,40 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		return appendToList(props, `n${index}`, value)
 	}
 
+	/**
+	 * Merge another sorted list on the page into this one, step by step (both plain singly linked
+	 * lists, sorted): one entry per such list, named by its values.
+	 */
+	private mergeOperations(shape: ListShape): NodeOperation[] {
+		if (!canMerge(shape.props)) return []
+		const others = this.editor
+			.getCurrentPageShapes()
+			.filter((s): s is ListShape => s.type === LIST_SHAPE_TYPE && s.id !== shape.id && canMerge((s as ListShape).props))
+		const values = (s: ListShape) => {
+			const shown = s.props.nodes.slice(0, 6).map((n) => n.value)
+			return `${shown.join(' → ')}${s.props.nodes.length > shown.length ? ' → …' : ''}`
+		}
+		return others.map((other, k) => ({
+			id: others.length === 1 ? 'list-merge' : `list-merge-${k + 1}`,
+			label: `Merge with the sorted list ${values(other)}`,
+			run: () => this.mergeWith(shape.id, other.id),
+		}))
+	}
+
+	/** Merge `otherId` into list `id`: its steps draw both, the other list hidden meanwhile and gone with the result. */
+	private mergeWith(id: ListShape['id'], otherId: ListShape['id']) {
+		const [shape, other] = [id, otherId].map((i) => this.editor.getShape(i) as ListShape | undefined)
+		if (!shape || !other) return
+		// Where the other list is drawn, in this one's layout coordinates.
+		const origin = (s: ListShape) => this.editor.getShapePageTransform(s).applyToPoint(this.layoutOffset(s))
+		const [a, b] = [origin(shape), origin(other)]
+		// Its nodes get ids this list's don't have.
+		const first = Number(this.newId(shape.props).slice(1))
+		const ids = other.props.nodes.map((_, k) => `n${first + k}`)
+		const op = mergeSortedLists(shape.props, other.props, { x: b.x - a.x, y: b.y - a.y }, ids)
+		this.play(id, 'merge', () => op, { covers: [otherId], onCommit: () => this.editor.deleteShapes([otherId]) })
+	}
+
 	/** An id no node has: one past the highest. */
 	private newId({ nodes }: Pick<ListShape['props'], 'nodes'>) {
 		return `n${1 + Math.max(-1, ...nodes.map((n) => Number(n.id.slice(1))).filter(Number.isFinite))}`
@@ -485,7 +521,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		return insertIntoList(props, afterId, `n${index}`, value)
 	}
 
-	private play(id: ListShape['id'], label: string, operation: () => ListOperation) {
+	private play(id: ListShape['id'], label: string, operation: () => ListOperation, extra?: Pick<Parameters<typeof playOperation>[1], 'covers' | 'onCommit'>) {
 		const shape = this.editor.getShape(id) as ListShape | undefined
 		if (!shape) return
 		const { frames, nodes, direction, finalFlash, code } = operation()
@@ -505,6 +541,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 				const marks = pruneMarks({ ...shape.props.marks, ...highlights }, keep)
 				return final ? { ...final, props: { ...final.props, marks } } : this.withMarks(shape, marks)
 			},
+			...extra,
 		})
 	}
 

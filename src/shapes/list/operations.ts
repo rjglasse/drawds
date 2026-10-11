@@ -188,7 +188,7 @@ export const forgotTail = {
 
 
 /** Frames with predict mode's questions: `first` before the first step, `rest` before the others. */
-function asking(frames: Frame[], first: Frame['ask'], rest: Frame['ask'] = NEXT_LINE): Frame[] {
+export function asking(frames: Frame[], first: Frame['ask'], rest: Frame['ask'] = NEXT_LINE): Frame[] {
 	return frames.map((frame, i) => ({ ...frame, ask: i === 0 ? first : rest }))
 }
 
@@ -1094,19 +1094,22 @@ function sameDrawing(a: Scene, b: Scene): boolean {
  * An operation that changes the list ends on it drawn in a line as the result will be (shifted so
  * the first node that stays is where it is now), so nothing moves when the result goes in or the
  * bar closes, and the node handles sit on their nodes. The arrows' lights go out; the nodes' stay.
- * A closing remark that changes nothing (append's O(1) or O(n)) moves onto that step, so it stays
- * the last word. Unchanged when the last step already looks like the result.
+ * A closing remark that changes nothing (append's O(1) or O(n)) moves onto that step, its code line
+ * too, so it stays the last word. Unchanged when the last step already looks like the result.
  */
 export function endTidied(before: ListProps, after: ListProps, frames: readonly Frame[]): Frame[] {
 	const scene = translateScene(listScene(after), anchorShift(before, after))
 	const [prev, last] = [frames.at(-2), frames.at(-1)]
 	if (last?.scene && sameDrawing(last.scene, scene)) return [...frames]
-	const remark = last?.scene && prev?.scene && sameDrawing(last.scene, prev.scene) ? last.caption : undefined
-	const lit = Object.keys(stateAt(frames, frames.length - 1).flash).filter((key) => key.startsWith('edge:'))
+	const remark = last?.scene && prev?.scene && sameDrawing(last.scene, prev.scene) ? last : undefined
+	// Whatever is lit then (the remark's own changes go with it), arrows put out.
+	const states = remark ? [frames.length - 2, frames.length - 1] : [frames.length - 1]
+	const lit = new Set(states.flatMap((i) => Object.keys(stateAt(frames, i).flash).filter((key) => key.startsWith('edge:'))))
 	const tidy: Frame = {
 		scene,
-		flash: Object.fromEntries(lit.map((key) => [key, null])),
-		caption: remark ?? 'Tidied up: the same links, drawn in a line',
+		flash: Object.fromEntries([...lit].map((key) => [key, null])),
+		caption: remark?.caption ?? 'Tidied up: the same links, drawn in a line',
+		...(remark?.line ? { line: remark.line } : {}),
 		ask: false,
 	}
 	return remark ? [...frames.slice(0, -1), tidy] : [...frames, tidy]

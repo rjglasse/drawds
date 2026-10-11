@@ -17,14 +17,16 @@ export function withSizeStep(frames: readonly Frame[], props: ListProps, after: 
 	if (!props.showSize || after === before) return [...frames]
 	const scenes = frames.map((f) => (f.scene ? { ...f, scene: withSize(f.scene, before) } : f))
 	const last = [...frames].reverse().find((f) => f.scene)?.scene ?? listScene(props)
-	const change = after > before ? 'size++' : 'size--'
+	// One node (an insert, a delete), or several (a list merged in).
+	const by = Math.abs(after - before)
+	const change = by === 1 ? (after > before ? 'size++' : 'size--') : `size ${after > before ? '+' : '-'}= ${by}`
 	return [
 		...scenes,
 		{
 			scene: withSize(last, after),
 			flash: { [SIZE_KEY]: CHANGED },
 			caption: `${change}: size = ${after}. Every add and remove keeps it, so reading it is O(1)`,
-			ask: `${after > before ? 'A node added' : 'A node gone'}: what happens to size?`,
+			ask: `${by === 1 ? (after > before ? 'A node added' : 'A node gone') : `${by} nodes ${after > before ? 'added' : 'gone'}`}: what happens to size?`,
 			askFocus: [SIZE_KEY],
 		},
 	]

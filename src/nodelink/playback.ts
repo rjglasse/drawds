@@ -209,6 +209,8 @@ export interface PlaybackView extends StepState {
 	pulse?: string[]
 	/** The operation's code (an algorithm with code, see `src/shapes/code/algorithms.ts`), if it has some. */
 	code?: string
+	/** Other shapes its steps draw, hidden meanwhile (`isCovered`). */
+	covers?: TLShapeId[]
 	/**
 	 * The shape just before and after the result went in. Steps shown afterwards undo the move it
 	 * made (a list's new head moves the shape's origin back), so they stay where they were.
@@ -283,6 +285,10 @@ interface Operation {
 	code?: string
 	/** Its algorithm's arguments, where what it did can't tell them (union(a, b)). */
 	args?: Record<string, string>
+	/** Other shapes its steps draw (a list merged in), hidden while it is open. */
+	covers?: TLShapeId[]
+	/** More changes in its result's undo step (the list merged in deleted). */
+	onCommit?(): void
 	/** When each step came on screen (step, epoch ms), for lining the steps up with a transcript. */
 	shown: [number, number][]
 	/** Told when the operation closes, if it is being recorded. */
@@ -472,6 +478,12 @@ export function currentPlayback(editor: Editor): PlaybackView | null {
 	return player(editor).view.get()
 }
 
+/** Whether an open operation's steps draw this shape (a list being merged in): it isn't drawn itself meanwhile. Reactive. */
+export function isCovered(editor: Editor, shapeId: TLShapeId): boolean {
+	const view = player(editor).view.get()
+	return !!view?.covers?.includes(shapeId) && !view.fading
+}
+
 /**
  * Play an operation's frames, then apply `final` (one undo step, named `label`). The teacher can
  * pause, step back and forth or cancel on the way (see the play bar and `attachKeys`); once the
@@ -494,6 +506,8 @@ export function playOperation(
 		replay = false,
 		code,
 		args,
+		covers,
+		onCommit,
 	}: {
 		shapeId: TLShapeId
 		label: string
@@ -513,6 +527,10 @@ export function playOperation(
 		code?: string
 		/** The arguments it is called with, for the code beside the structure, where what it did can't tell them. */
 		args?: Record<string, string>
+		/** Other shapes its steps draw (a list being merged in): hidden while it is open. */
+		covers?: TLShapeId[]
+		/** More changes in its result's undo step (the list merged in deleted); not for a replay. */
+		onCommit?(): void
 	}
 ) {
 	const p = player(editor)
@@ -542,6 +560,8 @@ export function playOperation(
 		replay,
 		code,
 		args,
+		covers,
+		onCommit,
 		shown: [],
 		ended: ended || undefined,
 		step: 0,
@@ -600,6 +620,7 @@ function show(p: Player, { back = false, still = false } = {}) {
 		question: asked && (asked.ask || DEFAULT_QUESTION),
 		pulse: asked?.askFocus,
 		code: op.code,
+		covers: op.covers,
 	})
 }
 
@@ -788,6 +809,7 @@ function commit(editor: Editor, keepNow: boolean) {
 			// The code beside it logs the algorithm (bubble_sort(a)), not what a diff would guess (a.sort()).
 			if (op.code) withMoves(editor, op.shapeId, { call: op.code, label: op.label, args: op.args }, () => editor.updateShape(update))
 			else editor.updateShape(update)
+			op.onCommit?.()
 		}
 		const after = editor.getShape(op.shapeId)
 		if (before && after) op.committed = { before, after }

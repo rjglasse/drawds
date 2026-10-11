@@ -33,6 +33,7 @@ import {
 	printList,
 	reverseList,
 } from '../list/operations'
+import { mergeSortedLists } from '../list/merge'
 import { dequeueFrom, enqueueOnto, peekAt, popFrom, pushOnto } from '../list/stack-queue'
 import { countNodes } from '../list/size'
 import { deleteKey, findKey, insertEntry, rehash, buildTable } from '../hash/hash'
@@ -197,6 +198,9 @@ describe('algorithm code', () => {
 					printBackwards({ ...props, links: 'doubly' as const }),
 				]
 			}),
+			// Two sorted lists merged: a runs out first, b runs out first.
+			mergeSortedLists(plainList(['1', '4']), plainList(['2', '3', '9']), { x: 0, y: 200 }, ['n7', 'n8', 'n9']),
+			mergeSortedLists(plainList(['5', '9']), plainList(['2']), { x: 0, y: 200 }, ['n9']),
 			pushOnto({ ...plainList(['7', '3']), kind: 'stack' }, 'n9', '5'),
 			pushOnto({ ...plainList([]), kind: 'stack' }, 'n9', '5'),
 			popFrom({ ...plainList(['7', '3']), kind: 'stack' }),
