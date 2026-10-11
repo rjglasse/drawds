@@ -12,7 +12,7 @@ import { playOperation } from '../../nodelink/playback'
 import type { Scene, SceneEdge } from '../../nodelink/scene'
 import type { PointerAnchor } from '../../pointers/layout'
 import { prunePointers } from '../../pointers/pointers'
-import { canMerge, mergeSortedLists } from './merge'
+import { canMerge, canMergeSort, mergeSortList, mergeSortedLists } from './merge'
 import {
 	NULL_KEY,
 	SENTINEL_KEY,
@@ -250,6 +250,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 				: []),
 			...this.mergeOperations(shape).map((op) => ({ ...op, ...change })),
 			...(nodes.length > 1 && ends ? [{ id: 'list-reverse', label: 'Reverse the list', ...walk, run: run('reverse', () => reverseList(props())) }] : []),
+			...(canMergeSort(shape.props) ? [{ id: 'list-merge-sort', label: 'Merge sort (cut at the middle, merge)', ...walk, run: run('merge sort', () => mergeSortList(props())) }] : []),
 			// A list with a cycle has no end to append at or print to.
 			...(v.cycleTo
 				? []

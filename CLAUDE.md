@@ -403,7 +403,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   buttons come first in fixed places, the caption last and keys go to it first (window capture: Space, Left/Right and PageUp/PageDown (clickers), Enter /
   Shift+Enter, Esc cancels without changing anything: `onCancel` undoes to before what the operation set up, a view or
   recursion tree it opened, the code it showed, and `keepingWhatWasAdded` puts back what the teacher added meanwhile, a
-  code box from </>, a pen stroke, as an undo step of its own). Once the result is committed the bar stays (`done`):
+  code box from </>, a pen stroke, as an undo step of its own). An operation whose steps draw another shape too (a list
+  merged in) names it in `covers` (hidden meanwhile, `isCovered`) and changes it in `onCommit` (the result's undo
+  step). Once the result is committed the bar stays (`done`):
   step back through it or replay it, then Done / Enter / Esc, or select something else / edit the shape;
   `isBusy` says when the shape's own controls should hide. Once the result is in, a step with no props or scene of
   its own shows the structure as it was before (`committed.before`), the last step the result (`isLastFrame`). Operations open paused on step 1 so the teacher sets
@@ -612,7 +614,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   frame a whole `scene` (layout coordinates; drawn at the committed offset) and their own `pointers` (curr,
   prev, next: they slide between steps); `SceneEdge.bend` curves an edge. See `src/shapes/list/operations.ts`
   (find, insert after / at the head, delete, reverse, find the middle with slow / fast, insert in order,
-  append, print, print backwards, Floyd's cycle detection), narrated as the code a teacher writes. Once the result is in, steps are
+  append, print, print backwards, Floyd's cycle detection), narrated as the code a teacher writes; and `merge.ts`
+  (dds-55z.20.9, plain singly linked lists): Merge with another sorted list on the page (merge(a, b): a dummy node and
+  tail, tail.next takes the smaller, re-pointed, none copied; the other list drawn where it is, its nodes under the ids
+  they get, so the result slides into line; it goes with the result) and merge sort (slow and fast find the middle, the
+  halves drop a row each cut, a null's room apart; each merge re-points from a dummy in the row above, arrows along the
+  row arcing over, and the merged run rises where its parent was). Once the result is in, steps are
   drawn less the move the commit made (`PlaybackView.committed`), so a new head doesn't shift them or the bar.
 - A plain list (not circular, no sentinel, no cycle: `canBeEmpty`) can be empty, as lecture 5 starts: head and tail point
   at null. Deleting its only node empties it (tail = null too); empty, its menu offers Insert at the head and Append

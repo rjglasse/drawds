@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { stateAt } from '../../nodelink/playback'
-import { canMerge, mergeSortedLists } from './merge'
+import { canMerge, canMergeSort, mergeSortList, mergeSortedLists } from './merge'
+import { listScene } from './layout'
 
 const list = (values: string[], from = 0) => ({
 	nodes: values.map((value, i) => ({ id: `n${from + i}`, value, dx: 0, dy: 0 })),
@@ -52,5 +53,42 @@ describe('merging two sorted lists', () => {
 		expect(canMerge({ ...list(['1']), tail: 'tail' })).toBe(false)
 		expect(canMerge({ ...list(['1']), ends: 'circular' })).toBe(false)
 		expect(canMerge({ ...list(['1']), kind: 'stack' })).toBe(false)
+	})
+})
+
+describe('merge sort on a linked list', () => {
+	it('sorts by cutting at the middle and merging, every node kept, equal values in their order', () => {
+		const op = mergeSortList(list(['7', '3', '9', '1', '6', '4']))
+		expect(op.nodes.map((n) => n.value)).toEqual(['1', '3', '4', '6', '7', '9'])
+		expect(op.code).toBe('list-merge-sort')
+		const stable = mergeSortList(list(['2', '1', '2', '1']))
+		expect(stable.nodes.map((n) => n.id)).toEqual(['n1', 'n3', 'n0', 'n2'])
+	})
+
+	it('steps as merge_sort runs: the middle, the cut, each half, then merge; five cuts and merges for six nodes', () => {
+		const lines = mergeSortList(list(['7', '3', '9', '1', '6', '4'])).frames.map((f) => f.line)
+		expect(lines.slice(0, 2)).toEqual(['middle', 'split'])
+		expect(lines.filter((l) => l === 'split')).toHaveLength(5)
+		expect(lines.filter((l) => l === 'merge')).toHaveLength(5)
+		expect(lines.filter((l) => l === 'base')).toHaveLength(6)
+		expect(lines.at(-1)).toBe('merge')
+	})
+
+	it('ends on the sorted list drawn where the list was, head on its first node', () => {
+		const props = list(['7', '3', '9', '1'])
+		const op = mergeSortList(props)
+		const last = op.frames.at(-1)!.scene!
+		const drawn = listScene({ ...props, nodes: op.nodes })
+		for (const n of op.nodes) {
+			const [a, b] = [last.nodes.find((x) => x.key === n.id)!, drawn.nodes.find((x) => x.key === n.id)!]
+			expect([a.x, a.y]).toEqual([b.x, b.y])
+		}
+		expect(last.edges.find((e) => e.key === '#head->')!.to).toBe(op.nodes[0].id)
+	})
+
+	it('offered for plain singly linked lists of two nodes or more', () => {
+		expect(canMergeSort(list(['3', '1']))).toBe(true)
+		expect(canMergeSort(list(['3']))).toBe(false)
+		expect(canMergeSort({ ...list(['3', '1']), links: 'doubly' })).toBe(false)
 	})
 })

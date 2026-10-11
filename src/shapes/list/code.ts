@@ -424,6 +424,102 @@ const WRITTEN: Record<string, CodeSource> = {
 			    tail.next = a if a is not None else b                @rest
 			    return dummy.next                                    @done`,
 	},
+	// Merge sort on a list: slow and fast find the middle, cut there, sort each half, merge them.
+	'list-merge-sort': {
+		c: String.raw`
+			Node *merge(Node *a, Node *b);
+
+			Node *mergeSort(Node *head) {
+			    if (head == NULL || head->next == NULL)              @base
+			        return head;
+			    Node *slow = head, *fast = head->next;               @middle $slow $fast
+			    while (fast != NULL && fast->next != NULL) {
+			        slow = slow->next;
+			        fast = fast->next->next;
+			    }
+			    Node *right = slow->next;                            @split
+			    slow->next = NULL;
+			    Node *left = mergeSort(head);
+			    right = mergeSort(right);
+			    return merge(left, right);                           @merge
+			}
+
+			Node *merge(Node *a, Node *b) {
+			    Node dummy = { .next = NULL };
+			    Node *tail = &dummy;                                 @start $a $b
+			    while (a != NULL && b != NULL) {
+			        if (a->value <= b->value) {
+			            tail->next = a;                              @take-a
+			            a = a->next;
+			        } else {
+			            tail->next = b;                              @take-b
+			            b = b->next;
+			        }
+			        tail = tail->next;
+			    }
+			    tail->next = (a != NULL) ? a : b;                    @rest
+			    return dummy.next;
+			}`,
+		java: String.raw`
+			static Node mergeSort(Node head) {
+			    if (head == null || head.next == null)               @base
+			        return head;
+			    Node slow = head, fast = head.next;                  @middle $slow $fast
+			    while (fast != null && fast.next != null) {
+			        slow = slow.next;
+			        fast = fast.next.next;
+			    }
+			    Node right = slow.next;                              @split
+			    slow.next = null;
+			    Node left = mergeSort(head);
+			    right = mergeSort(right);
+			    return merge(left, right);                           @merge
+			}
+
+			static Node merge(Node a, Node b) {
+			    Node dummy = new Node(0);
+			    Node tail = dummy;                                   @start $a $b
+			    while (a != null && b != null) {
+			        if (a.value <= b.value) {
+			            tail.next = a;                               @take-a
+			            a = a.next;
+			        } else {
+			            tail.next = b;                               @take-b
+			            b = b.next;
+			        }
+			        tail = tail.next;
+			    }
+			    tail.next = (a != null) ? a : b;                     @rest
+			    return dummy.next;
+			}`,
+		python: String.raw`
+			def merge_sort(head):
+			    if head is None or head.next is None:                @base
+			        return head
+			    slow, fast = head, head.next                         @middle $slow $fast
+			    while fast is not None and fast.next is not None:
+			        slow = slow.next
+			        fast = fast.next.next
+			    right = slow.next                                    @split
+			    slow.next = None
+			    left = merge_sort(head)
+			    right = merge_sort(right)
+			    return merge(left, right)                            @merge
+
+			def merge(a, b):
+			    dummy = Node(0)
+			    tail = dummy                                         @start $a $b
+			    while a is not None and b is not None:
+			        if a.value <= b.value:
+			            tail.next = a                                @take-a
+			            a = a.next
+			        else:
+			            tail.next = b                                @take-b
+			            b = b.next
+			        tail = tail.next
+			    tail.next = a if a is not None else b                @rest
+			    return dummy.next`,
+	},
 	// Insert in order: prev and curr walk until curr's value isn't smaller, then the node goes between them.
 	'list-insert-sorted': {
 		c: String.raw`

@@ -73,3 +73,23 @@ test('no merge with a list that is not sorted', async ({ page }) => {
 	await expect(page.getByTestId('context-menu.list-find-value')).toBeVisible()
 	await expect(page.getByTestId('context-menu.list-merge')).toHaveCount(0)
 })
+
+test('merge sort on a list: cut at the middle, each half sorted, merged back; one undo', async ({ page }) => {
+	await sketchList(page, [200, 200], 6)
+	await page.evaluate(() => {
+		const editor = window.editor!
+		const [s] = editor.getCurrentPageShapes()
+		const nodes = (s.props as { nodes: { value: string }[] }).nodes.map((n, i) => ({ ...n, value: ['7', '3', '9', '1', '6', '4'][i] }))
+		editor.updateShape({ id: s.id, type: 'linked-list', props: { nodes } } as never)
+		editor.select(s.id)
+	})
+	await openSteps(page)
+	await page.getByTestId('context-menu.list-merge-sort').click()
+	await expect(page.getByTestId('play-caption')).toContainText('merge_sort(7 3 9 1 6 4): slow and fast walk')
+	await page.keyboard.press('ArrowRight')
+	await expect(page.getByTestId('play-caption')).toContainText('cut in two, 7 3 9 and 1 6 4')
+	await page.keyboard.press('Enter')
+	await expect.poll(() => lists(page)).toEqual(['1 3 4 6 7 9'])
+	await page.keyboard.press('ControlOrMeta+z')
+	await expect.poll(() => lists(page)).toEqual(['7 3 9 1 6 4'])
+})

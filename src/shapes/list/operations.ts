@@ -154,7 +154,7 @@ function withLoops(frames: Frame[], props: ListProps, floating: Record<string, n
 }
 
 /** Arrows that point back against the list's direction curve round, clear of the nodes they pass. */
-const BACK_BEND = -0.35
+export const BACK_BEND = -0.35
 
 export interface ListOperation {
 	frames: Frame[]
