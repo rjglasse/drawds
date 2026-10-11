@@ -372,6 +372,41 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			            a[j], a[j - 1] = a[j - 1], a[j]     @swap
 			            j -= 1                              @back`,
 	},
+	// Shuffle until sorted (an easter egg: running it turns the sounds on).
+	bogosort: {
+		c: String.raw`
+			bool isSorted(int a[], int n) {
+			    for (int i = 0; i + 1 < n; i++)
+			        if (a[i] > a[i + 1]) return false;   @compare $i
+			    return true;                              @sorted
+			}
+
+			void bogoSort(int a[], int n) {
+			    while (!isSorted(a, n))                   @check
+			        shuffle(a, n);                        @shuffle
+			}`,
+		java: String.raw`
+			void bogoSort(int[] a) {
+			    while (!isSorted(a))                      @check
+			        shuffle(a);                           @shuffle
+			}
+
+			boolean isSorted(int[] a) {
+			    for (int i = 0; i + 1 < a.length; i++)
+			        if (a[i] > a[i + 1]) return false;   @compare $i
+			    return true;                              @sorted
+			}`,
+		python: String.raw`
+			def bogo_sort(a):
+			    while not is_sorted(a):                   @check
+			        random.shuffle(a)                     @shuffle
+
+			def is_sorted(a):
+			    for i in range(len(a) - 1):
+			        if a[i] > a[i + 1]:                   @compare $i
+			            return False
+			    return True                               @sorted`,
+	},
 	'selection-sort': {
 		c: String.raw`
 			void selectionSort(int a[], int n) {

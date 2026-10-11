@@ -72,6 +72,8 @@ import { withMoves } from '../../transcript/log'
 import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
 import { memoryViewsOf, toggleMemoryView } from '../memory/show'
 import { ringViewsOf, toggleRingView } from '../ring/show'
+import { bogosort } from './bogo'
+import { startSound } from '../../sound/player'
 import { fisherYates, unfairShuffle, type ShuffleKind } from './shuffles'
 import { everyRunOperation, manyRunsOperation, TALLY_MAX, TREE_MAX, type OutcomesMode } from '../outcomes/outcomes'
 import { openOutcomes } from '../outcomes/OutcomesShapeUtil'
@@ -477,6 +479,17 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 							id: 'array-sort-growth',
 							label: `Counts as n grows: ${SORT_NAMES[counted.sort].toLowerCase()}`,
 							run: () => this.playGrowth(shape.id, counted.sort, counted.cutoff),
+						},
+						// Shuffle until sorted. Running it turns drawds' sounds on (an easter egg, src/sound/).
+						{
+							group: 'bogo',
+							submenu: 'Sorts',
+							id: 'array-bogosort',
+							label: 'Bogosort (shuffle until sorted)',
+							run: () => {
+								startSound()
+								this.play(shape.id, 'bogosort', (a) => bogosort(a, mulberry32(newSeed())))
+							},
 						},
 					]),
 			// Summing recursively, two ways, each with its recursion tree beside the array.

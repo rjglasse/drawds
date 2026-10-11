@@ -68,6 +68,7 @@ import { UnionFindPickers, unionFindPickerTranslations } from './UnionFindPicker
 import { TracerPickers, tracerPickerTranslations } from './TracerPickers'
 import { CodePickers, codePickerTranslations } from './CodePickers'
 import { MemoryPickers, memoryPickerTranslations } from './MemoryPickers'
+import { SoundButton } from './SoundButton'
 import { makeCodeBox } from '../shapes/code/convert'
 import { StructureHint } from './StructureHint'
 
@@ -507,6 +508,7 @@ function RelayoutMenuItem() {
 
 export const components: TLComponents = {
 	InFrontOfTheCanvas: PlaybackOverlay,
+	TopPanel: SoundButton,
 	MainMenu: (props) => (
 		<DefaultMainMenu {...props}>
 			<TldrawUiMenuGroup id="drawds-board">
