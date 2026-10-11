@@ -1,6 +1,6 @@
 import type { Frame } from '../../nodelink/playback'
 import { HEAD_KEY, listScene, NULL_KEY, NULL_PREV_KEY, SENTINEL_KEY, SIZE_KEY, TAIL_KEY, withSize } from './layout'
-import { CHANGED, edgeMark, FOUND, GONE, listOf, LOOK, next, pointer, prevOf, type ListOperation, type ListProps } from './operations'
+import { CHANGED, edgeMark, FOUND, GONE, listCode, listOf, LOOK, next, pointer, prevOf, type ListOperation, type ListProps } from './operations'
 
 // Lecture 5's size: "linear or constant? It depends": counted by walking every node, O(n), or kept
 // in a field that every add and remove updates (size++ / size--) and read in O(1). And its
@@ -39,7 +39,7 @@ export function countNodes(props: ListProps): ListOperation {
 	const { nodes } = props
 	const { v } = listOf(props)
 	const frames: Frame[] = []
-	const code = !v.sentinel && !v.circular ? 'list-count' : undefined
+	const code = listCode(props, 'list-count')
 	const start = v.sentinel ? 'past the sentinel' : 'at the head'
 	const vars = (curr: string, count: number) => ({ curr, count: String(count) })
 	frames.push({

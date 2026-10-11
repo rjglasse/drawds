@@ -1,11 +1,12 @@
 import type { CodeSource } from '../code/algorithms'
+import { LIST_VARIANT_CODE } from './variant-code'
 
 // The linked list operations' code, as a code box beside the list shows it while one plays (see
 // `src/shapes/code/algorithms.ts`): lecture 5's indexOf, curr walking the nodes as `e = e.next` does
 // there. Tags at the ends of lines are the `line`s the steps in `operations.ts` name; `$tags` the
 // variables shown (curr by its node's value).
 
-export const LIST_CODE: Record<string, CodeSource> = {
+const WRITTEN: Record<string, CodeSource> = {
 	'list-find': {
 		c: String.raw`
 			int indexOf(List *list, int value) {    $value
@@ -722,3 +723,6 @@ export const LIST_CODE: Record<string, CodeSource> = {
 			    return self.front.value                           @peek`,
 	},
 }
+
+/** Every list operation's code: the plain lists' as written above, the variants' generated (`variant-code.ts`). */
+export const LIST_CODE: Record<string, CodeSource> = { ...LIST_VARIANT_CODE, ...WRITTEN }

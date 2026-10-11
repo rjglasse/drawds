@@ -288,10 +288,16 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   The arrays' code is `src/shapes/array/code.ts` (searches, scans, every sort, shuffles, lecture 6's ArrayStack push / pop /
   peek for a fixed stack and ArrayQueue enqueue / dequeue / peek for the circular buffer, insert / delete by shifting, growing
   or with a fixed capacity), the lists' `src/shapes/list/code.ts` (lecture 5's indexOf for find, size counted,
-  insert after / at the head, append, delete, reverse, insert in order, print, and the linked stack's and queue's operations,
-  `linked-*`: on a plain singly linked list only, with a tail a version of its own (`plainCode`, `-tail`); the walks whose
-  code any list shares: the middle and Floyd's cycle start with slow / fast (no sentinel), print backwards (doubly, not
-  circular, from the tail if there is one); curr, prev, node, slow, fast shown by their nodes'
+  insert after / at the head, append, delete, reverse, insert in order, print, the middle and Floyd's cycle start (slow /
+  fast), print backwards (doubly), and the linked stack's and queue's operations, `linked-*`), written by hand for the plain
+  singly linked list (a tail its own version, `-tail`); every other mix of doubly / circular / sentinel / tail generated
+  by `src/shapes/list/variant-code.ts`: each operation written once against a language (Java, C, Python: fields, null,
+  declarations, loops, a circle's do-while), the flags choosing its lines as they choose its steps, ids `<base>-doubly-
+  circular-sentinel-tail` with only the flags that change it (`listCode(props, base)` picks one; a cycle has only Floyd's).
+  Round a circle without a sentinel, inserting or deleting at the head first finds `last` (head.prev, the tail, or a walk
+  round, `findLast` steps); a doubly linked list with a tail deletes its last node with removeLast (no walk); insert in
+  order round a circle without a sentinel has no code. The algorithms test runs every operation on all 16 mixes; curr,
+  prev, node, slow, fast, last shown by their nodes'
   values through `Frame.vars`, since a list pointer is at a node key), the trees' `src/shapes/tree/code.ts` (traversals,
   measures, BST min / max, and lecture 8b's BST search, insert and delete as `bstInsertSteps` / `bstDeleteSteps` walk them,
   delete's three cases with the successor relinked, 3.1 or 3.2), the graphs' `src/shapes/graph/code.ts`.

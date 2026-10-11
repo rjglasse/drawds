@@ -51,8 +51,8 @@ describe('findInList', () => {
 			['found', '9', '2', 3],
 		])
 		expect(findInList(props, '5').frames.at(-1)).toMatchObject({ line: 'missing', vars: { curr: 'null', i: '4' } })
-		// A circular list never reaches null: not that code.
-		expect(findInList({ ...props, ends: 'circular' }, '9').code).toBeUndefined()
+		// A circular list never reaches null: its own code, a do-while round to the head.
+		expect(findInList({ ...props, ends: 'circular' }, '9').code).toBe('list-find-circular')
 	})
 })
 
@@ -243,7 +243,7 @@ describe('operations on list variants', () => {
 		expect(op.nodes!.map((n) => n.value)).toEqual(['4', '9', '3', '7'])
 		expect(captions(op)[1]).toBe('swap curr.next and curr.prev: 7 now points forward at null, back at 3')
 		expect(captions(op).at(-1)).toBe('head = the old last node, 4; tail = the old first, 7')
-		expect(captions(reverseList({ ...base, sentinel: 'sentinel' })).at(-1)).toBe('sentinel.next = prev: the values start at 4, reversed')
+		expect(captions(reverseList({ ...base, sentinel: 'sentinel' })).at(-1)).toBe('head.next = prev (head is the sentinel): the values start at 4, reversed')
 	})
 })
 

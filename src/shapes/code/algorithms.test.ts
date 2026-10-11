@@ -281,6 +281,65 @@ describe('algorithm code', () => {
 	})
 })
 
+describe('list variants', () => {
+	// Every mix of the four list toggles (doubly, circular, sentinel, tail), every operation offered on
+	// it: each shows code, every line a step lights is in it, in C, Java and Python, and every value it
+	// shows is one a step gives.
+	const variants = Array.from({ length: 16 }, (_, bits) => ({
+		links: bits & 1 ? ('doubly' as const) : ('singly' as const),
+		ends: bits & 2 ? ('circular' as const) : ('null' as const),
+		sentinel: bits & 4 ? ('sentinel' as const) : ('none' as const),
+		tail: bits & 8 ? ('tail' as const) : ('none' as const),
+	}))
+	const list = (values: string[], variant: object) => ({ ...plainList(values), ...variant })
+
+	it.each(variants)('%o: every operation shows its code, every line and value in it', (variant) => {
+		const props = list(['7', '3', '9', '4'], variant)
+		const sorted = list(['3', '5', '7', '9'], variant)
+		const circular = variant.ends === 'circular'
+		const ops = [
+			findInList(props, '9'),
+			findInList(props, '8'),
+			countNodes(props),
+			printList(props),
+			...(variant.links === 'doubly' ? [printBackwards(props)] : []),
+			...(circular ? [] : [findMiddle(props), reverseList(props)]),
+			detectCycle(props),
+			insertIntoList(props, 'n1', 'n9', '5'),
+			insertIntoList(props, 'n3', 'n9', '5'),
+			insertIntoList(props, undefined, 'n9', '5'),
+			appendToList(props, 'n9', '5'),
+			deleteFromList(props, 'n0'),
+			deleteFromList(props, 'n2'),
+			deleteFromList(props, 'n3'),
+			// Round a circle without a sentinel, insert in order has no code (the front moves the last node's next too).
+			...(circular && variant.sentinel === 'none' ? [] : [insertSorted(sorted, 'n9', '1'), insertSorted(sorted, 'n9', '6'), insertSorted(sorted, 'n9', '12')]),
+		]
+		const given = new Map<string, Set<string>>()
+		for (const op of ops) {
+			expect(op.code, `${op.frames[0]?.caption}`).toBeTruthy()
+			const names = op.frames.flatMap((f) => [...(f.pointers ?? []).map((p) => p.name), ...Object.keys(f.vars ?? {})])
+			given.set(op.code!, new Set([...(given.get(op.code!) ?? []), ...names]))
+		}
+		for (const op of ops) {
+			const lines = op.frames.flatMap((f) => (f.line ? [f.line] : []))
+			expect(lines.length, op.code).toBeGreaterThan(0)
+			for (const language of ['c', 'java', 'python'] as const) {
+				const code = algorithmCode(op.code!, language)!
+				expect(code.language).toBe(language)
+				for (const line of lines) expect(code.lines, `${op.code} ${language} @${line}`).toHaveProperty(line)
+				for (const v of code.values) expect(given.get(op.code!), `${op.code} ${language} $${v.name}`).toContain(v.key)
+			}
+		}
+	})
+
+	it('a list with a cycle shows only Floyd\'s code: the other walks never end', () => {
+		const props = { ...plainList(['7', '3', '9']), cycleTo: 'n1' }
+		expect(detectCycle(props).code).toBe('list-floyd')
+		expect(findInList(props, '8').code).toBeUndefined()
+	})
+})
+
 describe('code box migrations', () => {
 	it('code boxes saved before the times column have it off', () => {
 		const [, addLineCounts] = codeShapeMigrations.sequence

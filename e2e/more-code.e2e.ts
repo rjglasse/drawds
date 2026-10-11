@@ -69,3 +69,21 @@ test("a list's walks have their code too: the middle, and Floyd's cycle detectio
 	while (!(await page.getByTestId('play-done').count())) await page.keyboard.press('ArrowRight')
 	await expect.poll(() => litLine(page)).toContain('return slow;')
 })
+
+test("a list variant's own code: insert at the head of a doubly linked circular list finds last as head.prev first", async ({ page }) => {
+	await sketchList(page, [200, 200], 3)
+	await page.evaluate(() => {
+		const editor = window.editor!
+		const list = editor.getCurrentPageShapes().find((s) => s.type === 'linked-list')!
+		editor.updateShape({ id: list.id, type: 'linked-list', props: { links: 'doubly', ends: 'circular' } } as never)
+	})
+	await rightClick(page, await nodeScreenPosition(page, 'n1'))
+	await page.getByTestId('context-menu-sub.drawds-list-steps-button').click()
+	await page.getByTestId('context-menu.list-insert-head').click()
+	await page.getByTestId('play-code').click()
+	await expect.poll(() => litLine(page)).toContain('Node node = new Node(')
+	await page.keyboard.press('ArrowRight')
+	await expect.poll(() => litLine(page)).toContain('Node last = head.prev;')
+	while (!(await page.getByTestId('play-done').count())) await page.keyboard.press('ArrowRight')
+	await expect(page.locator('[data-code-line]').filter({ hasText: 'last.next = node;' })).toHaveCount(1)
+})
