@@ -662,7 +662,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		]
 	}
 
-	/** For a stack or queue: growing a fixed one, new values, indices (no sorting or rearranging). */
+	/** For a stack or queue: growing a fixed one, new values, indices, the code beside it (no sorting or rearranging). */
 	private kindActions(shape: ArrayShape): NodeOperation[] {
 		return [
 			...(shape.props.sizing === 'fixed'
@@ -677,6 +677,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 				: []),
 			{ section: 'actions', id: 'array-reroll', label: 'New values', run: () => this.reroll(shape.id) },
 			this.indicesToggle(shape),
+			this.codeBesideToggle(shape),
 		]
 	}
 

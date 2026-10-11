@@ -1,7 +1,7 @@
 import { algorithmCode } from '../shapes/code/algorithms'
 import type { CodeLanguage } from '../shapes/code/highlight'
-import type { ArrayMove } from './array-moves'
-import type { ListMove } from './list-moves'
+import type { ArrayMove, Fixed } from './array-moves'
+import type { ListKind, ListMove } from './list-moves'
 import type { TreeMove, TreeShape } from './tree-moves'
 import type { GraphMove } from './graph-moves'
 import type { HeapMove } from './heap-moves'
@@ -140,14 +140,84 @@ function lines(move: ArrayMove, s: Spelling): string[] {
 			if (written) return [written]
 			return [`${note} ${move.label}, step by step:`, ...move.effect.flatMap((m) => lines(m, s))]
 		}
+		// An ArrayStack's and ArrayQueue's own (`fixedLines`).
+		case 'push':
+		case 'enqueue':
+		case 'dequeue':
+			return [`${note} ${move.op}`]
 	}
 }
 
-/** An array's log written out in `language`. */
+/**
+ * An ArrayStack's or ArrayQueue's moves (lecture 6's, `src/shapes/array/code.ts`): made with its
+ * capacity and the values put in, bottom or front first (a buffer whose front has moved on, laid
+ * out as it is); push and pop, enqueue and dequeue as its code calls them; a value typed straight
+ * into its array, `a`.
+ */
+function fixedLines(move: ArrayMove, s: Spelling, fixed: Fixed): string[] {
+	const { name: a, language } = s
+	const [py, java] = [language === 'python', language === 'java']
+	const end = py ? '' : ';'
+	const dot = py || java ? '.' : '->'
+	const v = (x: string) => literal(x, s)
+	const type = s.ints ? 'int' : java ? 'String' : 'const char *'
+	const call = (fn: string, ...args: string[]) => (py || java ? `${a}.${fn}(${args.join(', ')})${end}` : `${fn}(${[a, ...args].join(', ')});`)
+	const made = (values: readonly string[], f: Fixed, fresh: boolean): string[] => {
+		const [cls, struct] = f.as === 'stack' ? ['ArrayStack', 'Stack'] : ['ArrayQueue', 'Queue']
+		// Empty or not: where its front is decides where the next value goes.
+		const layout = f.as === 'queue' && f.front !== 0
+		const put = layout ? [] : values
+		const items = list(put, s)
+		const create = py
+			? `${a} = ${cls}(${f.capacity}${put.length ? `, [${items}]` : ''})`
+			: java
+				? `${fresh ? `${cls} ` : ''}${a} = new ${cls}(${f.capacity}${put.length ? `, ${items}` : ''});`
+				: `${fresh ? `${struct} *` : ''}${a} = new${struct}(${f.capacity}, ${put.length}, ${put.length ? `(${type}[]){${items}}` : 'NULL'});`
+		if (!layout) return [create]
+		// A circular buffer whose front has moved on: its array as it is, and where front and rear are.
+		const spare = py ? 'None' : s.ints ? '0' : java ? 'null' : 'NULL'
+		const slots = Array.from({ length: f.capacity }, (_, i) => values[(i - f.front + f.capacity) % f.capacity]).map((x) => (x === undefined ? spare : v(x)))
+		const rear = (f.front + values.length) % f.capacity
+		return [
+			`${create}    ${py ? '#' : '//'} its front moved on: laid out as it is`,
+			py ? `${a}.a = [${slots.join(', ')}]` : java ? `${a}.a = new ${type}[]{${slots.join(', ')}};` : `memcpy(${a}->a, (${type}[]){${slots.join(', ')}}, ${f.capacity} * sizeof(${type}));`,
+			py ? `${a}.front, ${a}.rear, ${a}.size = ${f.front}, ${rear}, ${values.length}` : `${a}${dot}front = ${f.front}; ${a}${dot}rear = ${rear}; ${a}${dot}size = ${values.length};`,
+		]
+	}
+	switch (move.op) {
+		case 'new':
+			return made(move.values, move.fixed ?? fixed, true)
+		case 'assign':
+			return made(move.values, move.fixed ?? fixed, false)
+		case 'push':
+			return [call('push', v(move.v))]
+		case 'pop':
+			return [call('pop')]
+		case 'enqueue':
+			return [call('enqueue', v(move.v))]
+		case 'dequeue':
+			return [call('dequeue')]
+		case 'set':
+			return [`${a}${dot}a[${move.i}] = ${v(move.v)}${end}`]
+		// Its push and pop, enqueue and dequeue are the calls.
+		case 'call':
+			return move.effect.flatMap((m) => fixedLines(m, s, fixed))
+		default:
+			return [`${py ? '#' : '//'} ${move.op}`]
+	}
+}
+
+/** An array's log written out in `language` (an ArrayStack or ArrayQueue as one, from where it is made one). */
 export function renderArrayLog(moves: readonly ArrayMove[], language: CodeLanguage): string {
 	const first = moves[0]
 	const s: Spelling = { ints: allNumbers(moves), name: first?.op === 'new' ? first.name : 'a', language }
-	return moves.flatMap((m) => lines(m, s)).join('\n')
+	let fixed: Fixed | undefined
+	return moves
+		.flatMap((m) => {
+			if (m.op === 'new' || m.op === 'assign') fixed = m.fixed
+			return fixed ? fixedLines(m, s, fixed) : lines(m, s)
+		})
+		.join('\n')
 }
 
 /** One list move's lines: drawds' own list methods (insert_at_head, insert_after, remove), node_at(i) naming a node. */
@@ -189,14 +259,72 @@ function listLines(move: ListMove, s: Spelling): string[] {
 			if (written) return [written]
 			return [`${note} ${move.label}, step by step:`, ...move.effect.flatMap((m) => listLines(m, s))]
 		}
+		// A linked stack's and queue's own (`linkedLines`).
+		case 'push':
+		case 'pop':
+		case 'enqueue':
+		case 'dequeue':
+			return [`${note} ${move.op}`]
 	}
 }
 
-/** A linked list's log written out in `language`. */
+/**
+ * A linked stack's or queue's moves: a LinkedStack made from its values from the top (as drawn) or
+ * a LinkedQueue from the front, push and pop, enqueue and dequeue as its code (`src/shapes/list/
+ * code.ts`) calls them, a value typed into a node along from the top or front.
+ */
+function linkedLines(move: ListMove, s: Spelling, kind: 'stack' | 'queue'): string[] {
+	const { name: l, language } = s
+	const [py, java] = [language === 'python', language === 'java']
+	const end = py ? '' : ';'
+	const note = py ? '#' : '//'
+	const dot = py || java ? '.' : '->'
+	const v = (x: string) => literal(x, s)
+	const call = (fn: string, ...args: string[]) => (py || java ? `${l}.${fn}(${args.join(', ')})${end}` : `${fn}(${[l, ...args].join(', ')});`)
+	const made = (values: readonly string[], k: ListKind, fresh: boolean): string[] => {
+		const [cls, struct, of] = k === 'stack' ? ['LinkedStack', 'Stack', 'stackOf'] : ['LinkedQueue', 'Queue', 'queueOf']
+		const items = list(values, s)
+		const create = py
+			? `${l} = ${cls}(${values.length ? `[${items}]` : ''})`
+			: java
+				? `${fresh ? `${cls} ` : ''}${l} = new ${cls}(${items});`
+				: `${fresh ? `${struct} *` : ''}${l} = ${of}(${values.length}, ${values.length ? `(${s.ints ? 'int' : 'const char *'}[]){${items}}` : 'NULL'});`
+		return [k === 'stack' && values.length > 1 ? `${create}    ${note} top first` : create]
+	}
+	switch (move.op) {
+		case 'new':
+			return made(move.values, move.kind ?? kind, true)
+		case 'assign':
+			return made(move.values, move.kind ?? kind, false)
+		case 'push':
+			return [call('push', v(move.v))]
+		case 'pop':
+			return [call('pop')]
+		case 'enqueue':
+			return [call('enqueue', v(move.v))]
+		case 'dequeue':
+			return [call('dequeue')]
+		case 'set':
+			return [`${l}${dot}${kind === 'stack' ? 'top' : 'front'}${`${dot}next`.repeat(move.i)}${dot}value = ${v(move.v)}${end}`]
+		// Its push and pop, enqueue and dequeue are the calls.
+		case 'call':
+			return move.effect.flatMap((m) => linkedLines(m, s, kind))
+		default:
+			return [`${note} ${move.op}`]
+	}
+}
+
+/** A linked list's log written out in `language` (a linked stack or queue as one, from where it is made one). */
 export function renderListLog(moves: readonly ListMove[], language: CodeLanguage): string {
 	const first = moves[0]
 	const s: Spelling = { ints: allNumbers(moves), name: first?.op === 'new' ? first.name : 'a', language }
-	return moves.flatMap((m) => listLines(m, s)).join('\n')
+	let kind: ListKind = 'list'
+	return moves
+		.flatMap((m) => {
+			if (m.op === 'new' || m.op === 'assign') kind = m.kind ?? 'list'
+			return kind === 'list' ? listLines(m, s) : linkedLines(m, s, kind)
+		})
+		.join('\n')
 }
 
 /** A tree's moves, a line each: a node named by its path from the root, a BST's nodes with keys. */

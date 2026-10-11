@@ -113,6 +113,18 @@ export async function sketchHeap(page: Page, [x, y]: [number, number], n: number
 	await page.mouse.up()
 }
 
+/** Pick a kind with the array tool (a stack or a queue), then sketch `n` cells from (x, y), dragging the given way. */
+export async function sketchArrayKind(page: Page, kind: 'stack' | 'queue', [x, y]: [number, number], n: number, dir: 'up' | 'right' | 'down') {
+	await page.keyboard.press('Shift+A')
+	await page.getByTestId(`style.array-kind.${kind}`).click()
+	const d = (n - 1) * CELL + 10
+	const [dx, dy] = { up: [0, -d], right: [d, 0], down: [0, d] }[dir]
+	await page.mouse.move(x, y)
+	await page.mouse.down()
+	await page.mouse.move(x + dx, y + dy, { steps: 20 })
+	await page.mouse.up()
+}
+
 /** Shift+U, then drag right so union-find has `n` elements, element 0 under (x, y). */
 export async function sketchUnionFind(page: Page, [x, y]: [number, number], n: number) {
 	await page.keyboard.press('Shift+U')

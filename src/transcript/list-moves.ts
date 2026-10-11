@@ -1,8 +1,11 @@
 // A linked list's moves, as its transcript keeps them (as `array-moves.ts` for arrays). Its nodes
 // have ids, so a change is told exactly: which node came, went or got a new value, wherever it is.
 
+/** A plain list, or a linked stack (its head the top) or queue (its head the front, its tail the rear). */
+export type ListKind = 'list' | 'stack' | 'queue'
+
 export type ListMove =
-	| { op: 'new'; name: string; values: string[] }
+	| { op: 'new'; name: string; values: string[]; kind?: ListKind }
 	/** Node i's value. */
 	| { op: 'set'; i: number; v: string }
 	| { op: 'insertAtHead'; v: string }
@@ -14,7 +17,12 @@ export type ListMove =
 	| { op: 'reverse' }
 	/** The last node's next (`last` its index): node `to` (a cycle), or null (none). */
 	| { op: 'cycle'; last: number; to: number | null }
-	| { op: 'assign'; values: string[] }
+	| { op: 'assign'; values: string[]; kind?: ListKind }
+	/** A linked stack's push (a node in at the top) and pop; a linked queue's enqueue (at the rear) and dequeue (from the front). */
+	| { op: 'push'; v: string }
+	| { op: 'pop' }
+	| { op: 'enqueue'; v: string }
+	| { op: 'dequeue' }
 	| { op: 'call'; algorithm: string; label: string; effect: ListMove[] }
 
 /** What a list's transcript follows: its nodes (id and value, in order) and where its last node points. */
@@ -23,6 +31,7 @@ export interface ListState {
 	values: string[]
 	/** The index the last node's next points at, or null. */
 	cycle: number | null
+	kind?: ListKind
 }
 
 const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((v, i) => v === b[i])
@@ -33,9 +42,28 @@ const same = (a: readonly string[], b: readonly string[]) => a.length === b.leng
  * values all at once.
  */
 export function diffList(prev: ListState, next: ListState): ListMove[] {
+	const kind = next.kind ?? 'list'
+	if ((prev.kind ?? 'list') !== kind) return [{ op: 'assign', values: [...next.values], kind }]
+	if (kind !== 'list') return stackOrQueueMoves(nodeMoves(prev, next), next)
 	const moves = nodeMoves(prev, next)
 	if (prev.cycle !== next.cycle) moves.push({ op: 'cycle', last: next.ids.length - 1, to: next.cycle })
 	return moves
+}
+
+/**
+ * A linked stack's or queue's moves, as what it is can do them: a node in at the top and out from it
+ * (a stack), in at the rear and out from the front (a queue), a value typed; anything else, built anew.
+ */
+function stackOrQueueMoves(moves: ListMove[], next: ListState): ListMove[] {
+	const stack = next.kind === 'stack'
+	const as = moves.map((m): ListMove | undefined => {
+		if (m.op === 'set') return m
+		if (m.op === 'remove' && m.i === 0) return { op: stack ? 'pop' : 'dequeue' }
+		if (stack && m.op === 'insertAtHead') return { op: 'push', v: m.v }
+		if (!stack && m.op === 'append') return { op: 'enqueue', v: m.v }
+		return undefined
+	})
+	return as.every((m) => m !== undefined) ? (as as ListMove[]) : [{ op: 'assign', values: [...next.values], kind: next.kind }]
 }
 
 function nodeMoves(prev: ListState, next: ListState): ListMove[] {
@@ -90,7 +118,15 @@ export function replayList(moves: readonly ListMove[]): string[] {
 				l[move.i] = move.v
 				break
 			case 'insertAtHead':
+			case 'push':
 				l.unshift(move.v)
+				break
+			case 'enqueue':
+				l.push(move.v)
+				break
+			case 'pop':
+			case 'dequeue':
+				l.shift()
 				break
 			case 'append':
 				l.push(move.v)

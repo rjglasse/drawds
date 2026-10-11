@@ -1,27 +1,15 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { ArrayShapeProps } from '../src/shapes/array/array-shape-types'
-import { CELL, open, rightClick, shapesOfType, transitionsDone } from './helpers'
+import { CELL, open, rightClick, shapesOfType, sketchArrayKind, transitionsDone } from './helpers'
 
 const props = async (page: Page) => (await shapesOfType<ArrayShapeProps>(page, 'array'))[0].props
-
-/** Pick a kind with the array tool, then sketch `n` cells from (x, y), dragging the given way. */
-async function sketchKind(page: Page, kind: 'stack' | 'queue', [x, y]: [number, number], n: number, dir: 'up' | 'right' | 'down') {
-	await page.keyboard.press('Shift+A')
-	await page.getByTestId(`style.array-kind.${kind}`).click()
-	const d = (n - 1) * CELL + 10
-	const [dx, dy] = { up: [0, -d], right: [d, 0], down: [0, d] }[dir]
-	await page.mouse.move(x, y)
-	await page.mouse.down()
-	await page.mouse.move(x + dx, y + dy, { steps: 20 })
-	await page.mouse.up()
-}
 
 const pointerBox = (page: Page, name: string) => page.locator(`[data-pointer="${name}"]`).boundingBox()
 
 test.beforeEach(({ page }) => open(page))
 
 test('a stack stands upright, index 0 where the drag began, with top at its last value', async ({ page }) => {
-	await sketchKind(page, 'stack', [300, 450], 4, 'up')
+	await sketchArrayKind(page, 'stack', [300, 450], 4, 'up')
 	const p = await props(page)
 	expect(p.kind).toBe('stack')
 	expect(p.values).toHaveLength(4)
@@ -34,7 +22,7 @@ test('a stack stands upright, index 0 where the drag began, with top at its last
 })
 
 test('a stack sketched downwards still grows up from the press point', async ({ page }) => {
-	await sketchKind(page, 'stack', [300, 300], 3, 'down')
+	await sketchArrayKind(page, 'stack', [300, 300], 3, 'down')
 	const [cell0, cell2] = await page.evaluate(() => {
 		const editor = window.editor!
 		const s = editor.getOnlySelectedShape()!
@@ -45,7 +33,7 @@ test('a stack sketched downwards still grows up from the press point', async ({ 
 })
 
 test('a fixed queue is a circular buffer: front and rear markers, spare slots blank; one undo back', async ({ page }) => {
-	await sketchKind(page, 'queue', [300, 300], 5, 'right')
+	await sketchArrayKind(page, 'queue', [300, 300], 5, 'right')
 	await page.getByTestId('style.array-sizing.fixed').click()
 	await page.evaluate(() => {
 		const editor = window.editor!
@@ -77,7 +65,7 @@ async function menu(page: Page, at: [number, number], submenu: string, item: str
 }
 
 test('stack: push a typed value, pop it again (last in, first out); overflow when full', async ({ page }) => {
-	await sketchKind(page, 'stack', [300, 450], 2, 'up')
+	await sketchArrayKind(page, 'stack', [300, 450], 2, 'up')
 	await page.getByTestId('style.array-sizing.fixed').click()
 	await menu(page, [300, 450], 'array-steps', 'array-push-value')
 	await page.getByTestId('key-prompt').fill('42')
@@ -109,7 +97,7 @@ test('stack: push a typed value, pop it again (last in, first out); overflow whe
 })
 
 test('circular queue: enqueue wraps rear round to 0; dequeue moves front on, nothing else moves', async ({ page }) => {
-	await sketchKind(page, 'queue', [300, 300], 4, 'right')
+	await sketchArrayKind(page, 'queue', [300, 300], 4, 'right')
 	await page.getByTestId('style.array-sizing.fixed').click()
 	await page.evaluate(() => {
 		const editor = window.editor!
@@ -131,7 +119,7 @@ test('circular queue: enqueue wraps rear round to 0; dequeue moves front on, not
 })
 
 test('a growing queue (a list) shifts every value to dequeue one', async ({ page }) => {
-	await sketchKind(page, 'queue', [300, 300], 4, 'right')
+	await sketchArrayKind(page, 'queue', [300, 300], 4, 'right')
 	const before = (await props(page)).values
 	await menu(page, [300, 300], 'array-steps', 'array-dequeue')
 	await stepToEnd(page)
@@ -141,7 +129,7 @@ test('a growing queue (a list) shifts every value to dequeue one', async ({ page
 })
 
 test('on-canvas buttons: push and pop a stack, enqueue and dequeue a queue', async ({ page }) => {
-	await sketchKind(page, 'stack', [300, 450], 3, 'up')
+	await sketchArrayKind(page, 'stack', [300, 450], 3, 'up')
 	const before = (await props(page)).values
 	await page.getByTestId('stack-push').click()
 	await expect(caption(page)).toContainText('top = top + 1 = 3, a new cell on top')
@@ -151,7 +139,7 @@ test('on-canvas buttons: push and pop a stack, enqueue and dequeue a queue', asy
 	await page.keyboard.press('Enter')
 	expect((await props(page)).values).toEqual(before)
 	await page.keyboard.press('Escape')
-	await sketchKind(page, 'queue', [500, 200], 3, 'right')
+	await sketchArrayKind(page, 'queue', [500, 200], 3, 'right')
 	const queue = (await shapesOfType<ArrayShapeProps>(page, 'array')).find((s) => s.props.kind === 'queue')!.props.values
 	await page.getByTestId('queue-dequeue').click()
 	await page.keyboard.press('Enter')

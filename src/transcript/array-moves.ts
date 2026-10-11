@@ -2,22 +2,36 @@
 // written in any language and rewritten when the language changes. A move says what the teacher did
 // (set a value, append one, sort), not how the shape's props came to change.
 
+/**
+ * A stack or queue with a fixed capacity: lecture 6's ArrayStack, or its ArrayQueue (a circular
+ * buffer, its values from `front`). Anything else, growing stacks and queues too, is a list.
+ */
+export interface Fixed {
+	as: 'stack' | 'queue'
+	capacity: number
+	front: number
+}
+
 export type ArrayMove =
 	/** The array as the transcript starts it: created, or as it was when logging began. */
-	| { op: 'new'; name: string; values: string[] }
+	| { op: 'new'; name: string; values: string[]; fixed?: Fixed }
 	| { op: 'set'; i: number; v: string }
 	| { op: 'append'; v: string }
 	| { op: 'insert'; i: number; v: string }
-	/** The last value taken off. */
+	/** The last value taken off (an ArrayStack's pop). */
 	| { op: 'pop' }
+	/** An ArrayStack's push; an ArrayQueue's enqueue (at its rear) and dequeue (from its front). */
+	| { op: 'push'; v: string }
+	| { op: 'enqueue'; v: string }
+	| { op: 'dequeue' }
 	| { op: 'delete'; i: number }
 	| { op: 'swap'; i: number; j: number }
 	| { op: 'sort'; descending?: boolean }
 	| { op: 'reverse' }
 	/** Shuffled, into this order (a run of it can't be told: the transcript says what came out). */
 	| { op: 'shuffle'; values: string[] }
-	/** New values all at once (a refill, or a change no single move explains). */
-	| { op: 'assign'; values: string[] }
+	/** New values all at once (a refill, or a change no single move explains); a stack or queue built anew. */
+	| { op: 'assign'; values: string[]; fixed?: Fixed }
 	/**
 	 * An operation played step by step and put in: its algorithm (an id in `ALGORITHMS`), written as a
 	 * call where its parameters can be filled in, else as `effect`, under the operation's name.
@@ -73,6 +87,41 @@ export function diffValues(prev: readonly string[], next: readonly string[]): Ar
 		if (k !== undefined) return [{ op: 'delete', i: k }]
 	}
 	return [{ op: 'assign', values: [...next] }]
+}
+
+/** What an array's transcript follows: its values in use, in order (a queue's from its front), and whether it is an ArrayStack or ArrayQueue. */
+export interface ArrayLogState {
+	values: string[]
+	fixed?: Fixed
+}
+
+const sameFixed = (a?: Fixed, b?: Fixed) => a?.as === b?.as && a?.capacity === b?.capacity && a?.front === b?.front
+
+export const sameArray = (a: ArrayLogState, b: ArrayLogState) => same(a.values, b.values) && sameFixed(a.fixed, b.fixed)
+
+/**
+ * The moves that take an array from `prev` to `next`. A list (growing stacks and queues are lists
+ * too): as `diffValues`. An ArrayStack: a push, a pop, a value typed; an ArrayQueue: an enqueue, a
+ * dequeue (its front moving on), a value typed at its place in the buffer. Another kind, another
+ * capacity, anything else: built anew.
+ */
+export function diffArray(prev: ArrayLogState, next: ArrayLogState): ArrayMove[] {
+	if (sameArray(prev, next)) return []
+	const [a, b] = [prev.fixed, next.fixed]
+	const anew: ArrayMove[] = [{ op: 'assign', values: [...next.values], ...(b ? { fixed: { ...b } } : {}) }]
+	if (!a && !b) return diffValues(prev.values, next.values)
+	if (!a || !b || a.as !== b.as || a.capacity !== b.capacity) return anew
+	const [x, y] = [prev.values, next.values]
+	const last = y[y.length - 1]
+	if (a.front === b.front && y.length === x.length + 1 && startsWith(y, x)) return [b.as === 'stack' ? { op: 'push', v: last } : { op: 'enqueue', v: last }]
+	if (b.as === 'stack' && y.length === x.length - 1 && startsWith(x, y)) return [{ op: 'pop' }]
+	if (b.as === 'queue' && x.length && b.front === (a.front + 1) % b.capacity && same(x.slice(1), y)) return [{ op: 'dequeue' }]
+	if (a.front === b.front && x.length === y.length) {
+		const changed = x.flatMap((v, k) => (v === y[k] ? [] : [k]))
+		// At its place in the array: a queue's k-th value is (front + k) % capacity along.
+		if (changed.length === 1) return [{ op: 'set', i: (b.front + changed[0]) % b.capacity, v: y[changed[0]] }]
+	}
+	return anew
 }
 
 /** The values a log leaves the array with. */

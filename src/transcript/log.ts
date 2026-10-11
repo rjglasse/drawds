@@ -1,7 +1,8 @@
 import type { Editor, TLShape, TLShapeId } from 'tldraw'
-import { usedCount, type ArrayShapeProps } from '../shapes/array/array-shape-types'
+import type { ArrayShapeProps } from '../shapes/array/array-shape-types'
+import { frontOf, usedIndices } from '../shapes/array/kinds'
 import type { ListShapeProps } from '../shapes/list/list-shape-types'
-import { diffValues, type ArrayMove } from './array-moves'
+import { diffArray, sameArray, type ArrayLogState, type ArrayMove } from './array-moves'
 import { diffList, type ListMove, type ListState } from './list-moves'
 import type { TreeShapeProps } from '../shapes/tree/tree-shape-types'
 import { diffTree, sameTree, shapeOf, treeArgs, type TreeMove } from './tree-moves'
@@ -39,7 +40,7 @@ interface Tracked<S> {
 	state(props: object): S
 	/** Whether a change could matter to the log (cheap: most changes are moves and styles). */
 	touches(prev: object, next: object): boolean
-	/** Whether the log follows this one at all (stacks and queues come later). */
+	/** Whether the log follows this one at all. */
 	follows(props: object): boolean
 	same(a: S, b: S): boolean
 	diff(a: S, b: S): Move[]
@@ -53,46 +54,59 @@ interface Tracked<S> {
 	sketching: string
 	/** What can be told of an operation's parameters from what it did (a tree's key put in, node taken out). */
 	args?(a: S, b: S): Record<string, string>
+	/** The name it would rather have (a stack s, a queue q), if no other structure has it. */
+	named?(props: object): string | undefined
 }
 
-const arrays: Tracked<string[]> = {
+/** A stack's or queue's name: s or q. */
+const kindName = (props: object) => ({ stack: 's', queue: 'q' })[(props as { kind?: string }).kind ?? '']
+
+// An array's values in use, in order (a queue's from its front); a stack or queue with a fixed
+// capacity is lecture 6's ArrayStack or ArrayQueue, growing ones are lists.
+const arrays: Tracked<ArrayLogState> = {
 	state: (props) => {
 		const p = props as ArrayShapeProps
-		return p.values.slice(0, usedCount(p))
+		const values = usedIndices(p).map((i) => p.values[i])
+		const as = p.sizing === 'fixed' && p.kind !== 'array' ? p.kind : undefined
+		return as ? { values, fixed: { as, capacity: p.values.length, front: frontOf(p) } } : { values }
 	},
 	touches: (a, b) => {
 		const [p, n] = [a as ArrayShapeProps, b as ArrayShapeProps]
-		return p.values !== n.values || p.used !== n.used || p.sizing !== n.sizing
+		return p.values !== n.values || p.used !== n.used || p.sizing !== n.sizing || p.kind !== n.kind || p.front !== n.front
 	},
-	follows: (props) => (props as ArrayShapeProps).kind === 'array',
-	same: (a, b) => a.length === b.length && a.every((v, i) => v === b[i]),
-	diff: diffValues,
-	start: (name, values) => ({ op: 'new', name, values }),
-	restart: (first, values) => ({ ...(first as Extract<ArrayMove, { op: 'new' }>), values }),
+	follows: () => true,
+	same: sameArray,
+	diff: diffArray,
+	start: (name, { values, fixed }) => ({ op: 'new', name, values, ...(fixed ? { fixed } : {}) }),
+	restart: (first, { values, fixed }) => ({ ...(first as Extract<ArrayMove, { op: 'new' }>), values, ...(fixed ? { fixed } : {}) }),
 	cell: (a, b) => {
-		const i = a.findIndex((v, k) => v !== b[k])
+		const i = a.values.findIndex((v, k) => v !== b.values[k])
 		return i < 0 ? undefined : String(i)
 	},
 	sketching: 'array.sketching',
+	named: kindName,
 }
 
+// A list's nodes by id; a linked stack or queue as one.
 const lists: Tracked<ListState> = {
 	state: (props) => {
-		const { nodes, cycleTo } = props as ListShapeProps
+		const { nodes, cycleTo, kind } = props as ListShapeProps
 		const at = cycleTo ? nodes.findIndex((n) => n.id === cycleTo) : -1
-		return { ids: nodes.map((n) => n.id), values: nodes.map((n) => n.value), cycle: at < 0 ? null : at }
+		return { ids: nodes.map((n) => n.id), values: nodes.map((n) => n.value), cycle: at < 0 ? null : at, ...(kind !== 'list' ? { kind } : {}) }
 	},
 	touches: (a, b) => {
 		const [p, n] = [a as ListShapeProps, b as ListShapeProps]
-		return p.nodes !== n.nodes || p.cycleTo !== n.cycleTo
+		return p.nodes !== n.nodes || p.cycleTo !== n.cycleTo || p.kind !== n.kind
 	},
-	follows: (props) => (props as ListShapeProps).kind === 'list',
-	same: (a, b) => a.cycle === b.cycle && a.ids.length === b.ids.length && a.ids.every((id, i) => id === b.ids[i] && a.values[i] === b.values[i]),
+	follows: () => true,
+	same: (a, b) =>
+		a.cycle === b.cycle && a.kind === b.kind && a.ids.length === b.ids.length && a.ids.every((id, i) => id === b.ids[i] && a.values[i] === b.values[i]),
 	diff: diffList,
-	start: (name, s) => ({ op: 'new', name, values: s.values }),
-	restart: (first, s) => ({ ...(first as Extract<ListMove, { op: 'new' }>), values: s.values }),
+	start: (name, s) => ({ op: 'new', name, values: s.values, ...(s.kind ? { kind: s.kind } : {}) }),
+	restart: (first, s) => ({ ...(first as Extract<ListMove, { op: 'new' }>), values: s.values, ...(s.kind ? { kind: s.kind } : {}) }),
 	cell: (a, b) => a.ids.find((id, i) => b.ids[i] === id && a.values[i] !== b.values[i]),
 	sketching: 'linked-list.sketching',
+	named: kindName,
 }
 
 type TreeNodes = TreeShapeProps['nodes']
@@ -232,11 +246,11 @@ export const logOf = (shape: TLShape): Move[] | undefined => {
 export function logOrStart(editor: Editor, shape: TLShape): Move[] {
 	const tracked = TRACKED[shape.type]
 	if (!tracked) return []
-	return logOf(shape) ?? [tracked.start(freshName(editor, shape.id), tracked.state(shape.props))]
+	return logOf(shape) ?? [tracked.start(freshName(editor, shape.id, tracked.named?.(shape.props)), tracked.state(shape.props))]
 }
 
-/** The first of a, b, c... no other structure's log uses (then a2, b2...). */
-function freshName(editor: Editor, id: TLShapeId): string {
+/** `wanted` if no other structure's log uses it, else the first of a, b, c... none does (then a2, b2...). */
+function freshName(editor: Editor, id: TLShapeId, wanted?: string): string {
 	const taken = new Set(
 		editor
 			.getCurrentPageShapes()
@@ -246,6 +260,7 @@ function freshName(editor: Editor, id: TLShapeId): string {
 				return first?.op === 'new' ? [first.name] : []
 			})
 	)
+	if (wanted && !taken.has(wanted)) return wanted
 	for (let round = 1; ; round++)
 		for (const letter of 'abcdefghijklmnopqrstuvwxyz') {
 			const name = round === 1 ? letter : `${letter}${round}`

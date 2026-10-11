@@ -211,7 +211,7 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   deg v), not E; is u adjacent to v: 1 cell, u's list, the pairs); frames carry the graph (`props`, so the views draw
   the step's graph) and `Frame.views`, each view's own highlights for that step; counts per representation in the play
   bar. The graph's Step by step opens the matrix and lists for them (`playCosts`; Esc takes them back).
-- `src/transcript/` - the code beside a structure (dds-2tt, arrays, linked lists, binary trees, graphs, heaps, hash tables, matrices and union-find): every move kept as code. Each
+- `src/transcript/` - the code beside a structure (dds-2tt, every structure: arrays, stacks and queues, linked lists, binary trees, graphs, heaps, hash tables, matrices, union-find): every move kept as code. Each
   kind says what its log follows and how a change reads as moves (`Tracked` in `log.ts`): an array's values in use; a
   list's nodes by id (`list-moves.ts`: set / insertAtHead / append / insert / remove / reverse / cycle, exact as nodes
   have ids; a later node holding a value an earlier one holds goes by its place, remove_at), written with drawds' own list
@@ -239,7 +239,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   union and find work, `make_set()`, a parent typed with the roots' size / rank it recounts (the code reads only roots),
   union(a, b) and find(i) by index as the operation says (`playOperation`'s `args`: a union can't be told from its
   result), names in a comment; drawds counts sizes under every union rule, the code only by size, so a switch back to
-  size after unions by rank or naively writes the sizes drawds kept. Typing straight into what a +
+  size after unions by rank or naively writes the sizes drawds kept; stacks and queues by what they are: growing ones are
+  lists (`s.append(5)`, `del q[0]`), fixed-capacity ones lecture 6's ArrayStack / ArrayQueue (`Fixed` in
+  `array-moves.ts`, `diffArray`: push / pop, enqueue / dequeue with the front moving on, a value typed at its place in
+  the buffer; a buffer whose front has moved on is laid out as it is), linked ones a LinkedStack (top first, as drawn) /
+  LinkedQueue (`ListKind`, push / pop / enqueue / dequeue moves); their calls are those moves; named s and q (`named`).
+  Typing straight into what a +
   just put in folds into that insert (a connect grip's new vertex: its label into its addVertex and edges). `log.ts`: a store
   side effect (`startCodeLog`, App onMount) keeps language-neutral moves (`array-moves.ts`: new / set / append / insert
   / pop / delete / swap / sort / reverse / shuffle / assign / call) in the shape's meta (`drawdsCode`), inside the same
@@ -255,7 +260,7 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   300 tree logs, 300 graph logs, 300 heap logs, 400 hash table logs (against classes made of their own Python code;
   every scheme, deleted markers, keys typed anywhere), 300 matrix logs and 400 union-find logs (against the code's own
   union and find per kind), run, rebuilt their structures. The code box goes right of the structure, past its grips
-  (`toggleTranscript`). Not logged yet: stacks and queues (array and list kinds).
+  (`toggleTranscript`). Stacks and queues: 400 array logs and 300 linked ones against lecture 6's code, run, rebuilt.
 - `src/cells/clean-copy.ts` - Clean copy, last in every structure's own submenu (`NodeOperationsMenu` adds it): the
   same props (values, shape, seed) without marks or pointers, under the original past anything in the way
   (`freeTopBelow`, pure), selected, one undo step; followers stay with the original.

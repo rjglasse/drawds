@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { diffValues, replay, type ArrayMove } from './array-moves'
+import { diffArray, diffValues, replay, type ArrayLogState, type ArrayMove } from './array-moves'
 import { diffList, replayList, type ListMove, type ListState } from './list-moves'
 import { addChild, mirrorSubtree, removeSubtree, swapChildren } from '../shapes/tree/model'
 import { diffGraph, graphState, type GraphMove, type GraphState } from './graph-moves'
@@ -636,5 +636,80 @@ describe('a union-find change as the move a teacher made', () => {
 	it('every element on its own again: a new one, told how it unions', () => {
 		const rank: UnionFindState = { ...start, by: 'naive' }
 		expect(renderUnionFindLog([{ op: 'new', name: 'u', state: two }, { op: 'assign', state: rank }], 'python').split('\n').slice(-2)).toEqual(['u = UnionFind(4)', "u.by = 'naive'"])
+	})
+})
+
+describe('a stack or queue change as the move a teacher made', () => {
+	const stack = (values: string[], capacity = 5): ArrayLogState => ({ values, fixed: { as: 'stack', capacity, front: 0 } })
+	const queue = (values: string[], front = 0, capacity = 5): ArrayLogState => ({ values, fixed: { as: 'queue', capacity, front } })
+
+	it("an ArrayStack's push, pop and a value typed; an ArrayQueue's enqueue, dequeue (front moving on) and a value typed at its place", () => {
+		expect(diffArray(stack(v(3, 1)), stack(v(3, 1, 4)))).toEqual([{ op: 'push', v: '4' }])
+		expect(diffArray(stack(v(3, 1)), stack(v(3)))).toEqual([{ op: 'pop' }])
+		expect(diffArray(stack(v(3, 1)), stack(v(3, 9)))).toEqual([{ op: 'set', i: 1, v: '9' }])
+		expect(diffArray(queue(v(3, 1), 4), queue(v(3, 1, 4), 4))).toEqual([{ op: 'enqueue', v: '4' }])
+		expect(diffArray(queue(v(3, 1), 4), queue(v(1), 0))).toEqual([{ op: 'dequeue' }])
+		// An empty buffer whose front moved round dequeued nothing: built anew (where its front is).
+		expect(diffArray(queue([], 4), queue([], 0))).toEqual([{ op: 'assign', values: [], fixed: { as: 'queue', capacity: 5, front: 0 } }])
+		// The queue's second value sits at (4 + 1) % 5 = 0.
+		expect(diffArray(queue(v(3, 1), 4), queue(v(3, 9), 4))).toEqual([{ op: 'set', i: 0, v: '9' }])
+		// Another capacity, another kind: built anew. A list (a growing stack too) as an array.
+		expect(diffArray(stack(v(3, 1)), stack(v(3, 1), 8))).toEqual([{ op: 'assign', values: v(3, 1), fixed: { as: 'stack', capacity: 8, front: 0 } }])
+		expect(diffArray({ values: v(3, 1) }, { values: v(3, 1, 4) })).toEqual([{ op: 'append', v: '4' }])
+	})
+
+	it('written out: lecture 6’s ArrayStack and ArrayQueue, made with their capacity and values', () => {
+		const log: ArrayMove[] = [
+			{ op: 'new', name: 's', values: v(3, 1), fixed: { as: 'stack', capacity: 5, front: 0 } },
+			{ op: 'call', algorithm: 'stack-push', label: 'push', effect: [{ op: 'push', v: '4' }] },
+			{ op: 'call', algorithm: 'stack-pop', label: 'pop', effect: [{ op: 'pop' }] },
+			{ op: 'set', i: 1, v: '9' },
+		]
+		expect(renderArrayLog(log, 'python').split('\n')).toEqual(['s = ArrayStack(5, [3, 1])', 's.push(4)', 's.pop()', 's.a[1] = 9'])
+		expect(renderArrayLog(log, 'java').split('\n')).toEqual(['ArrayStack s = new ArrayStack(5, 3, 1);', 's.push(4);', 's.pop();', 's.a[1] = 9;'])
+		expect(renderArrayLog(log, 'c').split('\n')).toEqual(['Stack *s = newStack(5, 2, (int[]){3, 1});', 'push(s, 4);', 'pop(s);', 's->a[1] = 9;'])
+		const q: ArrayMove[] = [
+			{ op: 'new', name: 'q', values: v(3, 1), fixed: { as: 'queue', capacity: 4, front: 0 } },
+			{ op: 'enqueue', v: '4' },
+			{ op: 'dequeue' },
+			{ op: 'assign', values: v(7, 8), fixed: { as: 'queue', capacity: 4, front: 3 } },
+		]
+		expect(renderArrayLog(q, 'python').split('\n')).toEqual([
+			'q = ArrayQueue(4, [3, 1])',
+			'q.enqueue(4)',
+			'q.dequeue()',
+			'q = ArrayQueue(4)    # its front moved on: laid out as it is',
+			'q.a = [8, None, None, 7]',
+			'q.front, q.rear, q.size = 3, 1, 2',
+		])
+		expect(renderArrayLog(q, 'c').split('\n').slice(-3)).toEqual([
+			'q = newQueue(4, 0, NULL);    // its front moved on: laid out as it is',
+			'memcpy(q->a, (int[]){8, 0, 0, 7}, 4 * sizeof(int));',
+			'q->front = 3; q->rear = 1; q->size = 2;',
+		])
+	})
+
+	it('a linked stack: in at the top and out from it; a linked queue: in at the rear, out from the front', () => {
+		const st = (ids: string, kind: 'stack' | 'queue' = 'stack'): ListState => ({ ids: [...ids], values: [...ids].map((c) => String(c.charCodeAt(0) - 96)), cycle: null, kind })
+		expect(diffList(st('bc'), st('abc'))).toEqual([{ op: 'push', v: '1' }])
+		expect(diffList(st('abc'), st('bc'))).toEqual([{ op: 'pop' }])
+		expect(diffList(st('ab', 'queue'), st('abc', 'queue'))).toEqual([{ op: 'enqueue', v: '3' }])
+		expect(diffList(st('ab', 'queue'), st('b', 'queue'))).toEqual([{ op: 'dequeue' }])
+		// In at the front: not what a queue does, so built anew.
+		expect(diffList(st('ab', 'queue'), st('cab', 'queue'))).toEqual([{ op: 'assign', values: v(3, 1, 2), kind: 'queue' }])
+		expect(diffList({ ...st('ab'), kind: undefined }, st('ab'))).toEqual([{ op: 'assign', values: v(1, 2), kind: 'stack' }])
+	})
+
+	it('written out: a LinkedStack (top first, as drawn) and a LinkedQueue, as their code calls them', () => {
+		const log: ListMove[] = [
+			{ op: 'new', name: 's', values: v(3, 1), kind: 'stack' },
+			{ op: 'call', algorithm: 'linked-push', label: 'push', effect: [{ op: 'push', v: '4' }] },
+			{ op: 'pop' },
+			{ op: 'set', i: 1, v: '9' },
+		]
+		expect(renderListLog(log, 'python').split('\n')).toEqual(['s = LinkedStack([3, 1])    # top first', 's.push(4)', 's.pop()', 's.top.next.value = 9'])
+		expect(renderListLog(log, 'c').split('\n')).toEqual(['Stack *s = stackOf(2, (int[]){3, 1});    // top first', 'push(s, 4);', 'pop(s);', 's->top->next->value = 9;'])
+		const q: ListMove[] = [{ op: 'new', name: 'q', values: [], kind: 'queue' }, { op: 'enqueue', v: '5' }, { op: 'dequeue' }]
+		expect(renderListLog(q, 'java').split('\n')).toEqual(['LinkedQueue q = new LinkedQueue();', 'q.enqueue(5);', 'q.dequeue();'])
 	})
 })

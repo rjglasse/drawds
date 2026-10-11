@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { arrayStep, CELL, connectNodes, focusedLabel, handlePosition, hoverNode, insertKey, menusClosed, nodeScreenPosition, open, rightClick, sketchArray, sketchGraph, sketchHashTable, sketchHeap, sketchList, sketchMatrix, sketchTree, sketchUnionFind } from './helpers'
+import { arrayStep, CELL, connectNodes, focusedLabel, handlePosition, hoverNode, insertKey, menusClosed, nodeScreenPosition, open, rightClick, sketchArray, sketchArrayKind, sketchGraph, sketchHashTable, sketchHeap, sketchList, sketchMatrix, sketchTree, sketchUnionFind } from './helpers'
 
 // The code beside an array: every move made on it, as code, kept in its meta so undo and redo take
 // the lines with the moves.
@@ -319,4 +319,65 @@ test('the code beside union-find: union and find called by index (names in a com
 	})
 	await page.getByTestId('style.code-language.python').click()
 	await expect.poll(() => lines(page)).toEqual(['a = UnionFind(5)', 'a.union(1, 3)', 'a.union(0, 2)    # union(A, 2)', "a.by = 'rank'"])
+})
+
+test('the code beside a stack or queue: lecture 6’s ArrayStack and ArrayQueue, a linked stack a LinkedStack', async ({ page }) => {
+	const done = async () => {
+		while (!(await page.getByTestId('play-done').count())) await page.keyboard.press('ArrowRight')
+		await page.keyboard.press('Enter')
+	}
+	const step = async (at: [number, number], item: string, value?: string) => {
+		await rightClick(page, at)
+		await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
+		await page.getByTestId(`context-menu.${item}`).click()
+		if (value !== undefined) {
+			await page.getByTestId('key-prompt').fill(value)
+			await page.keyboard.press('Enter')
+		}
+		await done()
+	}
+	// Sketched growing (a list), given a fixed capacity: an ArrayStack from there, named s.
+	await sketchArrayKind(page, 'stack', [300, 450], 2, 'up')
+	await page.getByTestId('style.array-sizing.fixed').click()
+	await rightClick(page, [300, 450])
+	await page.getByTestId('context-menu-sub.drawds-array-show-button').click()
+	await page.getByTestId('context-menu.array-code-beside').click()
+	await expect.poll(async () => (await lines(page)).at(-1)).toMatch(/^s = new ArrayStack\(2, \d+, \d+\);$/)
+	await step([300, 450], 'array-grow')
+	await expect.poll(async () => (await lines(page)).at(-1)).toMatch(/^s = new ArrayStack\(4, \d+, \d+\);$/)
+	await step([300, 450], 'array-push-value', '42')
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('s.push(42);')
+	await step([300, 450], 'array-pop')
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('s.pop();')
+	await page.keyboard.press('ControlOrMeta+z')
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('s.push(42);')
+
+	// A circular buffer, named q (the Length picker still on fixed: one from the start): a dequeue, then
+	// an enqueue wrapping round.
+	await page.evaluate(() => void window.editor!.deleteShapes([...window.editor!.getCurrentPageShapeIds()]))
+	await sketchArrayKind(page, 'queue', [200, 300], 3, 'right')
+	await rightClick(page, [200, 300])
+	await page.getByTestId('context-menu-sub.drawds-array-show-button').click()
+	await page.getByTestId('context-menu.array-code-beside').click()
+	await expect.poll(() => lines(page)).toEqual([expect.stringMatching(/^ArrayQueue q = new ArrayQueue\(3, \d+, \d+, \d+\);$/)])
+	await step([200, 300], 'array-dequeue')
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('q.dequeue();')
+	await step([200, 300], 'array-enqueue-value', '7')
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('q.enqueue(7);')
+
+	// A list made a linked stack: a LinkedStack from there, push and pop by its buttons.
+	await page.evaluate(() => void window.editor!.deleteShapes([...window.editor!.getCurrentPageShapeIds()]))
+	await sketchList(page, [200, 200], 2)
+	await page.getByTestId('style.list-kind.stack').click()
+	await rightClick(page, await nodeScreenPosition(page, 'n0'))
+	await page.getByTestId('context-menu-sub.drawds-list-show-button').click()
+	await page.getByTestId('context-menu.list-code-beside').click()
+	await expect.poll(async () => (await lines(page)).at(-1)).toMatch(/^a = new LinkedStack\(\d+, \d+\);    \/\/ top first$/)
+	await menusClosed(page)
+	await page.getByTestId('stack-pop').click()
+	await done()
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a.pop();')
+	await page.getByTestId('stack-push').click()
+	await done()
+	await expect.poll(async () => (await lines(page)).at(-1)).toMatch(/^a\.push\(\d+\);$/)
 })

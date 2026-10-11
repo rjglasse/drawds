@@ -327,17 +327,13 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 				label: showSize ? 'Hide the size field' : 'Show the size field',
 				run: () => this.toggleSize(id),
 			},
-			// Every move made on it, as code (a plain list's: not a stack's or queue's yet).
-			...(shape.props.kind === 'list'
-				? [
-						{
-							section: 'show' as const,
-							id: 'list-code-beside',
-							label: transcriptsOf(this.editor, id).length ? 'Hide the code beside it' : 'Code beside it: every move as code',
-							run: () => toggleTranscript(this.editor, shape),
-						},
-					]
-				: []),
+			// Every move made on it, as code (a linked stack's or queue's as a LinkedStack or LinkedQueue).
+			{
+				section: 'show',
+				id: 'list-code-beside',
+				label: transcriptsOf(this.editor, id).length ? 'Hide the code beside it' : 'Code beside it: every move as code',
+				run: () => toggleTranscript(this.editor, shape),
+			},
 		]
 	}
 
