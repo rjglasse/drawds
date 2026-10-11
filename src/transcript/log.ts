@@ -3,6 +3,8 @@ import { usedCount, type ArrayShapeProps } from '../shapes/array/array-shape-typ
 import type { ListShapeProps } from '../shapes/list/list-shape-types'
 import { diffValues, type ArrayMove } from './array-moves'
 import { diffList, type ListMove, type ListState } from './list-moves'
+import type { TreeShapeProps } from '../shapes/tree/tree-shape-types'
+import { diffTree, sameTree, shapeOf, treeArgs, type TreeMove } from './tree-moves'
 
 // The code log: every move on a structure, kept in its meta (`drawdsCode`) by a store side effect
 // that runs inside the same change, so the move and its line are one undo step, redo brings the
@@ -18,7 +20,7 @@ import { diffList, type ListMove, type ListState } from './list-moves'
 
 export const LOG_KEY = 'drawdsCode'
 
-export type Move = ArrayMove | ListMove
+export type Move = ArrayMove | ListMove | TreeMove
 
 /** What a kind of structure's log follows, and how a change of it reads as moves. */
 interface Tracked<S> {
@@ -38,6 +40,8 @@ interface Tracked<S> {
 	cell(a: S, b: S): string | undefined
 	/** The tool state that is the creating drag. */
 	sketching: string
+	/** What can be told of an operation's parameters from what it did (a tree's key put in, node taken out). */
+	args?(a: S, b: S): Record<string, string>
 }
 
 const arrays: Tracked<string[]> = {
@@ -80,8 +84,27 @@ const lists: Tracked<ListState> = {
 	sketching: 'linked-list.sketching',
 }
 
+type TreeNodes = TreeShapeProps['nodes']
+
+const trees: Tracked<TreeNodes> = {
+	state: (props) => (props as TreeShapeProps).nodes,
+	touches: (a, b) => (a as TreeShapeProps).nodes !== (b as TreeShapeProps).nodes,
+	follows: () => true,
+	same: sameTree,
+	diff: diffTree,
+	start: (name, nodes) => ({ op: 'new', name, tree: shapeOf(nodes) }),
+	restart: (first, nodes) => ({ ...(first as Extract<TreeMove, { op: 'new' }>), tree: shapeOf(nodes) }),
+	cell: (a, b) => a.find((n) => b.find((m) => m.id === n.id)?.value !== n.value)?.id,
+	sketching: 'binary-tree.sketching',
+	args: treeArgs,
+}
+
 /** The structures with a log, by shape type. */
-const TRACKED: Record<string, Tracked<unknown>> = { array: arrays as Tracked<unknown>, 'linked-list': lists as Tracked<unknown> }
+const TRACKED: Record<string, Tracked<unknown>> = {
+	array: arrays as Tracked<unknown>,
+	'linked-list': lists as Tracked<unknown>,
+	'binary-tree': trees as Tracked<unknown>,
+}
 
 /** Whether a shape's moves are logged. */
 export const isLogged = (shape: TLShape) => !!TRACKED[shape.type]?.follows(shape.props)
@@ -173,7 +196,9 @@ export function logged(editor: Editor, prev: TLShape, next: TLShape): Move[] | u
 	const intent = intents.get(editor)?.get(next.id)
 	if (intent) {
 		intents.get(editor)!.delete(next.id)
-		return [...log, ...(Array.isArray(intent) ? intent : [{ op: 'call', algorithm: intent.call, label: intent.label, effect: tracked.diff(from, to) } as Move])]
+		if (Array.isArray(intent)) return [...log, ...intent]
+		const args = tracked.args?.(from, to)
+		return [...log, { op: 'call', algorithm: intent.call, label: intent.label, effect: tracked.diff(from, to), ...(args ? { args } : {}) } as Move]
 	}
 	if (tracked.same(from, to)) return undefined
 	const map = runsOf(editor)
@@ -201,8 +226,9 @@ function typedIntoNew(before: Move[], moves: Move[]): Move[] | undefined {
 	const [set] = moves
 	const last = before.at(-1)
 	if (moves.length !== 1 || set.op !== 'set' || !last) return undefined
-	if ((last.op === 'insert' && last.i === set.i) || (last.op === 'insertAtHead' && set.i === 0)) return [...before.slice(0, -1), { ...last, v: set.v }]
-	return undefined
+	const at = 'i' in set ? set.i : set.path
+	const into = (last.op === 'insert' && last.i === at) || (last.op === 'insertAtHead' && at === 0) || (last.op === 'add' && last.path === at)
+	return into ? [...before.slice(0, -1), { ...last, v: set.v } as Move] : undefined
 }
 
 /** Keep every structure's log as it changes. Returns the cleanup. */

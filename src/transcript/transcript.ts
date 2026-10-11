@@ -5,7 +5,8 @@ import { CODE_TYPE, CodeLanguageStyle, type CodeShape } from '../shapes/code/cod
 import { logOrStart } from './log'
 import type { ArrayMove } from './array-moves'
 import type { ListMove } from './list-moves'
-import { renderArrayLog, renderListLog } from './render'
+import { renderArrayLog, renderListLog, renderTreeLog } from './render'
+import type { TreeMove } from './tree-moves'
 
 // The code beside a structure: a code box following it (`structureId`) with `transcript` on, whose
 // text is the structure's log written out in the box's language, worked out as it is drawn (so an
@@ -14,7 +15,10 @@ import { renderArrayLog, renderListLog } from './render'
 /** A structure's moves written out in `language`. */
 export function transcriptOf(editor: Editor, structure: TLShape, language: CodeLanguage): string {
 	const log = logOrStart(editor, structure)
-	return structure.type === 'linked-list' ? renderListLog(log as ListMove[], language) : renderArrayLog(log as ArrayMove[], language)
+	if (structure.type === 'linked-list') return renderListLog(log as ListMove[], language)
+	// A BST's nodes hold keys, as its code calls them.
+	if (structure.type === 'binary-tree') return renderTreeLog(log as TreeMove[], language, (structure.props as { kind?: string }).kind === 'bst' ? 'key' : 'value')
+	return renderArrayLog(log as ArrayMove[], language)
 }
 
 /** The transcript boxes following a structure. */

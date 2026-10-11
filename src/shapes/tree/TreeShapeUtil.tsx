@@ -1,4 +1,5 @@
 import type { TLShapePartial, VecLike } from 'tldraw'
+import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
 import { pruneMarks, type Marks } from '../../cells/marks'
 import { compareKeys } from '../../data/compare'
 import { fillValues, insertValue } from '../../data/fill'
@@ -260,7 +261,14 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 			label: shape.props.terms ? 'Hide the tree terms' : 'Tree terms: root, internal, leaf, depth, height',
 			run: () => this.toggleTerms(shape.id),
 		}
-		if (shape.props.kind !== 'bst' || shape.props.nodes.length < 2) return [terms]
+		// Every move made on it, as code.
+		const code: NodeOperation = {
+			section: 'show',
+			id: 'tree-code-beside',
+			label: transcriptsOf(this.editor, shape.id).length ? 'Hide the code beside it' : 'Code beside it: every move as code',
+			run: () => toggleTranscript(this.editor, shape),
+		}
+		if (shape.props.kind !== 'bst' || shape.props.nodes.length < 2) return [terms, code]
 		const build = { group: 'build' }
 		return [
 			...(['sorted', 'shuffled'] as const).map((order) => ({
@@ -270,6 +278,7 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 				run: () => this.build(shape.id, order),
 			})),
 			terms,
+			code,
 		]
 	}
 

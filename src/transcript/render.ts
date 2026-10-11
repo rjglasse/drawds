@@ -2,6 +2,7 @@ import { algorithmCode } from '../shapes/code/algorithms'
 import type { CodeLanguage } from '../shapes/code/highlight'
 import type { ArrayMove } from './array-moves'
 import type { ListMove } from './list-moves'
+import type { TreeMove, TreeShape } from './tree-moves'
 
 // An array's moves written out in a language, a line each (a call that can't be written out is its
 // effect, under a comment naming it). Python: a list. Java: a List (an ArrayList, as a growing array
@@ -10,13 +11,16 @@ import type { ListMove } from './list-moves'
 
 const numeric = (v: string) => v.trim() !== '' && Number.isFinite(Number(v))
 
-type AnyMove = ArrayMove | ListMove
+type AnyMove = ArrayMove | ListMove | TreeMove
+
+/** Every value a tree holds. */
+const treeValues = (t: TreeShape): string[] => (t ? [t.v, ...treeValues(t.l), ...treeValues(t.r)] : [])
 
 /** Whether every value the moves speak of is a number (an int list), else text. */
 function allNumbers(moves: readonly AnyMove[]): boolean {
-	const values = moves.flatMap((m): string[] =>
-		'values' in m ? m.values : 'v' in m ? [m.v] : m.op === 'call' ? (m.effect as AnyMove[]).flatMap((e) => ('values' in e ? e.values : 'v' in e ? [e.v] : [])) : []
-	)
+	const of = (m: AnyMove): string[] =>
+		'values' in m ? m.values : 'tree' in m ? treeValues(m.tree) : 'v' in m ? [m.v] : m.op === 'call' ? (m.effect as AnyMove[]).flatMap(of) : []
+	const values = moves.flatMap(of)
 	return values.every((v) => v === '' || numeric(v))
 }
 
@@ -48,7 +52,13 @@ function made(values: readonly string[], s: Spelling): string {
  * method (Python's self, or Java code that doesn't take the structure: a list's) is called on it.
  * Undefined if any other parameter (a key, a position) has to be known.
  */
-function call(algorithm: string, s: Spelling, kind: 'array' | 'list' = 'array'): string | undefined {
+function call(
+	algorithm: string,
+	s: Spelling,
+	kind: 'array' | 'list' | 'tree' = 'array',
+	/** Other parameters, as what the operation did tells them (a tree's key, its node). */
+	more: (param: string) => string | undefined = () => undefined
+): string | undefined {
 	const code = algorithmCode(algorithm, s.language)
 	if (!code || code.language !== s.language) return undefined
 	const head = code.text.split('\n')[0]
@@ -62,7 +72,7 @@ function call(algorithm: string, s: Spelling, kind: 'array' | 'list' = 'array'):
 		.map((p) => p.trim())
 		.filter(Boolean)
 	const names = all.map((p) => /(\w+)\s*(\[\])?$/.exec(p)?.[1] ?? p)
-	const structure = kind === 'array' ? ['a', 'arr', 'nums', 'array'] : ['list']
+	const structure = kind === 'array' ? ['a', 'arr', 'nums', 'array'] : kind === 'list' ? ['list'] : ['t', 'tree']
 	const method = names[0] === 'self' || (language === 'java' && !names.some((p) => structure.includes(p)))
 	const args = names
 		.filter((p) => p !== 'self')
@@ -71,7 +81,7 @@ function call(algorithm: string, s: Spelling, kind: 'array' | 'list' = 'array'):
 			if (param === 'n') return length
 			if (param === 'lo' || param === 'low') return '0'
 			if (param === 'hi' || param === 'high') return `${length} - 1`
-			return undefined
+			return more(param)
 		})
 	if (args.includes(undefined)) return undefined
 	return `${method ? `${name}.` : ''}${fn}(${args.join(', ')})${language === 'python' ? '' : ';'}`
@@ -176,4 +186,54 @@ export function renderListLog(moves: readonly ListMove[], language: CodeLanguage
 	const first = moves[0]
 	const s: Spelling = { ints: allNumbers(moves), name: first?.op === 'new' ? first.name : 'a', language }
 	return moves.flatMap((m) => listLines(m, s)).join('\n')
+}
+
+/** A tree's moves, a line each: a node named by its path from the root, a BST's nodes with keys. */
+function treeLines(move: TreeMove, s: Spelling, field: 'key' | 'value'): string[] {
+	const { name: t, language } = s
+	const [py, java] = [language === 'python', language === 'java']
+	const end = py ? '' : ';'
+	const nil = py ? 'None' : java ? 'null' : 'NULL'
+	const v = (x: string) => literal(x, s)
+	const at = (path: string) => [py || java ? `${t}.root` : `${t}->root`, ...[...path].map((d) => (d === 'L' ? 'left' : 'right'))].join(py || java ? '.' : '->')
+	const field_ = (path: string) => `${at(path)}${py || java ? '.' : '->'}${field}`
+	const node = (n: TreeShape): string => {
+		if (!n) return nil
+		if (!n.l && !n.r) return py ? `Node(${v(n.v)})` : java ? `new Node(${v(n.v)})` : `newNode(${v(n.v)})`
+		const kids = `${node(n.l)}, ${node(n.r)}`
+		return py ? `Node(${v(n.v)}, ${kids})` : java ? `new Node(${v(n.v)}, ${kids})` : `node(${v(n.v)}, ${kids})`
+	}
+	switch (move.op) {
+		case 'new': {
+			const root = move.tree ? node(move.tree) : ''
+			return [py ? `${t} = Tree(${root})` : java ? `Tree ${t} = new Tree(${root});` : `Tree *${t} = newTree(${root || 'NULL'});`]
+		}
+		case 'assign':
+			return [`${at('')} = ${node(move.tree)}${end}`]
+		case 'set':
+			return [`${field_(move.path)} = ${v(move.v)}${end}`]
+		case 'add':
+			return [`${at(move.path)} = ${node({ v: move.v, l: null, r: null })}${end}`]
+		case 'remove':
+			return [`${at(move.path)} = ${nil}${end}    ${py ? '#' : '//'} ${move.v} and everything under it`]
+		case 'swap':
+			return [py ? `swap_children(${at(move.path)})` : `swapChildren(${at(move.path)});`]
+		case 'mirror':
+			return [`mirror(${at(move.path)})${end}`]
+		case 'call': {
+			const { args } = move
+			const more = (param: string) =>
+				(param === 'key' || param === 'value') && args?.key !== undefined ? v(args.key) : param === 'node' && args?.node !== undefined ? at(args.node) : undefined
+			const written = call(move.algorithm, s, 'tree', more)
+			if (written) return [written]
+			return [`${py ? '#' : '//'} ${move.label}, step by step:`, ...move.effect.flatMap((m) => treeLines(m, s, field))]
+		}
+	}
+}
+
+/** A binary tree's log written out in `language` (a BST's nodes hold keys). */
+export function renderTreeLog(moves: readonly TreeMove[], language: CodeLanguage, field: 'key' | 'value' = 'value'): string {
+	const first = moves[0]
+	const s: Spelling = { ints: allNumbers(moves), name: first?.op === 'new' ? first.name : 't', language }
+	return moves.flatMap((m) => treeLines(m, s, field)).join('\n')
 }

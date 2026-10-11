@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { diffValues, replay, type ArrayMove } from './array-moves'
 import { diffList, replayList, type ListMove, type ListState } from './list-moves'
-import { renderArrayLog, renderListLog } from './render'
+import { addChild, mirrorSubtree, removeSubtree, swapChildren } from '../shapes/tree/model'
+import { renderArrayLog, renderListLog, renderTreeLog } from './render'
+import { diffTree, shapeOf, treeArgs, type TreeMove } from './tree-moves'
 
 const v = (...xs: (number | string)[]) => xs.map(String)
 
@@ -186,5 +188,55 @@ describe('a linked list change as the move a teacher made', () => {
 		expect(renderListLog(log, 'c')).toContain('\nreverse(b);\n')
 		// 3 42 4 -> 5 3 42 4 -> 5 3 42 4 9 -> 5 3 7 42 4 9 -> 3 7 42 4 9 -> 9 4 42 7 3 -> (reverse) 3 7 42 4 9 -> 3 8 7 42 4 9
 		expect(replayList(log)).toEqual(['3', '8', '7', '42', '4', '9'])
+	})
+})
+
+describe('a binary tree change as the move a teacher made', () => {
+	// 8 (3 (1, 6), 10 (-, 14)), ids by path.
+	const node = (id: string, value: string, l: string | null = null, r: string | null = null) => ({ id, value, children: [l, r] as (string | null)[], dx: 0, dy: 0 })
+	const tree = [node('n', '8', 'nL', 'nR'), node('nL', '3', 'nLL', 'nLR'), node('nR', '10', null, 'nRR'), node('nLL', '1'), node('nLR', '6'), node('nRR', '14')]
+
+	it('a value set, a leaf added, a subtree removed, children swapped, a subtree mirrored', () => {
+		expect(diffTree(tree, tree.map((n) => (n.id === 'nLR' ? { ...n, value: '7' } : n)))).toEqual([{ op: 'set', path: 'LR', v: '7' }])
+		const { nodes: added } = addChild(tree, 'nR', 0, '9')
+		expect(diffTree(tree, added)).toEqual([{ op: 'add', path: 'RL', v: '9' }])
+		expect(diffTree(tree, removeSubtree(tree, 'nL'))).toEqual([{ op: 'remove', path: 'L', v: '3' }])
+		expect(diffTree(tree, swapChildren(tree, 'nL'))).toEqual([{ op: 'swap', path: 'L' }])
+		expect(diffTree(tree, mirrorSubtree(tree, 'n'))).toEqual([{ op: 'mirror', path: '' }])
+	})
+
+	it("an operation's key and node, as what it did tells them", () => {
+		expect(treeArgs(tree, addChild(tree, 'nR', 0, '9').nodes)).toEqual({ key: '9' })
+		expect(treeArgs(tree, removeSubtree(tree, 'nRR'))).toEqual({ node: 'RR' })
+	})
+
+	it('written out: a Tree, nodes by their paths, a BST insert and delete as calls on it', () => {
+		const log: TreeMove[] = [
+			{ op: 'new', name: 't', tree: shapeOf(tree) },
+			{ op: 'set', path: 'LR', v: '7' },
+			{ op: 'add', path: 'RL', v: '9' },
+			{ op: 'remove', path: 'LL', v: '1' },
+			{ op: 'swap', path: 'L' },
+			{ op: 'mirror', path: '' },
+			{ op: 'call', algorithm: 'bst-insert', label: 'insert', effect: [], args: { key: '5' } },
+			{ op: 'call', algorithm: 'bst-delete', label: 'delete', effect: [], args: { node: 'R' } },
+		]
+		expect(renderTreeLog(log, 'python', 'key').split('\n')).toEqual([
+			't = Tree(Node(8, Node(3, Node(1), Node(6)), Node(10, None, Node(14))))',
+			't.root.left.right.key = 7',
+			't.root.right.left = Node(9)',
+			't.root.left.left = None    # 1 and everything under it',
+			'swap_children(t.root.left)',
+			'mirror(t.root)',
+			't.insert(5)',
+			't.delete(t.root.right)',
+		])
+		const java = renderTreeLog(log, 'java', 'key').split('\n')
+		expect(java[0]).toBe('Tree t = new Tree(new Node(8, new Node(3, new Node(1), new Node(6)), new Node(10, null, new Node(14))));')
+		expect(java.slice(-2)).toEqual(['t.insert(5);', 't.delete(t.root.right);'])
+		const c = renderTreeLog(log, 'c', 'key').split('\n')
+		expect(c[0]).toBe('Tree *t = newTree(node(8, node(3, newNode(1), newNode(6)), node(10, NULL, newNode(14))));')
+		expect(c.slice(1, 3)).toEqual(['t->root->left->right->key = 7;', 't->root->right->left = newNode(9);'])
+		expect(c.slice(-2)).toEqual(['insert(t, 5);', 'delete(t, t->root->right);'])
 	})
 })
