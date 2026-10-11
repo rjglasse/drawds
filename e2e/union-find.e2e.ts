@@ -141,3 +141,27 @@ test('pointing at an element lights its way up', async ({ page }) => {
 	})
 	expect(lit).toMatchObject({ 3: 'blue', 2: 'orange', 1: 'orange', 0: 'green', 'edge:e3': 'orange' })
 })
+
+test('the code beside: find walks up, then compresses each node on the way; union steps into find, then links', async ({ page }) => {
+	const litLine = async () => {
+		const line = await page.locator('[data-step-line]').getAttribute('data-step-line')
+		return page.locator(`[data-code-line="${line}"]`).textContent()
+	}
+	await sketchUnionFind(page, [200, 150], 7)
+	await chainAndPair(page)
+	await ufOp(page, 4, 'uf-find')
+	await page.getByTestId('play-code').click()
+	await expect.poll(litLine).toContain('int find(int i) {')
+	await page.keyboard.press('ArrowRight')
+	await expect.poll(litLine).toContain('while (parent[curr] != curr)')
+	while (!(await caption(page).textContent())?.startsWith('parent[4] = 0')) await page.keyboard.press('ArrowRight')
+	await expect.poll(litLine).toContain('parent[i] = root;')
+	await page.keyboard.press('Escape')
+
+	await ufOp(page, 6, 'uf-union', '4')
+	await expect.poll(litLine).toContain('void union(int a, int b) {')
+	await page.keyboard.press('ArrowRight')
+	await expect.poll(litLine).toContain('int find(int i) {')
+	await stepToEnd(page)
+	await expect.poll(litLine).toContain('parent[ra] = rb;')
+})

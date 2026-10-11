@@ -37,6 +37,7 @@ import { dequeueFrom, enqueueOnto, peekAt, popFrom, pushOnto } from '../list/sta
 import { countNodes } from '../list/size'
 import { deleteKey, findKey, insertEntry, rehash, buildTable } from '../hash/hash'
 import { heapCode } from '../heap/code'
+import { findSteps, unionSteps } from '../union-find/operations'
 import { buildHeapSteps } from '../heap/heap'
 import { insertSteps, removeSteps } from '../heap/steps'
 import { measureTree } from '../tree/measure'
@@ -344,6 +345,32 @@ describe('hash tables', () => {
 		expect(findKey(buildTable(['cat'], 7, scheme), scheme, 'cat').code).toBe('hash-find-chaining-java-mod')
 		expect(algorithmCode('hash-find-chaining-java-mod', 'java')!.text).toContain('int h = key.hashCode();')
 		expect(algorithmCode('hash-find-probing-direct', 'python')!.text).toContain('return key    # the key is the index')
+	})
+})
+
+describe('union-find', () => {
+	// Every way of linking, with path compression and without: find (a root, a deep node), union (two
+	// sets, one set already).
+	const forest = { parent: [0, 0, 1, 2, 4, 4, 6], sizes: [4, 3, 2, 1, 2, 1, 1], ranks: [3, 2, 1, 0, 1, 0, 0] }
+	const kinds = (['size', 'rank', 'naive'] as const).flatMap((unionBy) => (['on', 'off'] as const).map((compression) => ({ unionBy, compression })))
+	it.each(kinds)('%o: every operation shows its code, every line and value in it', (kind) => {
+		const props = { labels: ['0', '1', '2', '3', '4', '5', '6'], size: 'm' as const, ...forest, ...kind }
+		const f = { parent: [...forest.parent], sizes: [...forest.sizes], ranks: [...forest.ranks] }
+		const ops = [findSteps(props, f, 0), findSteps(props, f, 3), unionSteps(props, 3, 5), unionSteps(props, 3, 1), unionSteps(props, 6, 4)]
+		const given = new Map<string, Set<string>>()
+		for (const op of ops) {
+			const names = op.frames.flatMap((fr) => [...(fr.pointers ?? []).map((p) => p.name), ...Object.keys(fr.vars ?? {})])
+			given.set(op.code, new Set([...(given.get(op.code) ?? []), ...names]))
+		}
+		for (const op of ops) {
+			const lines = op.frames.flatMap((fr) => (fr.line ? [fr.line] : []))
+			expect(lines.length, op.code).toBeGreaterThan(0)
+			for (const language of ['c', 'java', 'python'] as const) {
+				const code = algorithmCode(op.code, language)!
+				for (const line of lines) expect(code.lines, `${op.code} ${language} @${line}`).toHaveProperty(line)
+				for (const v of code.values) expect(given.get(op.code), `${op.code} ${language} $${v.name}`).toContain(v.key)
+			}
+		}
 	})
 })
 

@@ -4,6 +4,7 @@ import type { Pointer } from '../../pointers/pointers'
 import { edgeKey, elementKey, parentKey, unionFindScene, weightKey } from './layout'
 import { compress, findPath, toCompress, union, type Forest, type UnionBy } from './union-find'
 import type { UnionFindShapeProps } from './union-find-shape-types'
+import { unionFindCode } from './code'
 
 type Props = Pick<UnionFindShapeProps, 'labels' | 'parent' | 'sizes' | 'ranks' | 'unionBy' | 'compression' | 'size'>
 
@@ -24,6 +25,8 @@ const stateProps = (f: Forest) => ({ parent: [...f.parent], sizes: [...f.sizes],
 export interface Steps {
 	frames: Frame[]
 	forest: Forest
+	/** Its code (`code.ts`): find, or union of the shape's kind, with path compression or not. */
+	code: string
 }
 
 /**
@@ -37,6 +40,8 @@ export function findSteps(props: Props, forest: Forest, i: number, keep: Pointer
 	const path = findPath(forest.parent, i)
 	const root = path[path.length - 1]
 	const state = stateProps(forest)
+	const compressing = props.compression === 'on'
+	const code = unionFindCode('find', props.unionBy, compressing)
 	const frames: Frame[] = [
 		{
 			props: state,
@@ -44,6 +49,8 @@ export function findSteps(props: Props, forest: Forest, i: number, keep: Pointer
 			flash: lit(i, LOOK),
 			caption: `find(${L(i)}): start at ${L(i)} and follow the parent pointers up`,
 			ask: false,
+			line: 'call',
+			vars: { curr: String(i) },
 		},
 	]
 	for (const [k, c] of path.slice(0, -1).entries()) {
@@ -57,8 +64,11 @@ export function findSteps(props: Props, forest: Forest, i: number, keep: Pointer
 			caption: `parent[${c}] = ${p}: ${L(c)} is not a root, so go up to ${L(p)}`,
 			ask: `Is ${L(c)} a root?`,
 			askFocus: [elementKey(c), parentKey(c)],
+			line: 'up',
+			vars: { curr: String(p) },
 		})
 	}
+	const moved = compressing ? toCompress(forest.parent, path) : []
 	frames.push({
 		props: state,
 		pointers: [...keep, pointer(name, root)],
@@ -67,9 +77,11 @@ export function findSteps(props: Props, forest: Forest, i: number, keep: Pointer
 		caption: `parent[${root}] = ${root}: ${L(root)} is its own parent, so it is the root`,
 		ask: `Is ${L(root)} a root?`,
 		askFocus: [elementKey(root), parentKey(root)],
+		// Nothing to compress: straight to returning it.
+		line: moved.length ? 'found' : 'root',
+		vars: { curr: String(root) },
 	})
-	const moved = props.compression === 'on' ? toCompress(forest.parent, path) : []
-	if (!moved.length) return { frames, forest, root, hops }
+	if (!moved.length) return { frames, forest, root, hops, code }
 
 	// Re-point the arrows where the nodes are (the layout would move them), then tidy up.
 	const base = unionFindScene({ ...props, ...state })
@@ -79,6 +91,7 @@ export function findSteps(props: Props, forest: Forest, i: number, keep: Pointer
 		pointers: [...keep, pointer('root', root)],
 		caption: `Path compression: point ${moved.map(L).join(', ')} straight at the root, so the next find is quick`,
 		ask: false,
+		line: 'compress',
 	})
 	for (const [k, c] of moved.entries()) {
 		done.add(c)
@@ -93,6 +106,7 @@ export function findSteps(props: Props, forest: Forest, i: number, keep: Pointer
 			caption: `parent[${c}] = ${root}: ${L(c)} now points straight at the root`,
 			ask: k === 0 ? `Where does ${L(c)} point after compression?` : false,
 			askFocus: k === 0 ? [elementKey(c), parentKey(c)] : undefined,
+			line: 'point',
 		})
 	}
 	const compressed: Forest = { ...forest, parent: compress(forest.parent, path) }
@@ -102,8 +116,9 @@ export function findSteps(props: Props, forest: Forest, i: number, keep: Pointer
 		flash: Object.fromEntries(moved.map((c) => [`edge:${edgeKey(c)}`, null])),
 		caption: `The trees, tidied: ${moved.map(L).join(', ')} now hang${moved.length === 1 ? 's' : ''} right under the root`,
 		ask: false,
+		line: 'root',
 	})
-	return { frames, forest: compressed, root, hops }
+	return { frames, forest: compressed, root, hops, code }
 }
 
 const unionWay = (by: UnionBy, a: string, b: string) =>
@@ -132,7 +147,10 @@ export function unionSteps(props: Props, a: number, b: number): Steps {
 		flash: { [elementKey(a)]: START, [elementKey(b)]: START },
 		caption: `union(${L(a)}, ${L(b)}): find both roots; then ${unionWay(by, L(a), L(b))}`,
 		ask: false,
+		vars: { a: String(a), b: String(b) },
+		line: 'union',
 	}
+	const code = unionFindCode('union', by, props.compression === 'on')
 	const first = findSteps(props, forestOf(props), a, [], 0, 'a')
 	const ra = pointer('ra', first.root)
 	// The first root stays lit (and pointed at) while b's is found; the way up to it goes out.
@@ -150,8 +168,9 @@ export function unionSteps(props: Props, a: number, b: number): Steps {
 			caption: `Both roots are ${L(first.root)}: ${L(a)} and ${L(b)} are in one set already, so nothing to link (in Kruskal, this edge would close a cycle)`,
 			ask: 'Same set already, or two sets to join?',
 			askFocus: [elementKey(first.root)],
+			line: 'same',
 		})
-		return { frames, forest }
+		return { frames, forest, code }
 	}
 	const link = union(forest, first.root, second.root, by)
 	const [child, root] = [link.child!, link.root!]
@@ -176,6 +195,7 @@ export function unionSteps(props: Props, a: number, b: number): Steps {
 		caption: `${weighed}parent[${child}] = ${root}, so ${L(child)}'s tree goes under ${L(root)}${grows}`,
 		ask: by === 'naive' ? 'Which root goes under which?' : `Which root goes under which, by ${by}?`,
 		askFocus: [elementKey(first.root), elementKey(second.root), ...(by === 'naive' ? [] : [weightKey(first.root), weightKey(second.root)])],
+		line: 'link',
 	})
-	return { frames, forest: link.forest }
+	return { frames, forest: link.forest, code }
 }

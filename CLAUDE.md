@@ -301,7 +301,7 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   values through `Frame.vars`, since a list pointer is at a node key), the trees' `src/shapes/tree/code.ts` (traversals,
   measures, BST min / max, and lecture 8b's BST search, insert and delete as `bstInsertSteps` / `bstDeleteSteps` walk them,
   delete's three cases with the successor relinked, 3.1 or 3.2), the graphs' `src/shapes/graph/code.ts`, the heaps'
-  `src/shapes/heap/code.ts`, the hash tables' `src/shapes/hash/code.ts`.
+  `src/shapes/heap/code.ts`, the hash tables' `src/shapes/hash/code.ts`, union-find's `src/shapes/union-find/code.ts`.
 - `src/shapes/hash/` - hash tables (node-link): `buckets: string[][]` (a chain per bucket, or one entry per slot with
   `TOMBSTONE` for deleted), strategy style `drawds:hash-strategy` chaining / probing (switching re-inserts the
   keys). Lecture 7: a hash code (`drawds:hash-code`: character codes added; the first three letters, A = 1, added, the
@@ -367,7 +367,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   (walk up with `curr`, then compression re-points arrows in a `scene` frame where the nodes are, then tidies) and
   union (both finds, then link by size / rank / naively, or refuse: one set already, Kruskal's cycle). Element menu: Find,
   Union with... (prompt: a name or index); actions: Random unions, reset. Type a parent into its cell (a loop is refused;
-  sizes and ranks recounted). Shift+U.
+  sizes and ranks recounted). Shift+U. Code (`code.ts`, `unionFindCode`): find walking up (with
+  compression a second loop re-pointing each node on the way, in the steps' order) and union (C's `unite`) by size / rank /
+  naively with find under it, so a union's finds step into it; checked by running 40 random unions in real Python and
+  Java against `unionSteps`.
 - `src/shapes/tree/bst.ts` - BST as a *kind* of binary tree (`drawds:tree-kind` style): in-order key placement,
   insert (path), delete (leaf / one child / two children: the successor node moves up, relinked as lecture 8b does, no key
   copied: 3.1 the successor is the right child, 3.2 it is deeper and its right subtree takes its place), violation check
