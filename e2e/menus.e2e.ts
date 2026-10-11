@@ -43,7 +43,7 @@ test('arrays, stacks and matrices: Step by step, their name, Show, Mark, Pointer
 	await page.mouse.down()
 	await page.mouse.move(300 + 2 * 48 + 10, 300 + 2 * 48 + 10, { steps: 20 })
 	await page.mouse.up()
-	expect(await submenusAt(page, [300, 300])).toEqual(['Step by step', 'Matrix', 'Mark'].map((label, i) => [label, ids('matrix', 'steps', 'actions', 'mark')[i]]))
+	expect(await submenusAt(page, [300, 300])).toEqual(['Step by step', 'Matrix', 'Show', 'Mark'].map((label, i) => [label, ids('matrix', 'steps', 'actions', 'show', 'mark')[i]]))
 })
 
 test('lists, trees and heaps follow the same layout', async ({ page }) => {

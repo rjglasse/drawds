@@ -3,13 +3,15 @@ import { diffValues, replay, type ArrayMove } from './array-moves'
 import { diffList, replayList, type ListMove, type ListState } from './list-moves'
 import { addChild, mirrorSubtree, removeSubtree, swapChildren } from '../shapes/tree/model'
 import { diffGraph, graphState, type GraphMove, type GraphState } from './graph-moves'
-import { renderArrayLog, renderGraphLog, renderHashLog, renderHeapLog, renderListLog, renderTreeLog } from './render'
+import { renderArrayLog, renderGraphLog, renderHashLog, renderHeapLog, renderListLog, renderMatrixLog, renderTreeLog } from './render'
 import { diffHeap, heapArgs, type HeapMove, type HeapState } from './heap-moves'
 import { heapify, heapInsert, heapRemoveAt } from '../shapes/heap/heap'
 import { heapCode } from '../shapes/heap/code'
 import { diffHash, hashArgs, tableOf, type HashMove, type HashState } from './hash-moves'
 import { TOMBSTONE, buildTable, deleteKey, entriesOf, insertEntry, rehash } from '../shapes/hash/hash'
 import { hashCodeId } from '../shapes/hash/code'
+import { diffGrid, replayGrid, type MatrixMove } from './matrix-moves'
+import { deleteCol, deleteRow, insertCol, insertRow, transpose } from '../shapes/matrix/model'
 import { diffTree, shapeOf, treeArgs, type TreeMove } from './tree-moves'
 
 const v = (...xs: (number | string)[]) => xs.map(String)
@@ -486,5 +488,87 @@ describe('a hash table change as the move a teacher made', () => {
 			{ op: 'call', algorithm: hashCodeId('rehash', { strategy: 'chaining', ints: true, ...mod }), label: 'rehash', effect: [{ op: 'assign', table: { strategy: 'chaining', ...mod, m: 31, keys: v(3) } }] },
 		]
 		expect(renderHashLog(log, 'python').split('\n').slice(1)).toEqual(['# rehash into 31 buckets, the most drawds draws (not next_prime(2 * m + 1)):', 't = ChainingHashTable(31, [3])'])
+	})
+})
+
+describe('a matrix change as the move a teacher made', () => {
+	const m = [v(1, 2, 3), v(4, 5, 6)]
+
+	it('a value typed, rows and columns added at the end or put in, taken off the end or out, transposed', () => {
+		expect(diffGrid(m, [v(1, 2, 3), v(4, 42, 6)])).toEqual([{ op: 'set', r: 1, c: 1, v: '42' }])
+		expect(diffGrid(m, [...m, v(7, 8, 9), v(0, 0, 0)])).toEqual([
+			{ op: 'appendRow', values: v(7, 8, 9) },
+			{ op: 'appendRow', values: v(0, 0, 0) },
+		])
+		expect(diffGrid(m, insertRow(m, 1, v(7, 8, 9)))).toEqual([{ op: 'insertRow', at: 1, values: v(7, 8, 9) }])
+		expect(diffGrid(m, [m[0]])).toEqual([{ op: 'deleteRow', at: 1 }])
+		expect(diffGrid(m, [m[1]])).toEqual([{ op: 'deleteRow', at: 0 }])
+		expect(diffGrid(m, insertCol(m, 3, v(7, 8)))).toEqual([{ op: 'appendCol', values: v(7, 8) }])
+		expect(diffGrid(m, insertCol(m, 1, v(7, 8)))).toEqual([{ op: 'insertCol', at: 1, values: v(7, 8) }])
+		expect(diffGrid(m, [v(1), v(4)])).toEqual([
+			{ op: 'deleteCol', at: 2 },
+			{ op: 'deleteCol', at: 1 },
+		])
+		expect(diffGrid(m, deleteCol(m, 0))).toEqual([{ op: 'deleteCol', at: 0 }])
+		expect(diffGrid(m, transpose(m))).toEqual([{ op: 'transpose' }])
+		expect(diffGrid(m, [v(9, 9, 9), v(9, 9, 9)])).toEqual([{ op: 'assign', values: [v(9, 9, 9), v(9, 9, 9)] }])
+	})
+
+	it('replaying a log gives the values it describes', () => {
+		const log: MatrixMove[] = [
+			{ op: 'new', name: 'a', values: m },
+			...diffGrid(m, insertCol(m, 1, v(7, 8))),
+			{ op: 'transpose' },
+			{ op: 'deleteRow', at: 0 },
+		]
+		expect(replayGrid(log)).toEqual(deleteRow(transpose(insertCol(m, 1, v(7, 8))), 0))
+	})
+
+	it('written out: Python a list of rows, Java an int[][] made anew when its shape changes, C a matrix type', () => {
+		const log: MatrixMove[] = [
+			{ op: 'new', name: 'a', values: m },
+			{ op: 'set', r: 1, c: 1, v: '42' },
+			{ op: 'appendRow', values: v(7, 8, 9) },
+			{ op: 'insertRow', at: 0, values: v(0, 0, 0) },
+			{ op: 'deleteRow', at: 1 },
+			{ op: 'appendCol', values: v(1, 2, 3) },
+			{ op: 'insertCol', at: 1, values: v(4, 5, 6) },
+			{ op: 'deleteCol', at: 0 },
+			{ op: 'transpose' },
+			{ op: 'assign', values: [v(1, 2)] },
+		]
+		expect(renderMatrixLog(log, 'python').split('\n')).toEqual([
+			'a = [[1, 2, 3], [4, 5, 6]]',
+			'a[1][1] = 42',
+			'a.append([7, 8, 9])',
+			'a.insert(0, [0, 0, 0])',
+			'del a[1]',
+			'for row, v in zip(a, [1, 2, 3]): row.append(v)',
+			'for row, v in zip(a, [4, 5, 6]): row.insert(1, v)',
+			'for row in a: del row[0]',
+			'a = [list(row) for row in zip(*a)]',
+			'a = [[1, 2]]',
+		])
+		expect(renderMatrixLog(log, 'java').split('\n')).toEqual([
+			'int[][] a = {{1, 2, 3}, {4, 5, 6}};',
+			'a[1][1] = 42;',
+			'a = insertRow(a, a.length, new int[]{7, 8, 9});',
+			'a = insertRow(a, 0, new int[]{0, 0, 0});',
+			'a = deleteRow(a, 1);',
+			'a = insertCol(a, a[0].length, new int[]{1, 2, 3});',
+			'a = insertCol(a, 1, new int[]{4, 5, 6});',
+			'a = deleteCol(a, 0);',
+			'a = transpose(a);',
+			'a = new int[][]{{1, 2}};',
+		])
+		const c = renderMatrixLog(log, 'c').split('\n')
+		expect(c.slice(0, 3)).toEqual(['IntMatrix a = matrixOf(2, 3, (int[2][3]){{1, 2, 3}, {4, 5, 6}});', 'a.cells[1][1] = 42;', 'insertRow(&a, a.rows, (int[]){7, 8, 9});'])
+		expect(c.slice(-2)).toEqual(['transpose(&a);', 'a = matrixOf(1, 2, (int[1][2]){{1, 2}});'])
+	})
+
+	it('text is quoted; an empty cell in Java makes it an Integer[][]', () => {
+		expect(renderMatrixLog([{ op: 'new', name: 'a', values: [['x', 'y']] }], 'java')).toBe('String[][] a = {{"x", "y"}};')
+		expect(renderMatrixLog([{ op: 'new', name: 'a', values: [v(1, '')] }], 'java')).toBe('Integer[][] a = {{1, null}};')
+		expect(renderMatrixLog([{ op: 'new', name: 'a', values: [v(1, '')] }], 'python')).toBe('a = [[1, None]]')
 	})
 })

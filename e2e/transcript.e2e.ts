@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { arrayStep, connectNodes, focusedLabel, hoverNode, insertKey, menusClosed, nodeScreenPosition, open, rightClick, sketchArray, sketchGraph, sketchHashTable, sketchHeap, sketchList, sketchTree } from './helpers'
+import { arrayStep, CELL, connectNodes, focusedLabel, handlePosition, hoverNode, insertKey, menusClosed, nodeScreenPosition, open, rightClick, sketchArray, sketchGraph, sketchHashTable, sketchHeap, sketchList, sketchMatrix, sketchTree } from './helpers'
 
 // The code beside an array: every move made on it, as code, kept in its meta so undo and redo take
 // the lines with the moves.
@@ -229,4 +229,49 @@ test('the code beside a hash table: its keys put in; a key typed over, insert, r
 	})
 	await page.getByTestId('style.code-language.python').click()
 	await expect.poll(async () => (await lines(page)).slice(1)).toEqual(['a = ChainingHashTable(7, [8, 15, 3])', 'a.table[1].next.key = 29', 'a.insert(22)', 'a.remove(8)', 'a.rehash()'])
+})
+
+test('the code beside a matrix: an int[][] (Python a list of rows); grips, inserts and transpose as code', async ({ page }) => {
+	// Cell (r, c) is at (200 + c·CELL, 200 + r·CELL).
+	const cell = (r: number, c: number): [number, number] => [200 + c * CELL, 200 + r * CELL]
+	await sketchMatrix(page, cell(0, 0), 2, 3)
+	await rightClick(page, cell(0, 0))
+	await page.getByTestId('context-menu-sub.drawds-matrix-show-button').click()
+	await page.getByTestId('context-menu.matrix-code-beside').click()
+	await expect.poll(async () => (await lines(page))[0]).toMatch(/^int\[\]\[\] a = \{\{\d+, \d+, \d+\}, \{\d+, \d+, \d+\}\};$/)
+
+	await menusClosed(page)
+	await page.mouse.dblclick(...cell(1, 1))
+	await expect.poll(() => focusedLabel(page)).toBe('Cell 1,1')
+	await page.keyboard.press('ControlOrMeta+a')
+	await page.keyboard.type('42')
+	await page.keyboard.press('Enter')
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a[1][1] = 42;')
+
+	// The column grip dragged two cells right: two columns, a line each.
+	const [x, y] = await handlePosition(page, 'grow-cols')
+	await page.mouse.move(x, y)
+	await page.mouse.down()
+	await page.mouse.move(x + CELL * 2, y, { steps: 10 })
+	await page.mouse.up()
+	const added = /^a = insertCol\(a, a\[0\]\.length, new int\[\]\{\d+, \d+\}\);$/
+	await expect.poll(async () => (await lines(page)).slice(2)).toEqual([expect.stringMatching(added), expect.stringMatching(added)])
+
+	await rightClick(page, cell(1, 1))
+	await page.getByTestId('context-menu-sub.drawds-matrix-actions-button').click()
+	await page.getByTestId('context-menu.matrix-row-above').click()
+	await expect.poll(async () => (await lines(page)).at(-1)).toMatch(/^a = insertRow\(a, 1, new int\[\]\{\d+(, \d+){4}\}\);$/)
+	await rightClick(page, cell(0, 0))
+	await page.getByTestId('context-menu-sub.drawds-matrix-actions-button').click()
+	await page.getByTestId('context-menu.matrix-transpose').click()
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a = transpose(a);')
+	await page.keyboard.press('ControlOrMeta+z')
+	await expect.poll(async () => (await lines(page)).at(-1)).toMatch(/^a = insertRow/)
+
+	await page.evaluate(() => {
+		const editor = window.editor!
+		void editor.select(editor.getCurrentPageShapes().find((s) => s.type === 'code')!.id)
+	})
+	await page.getByTestId('style.code-language.python').click()
+	await expect.poll(async () => (await lines(page)).slice(1, 3)).toEqual(['a[1][1] = 42', expect.stringMatching(/^for row, v in zip\(a, \[\d+, \d+\]\): row\.append\(v\)$/)])
 })

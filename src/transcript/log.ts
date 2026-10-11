@@ -11,6 +11,9 @@ import type { HeapShapeProps } from '../shapes/heap/heap-shape-types'
 import { diffHeap, heapArgs, sameHeap, type HeapMove, type HeapState } from './heap-moves'
 import type { HashShapeProps } from '../shapes/hash/hash-shape-types'
 import { diffHash, hashArgs, hashState, sameHash, tableOf, type HashMove, type HashState } from './hash-moves'
+import type { MatrixShapeProps } from '../shapes/matrix/matrix-shape-types'
+import { diffGrid, sameGrid, type MatrixMove } from './matrix-moves'
+import type { Grid } from '../shapes/matrix/model'
 
 // The code log: every move on a structure, kept in its meta (`drawdsCode`) by a store side effect
 // that runs inside the same change, so the move and its line are one undo step, redo brings the
@@ -26,7 +29,7 @@ import { diffHash, hashArgs, hashState, sameHash, tableOf, type HashMove, type H
 
 export const LOG_KEY = 'drawdsCode'
 
-export type Move = ArrayMove | ListMove | TreeMove | GraphMove | HeapMove | HashMove
+export type Move = ArrayMove | ListMove | TreeMove | GraphMove | HeapMove | HashMove | MatrixMove
 
 /** What a kind of structure's log follows, and how a change of it reads as moves. */
 interface Tracked<S> {
@@ -167,6 +170,22 @@ const hashTables: Tracked<HashState> = {
 	args: hashArgs,
 }
 
+const matrices: Tracked<Grid> = {
+	state: (props) => (props as MatrixShapeProps).values,
+	// Labels (addresses) are how it is drawn, not what it holds.
+	touches: (a, b) => (a as MatrixShapeProps).values !== (b as MatrixShapeProps).values,
+	follows: () => true,
+	same: sameGrid,
+	diff: diffGrid,
+	start: (name, values) => ({ op: 'new', name, values: values.map((row) => [...row]) }),
+	restart: (first, values) => ({ ...(first as Extract<MatrixMove, { op: 'new' }>), values: values.map((row) => [...row]) }),
+	cell: (a, b) => {
+		const r = a.findIndex((row, i) => row.some((v, j) => v !== b[i]?.[j]))
+		return r < 0 ? undefined : `${r},${a[r].findIndex((v, j) => v !== b[r]?.[j])}`
+	},
+	sketching: 'matrix.sketching',
+}
+
 /** The structures with a log, by shape type. */
 const TRACKED: Record<string, Tracked<unknown>> = {
 	array: arrays as Tracked<unknown>,
@@ -175,6 +194,7 @@ const TRACKED: Record<string, Tracked<unknown>> = {
 	graph: graphs as Tracked<unknown>,
 	heap: heaps as Tracked<unknown>,
 	'hash-table': hashTables as Tracked<unknown>,
+	matrix: matrices as Tracked<unknown>,
 }
 
 /** Whether a shape's moves are logged. */
@@ -311,8 +331,8 @@ function typedIntoNew(before: Move[], moves: Move[]): Move[] | undefined {
 			...before.slice(k + 1).map((m) => (m.op === 'addEdge' ? { ...m, from: named(m.from), to: named(m.to) } : m)),
 		]
 	}
-	// A hash table's keys go in by the + prompt, never typed into a new one.
-	if (set.op !== 'set' || 'key' in set) return undefined
+	// A hash table's keys go in by the + prompt, a matrix's new cells come filled: never typed into a new one.
+	if (set.op !== 'set' || 'key' in set || 'r' in set) return undefined
 	const at = 'i' in set ? set.i : set.path
 	const into = (last.op === 'insert' && last.i === at) || (last.op === 'insertAtHead' && at === 0) || (last.op === 'add' && last.path === at)
 	return into ? [...before.slice(0, -1), { ...last, v: set.v } as Move] : undefined

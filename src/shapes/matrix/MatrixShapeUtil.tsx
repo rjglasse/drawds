@@ -25,6 +25,7 @@ import { showsStructureControls } from '../../controls/visibility'
 import type { Refillable } from '../../data/fill-style'
 import { newSeed } from '../../data/random'
 import { animationMs, isBusy, playOperation, playbackFor, type Frame } from '../../nodelink/playback'
+import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
 import { placePointers, type PointerAnchor } from '../../pointers/layout'
 import { layoutOf, matrixCells } from './cells'
 import { cellKey, getMatrixLayout, getMatrixMetrics, parseCellKey, parseHeaderKey, type MatrixHeaders, type MatrixMetrics } from './layout'
@@ -185,6 +186,13 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 				: []),
 			{ section: 'actions', id: 'matrix-transpose', label: 'Transpose', run: () => this.transposeNow(id) },
 			{ section: 'actions', id: 'matrix-reroll', label: 'New values', run: () => this.reroll(id) },
+			// Every move made on it, as code.
+			{
+				section: 'show',
+				id: 'matrix-code-beside',
+				label: transcriptsOf(this.editor, id).length ? 'Hide the code beside it' : 'Code beside it: every move as code',
+				run: () => toggleTranscript(this.editor, shape),
+			},
 			...(shape.props.rowLabels.some(Boolean) || shape.props.colLabels.some(Boolean)
 				? [{ section: 'actions' as const, id: 'matrix-clear-labels', label: 'Back to indices (clear labels)', run: () => this.clearLabels(id) }]
 				: []),

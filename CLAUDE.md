@@ -211,7 +211,7 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   deg v), not E; is u adjacent to v: 1 cell, u's list, the pairs); frames carry the graph (`props`, so the views draw
   the step's graph) and `Frame.views`, each view's own highlights for that step; counts per representation in the play
   bar. The graph's Step by step opens the matrix and lists for them (`playCosts`; Esc takes them back).
-- `src/transcript/` - the code beside a structure (dds-2tt, arrays, linked lists, binary trees, graphs, heaps and hash tables so far): every move kept as code. Each
+- `src/transcript/` - the code beside a structure (dds-2tt, arrays, linked lists, binary trees, graphs, heaps, hash tables and matrices so far): every move kept as code. Each
   kind says what its log follows and how a change reads as moves (`Tracked` in `log.ts`): an array's values in use; a
   list's nodes by id (`list-moves.ts`: set / insertAtHead / append / insert / remove / reverse / cycle, exact as nodes
   have ids; a later node holding a value an earlier one holds goes by its place, remove_at), written with drawds' own list
@@ -231,7 +231,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   deleted marker or a key typed into the wrong bucket, is laid out bucket by bucket), a comment naming index(key) when it
   isn't plain mod m, a key typed over or away at its place in its chain (`a.table[1].next.key = 29`) or slot, insert /
   remove / rehash calls to the table's own code (past the 31 buckets drawds draws, the table it made instead); the style
-  panel puts the scheme and the rebuilt table in in one change, so another scheme is one new table. Typing straight into what a +
+  panel puts the scheme and the rebuilt table in in one change, so another scheme is one new table; a matrix's values
+  (`matrix-moves.ts`: a value typed, rows / columns added at the end by a grip or put in, taken off or out, transposed;
+  labels log nothing), Python a list of rows (`for row, v in zip(a, [5, 6]): row.append(v)`), Java an int[][] made anew
+  when its shape changes (`a = insertCol(a, 2, new int[]{...})`, as drawds' matrix model names them), C a matrix type. Typing straight into what a +
   just put in folds into that insert (a connect grip's new vertex: its label into its addVertex and edges). `log.ts`: a store
   side effect (`startCodeLog`, App onMount) keeps language-neutral moves (`array-moves.ts`: new / set / append / insert
   / pop / delete / swap / sort / reverse / shuffle / assign / call) in the shape's meta (`drawdsCode`), inside the same
@@ -244,8 +247,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   The view is a code box with `transcript` on, following the structure: its text is worked out as it is drawn
   (`CodeShapeUtil.shown`), it can't be edited, and the play bar's algorithm box never takes it over (`codeBoxesOf`).
   Show > Code beside it (`toggleTranscript`). The Python of 200 random array logs, 400 list logs (many repeated values)
-  300 tree logs, 300 graph logs, 300 heap logs and 400 hash table logs (against classes made of their own Python
-  code; every scheme, deleted markers, keys typed anywhere), run, rebuilt their structures.
+  300 tree logs, 300 graph logs, 300 heap logs, 400 hash table logs (against classes made of their own Python code;
+  every scheme, deleted markers, keys typed anywhere) and 300 matrix logs, run, rebuilt their structures. The code box
+  goes right of the structure, past its grips (`toggleTranscript`).
 - `src/cells/clean-copy.ts` - Clean copy, last in every structure's own submenu (`NodeOperationsMenu` adds it): the
   same props (values, shape, seed) without marks or pointers, under the original past anything in the way
   (`freeTopBelow`, pure), selected, one undo step; followers stay with the original.

@@ -8,6 +8,8 @@ import type { HeapMove } from './heap-moves'
 import { heapCode } from '../shapes/heap/code'
 import type { HeapType } from '../shapes/heap/heap'
 import type { HashMove, HashTable } from './hash-moves'
+import type { MatrixMove } from './matrix-moves'
+import { colsOf, rowsOf, type Grid } from '../shapes/matrix/model'
 import { entriesOf, isTombstone } from '../shapes/hash/hash'
 import { hashCodeId } from '../shapes/hash/code'
 
@@ -395,6 +397,56 @@ export function renderHashLog(moves: readonly HashMove[], language: CodeLanguage
 			return hashLines(m, s, probing)
 		})
 		.join('\n')
+}
+
+/**
+ * A matrix's moves, a line each. Python: a list of rows. Java: an int[][] (or String[][]), whose rows
+ * and columns can't grow, so a change of shape makes a new one (insertRow, deleteCol..., named as
+ * drawds' own matrix model names them). C: a matrix type, its cells a.cells[r][c].
+ */
+function matrixLines(move: MatrixMove, s: Spelling, empty: boolean): string[] {
+	const { name: a, language } = s
+	const [py, java] = [language === 'python', language === 'java']
+	const v = (x: string) => literal(x, s)
+	const row = (values: readonly string[]) => `${py ? '[' : '{'}${list(values, s)}${py ? ']' : '}'}`
+	const grid = (values: Grid) => `${py ? '[' : '{'}${values.map(row).join(', ')}${py ? ']' : '}'}`
+	// Java's int[][] holds no empty cell: an Integer[][] does.
+	const type = s.ints ? (java ? (empty ? 'Integer' : 'int') : 'int') : java ? 'String' : 'const char *'
+	const made = (values: Grid) =>
+		py ? grid(values) : java ? `new ${type}[][]${grid(values)}` : `matrixOf(${rowsOf(values)}, ${colsOf(values)}, (${type}[${rowsOf(values)}][${colsOf(values)}])${grid(values)})`
+	const line = (values: readonly string[]) => (py ? row(values) : java ? `new ${type}[]${row(values)}` : `(${type}[])${row(values)}`)
+	const change = (fn: string, ...args: string[]) => (java ? `${a} = ${fn}(${[a, ...args].join(', ')});` : `${fn}(${[`&${a}`, ...args].join(', ')});`)
+	const [rows, cols] = java ? [`${a}.length`, `${a}[0].length`] : [`${a}.rows`, `${a}.cols`]
+	switch (move.op) {
+		case 'new':
+			return [py ? `${a} = ${made(move.values)}` : java ? `${type}[][] ${a} = ${grid(move.values)};` : `${s.ints ? 'IntMatrix' : 'StrMatrix'} ${a} = ${made(move.values)};`]
+		case 'assign':
+			return [`${a} = ${made(move.values)}${py ? '' : ';'}`]
+		case 'set':
+			return [`${a}${py || java ? '' : '.cells'}[${move.r}][${move.c}] = ${v(move.v)}${py ? '' : ';'}`]
+		case 'appendRow':
+			return [py ? `${a}.append(${line(move.values)})` : change('insertRow', rows, line(move.values))]
+		case 'insertRow':
+			return [py ? `${a}.insert(${move.at}, ${line(move.values)})` : change('insertRow', String(move.at), line(move.values))]
+		case 'deleteRow':
+			return [py ? `del ${a}[${move.at}]` : change('deleteRow', String(move.at))]
+		case 'appendCol':
+			return [py ? `for row, v in zip(${a}, ${line(move.values)}): row.append(v)` : change('insertCol', cols, line(move.values))]
+		case 'insertCol':
+			return [py ? `for row, v in zip(${a}, ${line(move.values)}): row.insert(${move.at}, v)` : change('insertCol', String(move.at), line(move.values))]
+		case 'deleteCol':
+			return [py ? `for row in ${a}: del row[${move.at}]` : change('deleteCol', String(move.at))]
+		case 'transpose':
+			return [py ? `${a} = [list(row) for row in zip(*${a})]` : change('transpose')]
+	}
+}
+
+/** A matrix's log written out in `language`. */
+export function renderMatrixLog(moves: readonly MatrixMove[], language: CodeLanguage): string {
+	const first = moves[0]
+	const values = moves.flatMap((m) => ('values' in m ? (m.op === 'new' || m.op === 'assign' ? m.values.flat() : m.values) : 'v' in m ? [m.v] : []))
+	const s: Spelling = { ints: values.every((v) => v === '' || numeric(v)), name: first?.op === 'new' ? first.name : 'm', language }
+	return moves.flatMap((m) => matrixLines(m, s, values.includes(''))).join('\n')
 }
 
 /** How a graph's code reads: directed (a DiGraph) or not, its weights written or not (as the graph shows them). */

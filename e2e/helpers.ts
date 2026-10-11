@@ -113,6 +113,15 @@ export async function sketchHeap(page: Page, [x, y]: [number, number], n: number
 	await page.mouse.up()
 }
 
+/** Shift+M, then drag from the first cell's centre so a matrix of `rows` x `cols` cells appears. */
+export async function sketchMatrix(page: Page, [x, y]: [number, number], rows: number, cols: number) {
+	await page.keyboard.press('Shift+M')
+	await page.mouse.move(x, y)
+	await page.mouse.down()
+	await page.mouse.move(x + (cols - 1) * CELL + 10, y + (rows - 1) * CELL + 10, { steps: 20 })
+	await page.mouse.up()
+}
+
 /** Shift+B, then drag down so a hash table of `m` buckets appears, the first under (x, y). */
 export async function sketchHashTable(page: Page, [x, y]: [number, number], m: number) {
 	await page.keyboard.press('Shift+B')

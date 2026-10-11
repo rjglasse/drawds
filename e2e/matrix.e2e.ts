@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { MatrixShapeProps } from '../src/shapes/matrix/matrix-shape-types'
-import { CELL, handlePosition, open, rightClick, shapesOfType } from './helpers'
+import { CELL, handlePosition, open, rightClick, shapesOfType, sketchMatrix } from './helpers'
 
 const matrix = async (page: Page) => (await shapesOfType<MatrixShapeProps>(page, 'matrix'))[0].props
 const size = async (page: Page) => {
@@ -8,15 +8,6 @@ const size = async (page: Page) => {
 	return [values.length, values[0].length]
 }
 const caption = (page: Page) => page.getByTestId('play-caption')
-
-/** Shift+M, then drag from the first cell's centre so the matrix has `rows` x `cols` cells. */
-async function sketchMatrix(page: Page, [x, y]: [number, number], rows: number, cols: number) {
-	await page.keyboard.press('Shift+M')
-	await page.mouse.move(x, y)
-	await page.mouse.down()
-	await page.mouse.move(x + (cols - 1) * CELL + 10, y + (rows - 1) * CELL + 10, { steps: 20 })
-	await page.mouse.up()
-}
 
 /** Screen centre of cell (r, c) of the selected matrix. */
 const cellAt = (page: Page, r: number, c: number) => centreOf(page, `${r},${c}`)

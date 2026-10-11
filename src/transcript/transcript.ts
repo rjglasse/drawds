@@ -5,10 +5,11 @@ import { CODE_TYPE, CodeLanguageStyle, type CodeShape } from '../shapes/code/cod
 import { logOrStart } from './log'
 import type { ArrayMove } from './array-moves'
 import type { ListMove } from './list-moves'
-import { renderArrayLog, renderGraphLog, renderHashLog, renderHeapLog, renderListLog, renderTreeLog } from './render'
+import { renderArrayLog, renderGraphLog, renderHashLog, renderHeapLog, renderListLog, renderMatrixLog, renderTreeLog } from './render'
 import type { GraphMove } from './graph-moves'
 import type { HeapMove } from './heap-moves'
 import type { HashMove } from './hash-moves'
+import type { MatrixMove } from './matrix-moves'
 import type { TreeMove } from './tree-moves'
 
 // The code beside a structure: a code box following it (`structureId`) with `transcript` on, whose
@@ -23,6 +24,7 @@ export function transcriptOf(editor: Editor, structure: TLShape, language: CodeL
 	if (structure.type === 'binary-tree') return renderTreeLog(log as TreeMove[], language, (structure.props as { kind?: string }).kind === 'bst' ? 'key' : 'value')
 	if (structure.type === 'heap') return renderHeapLog(log as HeapMove[], language)
 	if (structure.type === 'hash-table') return renderHashLog(log as HashMove[], language)
+	if (structure.type === 'matrix') return renderMatrixLog(log as MatrixMove[], language)
 	if (structure.type === 'graph') {
 		// Directed or not, weights written or not: as the graph is drawn now.
 		const { direction, weights } = structure.props as { direction?: string; weights?: string }
@@ -38,6 +40,9 @@ export const transcriptsOf = (editor: Editor, id: TLShapeId) =>
 /** Space between a structure and its transcript (a code box's pc room is on its left). */
 const GAP = 16
 
+/** A grow grip's radius at 100% (`GrowGrip`): a grip outside the structure's box still needs room. */
+const GRIP = 9
+
 /**
  * Show the code beside a structure, or take it away: a transcript box to its right, past anything
  * already following it, top-aligned; or every transcript it has gone. One undo step either way.
@@ -51,7 +56,10 @@ export function toggleTranscript(editor: Editor, structure: TLShape) {
 	}
 	const bounds = editor.getShapePageBounds(structure)
 	if (!bounds) return
-	const right = Math.max(bounds.maxX, ...followersOf(editor, structure.id).map((f) => editor.getShapePageBounds(f)?.maxX ?? -Infinity))
+	// Past its grips too (a matrix's column grip sits outside its box), and anything already following it.
+	const transform = editor.getShapePageTransform(structure)
+	const grips = (editor.getShapeHandles(structure) ?? []).map((h) => transform.applyToPoint(h).x + GRIP)
+	const right = Math.max(bounds.maxX, ...grips, ...followersOf(editor, structure.id).map((f) => editor.getShapePageBounds(f)?.maxX ?? -Infinity))
 	const { size } = structure.props as { size?: CodeShape['props']['size'] }
 	editor.markHistoryStoppingPoint('show the code beside it')
 	editor.createShape<CodeShape>({
