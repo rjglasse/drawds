@@ -113,6 +113,15 @@ export async function sketchHeap(page: Page, [x, y]: [number, number], n: number
 	await page.mouse.up()
 }
 
+/** Shift+B, then drag down so a hash table of `m` buckets appears, the first under (x, y). */
+export async function sketchHashTable(page: Page, [x, y]: [number, number], m: number) {
+	await page.keyboard.press('Shift+B')
+	await page.mouse.move(x, y)
+	await page.mouse.down()
+	await page.mouse.move(x, y + (m - 1) * CELL + 10, { steps: 20 })
+	await page.mouse.up()
+}
+
 /**
  * Sketch a graph of n nodes along a serpentine path (rows of `cols`, GRAPH_STEP apart), the first
  * node centred on `at`. The pointer moves a few px per frame, as a hand would: tldraw coalesces

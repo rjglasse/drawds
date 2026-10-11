@@ -1,19 +1,10 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { HashShapeProps } from '../src/shapes/hash/hash-shape-types'
-import { CELL, hoverNode, nodeScreenPosition, open, rightClick, shapesOfType } from './helpers'
+import { focusedLabel, hoverNode, nodeScreenPosition, open, rightClick, shapesOfType, sketchHashTable } from './helpers'
 
 const table = async (page: Page) => (await shapesOfType<HashShapeProps>(page, 'hash-table'))[0].props
 const keys = async (page: Page) => (await table(page)).buckets.flat().filter((k) => !k.startsWith('\u0000')).sort()
 const caption = (page: Page) => page.getByTestId('play-caption')
-
-/** Shift+B, then drag down so the table has `m` buckets, the first under (x, y). */
-async function sketchTable(page: Page, [x, y]: [number, number], m: number) {
-	await page.keyboard.press('Shift+B')
-	await page.mouse.move(x, y)
-	await page.mouse.down()
-	await page.mouse.move(x, y + (m - 1) * CELL + 10, { steps: 20 })
-	await page.mouse.up()
-}
 
 /** Replace the table's contents. */
 async function setBuckets(page: Page, buckets: string[][]) {
@@ -31,7 +22,7 @@ async function stepToEnd(page: Page) {
 test.beforeEach(({ page }) => open(page))
 
 test('sketch a table of m buckets; insert a key: it lands in bucket key mod m', async ({ page }) => {
-	await sketchTable(page, [200, 150], 7)
+	await sketchHashTable(page, [200, 150], 7)
 	const props = await table(page)
 	expect(props.buckets).toHaveLength(7)
 	expect(props.strategy).toBe('chaining')
@@ -46,7 +37,7 @@ test('sketch a table of m buckets; insert a key: it lands in bucket key mod m', 
 })
 
 test('linear probing: switching keeps the keys; deleting leaves a marker a find goes past', async ({ page }) => {
-	await sketchTable(page, [200, 150], 7)
+	await sketchHashTable(page, [200, 150], 7)
 	await setBuckets(page, [[], ['8', '15', '22'], [], [], [], [], []])
 	await page.getByTestId('style.hash-strategy.probing').click()
 	const props = await table(page)
@@ -67,7 +58,7 @@ test('linear probing: switching keeps the keys; deleting leaves a marker a find 
 })
 
 test('a key typed into the wrong slot gets the red ring', async ({ page }) => {
-	await sketchTable(page, [200, 150], 5)
+	await sketchHashTable(page, [200, 150], 5)
 	await page.getByTestId('style.hash-strategy.probing').click()
 	await setBuckets(page, [[], [], [], [], []])
 	await page.mouse.dblclick(...(await nodeScreenPosition(page, 's3')))
@@ -77,8 +68,19 @@ test('a key typed into the wrong slot gets the red ring', async ({ page }) => {
 	await expect(page.locator('[data-warning]')).toHaveAttribute('data-warning', 's3')
 })
 
+test('typing over a chained key: every character lands, though the key is named by its value', async ({ page }) => {
+	await sketchHashTable(page, [200, 150], 7)
+	await setBuckets(page, [[], ['8', '15'], [], [], [], [], []])
+	await page.mouse.dblclick(...(await nodeScreenPosition(page, 'k:15')))
+	await expect.poll(() => focusedLabel(page)).toBe('Cell k:15')
+	await page.keyboard.type('29')
+	await expect.poll(() => focusedLabel(page)).toBe('Cell k:29')
+	await page.keyboard.press('Enter')
+	expect((await table(page)).buckets[1]).toEqual(['8', '29'])
+})
+
 test('grow and rehash: every key moves to its place in a bigger table', async ({ page }) => {
-	await sketchTable(page, [200, 150], 5)
+	await sketchHashTable(page, [200, 150], 5)
 	await setBuckets(page, [['10', '5'], ['6'], [], [], []])
 	await rightClick(page, await nodeScreenPosition(page, 'k:6'))
 	await page.getByTestId('context-menu-sub.drawds-hash-steps-button').click()
@@ -100,7 +102,7 @@ async function insert(page: Page, key: string) {
 }
 
 test("lecture 7's class exercise: the first three letters, A = 1, added; KIM and a classmate's 33 collide", async ({ page }) => {
-	await sketchTable(page, [200, 150], 7)
+	await sketchHashTable(page, [200, 150], 7)
 	await setBuckets(page, [[], [], [], [], [], [], []])
 	await page.getByTestId('style.hash-code.letters').click()
 	expect((await table(page)).code).toBe('letters')
@@ -116,7 +118,7 @@ test("lecture 7's class exercise: the first three letters, A = 1, added; KIM and
 })
 
 test('the Bus Map, direct addressing: routes 1, 2, 3 at their own indexes; 256 would waste space, X70 is no index', async ({ page }) => {
-	await sketchTable(page, [200, 150], 5)
+	await sketchHashTable(page, [200, 150], 5)
 	await setBuckets(page, [['1'], ['2'], ['3'], [], []])
 	await page.getByTestId('style.hash-code.direct').click()
 	// The key is the index: the table is rebuilt that way (no compression to choose).
@@ -140,7 +142,7 @@ test("the code beside: chaining's insert walks the chain under index(key); probi
 		const line = await page.locator('[data-step-line]').getAttribute('data-step-line')
 		return page.locator(`[data-code-line="${line}"]`).textContent()
 	}
-	await sketchTable(page, [200, 150], 7)
+	await sketchHashTable(page, [200, 150], 7)
 	await setBuckets(page, [[], ['8'], [], [], [], [], []])
 	await page.getByTestId('insert-key').click()
 	await page.getByTestId('key-prompt').fill('22')

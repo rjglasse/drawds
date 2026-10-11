@@ -313,7 +313,7 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 		const colors = this.editor.getCurrentTheme().colors[this.editor.getColorMode()]
 		return (
 			<CellInput
-				key={cell.key}
+				key={cell.edit}
 				util={this}
 				shape={shape}
 				cellKey={cell.key}

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { arrayStep, connectNodes, focusedLabel, hoverNode, insertKey, menusClosed, nodeScreenPosition, open, rightClick, sketchArray, sketchGraph, sketchHeap, sketchList, sketchTree } from './helpers'
+import { arrayStep, connectNodes, focusedLabel, hoverNode, insertKey, menusClosed, nodeScreenPosition, open, rightClick, sketchArray, sketchGraph, sketchHashTable, sketchHeap, sketchList, sketchTree } from './helpers'
 
 // The code beside an array: every move made on it, as code, kept in its meta so undo and redo take
 // the lines with the moves.
@@ -177,4 +177,56 @@ test('the code beside a heap: a MinHeap over its array, its operations as calls;
 	})
 	await page.getByTestId('style.code-language.python').click()
 	await expect.poll(async () => (await lines(page)).slice(1)).toEqual(['a.heap[4] = -5', 'a.insert(-9)', 'a.extract_min()'])
+})
+
+test('the code beside a hash table: its keys put in; a key typed over, insert, remove and rehash as calls; another strategy one new table', async ({ page }) => {
+	await sketchHashTable(page, [200, 150], 7)
+	await page.evaluate(() => {
+		const editor = window.editor!
+		const shape = editor.getCurrentPageShapes().find((s) => s.type === 'hash-table')!
+		editor.updateShape({ id: shape.id, type: 'hash-table', props: { buckets: [[], ['8', '15'], [], ['3'], [], [], []] } } as never)
+	})
+	await rightClick(page, await nodeScreenPosition(page, 'k:8'))
+	await page.getByTestId('context-menu-sub.drawds-hash-show-button').click()
+	await page.getByTestId('context-menu.hash-code-beside').click()
+	await expect.poll(() => lines(page)).toEqual([expect.stringMatching(/^HashTable a = new ChainingHashTable\(7(, \d+)*\);$/), 'a = new ChainingHashTable(7, 8, 15, 3);'])
+
+	// Typed over a key in a chain: the node at its place, one line.
+	await menusClosed(page)
+	await page.mouse.dblclick(...(await nodeScreenPosition(page, 'k:15')))
+	await page.keyboard.type('29')
+	await page.keyboard.press('Enter')
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a.table[1].next.key = 29;')
+
+	const played = async () => {
+		while (!(await page.getByTestId('play-done').count())) await page.keyboard.press('ArrowRight')
+		await page.keyboard.press('Enter')
+	}
+	await insertKey(page, '22')
+	await played()
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a.insert(22);')
+	await hoverNode(page, 'k:8')
+	await page.getByTestId('remove-node-k:8').click()
+	await played()
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a.remove(8);')
+	await rightClick(page, await nodeScreenPosition(page, 'k:3'))
+	await page.getByTestId('context-menu-sub.drawds-hash-steps-button').click()
+	await page.getByTestId('context-menu.hash-rehash').click()
+	await played()
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a.rehash();')
+
+	// Linear probing: the keys put in again, one new table (never a probing table holding chains).
+	const before = (await lines(page)).length
+	await page.getByTestId('style.hash-strategy.probing').click()
+	await expect.poll(async () => (await lines(page)).at(-1)).toMatch(/^a = new ProbingHashTable\(17, (\d+, ){2}\d+\);$/)
+	expect(await lines(page)).toHaveLength(before + 1)
+	await page.keyboard.press('ControlOrMeta+z')
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a.rehash();')
+
+	await page.evaluate(() => {
+		const editor = window.editor!
+		void editor.select(editor.getCurrentPageShapes().find((s) => s.type === 'code')!.id)
+	})
+	await page.getByTestId('style.code-language.python').click()
+	await expect.poll(async () => (await lines(page)).slice(1)).toEqual(['a = ChainingHashTable(7, [8, 15, 3])', 'a.table[1].next.key = 29', 'a.insert(22)', 'a.remove(8)', 'a.rehash()'])
 })

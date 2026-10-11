@@ -7,6 +7,9 @@ import type { GraphMove } from './graph-moves'
 import type { HeapMove } from './heap-moves'
 import { heapCode } from '../shapes/heap/code'
 import type { HeapType } from '../shapes/heap/heap'
+import type { HashMove, HashTable } from './hash-moves'
+import { entriesOf, isTombstone } from '../shapes/hash/hash'
+import { hashCodeId } from '../shapes/hash/code'
 
 // An array's moves written out in a language, a line each (a call that can't be written out is its
 // effect, under a comment naming it). Python: a list. Java: a List (an ArrayList, as a growing array
@@ -59,7 +62,7 @@ function made(values: readonly string[], s: Spelling): string {
 function call(
 	algorithm: string,
 	s: Spelling,
-	kind: 'array' | 'list' | 'tree' | 'heap' = 'array',
+	kind: 'array' | 'list' | 'tree' | 'heap' | 'hash' = 'array',
 	/** Other parameters, as what the operation did tells them (a tree's key, its node, a heap's value or index). */
 	more: (param: string) => string | undefined = () => undefined
 ): string | undefined {
@@ -76,7 +79,7 @@ function call(
 		.map((p) => p.trim())
 		.filter(Boolean)
 	const names = all.map((p) => /(\w+)\s*(\[\])?$/.exec(p)?.[1] ?? p)
-	const structure = kind === 'array' ? ['a', 'arr', 'nums', 'array'] : kind === 'list' ? ['list'] : kind === 'heap' ? ['h'] : ['t', 'tree']
+	const structure = kind === 'array' ? ['a', 'arr', 'nums', 'array'] : kind === 'list' ? ['list'] : kind === 'heap' ? ['h'] : kind === 'hash' ? ['t'] : ['t', 'tree']
 	const method = names[0] === 'self' || (language === 'java' && !names.some((p) => structure.includes(p)))
 	const args = names
 		.filter((p) => p !== 'self')
@@ -288,6 +291,110 @@ export function renderHeapLog(moves: readonly HeapMove[], language: CodeLanguage
 	const first = moves[0]
 	const s: Spelling = { ints: allNumbers(moves), name: first?.op === 'new' ? first.name : 'h', language }
 	return moves.flatMap((m) => heapLines(m, s)).join('\n')
+}
+
+/** Whether a key is an integer, as a hash table takes it: its own hash code. */
+const integer = (key: string) => /^-?\d+$/.test(key)
+
+/** Every key a table holds. */
+const tableKeys = (t: HashTable) => ('keys' in t ? t.keys : entriesOf(t.buckets))
+
+/** How a table's index(key) works, if it isn't plain mod m: the hash code (text keys), the compression. */
+function indexNote(t: HashTable): string | undefined {
+	if (t.code === 'direct') return 'direct addressing: the key is the index'
+	const ints = tableKeys(t).every(integer)
+	const code = ints || t.code === 'sum' ? undefined : t.code === 'letters' ? 'the first three letters, A = 1' : "Java's hashCode"
+	if (!code && t.compress === 'mod') return undefined
+	return `index: ${code ?? (ints ? 'the key' : 'character codes added')}, ${t.compress === 'mad' ? 'MAD' : 'mod m'}`
+}
+
+/**
+ * A hash table's moves, a line each: a ChainingHashTable or ProbingHashTable of m buckets with its
+ * keys put in, in order (else laid out bucket by bucket), a key typed straight into a chain or slot,
+ * its operations called as the table's own code (`src/shapes/hash/code.ts`) declares them.
+ */
+function hashLines(move: HashMove, s: Spelling, probing: boolean): string[] {
+	const { name: t, language } = s
+	const [py, java] = [language === 'python', language === 'java']
+	const end = py ? '' : ';'
+	const note = py ? '#' : '//'
+	const nil = py ? 'None' : java ? 'null' : 'NULL'
+	// Python takes each key as it is (an integer is its own hash code); Java and C, a table of one type.
+	const key = (k: string) => (isTombstone(k) ? 'DELETED' : (py ? integer(k) : s.ints) ? String(Number(k)) : JSON.stringify(k))
+	const dot = py || java ? '.' : '->'
+	const node = (b: number, at: number) => `${t}${dot}table[${b}]${`${dot}next`.repeat(at)}`
+	const slot = (b: number, k: string) =>
+		py || java ? `${t}.table[${b}] = ${key(k)}${end}` : isTombstone(k) ? `${t}->slots[${b}].state = DELETED;` : `${t}->slots[${b}] = (Slot){FULL, ${key(k)}};`
+	const chain = (keys: readonly string[]): string => {
+		const [first, ...rest] = keys
+		if (!rest.length) return py ? `Node(${key(first)})` : java ? `new Node(${key(first)})` : `newNode(${key(first)})`
+		return py ? `Node(${key(first)}, ${chain(rest)})` : java ? `new Node(${key(first)}, ${chain(rest)})` : `node(${key(first)}, ${chain(rest)})`
+	}
+	const made = (table: HashTable, fresh: boolean): string[] => {
+		const cls = table.strategy === 'chaining' ? 'ChainingHashTable' : 'ProbingHashTable'
+		const keys = 'keys' in table ? table.keys : []
+		const items = keys.map(key).join(', ')
+		const create = py
+			? `${t} = ${cls}(${table.m}${keys.length ? `, [${items}]` : ''})`
+			: java
+				? `${fresh ? 'HashTable ' : ''}${t} = new ${cls}(${table.m}${keys.length ? `, ${items}` : ''});`
+				: `${fresh ? 'Table *' : ''}${t} = newTable(${table.m}, ${keys.length}, ${keys.length ? `(${s.ints ? 'int' : 'const char *'}[]){${items}}` : 'NULL'});`
+		const why = indexNote(table)
+		if ('keys' in table) return [why ? `${create}    ${note} ${why}` : create]
+		// No order of inserts gives it (a key typed into the wrong bucket, a deleted marker): as it is.
+		return [
+			`${create}    ${note} ${why ? `${why}; ` : ''}laid out as it is: no order of inserts gives it`,
+			...table.buckets.flatMap((bucket, b) =>
+				!bucket.length ? [] : table.strategy === 'probing' ? [slot(b, bucket[0])] : [`${node(b, 0)} = ${chain(bucket)}${end}`]
+			),
+		]
+	}
+	switch (move.op) {
+		case 'new':
+			return made(move.table, true)
+		case 'assign':
+			return made(move.table, false)
+		case 'set':
+			// A chained key: the node at its place in the chain; probing: the slot.
+			return [probing ? slot(move.b, move.key) : `${node(move.b, move.at)}${dot}key = ${key(move.key)}${end}`]
+		case 'clear': {
+			if (probing) return [py || java ? `${t}.table[${move.b}] = ${nil}${end}` : `${t}->slots[${move.b}].state = EMPTY;`]
+			// Whatever pointed at it (the bucket, or the key before) now points past it.
+			const before = move.at ? `${node(move.b, move.at - 1)}${dot}next` : node(move.b, 0)
+			return [`${before} = ${before}${dot}next${end}`]
+		}
+		case 'rehash':
+			// Every table's rehash is called the same.
+			return [call(hashCodeId('rehash', { strategy: 'chaining', ints: true, code: 'sum', compress: 'mod' }), s, 'hash') ?? `${note} rehash`]
+		case 'call': {
+			const [effect] = move.effect
+			// drawds grows a table to at most 31 buckets: past that, not what rehash() would make.
+			if (/^hash-rehash-/.test(move.algorithm) && effect?.op === 'assign') {
+				return [`${note} rehash into ${effect.table.m} buckets, the most drawds draws (not ${py ? 'next_prime' : 'nextPrime'}(2 * m + 1)):`, ...made(effect.table, false)]
+			}
+			const { args } = move
+			const written = call(move.algorithm, s, 'hash', (param) => (param === 'key' && args?.key !== undefined ? key(args.key) : undefined))
+			if (written) return [written]
+			return [`${note} ${move.label}, step by step:`, ...move.effect.flatMap((m) => hashLines(m, s, probing))]
+		}
+	}
+}
+
+/** A hash table's log written out in `language`. */
+export function renderHashLog(moves: readonly HashMove[], language: CodeLanguage): string {
+	const first = moves[0]
+	const keysOf = (m: HashMove): string[] =>
+		m.op === 'new' || m.op === 'assign' ? tableKeys(m.table) : m.op === 'set' ? [m.key] : m.op === 'call' ? [...(m.args?.key ? [m.args.key] : []), ...m.effect.flatMap(keysOf)] : []
+	const ints = moves.flatMap(keysOf).filter((k) => !isTombstone(k)).every(integer)
+	const s: Spelling = { ints, name: first?.op === 'new' ? first.name : 't', language }
+	// A key typed in or away reads as the table's strategy: that of the last table made.
+	let probing = false
+	return moves
+		.flatMap((m) => {
+			if (m.op === 'new' || m.op === 'assign') probing = m.table.strategy === 'probing'
+			return hashLines(m, s, probing)
+		})
+		.join('\n')
 }
 
 /** How a graph's code reads: directed (a DiGraph) or not, its weights written or not (as the graph shows them). */

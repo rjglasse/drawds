@@ -89,7 +89,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   migrations), `*ShapeUtil.tsx`, `*ShapeTool.ts`, `layout.ts` (pure, unit-tested geometry/gesture maths).
   `src/shapes/sizes.ts` has the shared S/M/L/XL cell sizes.
 - `src/cells/` - shared in-place cell editing: `EditableCells<S>` (hit-test, box, get/set, neighbours) and
-  `CellShapeUtil`, a ShapeUtil base that wires tldraw's edit lifecycle and renders the inline input.
+  `CellShapeUtil`, a ShapeUtil base that wires tldraw's edit lifecycle and renders the inline input. A cell named by
+  its value (a hash table's chained key, `k:<entry>`) is renamed as it is typed (`renameEditingCell`), the input staying.
 - `src/nodelink/` - node-link structures (lists, trees, heaps, graphs). Decision (dds-55z.15.1): ONE
   shape per structure, props hold the model. A subclass of `NodeLinkShapeUtil` turns props into a `Scene`
   (positioned nodes + edges, shape space) and applies model edits; the base does geometry, `SceneSvg`
@@ -210,7 +211,7 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   deg v), not E; is u adjacent to v: 1 cell, u's list, the pairs); frames carry the graph (`props`, so the views draw
   the step's graph) and `Frame.views`, each view's own highlights for that step; counts per representation in the play
   bar. The graph's Step by step opens the matrix and lists for them (`playCosts`; Esc takes them back).
-- `src/transcript/` - the code beside a structure (dds-2tt, arrays, linked lists, binary trees, graphs and heaps so far): every move kept as code. Each
+- `src/transcript/` - the code beside a structure (dds-2tt, arrays, linked lists, binary trees, graphs, heaps and hash tables so far): every move kept as code. Each
   kind says what its log follows and how a change reads as moves (`Tracked` in `log.ts`): an array's values in use; a
   list's nodes by id (`list-moves.ts`: set / insertAtHead / append / insert / remove / reverse / cycle, exact as nodes
   have ids; a later node holding a value an earlier one holds goes by its place, remove_at), written with drawds' own list
@@ -224,7 +225,13 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   (`heap-moves.ts`: a value typed, `a.heap[4] = 0`, no sifting; the values Floyd's heapify gives as build_heap(); else a
   new heap), as a `MinHeap` / `MaxHeap` made from its array as it is, its operations calls to the heap's own code (insert
   / extract_min / remove_at / build_heap, the value or index told from what it did); min to max logs a new MaxHeap of the
-  same values, then build_heap(), its shuffle `random.shuffle(a.heap)` and what came out. Typing straight into what a +
+  same values, then build_heap(), its shuffle `random.shuffle(a.heap)` and what came out; a hash table's keys bucket by
+  bucket and its scheme (`hash-moves.ts`), as a `ChainingHashTable` / `ProbingHashTable` of m buckets with its keys put
+  in, in an order checked to give that very table (`tableOf`: chains and probes depend on order; one no order gives, a
+  deleted marker or a key typed into the wrong bucket, is laid out bucket by bucket), a comment naming index(key) when it
+  isn't plain mod m, a key typed over or away at its place in its chain (`a.table[1].next.key = 29`) or slot, insert /
+  remove / rehash calls to the table's own code (past the 31 buckets drawds draws, the table it made instead); the style
+  panel puts the scheme and the rebuilt table in in one change, so another scheme is one new table. Typing straight into what a +
   just put in folds into that insert (a connect grip's new vertex: its label into its addVertex and edges). `log.ts`: a store
   side effect (`startCodeLog`, App onMount) keeps language-neutral moves (`array-moves.ts`: new / set / append / insert
   / pop / delete / swap / sort / reverse / shuffle / assign / call) in the shape's meta (`drawdsCode`), inside the same
@@ -237,8 +244,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   The view is a code box with `transcript` on, following the structure: its text is worked out as it is drawn
   (`CodeShapeUtil.shown`), it can't be edited, and the play bar's algorithm box never takes it over (`codeBoxesOf`).
   Show > Code beside it (`toggleTranscript`). The Python of 200 random array logs, 400 list logs (many repeated values)
-  300 tree logs, 300 graph logs and 300 heap logs (against a class made of the heap's own Python code), run, rebuilt
-  their structures.
+  300 tree logs, 300 graph logs, 300 heap logs and 400 hash table logs (against classes made of their own Python
+  code; every scheme, deleted markers, keys typed anywhere), run, rebuilt their structures.
 - `src/cells/clean-copy.ts` - Clean copy, last in every structure's own submenu (`NodeOperationsMenu` adds it): the
   same props (values, shape, seed) without marks or pointers, under the original past anything in the way
   (`freeTopBelow`, pure), selected, one undo step; followers stay with the original.
@@ -340,7 +347,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `HashScheme` (or just a strategy: sum, mod), `hashOf` says how each step was worked out. Direct addressing refuses
   what it can't place and says why (256 in a small table: the slots it would waste; X70: no index); switching to it
   sizes the table for the largest key (`withScheme`), and it has no compression to pick and nothing to rehash. `hash.ts` is pure: `hashOf` (k mod m, or character codes added; with how, for captions), `buildTable`,
-  `misplaced` (keys a find wouldn't reach: the red ring), insert / find / delete / rehash as frames. Entries are
+  `misplaced` (keys a find wouldn't reach: the red ring), insert / find / delete / rehash as frames (rehash puts the
+  keys in one by one, in order, as its code does: with probing, the order decides the slots). Entries are
   keys or `key:value`; scene keys `b<i>` buckets, `k:<entry>` chained entries, `s<i>` slots, `#load`. Shift+B. Code
   (`code.ts`, `hashCodeId`): insert / find (contains) / delete (remove) for chaining (a chain of nodes, a new key on the
   end) and probing (at most m slots tried, a DELETED marker), and rehash, each over index(key) as the scheme says; an

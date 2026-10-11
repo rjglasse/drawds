@@ -9,6 +9,8 @@ import type { GraphShapeProps } from '../shapes/graph/graph-shape-types'
 import { built, diffGraph, graphState, sameGraph, type GraphMove, type GraphState } from './graph-moves'
 import type { HeapShapeProps } from '../shapes/heap/heap-shape-types'
 import { diffHeap, heapArgs, sameHeap, type HeapMove, type HeapState } from './heap-moves'
+import type { HashShapeProps } from '../shapes/hash/hash-shape-types'
+import { diffHash, hashArgs, hashState, sameHash, tableOf, type HashMove, type HashState } from './hash-moves'
 
 // The code log: every move on a structure, kept in its meta (`drawdsCode`) by a store side effect
 // that runs inside the same change, so the move and its line are one undo step, redo brings the
@@ -24,7 +26,7 @@ import { diffHeap, heapArgs, sameHeap, type HeapMove, type HeapState } from './h
 
 export const LOG_KEY = 'drawdsCode'
 
-export type Move = ArrayMove | ListMove | TreeMove | GraphMove | HeapMove
+export type Move = ArrayMove | ListMove | TreeMove | GraphMove | HeapMove | HashMove
 
 /** What a kind of structure's log follows, and how a change of it reads as moves. */
 interface Tracked<S> {
@@ -143,6 +145,28 @@ const heaps: Tracked<HeapState> = {
 	args: heapArgs,
 }
 
+const hashTables: Tracked<HashState> = {
+	state: (props) => hashState(props as HashShapeProps),
+	touches: (a, b) => {
+		const [p, n] = [a as HashShapeProps, b as HashShapeProps]
+		return p.buckets !== n.buckets || p.strategy !== n.strategy || p.code !== n.code || p.compress !== n.compress
+	},
+	follows: () => true,
+	same: sameHash,
+	diff: diffHash,
+	start: (name, h) => ({ op: 'new', name, table: tableOf(h) }),
+	restart: (first, h) => ({ ...(first as Extract<HashMove, { op: 'new' }>), table: tableOf(h) }),
+	// The bucket and place in its chain (probing: the slot) of the key being typed.
+	cell: (a, b) => {
+		const i = a.buckets.findIndex((bucket, k) => bucket.length !== b.buckets[k]?.length || bucket.some((e, j) => e !== b.buckets[k][j]))
+		if (i < 0) return undefined
+		const at = a.buckets[i].findIndex((e, j) => e !== b.buckets[i][j])
+		return `${i}:${at < 0 ? a.buckets[i].length : at}`
+	},
+	sketching: 'hash-table.sketching',
+	args: hashArgs,
+}
+
 /** The structures with a log, by shape type. */
 const TRACKED: Record<string, Tracked<unknown>> = {
 	array: arrays as Tracked<unknown>,
@@ -150,6 +174,7 @@ const TRACKED: Record<string, Tracked<unknown>> = {
 	'binary-tree': trees as Tracked<unknown>,
 	graph: graphs as Tracked<unknown>,
 	heap: heaps as Tracked<unknown>,
+	'hash-table': hashTables as Tracked<unknown>,
 }
 
 /** Whether a shape's moves are logged. */
@@ -286,7 +311,8 @@ function typedIntoNew(before: Move[], moves: Move[]): Move[] | undefined {
 			...before.slice(k + 1).map((m) => (m.op === 'addEdge' ? { ...m, from: named(m.from), to: named(m.to) } : m)),
 		]
 	}
-	if (set.op !== 'set') return undefined
+	// A hash table's keys go in by the + prompt, never typed into a new one.
+	if (set.op !== 'set' || 'key' in set) return undefined
 	const at = 'i' in set ? set.i : set.path
 	const into = (last.op === 'insert' && last.i === at) || (last.op === 'insertAtHead' && at === 0) || (last.op === 'add' && last.path === at)
 	return into ? [...before.slice(0, -1), { ...last, v: set.v } as Move] : undefined

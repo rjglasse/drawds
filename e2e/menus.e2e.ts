@@ -71,7 +71,7 @@ test('hash tables and graphs follow the same layout', async ({ page }) => {
 	await page.mouse.move(300, 200 + 4 * 48 + 10, { steps: 20 })
 	await page.mouse.up()
 	await setProps(page, { buckets: [['10', '5'], ['6'], [], [], []] })
-	expect((await submenusAt(page, await nodeScreenPosition(page, 'k:6'))).map(([label]) => label)).toEqual(['Step by step', 'Hash table', 'Mark', 'Pointer'])
+	expect((await submenusAt(page, await nodeScreenPosition(page, 'k:6'))).map(([label]) => label)).toEqual(['Step by step', 'Hash table', 'Show', 'Mark', 'Pointer'])
 	await page.evaluate(() => void window.editor!.deleteShapes([...window.editor!.getCurrentPageShapeIds()]))
 	await sketchGraph(page, [300, 250], 5)
 	expect(await submenusAt(page, await nodeScreenPosition(page, 'v0'))).toEqual(

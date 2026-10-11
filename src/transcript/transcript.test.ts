@@ -3,10 +3,13 @@ import { diffValues, replay, type ArrayMove } from './array-moves'
 import { diffList, replayList, type ListMove, type ListState } from './list-moves'
 import { addChild, mirrorSubtree, removeSubtree, swapChildren } from '../shapes/tree/model'
 import { diffGraph, graphState, type GraphMove, type GraphState } from './graph-moves'
-import { renderArrayLog, renderGraphLog, renderHeapLog, renderListLog, renderTreeLog } from './render'
+import { renderArrayLog, renderGraphLog, renderHashLog, renderHeapLog, renderListLog, renderTreeLog } from './render'
 import { diffHeap, heapArgs, type HeapMove, type HeapState } from './heap-moves'
 import { heapify, heapInsert, heapRemoveAt } from '../shapes/heap/heap'
 import { heapCode } from '../shapes/heap/code'
+import { diffHash, hashArgs, tableOf, type HashMove, type HashState } from './hash-moves'
+import { TOMBSTONE, buildTable, deleteKey, entriesOf, insertEntry, rehash } from '../shapes/hash/hash'
+import { hashCodeId } from '../shapes/hash/code'
 import { diffTree, shapeOf, treeArgs, type TreeMove } from './tree-moves'
 
 const v = (...xs: (number | string)[]) => xs.map(String)
@@ -373,5 +376,115 @@ describe('a heap change as the move a teacher made', () => {
 
 	it('text values are quoted', () => {
 		expect(renderHeapLog([{ op: 'new', name: 'h', type: 'min', values: ['B', 'K'] }], 'c')).toBe('Heap *h = newMinHeap(2, (const char *[]){"B", "K"});')
+	})
+})
+
+describe('a hash table change as the move a teacher made', () => {
+	const mod = { code: 'sum', compress: 'mod' } as const
+	const chained = (keys: string[], m = 7): HashState => ({ strategy: 'chaining', ...mod, buckets: buildTable(keys, m, { strategy: 'chaining', ...mod }) })
+	const probed = (keys: string[], m = 7): HashState => ({ strategy: 'probing', ...mod, buckets: buildTable(keys, m, { strategy: 'probing', ...mod }) })
+	// 8 and 15 in bucket 1, 3 and 10 in bucket 3.
+	const table = chained(v(8, 15, 3, 10))
+	const at = (s: HashState, b: number, bucket: string[]): HashState => ({ ...s, buckets: s.buckets.map((x, i) => (i === b ? bucket : x)) })
+
+	it('a key typed over another or away (in a chain at its place, in a slot), the table grown and rehashed', () => {
+		expect(diffHash(table, at(table, 1, v(8, 22)))).toEqual([{ op: 'set', b: 1, at: 1, key: '22' }])
+		expect(diffHash(table, at(table, 1, v(15)))).toEqual([{ op: 'clear', b: 1, at: 0 }])
+		expect(diffHash(table, at(table, 3, v(3)))).toEqual([{ op: 'clear', b: 3, at: 1 }])
+		const slots = probed(v(8, 15))
+		expect(diffHash(slots, at(slots, 4, v(9)))).toEqual([{ op: 'set', b: 4, at: 0, key: '9' }])
+		expect(diffHash(slots, at(slots, 2, []))).toEqual([{ op: 'clear', b: 2, at: 0 }])
+		expect(diffHash(table, { ...table, buckets: rehash(table.buckets, 'chaining').buckets! })).toEqual([{ op: 'rehash' }])
+	})
+
+	it('another scheme: a new table, its keys put in in the order they had', () => {
+		const mad = { ...table, compress: 'mad' as const, buckets: buildTable(entriesOf(table.buckets), 7, { strategy: 'chaining', code: 'sum', compress: 'mad' }) }
+		expect(diffHash(table, mad)).toEqual([{ op: 'assign', table: { strategy: 'chaining', code: 'sum', compress: 'mad', m: 7, keys: v(8, 15, 3, 10) } }])
+	})
+
+	it('a table as keys put in, in an order checked to give it; else laid out as it is', () => {
+		// 9 collided with 4 and wrapped round to slot 0: it goes in after 4.
+		expect(tableOf(probed(v(4, 9), 5))).toEqual({ strategy: 'probing', ...mod, m: 5, keys: v(4, 9) })
+		// A deleted marker, or a key in a bucket that isn't its hash: no order of inserts gives it.
+		const deleted = { ...probed(v(8, 15)), buckets: deleteKey(probed(v(8, 15)).buckets, 'probing', '8').buckets! }
+		expect(tableOf(deleted)).toEqual({ strategy: 'probing', ...mod, m: 7, buckets: [[], [TOMBSTONE], ['15'], [], [], [], []] })
+		expect('buckets' in tableOf(at(table, 0, v(5)))).toBe(true)
+	})
+
+	it("an operation's key, as what it did tells it", () => {
+		const slots = probed(v(8, 15))
+		expect(hashArgs(slots, { ...slots, buckets: insertEntry(slots.buckets, 'probing', '22').buckets! })).toEqual({ key: '22' })
+		expect(hashArgs(slots, { ...slots, buckets: deleteKey(slots.buckets, 'probing', '15').buckets! })).toEqual({ key: '15' })
+	})
+
+	it("written out: a ChainingHashTable or ProbingHashTable with its keys put in, its operations called as the table's own code declares them", () => {
+		const id = (op: 'insert' | 'delete' | 'rehash') => hashCodeId(op, { strategy: 'chaining', ints: true, ...mod })
+		const log: HashMove[] = [
+			{ op: 'new', name: 't', table: { strategy: 'chaining', ...mod, m: 7, keys: v(8, 15, 3, 10) } },
+			{ op: 'set', b: 1, at: 1, key: '22' },
+			{ op: 'clear', b: 3, at: 1 },
+			{ op: 'clear', b: 1, at: 0 },
+			{ op: 'call', algorithm: id('insert'), label: 'insert', effect: [], args: { key: '5' } },
+			{ op: 'call', algorithm: id('delete'), label: 'delete', effect: [], args: { key: '3' } },
+			{ op: 'call', algorithm: id('rehash'), label: 'rehash', effect: [{ op: 'rehash' }] },
+			{ op: 'assign', table: { strategy: 'probing', code: 'sum', compress: 'mad', m: 17, keys: v(5, 22) } },
+			{ op: 'set', b: 3, at: 0, key: '9' },
+			{ op: 'clear', b: 3, at: 0 },
+		]
+		expect(renderHashLog(log, 'python').split('\n')).toEqual([
+			't = ChainingHashTable(7, [8, 15, 3, 10])',
+			't.table[1].next.key = 22',
+			't.table[3].next = t.table[3].next.next',
+			't.table[1] = t.table[1].next',
+			't.insert(5)',
+			't.remove(3)',
+			't.rehash()',
+			't = ProbingHashTable(17, [5, 22])    # index: the key, MAD',
+			't.table[3] = 9',
+			't.table[3] = None',
+		])
+		expect(renderHashLog(log, 'java').split('\n')).toEqual([
+			'HashTable t = new ChainingHashTable(7, 8, 15, 3, 10);',
+			't.table[1].next.key = 22;',
+			't.table[3].next = t.table[3].next.next;',
+			't.table[1] = t.table[1].next;',
+			't.insert(5);',
+			't.remove(3);',
+			't.rehash();',
+			't = new ProbingHashTable(17, 5, 22);    // index: the key, MAD',
+			't.table[3] = 9;',
+			't.table[3] = null;',
+		])
+		expect(renderHashLog(log, 'c').split('\n')).toEqual([
+			'Table *t = newTable(7, 4, (int[]){8, 15, 3, 10});',
+			't->table[1]->next->key = 22;',
+			't->table[3]->next = t->table[3]->next->next;',
+			't->table[1] = t->table[1]->next;',
+			'insert(t, 5);',
+			'removeKey(t, 3);',
+			'rehash(t);',
+			't = newTable(17, 2, (int[]){5, 22});    // index: the key, MAD',
+			't->slots[3] = (Slot){FULL, 9};',
+			't->slots[3].state = EMPTY;',
+		])
+	})
+
+	it('text keys quoted (Python takes an integer key as an integer), the hash code named; a table no inserts give, laid out', () => {
+		const words: HashMove[] = [{ op: 'new', name: 't', table: { strategy: 'chaining', code: 'java', compress: 'mod', m: 7, keys: ['cat', '5'] } }]
+		expect(renderHashLog(words, 'python')).toBe('t = ChainingHashTable(7, ["cat", 5])    # index: Java\'s hashCode, mod m')
+		expect(renderHashLog(words, 'java')).toBe('HashTable t = new ChainingHashTable(7, "cat", "5");    // index: Java\'s hashCode, mod m')
+		const odd: HashMove[] = [{ op: 'new', name: 't', table: { strategy: 'probing', ...mod, m: 5, buckets: [['5'], [], [TOMBSTONE], [], []] } }]
+		expect(renderHashLog(odd, 'python').split('\n')).toEqual(['t = ProbingHashTable(5)    # laid out as it is: no order of inserts gives it', 't.table[0] = 5', 't.table[2] = DELETED'])
+		expect(renderHashLog(odd, 'c').split('\n').slice(1)).toEqual(['t->slots[0] = (Slot){FULL, 5};', 't->slots[2].state = DELETED;'])
+		const chains: HashMove[] = [{ op: 'new', name: 't', table: { strategy: 'chaining', ...mod, m: 7, buckets: [['5', '12'], [], [], [], [], [], []] } }]
+		expect(renderHashLog(chains, 'java').split('\n')[1]).toBe('t.table[0] = new Node(5, new Node(12));')
+	})
+
+	it('grown past the 31 buckets drawds draws: the table it made, not what rehash() would', () => {
+		const log: HashMove[] = [
+			{ op: 'new', name: 't', table: { strategy: 'chaining', ...mod, m: 17, keys: v(3) } },
+			{ op: 'call', algorithm: hashCodeId('rehash', { strategy: 'chaining', ints: true, ...mod }), label: 'rehash', effect: [{ op: 'assign', table: { strategy: 'chaining', ...mod, m: 31, keys: v(3) } }] },
+		]
+		expect(renderHashLog(log, 'python').split('\n').slice(1)).toEqual(['# rehash into 31 buckets, the most drawds draws (not next_prime(2 * m + 1)):', 't = ChainingHashTable(31, [3])'])
 	})
 })

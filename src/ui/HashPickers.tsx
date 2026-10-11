@@ -68,7 +68,9 @@ export function HashPickers() {
 	const code = styles.get(HashCodeStyle)
 	const compress = styles.get(HashCompressionStyle)
 	if (strategy === undefined) return null
-	// A selected table takes the change too: its keys go in again where the new scheme puts them.
+	// A selected table takes the change too: its keys go in again where the new scheme puts them, in
+	// the same change as the scheme (so the code beside it is one new table, never a probing table
+	// still holding chains), before the style panel sets the style it already has.
 	const rebuild = (change: Partial<HashScheme>) => {
 		const util = editor.getShapeUtil(HASH_SHAPE_TYPE) as HashShapeUtil
 		const updates = editor.getSelectedShapes().flatMap((shape) => (editor.isShapeOfType(shape, HASH_SHAPE_TYPE) ? [util.withScheme(shape, change)] : []))
@@ -83,8 +85,8 @@ export function HashPickers() {
 				items={STRATEGY_ITEMS}
 				value={strategy}
 				onValueChange={(style, value) => {
-					onValueChange(style, value)
 					rebuild({ strategy: value })
+					onValueChange(style, value)
 				}}
 			/>
 			{code !== undefined && (
@@ -95,8 +97,8 @@ export function HashPickers() {
 					items={CODE_ITEMS}
 					value={code}
 					onValueChange={(style, value) => {
-						onValueChange(style, value)
 						rebuild({ code: value })
+						onValueChange(style, value)
 					}}
 				/>
 			)}
@@ -108,8 +110,8 @@ export function HashPickers() {
 					items={COMPRESSION_ITEMS}
 					value={compress}
 					onValueChange={(style, value) => {
-						onValueChange(style, value)
 						rebuild({ compress: value })
+						onValueChange(style, value)
 					}}
 				/>
 			)}

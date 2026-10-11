@@ -426,14 +426,17 @@ export function rehash(buckets: string[][], scheme: SchemeLike): HashOperation {
 	const m = Math.min(MAX_BUCKETS, nextPrime(buckets.length * 2 + 1))
 	let table: string[][] = Array.from({ length: m }, () => [])
 	const left = [...entries]
+	// The keys moved so far, in the order they went in: probing places a key by what is in already.
+	const moved: string[] = []
 	const strips = (): Strip[] => [{ title: 'keys to move', items: left.map(keyOf) }]
 	const frames: Frame[] = [
 		{ props: { buckets: table }, strips: strips(), caption: `A new table of ${m} buckets. Every key must move: h(key) depends on m`, line: 'grow' },
 	]
 	for (const entry of entries) {
 		left.shift()
+		moved.push(entry)
 		const key = keyOf(entry)
-		table = buildTable([...entriesOf(table), entry], m, scheme)
+		table = buildTable(moved, m, scheme)
 		const h = hashOf(key, m, scheme)
 		const node = strategy === 'chaining' ? chainNodeKeys(table)[h.index].at(-1)! : slotKey(table.findIndex((slot) => slot[0] === entry))
 		const where = strategy === 'probing' && node !== slotKey(h.index) ? `, taken, so slot ${node.slice(1)}` : ''

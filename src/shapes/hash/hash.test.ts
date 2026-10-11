@@ -112,6 +112,12 @@ describe('rehash', () => {
 		expect(op.frames[0].strips).toEqual([{ title: 'keys to move', items: ['8', '15', '3'] }])
 		expect(captions(op)[1]).toBe('h(8) = 8 mod 17 = 8')
 	})
+
+	it("probing: each key in turn, slot by slot, as the code's rehash puts them", () => {
+		// 49, 66 and 32 all hash to 15 in 17 slots, and 32 goes in last: it wraps round to slot 0 and stays there.
+		const table = buildTable(['49', '66', '25', '32', '31'], 7, 'probing')
+		expect(rehash(table, 'probing').buckets).toEqual(buildTable(entriesOf(table), 17, 'probing'))
+	})
 })
 
 describe('hash table scene', () => {

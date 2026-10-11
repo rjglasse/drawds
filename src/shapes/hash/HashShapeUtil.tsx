@@ -3,8 +3,10 @@ import { pruneMarks } from '../../cells/marks'
 import { fillValues } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
 import { newSeed } from '../../data/random'
+import { renameEditingCell } from '../../cells/editable-cells'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import { playOperation } from '../../nodelink/playback'
+import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
 import type { SceneNode } from '../../nodelink/scene'
 import type { PointerSide } from '../../pointers/layout'
 import {
@@ -84,11 +86,14 @@ export class HashShapeUtil extends NodeLinkShapeUtil<HashShape> implements Refil
 	setNodeValue(shape: HashShape, key: string, value: string) {
 		const at = this.locate(shape, key)
 		if (!at) return this.update(shape, {})
+		const chained = shape.props.strategy === 'chaining'
 		const buckets = shape.props.buckets.map((bucket, i) => {
 			if (i !== at.bucket) return bucket
-			if (shape.props.strategy === 'probing') return value.trim() ? [value] : []
+			if (!chained) return value.trim() ? [value] : []
 			return value.trim() ? bucket.map((e, j) => (j === at.index ? value : e)) : bucket.filter((_, j) => j !== at.index)
 		})
+		// A chained key is named by its value: the edit follows it as it is typed (15, then 2, then 29).
+		if (chained && value.trim()) renameEditingCell(this.editor, shape.id, key, chainNodeKeys(buckets)[at.bucket][at.index])
 		return this.update(shape, { buckets })
 	}
 
@@ -173,6 +178,13 @@ export class HashShapeUtil extends NodeLinkShapeUtil<HashShape> implements Refil
 				? [{ ...table, id: 'hash-rehash', label: 'Grow and rehash', run: () => this.run(id, 'rehash', (s) => rehash(s.props.buckets, s.props)) }]
 				: []),
 			{ section: 'actions', id: 'hash-reroll', label: 'New keys', run: () => this.reroll(id) },
+			// Every move made on it, as code.
+			{
+				section: 'show',
+				id: 'hash-code-beside',
+				label: transcriptsOf(this.editor, id).length ? 'Hide the code beside it' : 'Code beside it: every move as code',
+				run: () => toggleTranscript(this.editor, shape),
+			},
 		]
 	}
 

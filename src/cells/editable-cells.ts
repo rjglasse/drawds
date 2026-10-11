@@ -37,7 +37,11 @@ export interface EditingCell {
 	key: CellKey
 	/** History mark taken when this cell's edit began, so Esc can revert just this cell. */
 	markId: string
+	/** Which edit this is: the input stays while its cell is renamed (`renameEditingCell`). */
+	edit: number
 }
+
+let edits = 0
 
 const editingCells = new WeakMap<Editor, Atom<EditingCell | null>>()
 
@@ -60,7 +64,19 @@ export function getEditingCell(editor: Editor): EditingCell | null {
  * created to be typed into: one undo takes both back).
  */
 export function beginCellEdit(editor: Editor, shapeId: TLShapeId, key: CellKey, markId = editor.markHistoryStoppingPoint('edit cell')) {
-	editingCellAtom(editor).set({ shapeId, key, markId })
+	const now = editingCellAtom(editor).get()
+	const edit = now?.shapeId === shapeId && now.key === key ? now.edit : ++edits
+	editingCellAtom(editor).set({ shapeId, key, markId, edit })
+}
+
+/**
+ * The cell being typed in has a new key (a hash table's chained key is named by its value): the
+ * edit goes on in it, in the same input.
+ */
+export function renameEditingCell(editor: Editor, shapeId: TLShapeId, from: CellKey, to: CellKey) {
+	const cell = editingCellAtom(editor)
+	const now = cell.get()
+	if (now?.shapeId === shapeId && now.key === from && from !== to) cell.set({ ...now, key: to })
 }
 
 export function endCellEdit(editor: Editor, shapeId: TLShapeId) {
