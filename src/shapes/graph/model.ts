@@ -1,4 +1,5 @@
 import { mulberry32, randomInt } from '../../data/random'
+import type { Marks } from '../../cells/marks'
 import { edgeCellKey } from '../../nodelink/scene'
 import type { GraphEdge, GraphLabelsMode, GraphNode, GraphShapeProps } from './graph-shape-types'
 
@@ -100,6 +101,25 @@ export function degrees({ nodes, edges }: GraphModel, directed: boolean): Record
 		out.set(e.from, (out.get(e.from) ?? 0) + 1)
 	}
 	return Object.fromEntries(nodes.map((n) => [n.id, directed ? `${into.get(n.id)}/${out.get(n.id)}` : String(into.get(n.id)! + out.get(n.id)!)]))
+}
+
+/**
+ * A node's neighbours, for pointing at it (lecture 9a's adjacency): the node blue, its neighbours and
+ * the edges to them green; directed, what it points to green and what points to it orange (a node
+ * both ways green, its two edges each their own colour).
+ */
+export function neighbourMarks({ edges }: GraphModel, id: string, directed: boolean): Marks {
+	const marks: Marks = {}
+	for (const e of edges) {
+		if (e.from !== id && e.to !== id) continue
+		const out = e.from === id
+		const color = !directed || out ? 'green' : 'orange'
+		marks[edgeCellKey(e.id)] = color
+		const other = out ? e.to : e.from
+		if (marks[other] !== 'green') marks[other] = color
+	}
+	marks[id] = 'blue'
+	return marks
 }
 
 export function markKeys(model: GraphModel): string[] {

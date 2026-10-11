@@ -490,8 +490,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   undirected, a visited neighbour other than the parent closes one; directed, a neighbour still on the call stack, one
   that is done not; the cycle lit red; none: a forest, or a DAG), each with its code. Density `complete` (lecture 9a's
   fully connected): every pair joined, nodes round a circle so no edge runs through one (`completeGraph`; rewiring to it
-  moves them there, node 0 kept). Show > degrees (prop `degrees`): badges, directed in/out (`degrees` in model.ts),
-  drawn by `NodeLinkShapeUtil.sceneBadges` while no operation is open.
+  moves them there, node 0 kept). Show > degrees and neighbours (prop `degrees`): badges, directed in/out (`degrees` in
+  model.ts), drawn by `NodeLinkShapeUtil.sceneBadges` while no operation is open; pointing at a node then lights it blue
+  and its neighbours and the edges to them (`neighbourMarks` via `hoverHighlights`: green; directed, out green, in
+  orange).
 - `src/controls/` - on-canvas controls shown while a structure is the only selected shape
   (`showsStructureControls`): grow grips (tldraw `create` handles `grow` / `grow-start`, drawn only on hover,
   plus our own '+' `GrowGrip`; `grownCount` is pure) and `ControlButton` (HTML insert '+' / remove 'x',

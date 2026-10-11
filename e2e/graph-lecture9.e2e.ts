@@ -89,6 +89,40 @@ test('complete: every pair of the sketch joined, round a circle; the edge list a
 	expect((await graph(page)).degrees).toBe(true)
 })
 
+test('degrees and neighbours: pointing at a node lights it, its neighbours and the edges to them', async ({ page }) => {
+	await lectureGraph(page)
+	const flashes = page.locator('[data-shape-type="graph"] .drawds-flash')
+	const v3 = await nodeScreenPosition(page, 'v3')
+	// Pointing alone lights nothing while the degrees are hidden.
+	await page.mouse.move(...v3)
+	await expect(flashes).toHaveCount(0)
+	await rightClick(page, v3)
+	await page.getByTestId('context-menu-sub.drawds-graph-show-button').click()
+	await expect(page.getByTestId('context-menu.graph-degrees')).toHaveText('Show degrees and neighbours')
+	await page.getByTestId('context-menu.graph-degrees').click()
+	// The degree badges, drawn as highlights are; pointing at 3 adds 3 itself, its neighbours in lecture
+	// 9's graph (1, 2, 4 and 5) and the four edges to them.
+	await page.mouse.move(v3[0], v3[1] + 150)
+	await expect(flashes).toHaveCount(7)
+	await page.mouse.move(...v3)
+	await expect(flashes).toHaveCount(7 + 9)
+	// Directed: what 3 points to green, what points to it orange (1 -> 3, 2 -> 3; 3 -> 4, 3 -> 5).
+	await page.evaluate(() => {
+		const editor = window.editor!
+		const g = editor.getCurrentPageShapes().find((s) => s.type === 'graph')!
+		editor.updateShape({ id: g.id, type: 'graph', props: { direction: 'directed' } } as never)
+	})
+	await page.mouse.move(v3[0] + 2, v3[1] + 2)
+	await page.mouse.move(...v3)
+	await expect(flashes).toHaveCount(7 + 9)
+	const marks = await page.evaluate(() => {
+		const editor = window.editor!
+		const g = editor.getCurrentPageShapes().find((s) => s.type === 'graph')!
+		return (editor.getShapeUtil(g) as unknown as { hoverHighlights(s: unknown, k: string): Record<string, string> }).hoverHighlights(g, 'v3')
+	})
+	expect(marks).toMatchObject({ v3: 'blue', v1: 'orange', v2: 'orange', v4: 'green', v5: 'green' })
+})
+
 test("removing a vertex step by step: the matrix and lists open beside it, each view's cost counted; Esc changes nothing", async ({ page }) => {
 	await lectureGraph(page)
 	await steps(page, 'v3', 'graph-remove-vertex-costs')

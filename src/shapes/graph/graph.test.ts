@@ -16,6 +16,7 @@ import {
 	addEdge,
 	addNode,
 	degrees,
+	neighbourMarks,
 	edgeWeight,
 	markKeys,
 	mergeTwins,
@@ -304,6 +305,24 @@ describe('degrees', () => {
 		}
 		expect(degrees(g, false)).toEqual({ a: '2', b: '2', c: '2', d: '0' })
 		expect(degrees(g, true)).toEqual({ a: '0/2', b: '2/0', c: '1/1', d: '0/0' })
+	})
+
+	it('pointing at a node: its neighbours and the edges to them; directed, out green and in orange', () => {
+		const g: GraphModel = {
+			nodes: ['a', 'b', 'c', 'd'].map((id, i) => ({ id, value: id.toUpperCase(), x: i, y: 0 })),
+			edges: [
+				{ id: 'e0', from: 'a', to: 'b', weight: '1' },
+				{ id: 'e1', from: 'c', to: 'a', weight: '1' },
+				{ id: 'e2', from: 'b', to: 'a', weight: '1' },
+				{ id: 'e3', from: 'c', to: 'd', weight: '1' },
+				{ id: 'e4', from: 'a', to: 'a', weight: '1' },
+			],
+		}
+		expect(neighbourMarks(g, 'a', false)).toEqual({ a: 'blue', b: 'green', c: 'green', 'edge:e0': 'green', 'edge:e1': 'green', 'edge:e2': 'green', 'edge:e4': 'green' })
+		// b both ways: green, each edge its own colour; a loop leaves a blue.
+		expect(neighbourMarks(g, 'a', true)).toEqual({ a: 'blue', b: 'green', c: 'orange', 'edge:e0': 'green', 'edge:e1': 'orange', 'edge:e2': 'orange', 'edge:e4': 'green' })
+		expect(neighbourMarks(g, 'd', true)).toEqual({ d: 'blue', c: 'orange', 'edge:e3': 'orange' })
+		expect(neighbourMarks({ nodes: g.nodes, edges: [] }, 'b', false)).toEqual({ b: 'blue' })
 	})
 })
 

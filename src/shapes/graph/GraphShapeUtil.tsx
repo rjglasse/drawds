@@ -9,7 +9,7 @@ import {
 	type TLThemeColors,
 	type VecLike,
 } from 'tldraw'
-import { pruneMarks } from '../../cells/marks'
+import { pruneMarks, type Marks } from '../../cells/marks'
 import { GROW_HANDLE_ID } from '../../controls/grow'
 import { GrowGrip } from '../../controls/GrowGrip'
 import { showsStructureControls } from '../../controls/visibility'
@@ -50,6 +50,7 @@ import {
 	degrees,
 	markKeys,
 	mergeTwins,
+	neighbourMarks,
 	nextLabel,
 	nextNodeId,
 	relabel,
@@ -316,7 +317,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 			{
 				...show,
 				id: 'graph-degrees',
-				label: `${shape.props.degrees ? 'Hide' : 'Show'} degrees${shape.props.direction === 'directed' ? ' (in/out)' : ''}`,
+				label: `${shape.props.degrees ? 'Hide' : 'Show'} degrees${shape.props.direction === 'directed' ? ' (in/out)' : ''} and neighbours`,
 				run: () => this.toggleDegrees(shape.id),
 			},
 			// Every move made on it, as code.
@@ -330,7 +331,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		return [...views, ...this.algorithmOperations(shape)]
 	}
 
-	/** Degrees as badges on the nodes, or not: one undo step. */
+	/** Degrees as badges on the nodes (and neighbours lit on hover), or not: one undo step. */
 	private toggleDegrees(id: GraphShape['id']) {
 		const shape = this.editor.getShape(id) as GraphShape | undefined
 		if (!shape) return
@@ -340,6 +341,11 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 
 	override sceneBadges(shape: GraphShape) {
 		return shape.props.degrees ? degrees(shape.props, shape.props.direction === 'directed') : undefined
+	}
+
+	/** With the degrees shown, pointing at a node lights its neighbours (directed: what it points to, what points to it). */
+	hoverHighlights(shape: GraphShape, key: string): Marks {
+		return shape.props.degrees ? neighbourMarks(shape.props, key, shape.props.direction === 'directed') : {}
 	}
 
 	private showView(id: GraphShape['id'], view: GraphViewShape['props']['view']) {
@@ -404,6 +410,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 			"Drag from the dot on a node's right edge to another node to join them, or into space for a new node",
 			'Hover a node or an edge for x (remove); drag the dot under a node to move it',
 			"Right-click a node: Step by step has BFS, DFS, a path to another node (fewest edges), Dijkstra, Prim, Kruskal (with its union-find beside the graph), connected components and Is there a cycle?; Show puts its adjacency matrix, lists or union-find beside it",
+			'Show degrees and neighbours: each node its degree, and pointing at a node lights its neighbours (directed: out green, in orange)',
 			'Style panel: Edges (directed or not), Weights, Labels, and Density, Pieces, Order for a new sketch',
 		]
 	}
