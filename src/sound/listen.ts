@@ -2,8 +2,8 @@ import { react, type Editor, type TLShape } from 'tldraw'
 import { compareKeys } from '../data/compare'
 import { currentPlayback, playbackFor, type Frame } from '../nodelink/playback'
 import type { Scene } from '../nodelink/scene'
-import { GIVE_UP, GONE, TICK, pitches, sweep, touchedKeys } from './notes'
-import { isSoundOn, play } from './player'
+import { giveUp, gone, pitches, sweep, tick, touchedKeys } from './notes'
+import { isSoundOn, play, soundTuning } from './player'
 
 // When drawds makes its sounds (once bogosort has been run): each step an operation shows, going
 // forward, plays what it lights, swaps and moves; a sort ends on a run up its values (bogosort only if
@@ -40,31 +40,33 @@ export function startSounds(editor: Editor) {
 		const shape = editor.getShape(view.shapeId)
 		const values = shape && valuesOf(editor, shape, view.frame)
 		if (!values) return
-		const pitch = pitches([...values.values()])
+		const tuning = soundTuning()
+		const pitch = pitches([...values.values()], tuning)
 		const notes = touchedKeys(view.frame).flatMap((k) => (values.has(k) ? [pitch(values.get(k)!)] : []))
 		play(notes.slice(0, 12))
 		// A sort's last step: up through its values; bogosort giving up, three notes down.
 		if (view.step !== view.steps - 1 || shape.type !== 'array' || !view.code || !/sort/.test(view.code)) return
 		const all = [...values.values()]
-		if (sortedUp(all)) play(sweep(all), { gap: 0.045 })
-		else if (view.code === 'bogosort') play(GIVE_UP, { gap: 0.22, loud: 0.8 })
+		if (sortedUp(all)) play(sweep(all, tuning), { gap: 0.045, ahead: 2 })
+		else if (view.code === 'bogosort') play(giveUp(tuning), { gap: 0.22, loud: 0.8, ahead: 1 })
 	})
 	const changed = editor.sideEffects.registerAfterChangeHandler('shape', (prev, next, source) => {
 		// An operation open on it makes its own sounds, its result going in too.
 		if (!isSoundOn() || source !== 'user' || prev.props === next.props || playbackFor(editor, next.id)) return
 		const [before, after] = [valuesOf(editor, prev), valuesOf(editor, next)]
 		if (!before || !after) return
-		const pitch = pitches([...after.values()])
+		const tuning = soundTuning()
+		const pitch = pitches([...after.values()], tuning)
 		const notes = [...after].flatMap(([k, v]) => (before.get(k) !== v ? [pitch(v)] : []))
 		if (notes.length) play(notes.slice(0, 10))
-		else if ([...before.keys()].some((k) => !after.has(k))) play([GONE])
-		else if ((prev.props as { marks?: unknown }).marks !== (next.props as { marks?: unknown }).marks) play([TICK], { loud: 0.4 })
+		else if ([...before.keys()].some((k) => !after.has(k))) play([gone(tuning)])
+		else if ((prev.props as { marks?: unknown }).marks !== (next.props as { marks?: unknown }).marks) play([tick(tuning)], { loud: 0.4, bass: false })
 	})
 	const created = editor.sideEffects.registerAfterCreateHandler('shape', (shape, source) => {
 		if (!isSoundOn() || source !== 'user') return
 		const values = valuesOf(editor, shape)
 		if (!values?.size) return
-		const pitch = pitches([...values.values()])
+		const pitch = pitches([...values.values()], soundTuning())
 		play([...values.values()].slice(0, 6).map(pitch))
 	})
 	return () => {

@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { arrayStep, open, rightClick, sketchArray } from './helpers'
 
 // The easter egg: running bogosort turns drawds' sounds on for the tab (a note per value a step
-// touches, notes for moves by hand), until the speaker button turns them off.
+// touches, notes for moves by hand), in a scale and key the speaker's menu picks, until it turns them off.
 
 /** The browser's audio, faked: counts the notes started. */
 const fakeAudio = () => {
@@ -27,7 +27,10 @@ const fakeAudio = () => {
 				start() {
 					;(window as unknown as { notes: number }).notes++
 				},
-				stop() {},
+				// Ended as soon as stopped, so the player's count of sounding notes goes down as a browser's does.
+				stop() {
+					setTimeout(() => (this as unknown as { onended?: () => void }).onended?.(), 0)
+				},
 				onended: null,
 			}
 		}
@@ -44,12 +47,12 @@ test('bogosort turns the sounds on: its steps and moves by hand play notes, unti
 	await open(page)
 	await sketchArray(page, [200, 200], 6)
 	expect(await notes(page)).toBe(0)
-	await expect(page.getByTestId('sound-off')).toHaveCount(0)
+	await expect(page.getByTestId('sound-menu.button')).toHaveCount(0)
 
 	await rightClick(page, [200, 200])
 	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
 	await arrayStep(page, 'array-bogosort')
-	await expect(page.getByTestId('sound-off')).toBeVisible()
+	await expect(page.getByTestId('sound-menu.button')).toHaveText('C major pentatonic')
 	await page.keyboard.press('ArrowRight')
 	await page.keyboard.press('ArrowRight')
 	await expect.poll(() => notes(page)).toBeGreaterThan(0)
@@ -62,9 +65,30 @@ test('bogosort turns the sounds on: its steps and moves by hand play notes, unti
 	await page.keyboard.press('Enter')
 	await expect.poll(() => notes(page)).toBeGreaterThan(before)
 
-	// The speaker turns them off: steps are quiet again.
-	await page.getByTestId('sound-off').click()
-	await expect(page.getByTestId('sound-off')).toHaveCount(0)
+	// The speaker's menu: a scale (played as it is picked), a key, and off.
+	await page.getByTestId('sound-menu.button').click()
+	const picked = await notes(page)
+	await page.getByRole('menuitemcheckbox', { name: /^Blues/ }).click()
+	await expect(page.getByTestId('sound-menu.button')).toHaveText('C blues')
+	await expect.poll(() => notes(page)).toBeGreaterThan(picked)
+	await expect(page.getByText('Minor pentatonic with the ♭5 added: the blue note')).toBeVisible()
+	await page.getByTestId('menu-sub.sound-key-button').click()
+	// Into the submenu and down it, as a hand moves (straight to D would cross the menu's last item and close it).
+	// (The checked one's name starts "Checked".)
+	const centre = async (name: string) => {
+		const item = page.getByRole('menuitemcheckbox', { name: new RegExp(`^(Checked )?${name}$`) })
+		await expect(item).toBeVisible()
+		const box = (await item.boundingBox())!
+		return [box.x + 12, box.y + box.height / 2] as const
+	}
+	await page.mouse.move(...(await centre('C')), { steps: 4 })
+	const d = await centre('D')
+	await page.mouse.move(...d, { steps: 4 })
+	await page.mouse.click(...d)
+	await expect(page.getByTestId('sound-menu.button')).toHaveText('D blues')
+	// Off: steps are quiet again.
+	await page.getByTestId('menu.sound-off').click()
+	await expect(page.getByTestId('sound-menu.button')).toHaveCount(0)
 	const off = await notes(page)
 	await rightClick(page, [200, 200])
 	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()

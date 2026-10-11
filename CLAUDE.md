@@ -230,11 +230,15 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   from `arrayMarkers` (one arrow when they share a cell), "size k of n" in the middle.
 - `src/sound/` - an easter egg (dds-egh.1), for a student to find: Sorts > Bogosort (`src/shapes/array/bogo.ts`: shuffle
   until sorted, pairs checked left to right, giving up after `BOGO_SHUFFLES`, saying n!) turns sounds on for the tab
-  (`startSound` on the menu click, the gesture browsers need; a reload or the "Sound on" speaker at the top, `SoundButton`
-  in tldraw's TopPanel, turns them off). Web Audio, no files (`player.ts`: a triangle blip and a quiet sine an octave up,
-  6 ms attack, 180 ms fade, a limiter; notes 35 ms apart at least, at most 14 sounding, none queued past 0.35 s).
-  `notes.ts` (pure): each value a note by its rank among the structure's values on a major pentatonic scale, C4 to E6
-  (letters alphabetically, a new value between its neighbours). `listen.ts`: each step shown going forward (not back, not
+  (`startSound` on the menu click, the gesture browsers need; a reload turns them off). While on, a speaker at the top
+  (`SoundButton` in tldraw's TopPanel, labelled with the key and scale) opens a menu: the scale (`SCALES` in `notes.ts`:
+  major and minor pentatonic, blues, Dorian, hirajoshi, whole tone, each with its intervals and a line on what it is),
+  the key (all 12), each played as it is picked (`scaleRun`), and off; tab only too. Web Audio, no files (`player.ts`: a
+  triangle blip with quiet sines an octave up and down, 6 ms attack, 180 ms fade; under each group of notes a bass, the
+  key's root and fifth by turns, two octaves down (`bassNotes`; the whole tone scale's ♯5); a limiter; notes 35 ms apart
+  at least, at most 14 sounding, none queued past 0.35 s but runs). `notes.ts` (pure): each value a note by its rank among
+  the structure's values over two and a half octaves of the scale, the root near middle C (letters alphabetically, a new
+  value between its neighbours). `listen.ts`: each step shown going forward (not back, not
   while predict mode asks) plays what it lights, swaps and moves to (`touchedKeys`), a sort's last step a run up its
   values (bogosort only if lucky, else three notes down); moves by hand play too (values changed or added, by element
   key: drawing out, typing, swapping, sorting), a removal a low note, a mark a tick; nothing while an operation is open
