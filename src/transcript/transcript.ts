@@ -3,18 +3,18 @@ import { followersOf } from '../cells/followers'
 import type { CodeLanguage } from '../shapes/code/highlight'
 import { CODE_TYPE, CodeLanguageStyle, type CodeShape } from '../shapes/code/code-shape-types'
 import { logOrStart } from './log'
-import { renderArrayLog } from './render'
+import type { ArrayMove } from './array-moves'
+import type { ListMove } from './list-moves'
+import { renderArrayLog, renderListLog } from './render'
 
 // The code beside a structure: a code box following it (`structureId`) with `transcript` on, whose
 // text is the structure's log written out in the box's language, worked out as it is drawn (so an
 // undo, a board loaded or a change of language shows at once, with nothing to keep in step).
 
-/** The structures with a transcript so far. */
-export const hasTranscript = (shape: TLShape) => shape.type === 'array'
-
 /** A structure's moves written out in `language`. */
 export function transcriptOf(editor: Editor, structure: TLShape, language: CodeLanguage): string {
-	return renderArrayLog(logOrStart(editor, structure), language)
+	const log = logOrStart(editor, structure)
+	return structure.type === 'linked-list' ? renderListLog(log as ListMove[], language) : renderArrayLog(log as ArrayMove[], language)
 }
 
 /** The transcript boxes following a structure. */

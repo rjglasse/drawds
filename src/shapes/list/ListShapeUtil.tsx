@@ -34,6 +34,7 @@ import {
 import { anchorShift, insertListNode, removeListNode, resizeList } from './ops'
 import { dequeueFrom, enqueueOnto, peekAt, popFrom, pushOnto } from './stack-queue'
 import { checkInvariants, countNodes, withSizeStep } from './size'
+import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
 import {
 	appendToList,
 	deleteFromList,
@@ -326,6 +327,17 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 				label: showSize ? 'Hide the size field' : 'Show the size field',
 				run: () => this.toggleSize(id),
 			},
+			// Every move made on it, as code (a plain list's: not a stack's or queue's yet).
+			...(shape.props.kind === 'list'
+				? [
+						{
+							section: 'show' as const,
+							id: 'list-code-beside',
+							label: transcriptsOf(this.editor, id).length ? 'Hide the code beside it' : 'Code beside it: every move as code',
+							run: () => toggleTranscript(this.editor, shape),
+						},
+					]
+				: []),
 		]
 	}
 

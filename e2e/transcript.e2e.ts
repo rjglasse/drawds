@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { arrayStep, open, rightClick, sketchArray } from './helpers'
+import { arrayStep, hoverNode, nodeScreenPosition, open, rightClick, sketchArray, sketchList } from './helpers'
 
 // The code beside an array: every move made on it, as code, kept in its meta so undo and redo take
 // the lines with the moves.
@@ -51,4 +51,34 @@ test('the code beside an array: a line per move, typing one line, an operation i
 	})
 	await page.getByTestId('style.code-language.python').click()
 	await expect.poll(async () => (await lines(page)).slice(1)).toEqual(['a[0] = 42', 'a.reverse()', 'bubble_sort(a)'])
+})
+
+test('the code beside a list: drawds’ own list methods, a + insert then typing one line, an operation its call', async ({ page }) => {
+	await sketchList(page, [200, 200], 4)
+	const node = (key: string) => nodeScreenPosition(page, key)
+	await rightClick(page, await node('n0'))
+	await page.getByTestId('context-menu-sub.drawds-list-show-button').click()
+	await page.getByTestId('context-menu.list-code-beside').click()
+	await expect.poll(() => lines(page)).toHaveLength(1)
+	expect((await lines(page))[0]).toMatch(/^LinkedList a = new LinkedList\(\d+, \d+, \d+, \d+\);$/)
+
+	await expect(page.locator('.tlui-menu')).toHaveCount(0)
+	await page.mouse.dblclick(...(await node('n0')))
+	await page.keyboard.type('42')
+	await page.keyboard.press('Enter')
+	await expect.poll(() => lines(page)).toEqual([expect.any(String), 'a.nodeAt(0).value = 42;'])
+
+	await hoverNode(page, 'n0', 'n1')
+	await page.getByTestId('insert-on-n0->').click()
+	await page.keyboard.type('7')
+	await page.keyboard.press('Enter')
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a.insertAfter(a.nodeAt(0), 7);')
+
+	await rightClick(page, await node('n0'))
+	await page.getByTestId('context-menu-sub.drawds-list-steps-button').click()
+	await page.getByTestId('context-menu.list-reverse').click()
+	await page.keyboard.press('Enter')
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a.reverse();')
+	await page.keyboard.press('ControlOrMeta+z')
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a.insertAfter(a.nodeAt(0), 7);')
 })

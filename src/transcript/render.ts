@@ -1,6 +1,7 @@
 import { algorithmCode } from '../shapes/code/algorithms'
 import type { CodeLanguage } from '../shapes/code/highlight'
 import type { ArrayMove } from './array-moves'
+import type { ListMove } from './list-moves'
 
 // An array's moves written out in a language, a line each (a call that can't be written out is its
 // effect, under a comment naming it). Python: a list. Java: a List (an ArrayList, as a growing array
@@ -9,10 +10,12 @@ import type { ArrayMove } from './array-moves'
 
 const numeric = (v: string) => v.trim() !== '' && Number.isFinite(Number(v))
 
+type AnyMove = ArrayMove | ListMove
+
 /** Whether every value the moves speak of is a number (an int list), else text. */
-function allNumbers(moves: readonly ArrayMove[]): boolean {
+function allNumbers(moves: readonly AnyMove[]): boolean {
 	const values = moves.flatMap((m): string[] =>
-		'values' in m ? m.values : 'v' in m ? [m.v] : m.op === 'call' ? m.effect.flatMap((e) => ('values' in e ? e.values : 'v' in e ? [e.v] : [])) : []
+		'values' in m ? m.values : 'v' in m ? [m.v] : m.op === 'call' ? (m.effect as AnyMove[]).flatMap((e) => ('values' in e ? e.values : 'v' in e ? [e.v] : [])) : []
 	)
 	return values.every((v) => v === '' || numeric(v))
 }
@@ -41,10 +44,11 @@ function made(values: readonly string[], s: Spelling): string {
 
 /**
  * A call to an algorithm, as its own code in this language declares it, its parameters filled in:
- * the array, its length (n), its first and last indexes (lo, hi). Undefined if any other parameter
- * (a key, a position) has to be known.
+ * the structure (an array's items in C), its length (n), its first and last indexes (lo, hi). A
+ * method (Python's self, or Java code that doesn't take the structure: a list's) is called on it.
+ * Undefined if any other parameter (a key, a position) has to be known.
  */
-function call(algorithm: string, s: Spelling): string | undefined {
+function call(algorithm: string, s: Spelling, kind: 'array' | 'list' = 'array'): string | undefined {
 	const code = algorithmCode(algorithm, s.language)
 	if (!code || code.language !== s.language) return undefined
 	const head = code.text.split('\n')[0]
@@ -53,20 +57,24 @@ function call(algorithm: string, s: Spelling): string | undefined {
 	const [, fn, params] = m
 	const { name, language } = s
 	const length = language === 'python' ? `len(${name})` : language === 'java' ? `${name}.size()` : `${name}.size`
-	const args = params
+	const all = params
 		.split(',')
 		.map((p) => p.trim())
-		.filter((p) => p && p !== 'self')
-		.map((p) => {
-			const param = /(\w+)\s*(\[\])?$/.exec(p)?.[1] ?? p
-			if (['a', 'arr', 'nums', 'array'].includes(param)) return language === 'c' ? `${name}.items` : name
+		.filter(Boolean)
+	const names = all.map((p) => /(\w+)\s*(\[\])?$/.exec(p)?.[1] ?? p)
+	const structure = kind === 'array' ? ['a', 'arr', 'nums', 'array'] : ['list']
+	const method = names[0] === 'self' || (language === 'java' && !names.some((p) => structure.includes(p)))
+	const args = names
+		.filter((p) => p !== 'self')
+		.map((param) => {
+			if (structure.includes(param)) return language === 'c' && kind === 'array' ? `${name}.items` : name
 			if (param === 'n') return length
 			if (param === 'lo' || param === 'low') return '0'
 			if (param === 'hi' || param === 'high') return `${length} - 1`
 			return undefined
 		})
 	if (args.includes(undefined)) return undefined
-	return `${fn}(${args.join(', ')})${language === 'python' ? '' : ';'}`
+	return `${method ? `${name}.` : ''}${fn}(${args.join(', ')})${language === 'python' ? '' : ';'}`
 }
 
 /** One move's lines. */
@@ -119,4 +127,53 @@ export function renderArrayLog(moves: readonly ArrayMove[], language: CodeLangua
 	const first = moves[0]
 	const s: Spelling = { ints: allNumbers(moves), name: first?.op === 'new' ? first.name : 'a', language }
 	return moves.flatMap((m) => lines(m, s)).join('\n')
+}
+
+/** One list move's lines: drawds' own list methods (insert_at_head, insert_after, remove), node_at(i) naming a node. */
+function listLines(move: ListMove, s: Spelling): string[] {
+	const { name: l, language } = s
+	const [py, java] = [language === 'python', language === 'java']
+	const end = py ? '' : ';'
+	const note = py ? '#' : '//'
+	const v = (x: string) => literal(x, s)
+	const node = (i: number) => (py ? `${l}.node_at(${i})` : java ? `${l}.nodeAt(${i})` : `nodeAt(${l}, ${i})`)
+	const made = (values: readonly string[]) =>
+		py ? `LinkedList([${list(values, s)}])` : java ? `new LinkedList(${list(values, s)})` : `listOf(${values.length}, (${s.ints ? 'int' : 'const char *'}[]){${list(values, s)}})`
+	const field = (n: string, f: string) => (py || java ? `${n}.${f}` : `${n}->${f}`)
+	switch (move.op) {
+		case 'new':
+			return [py ? `${l} = ${made(move.values)}` : java ? `LinkedList ${l} = ${made(move.values)};` : `List *${l} = ${made(move.values)};`]
+		case 'assign':
+			return [`${l} = ${made(move.values)}${end}`]
+		case 'set':
+			return [`${field(node(move.i), 'value')} = ${v(move.v)}${end}`]
+		case 'insertAtHead':
+			return [py ? `${l}.insert_at_head(${v(move.v)})` : java ? `${l}.insertAtHead(${v(move.v)});` : `insertAtHead(${l}, ${v(move.v)});`]
+		case 'append':
+			return [py ? `${l}.append(${v(move.v)})` : java ? `${l}.append(${v(move.v)});` : `append(${l}, ${v(move.v)});`]
+		case 'insert':
+			return [py ? `${l}.insert_after(${node(move.i - 1)}, ${v(move.v)})` : java ? `${l}.insertAfter(${node(move.i - 1)}, ${v(move.v)});` : `insertAfter(${node(move.i - 1)}, ${v(move.v)});`]
+		case 'remove':
+			// remove(value) takes the first node holding it: a later one goes by its place.
+			if (!move.first) return [py ? `${l}.remove_at(${move.i})` : java ? `${l}.removeAt(${move.i});` : `removeAt(${l}, ${move.i});`]
+			return [py ? `${l}.remove(${v(move.v)})` : java ? `${l}.remove(${v(move.v)});` : `removeValue(${l}, ${v(move.v)});`]
+		case 'reverse':
+			return [py ? `${l}.reverse()` : java ? `${l}.reverse();` : `reverse(${l});`]
+		case 'cycle': {
+			const to = move.to === null ? (py ? 'None' : java ? 'null' : 'NULL') : node(move.to)
+			return [`${field(node(move.last), 'next')} = ${to}${end}    ${note} ${move.to === null ? 'no cycle' : 'a cycle'}`]
+		}
+		case 'call': {
+			const written = call(move.algorithm, s, 'list')
+			if (written) return [written]
+			return [`${note} ${move.label}, step by step:`, ...move.effect.flatMap((m) => listLines(m, s))]
+		}
+	}
+}
+
+/** A linked list's log written out in `language`. */
+export function renderListLog(moves: readonly ListMove[], language: CodeLanguage): string {
+	const first = moves[0]
+	const s: Spelling = { ints: allNumbers(moves), name: first?.op === 'new' ? first.name : 'a', language }
+	return moves.flatMap((m) => listLines(m, s)).join('\n')
 }

@@ -1,6 +1,8 @@
 import type { Editor, TLShape, TLShapeId } from 'tldraw'
 import { usedCount, type ArrayShapeProps } from '../shapes/array/array-shape-types'
+import type { ListShapeProps } from '../shapes/list/list-shape-types'
 import { diffValues, type ArrayMove } from './array-moves'
+import { diffList, type ListMove, type ListState } from './list-moves'
 
 // The code log: every move on a structure, kept in its meta (`drawdsCode`) by a store side effect
 // that runs inside the same change, so the move and its line are one undo step, redo brings the
@@ -8,30 +10,96 @@ import { diffValues, type ArrayMove } from './array-moves'
 // loaded) passes through untouched: a teacher's edit never does. Logging always runs (entries are
 // small); a code box beside the structure shows it when asked (`transcript.ts`).
 //
-// Arrays so far: their values in use. Typing in a cell rewrites its own line (a[0] = 4, then 42),
-// the creating drag rewrites the line that creates it, and a grip dragged out and back logs only
-// where it ended. Our own operations say what they did (`withMoves`): a sort played step by step is
+// Each kind of structure says what its log follows (an array's values in use, a list's nodes) and
+// how a change of it reads as moves. Typing in a cell rewrites its own line (a[0] = 4, then 42), the
+// creating drag rewrites the line that creates it, and a grip dragged out and back logs only where
+// it ended. Our own operations say what they did (`withMoves`): a sort played step by step is
 // bubble_sort(a), not a.sort().
 
 export const LOG_KEY = 'drawdsCode'
 
-const ARRAY = 'array'
+export type Move = ArrayMove | ListMove
+
+/** What a kind of structure's log follows, and how a change of it reads as moves. */
+interface Tracked<S> {
+	/** Its state as the log follows it. */
+	state(props: object): S
+	/** Whether a change could matter to the log (cheap: most changes are moves and styles). */
+	touches(prev: object, next: object): boolean
+	/** Whether the log follows this one at all (stacks and queues come later). */
+	follows(props: object): boolean
+	same(a: S, b: S): boolean
+	diff(a: S, b: S): Move[]
+	/** The line that starts a log. */
+	start(name: string, state: S): Move
+	/** With the state it has now (the creating drag). */
+	restart(first: Move, state: S): Move
+	/** The cell a typed change is in. */
+	cell(a: S, b: S): string | undefined
+	/** The tool state that is the creating drag. */
+	sketching: string
+}
+
+const arrays: Tracked<string[]> = {
+	state: (props) => {
+		const p = props as ArrayShapeProps
+		return p.values.slice(0, usedCount(p))
+	},
+	touches: (a, b) => {
+		const [p, n] = [a as ArrayShapeProps, b as ArrayShapeProps]
+		return p.values !== n.values || p.used !== n.used || p.sizing !== n.sizing
+	},
+	follows: (props) => (props as ArrayShapeProps).kind === 'array',
+	same: (a, b) => a.length === b.length && a.every((v, i) => v === b[i]),
+	diff: diffValues,
+	start: (name, values) => ({ op: 'new', name, values }),
+	restart: (first, values) => ({ ...(first as Extract<ArrayMove, { op: 'new' }>), values }),
+	cell: (a, b) => {
+		const i = a.findIndex((v, k) => v !== b[k])
+		return i < 0 ? undefined : String(i)
+	},
+	sketching: 'array.sketching',
+}
+
+const lists: Tracked<ListState> = {
+	state: (props) => {
+		const { nodes, cycleTo } = props as ListShapeProps
+		const at = cycleTo ? nodes.findIndex((n) => n.id === cycleTo) : -1
+		return { ids: nodes.map((n) => n.id), values: nodes.map((n) => n.value), cycle: at < 0 ? null : at }
+	},
+	touches: (a, b) => {
+		const [p, n] = [a as ListShapeProps, b as ListShapeProps]
+		return p.nodes !== n.nodes || p.cycleTo !== n.cycleTo
+	},
+	follows: (props) => (props as ListShapeProps).kind === 'list',
+	same: (a, b) => a.cycle === b.cycle && a.ids.length === b.ids.length && a.ids.every((id, i) => id === b.ids[i] && a.values[i] === b.values[i]),
+	diff: diffList,
+	start: (name, s) => ({ op: 'new', name, values: s.values }),
+	restart: (first, s) => ({ ...(first as Extract<ListMove, { op: 'new' }>), values: s.values }),
+	cell: (a, b) => a.ids.find((id, i) => b.ids[i] === id && a.values[i] !== b.values[i]),
+	sketching: 'linked-list.sketching',
+}
+
+/** The structures with a log, by shape type. */
+const TRACKED: Record<string, Tracked<unknown>> = { array: arrays as Tracked<unknown>, 'linked-list': lists as Tracked<unknown> }
+
+/** Whether a shape's moves are logged. */
+export const isLogged = (shape: TLShape) => !!TRACKED[shape.type]?.follows(shape.props)
 
 /** A structure's log, if it has one yet. */
-export const logOf = (shape: TLShape): ArrayMove[] | undefined => {
+export const logOf = (shape: TLShape): Move[] | undefined => {
 	const log = shape.meta[LOG_KEY]
-	return Array.isArray(log) ? (log as unknown as ArrayMove[]) : undefined
+	return Array.isArray(log) ? (log as unknown as Move[]) : undefined
 }
-
-/** The values a transcript speaks of: an array's values in use (a fixed array's spare slots are not). */
-export const trackedValues = (props: ArrayShapeProps) => props.values.slice(0, usedCount(props))
 
 /** The log a structure has, or would start with: it as it is, under a name of its own. */
-export function logOrStart(editor: Editor, shape: TLShape): ArrayMove[] {
-	return logOf(shape) ?? [{ op: 'new', name: freshName(editor, shape.id), values: trackedValues(shape.props as ArrayShapeProps) }]
+export function logOrStart(editor: Editor, shape: TLShape): Move[] {
+	const tracked = TRACKED[shape.type]
+	if (!tracked) return []
+	return logOf(shape) ?? [tracked.start(freshName(editor, shape.id), tracked.state(shape.props))]
 }
 
-/** The first of a, b, c... no other array's log uses (then a2, b2...). */
+/** The first of a, b, c... no other structure's log uses (then a2, b2...). */
 function freshName(editor: Editor, id: TLShapeId): string {
 	const taken = new Set(
 		editor
@@ -50,14 +118,14 @@ function freshName(editor: Editor, id: TLShapeId): string {
 }
 
 /** What the change about to happen to a shape did, told by the code making it. */
-type Intent = ArrayMove[] | { call: string; label: string }
+type Intent = Move[] | { call: string; label: string }
 
 const intents = new WeakMap<Editor, Map<TLShapeId, Intent>>()
 
 /**
  * Run `change` (an update to shape `id`) saying what it does, so the log has that, not what a diff
- * of its values would guess: [{ op: 'shuffle', values }] for a shuffle, a call for an operation played
- * step by step (its algorithm's code id and name; the diff kept as its effect).
+ * would guess: [{ op: 'shuffle', values }] for a shuffle, a call for an operation played step by step
+ * (its algorithm's code id and name; the diff kept as its effect).
  */
 export function withMoves<T>(editor: Editor, id: TLShapeId, intent: Intent, change: () => T): T {
 	let map = intents.get(editor)
@@ -73,10 +141,10 @@ export function withMoves<T>(editor: Editor, id: TLShapeId, intent: Intent, chan
 /** A run of changes that rewrites its own lines: typing in one cell, the creating drag, a grip dragged. */
 interface Run {
 	kind: 'typing' | 'sketching' | 'dragging'
-	/** The log as it was before the run began, and (dragging) the values then. */
-	before: ArrayMove[]
-	values: string[]
-	cell?: number
+	/** The log as it was before the run began, and the state then. */
+	before: Move[]
+	state: unknown
+	cell?: string
 }
 
 const runs = new WeakMap<Editor, Map<TLShapeId, Run>>()
@@ -89,58 +157,71 @@ function runsOf(editor: Editor) {
 }
 
 /** The run a change belongs to, if it is one that rewrites its lines. */
-function runKind(editor: Editor, id: TLShapeId): Run['kind'] | undefined {
+function runKind(editor: Editor, id: TLShapeId, tracked: Tracked<unknown>): Run['kind'] | undefined {
 	if (editor.getEditingShapeId() === id) return 'typing'
-	if (editor.isIn('array.sketching')) return 'sketching'
+	if (editor.isIn(tracked.sketching)) return 'sketching'
 	if (editor.isIn('select.dragging_handle') && editor.getOnlySelectedShapeId() === id) return 'dragging'
 	return undefined
 }
 
 /** The log after a change from `prev` to `next`, or undefined if it has nothing to add. */
-export function logged(editor: Editor, prev: TLShape, next: TLShape): ArrayMove[] | undefined {
-	const [from, to] = [trackedValues(prev.props as ArrayShapeProps), trackedValues(next.props as ArrayShapeProps)]
+export function logged(editor: Editor, prev: TLShape, next: TLShape): Move[] | undefined {
+	const tracked = TRACKED[next.type]
+	if (!tracked) return undefined
+	const [from, to] = [tracked.state(prev.props), tracked.state(next.props)]
 	const log = logOrStart(editor, prev)
 	const intent = intents.get(editor)?.get(next.id)
 	if (intent) {
 		intents.get(editor)!.delete(next.id)
-		return [...log, ...(Array.isArray(intent) ? intent : [{ op: 'call' as const, algorithm: intent.call, label: intent.label, effect: diffValues(from, to) }])]
+		return [...log, ...(Array.isArray(intent) ? intent : [{ op: 'call', algorithm: intent.call, label: intent.label, effect: tracked.diff(from, to) } as Move])]
 	}
-	if (from.length === to.length && from.every((v, i) => v === to[i])) return undefined
+	if (tracked.same(from, to)) return undefined
 	const map = runsOf(editor)
-	const kind = runKind(editor, next.id)
-	const cell = kind === 'typing' ? from.findIndex((v, i) => v !== to[i]) : undefined
+	const kind = runKind(editor, next.id, tracked)
+	const cell = kind === 'typing' ? tracked.cell(from, to) : undefined
 	let run = map.get(next.id)
 	// A run goes on while the same kind of change does (typing: in the same cell); else one starts here.
 	if (!run || run.kind !== kind || (kind === 'typing' && run.cell !== cell)) {
-		run = kind ? { kind, before: log, values: from, cell } : undefined
+		run = kind ? { kind, before: log, state: from, cell } : undefined
 		if (run) map.set(next.id, run)
 		else map.delete(next.id)
 	}
-	if (!run) return [...log, ...diffValues(from, to)]
-	// The creating drag: the line that creates the array, with the values it has now.
-	const first = run.before[0]
-	if (run.kind === 'sketching' && run.before.length === 1 && first.op === 'new') return [{ ...first, values: to }]
-	return [...run.before, ...diffValues(run.values, to)]
+	if (!run) return [...log, ...tracked.diff(from, to)]
+	// The creating drag: the line that creates the structure, with what it holds now.
+	if (run.kind === 'sketching' && run.before.length === 1 && run.before[0].op === 'new') return [tracked.restart(run.before[0], to)]
+	const moves = tracked.diff(run.state, to)
+	return (run.kind === 'typing' && typedIntoNew(run.before, moves)) || [...run.before, ...moves]
 }
 
-/** Keep every array's log as it changes. Returns the cleanup. */
+/**
+ * Typing straight into what was just put in (a + inserts a value and opens it for typing): the
+ * insert with the typed value, not an insert then a set.
+ */
+function typedIntoNew(before: Move[], moves: Move[]): Move[] | undefined {
+	const [set] = moves
+	const last = before.at(-1)
+	if (moves.length !== 1 || set.op !== 'set' || !last) return undefined
+	if ((last.op === 'insert' && last.i === set.i) || (last.op === 'insertAtHead' && set.i === 0)) return [...before.slice(0, -1), { ...last, v: set.v }]
+	return undefined
+}
+
+/** Keep every structure's log as it changes. Returns the cleanup. */
 export function startCodeLog(editor: Editor) {
 	const create = editor.sideEffects.registerBeforeCreateHandler('shape', (shape) => {
+		const tracked = TRACKED[shape.type]
 		// Brought its own (undone, a board loaded, pasted): kept.
-		if (shape.type !== ARRAY || logOf(shape)) return shape
+		if (!tracked || !tracked.follows(shape.props) || logOf(shape)) return shape
 		const start = logOrStart(editor, shape)
-		runsOf(editor).set(shape.id, { kind: 'sketching', before: start, values: trackedValues(shape.props as ArrayShapeProps) })
+		runsOf(editor).set(shape.id, { kind: 'sketching', before: start, state: tracked.state(shape.props) })
 		return { ...shape, meta: { ...shape.meta, [LOG_KEY]: start as never } }
 	})
 	const change = editor.sideEffects.registerBeforeChangeHandler('shape', (prev, next) => {
-		if (next.type !== ARRAY) return next
+		const tracked = TRACKED[next.type]
+		if (!tracked) return next
 		// Undo, redo, a board loaded: the change brings its log with it.
 		if (prev.meta[LOG_KEY] !== next.meta[LOG_KEY]) return next
-		// Most changes (moving it, a style, marks, pointers) leave the values alone: nothing to log.
-		const [p, n] = [prev.props as ArrayShapeProps, next.props as ArrayShapeProps]
-		if (p.values === n.values && p.used === n.used && p.sizing === n.sizing) return next
-		// Stacks and queues come later.
-		if (n.kind !== 'array') return next
+		// Most changes (moving it, a style, marks, pointers) leave what the log follows alone.
+		if (!tracked.touches(prev.props, next.props) || !tracked.follows(next.props)) return next
 		const log = logged(editor, prev, next)
 		return log ? { ...next, meta: { ...next.meta, [LOG_KEY]: log as never } } : next
 	})
