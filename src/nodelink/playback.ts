@@ -1,4 +1,4 @@
-import { atom, react, type Atom, type Editor, type TLShape, type TLShapeId, type TLShapePartial } from 'tldraw'
+import { atom, react, type Atom, type Editor, type TLBinding, type TLBindingId, type TLShape, type TLShapeId, type TLShapePartial } from 'tldraw'
 import type { MarkColor, Marks } from '../cells/marks'
 import type { Pointer } from '../pointers/pointers'
 import type { Scene } from './scene'
@@ -274,6 +274,8 @@ interface Operation {
 	keep: boolean
 	withMarks?(update: TLShapePartial | undefined, marks: Marks): TLShapePartial
 	onCancel?(): void
+	/** What there was once it was set up, if Esc has something to take back: what was added since stays. */
+	present?: Present
 	onClose?(): void
 	/** Played again from a record (the lesson log): not recorded, and its result stays out of the undo history. */
 	replay: boolean
@@ -529,6 +531,7 @@ export function playOperation(
 					onCancel?.()
 				}
 			: onCancel,
+		present: takeBack || onCancel ? presentNow(editor) : undefined,
 		onClose,
 		replay,
 		code,
@@ -706,7 +709,44 @@ export function cancelPlayback(editor: Editor) {
 	clearTimeout(p.timer)
 	close(editor, p)
 	p.view.set(null)
-	op.onCancel?.()
+	if (op.onCancel) keepingWhatWasAdded(editor, op.present, op.onCancel)
+}
+
+/** The shapes and bindings on the board. */
+interface Present {
+	shapes: ReadonlySet<TLShapeId>
+	bindings: ReadonlySet<TLBindingId>
+}
+
+const presentNow = (editor: Editor): Present => ({
+	shapes: new Set(editor.store.query.ids('shape').get()),
+	bindings: new Set(editor.store.query.ids('binding').get()),
+})
+
+/**
+ * Take back what an operation set up (`takeBack`: undoing to before a view, a recursion tree or code
+ * it opened) but keep what the teacher added while it was open, which undoing that far takes too: a
+ * code box opened with the play bar's </>, a pen stroke, an arrow drawn to the structure. They are
+ * put back, an undo step of their own.
+ */
+function keepingWhatWasAdded(editor: Editor, present: Present | undefined, takeBack: () => void) {
+	const now = present && presentNow(editor)
+	const shapes = now ? [...now.shapes].filter((id) => !present.shapes.has(id)).map((id) => editor.getShape(id)!) : []
+	const bindings = now ? [...now.bindings].filter((id) => !present.bindings.has(id)).map((id) => editor.getBinding(id)!) : []
+	takeBack()
+	const lost = shapes.filter((s) => !editor.getShape(s.id))
+	const unbound = bindings.filter((b) => !editor.getBinding(b.id))
+	if (!lost.length && !unbound.length) return
+	// Parents first (a stroke drawn inside a frame drawn meanwhile).
+	const depth = (s: TLShape): number => {
+		const parent = lost.find((p) => p.id === s.parentId)
+		return parent ? depth(parent) + 1 : 0
+	}
+	editor.markHistoryStoppingPoint('keep what was added')
+	editor.run(() => {
+		editor.createShapes([...lost].sort((a, b) => depth(a) - depth(b)))
+		editor.createBindings(unbound as TLBinding[])
+	})
 }
 
 function close(editor: Editor, p: Player) {

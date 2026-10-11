@@ -164,3 +164,30 @@ test('Times each line runs for merge sort: 2n - 1 calls, n of them one value; th
 		['×7', '×4', '×3', '×3', '×3', '×3'].concat(['×3', '×3', '×8', '×5', '×2', '×3', '×5', '×2', '×4', '×1', '×11', '×8'])
 	)
 })
+
+test('Esc on a recursive operation takes its recursion tree back but keeps what was added meanwhile: a code box, a pen stroke', async ({
+	page,
+}) => {
+	await sketch(page, ['3', '1', '4', '2'])
+	const types = () => page.evaluate(() => window.editor!.getCurrentPageShapes().map((s) => s.type))
+	await steps(page, 0, 'array-merge-sort')
+	await page.getByTestId('play-code').click()
+	await expect(page.getByTestId('code-box')).toBeVisible()
+	// A note on the board while it plays.
+	await page.keyboard.press('d')
+	await page.mouse.move(200, 500)
+	await page.mouse.down()
+	for (let x = 210; x <= 400; x += 10) await page.mouse.move(x, 500 + (x % 40))
+	await page.mouse.up()
+	expect(await types()).toEqual(['array', 'recursion-tree', 'code', 'draw'])
+	await page.keyboard.press('Escape')
+	await expect(page.getByTestId('play-bar')).toHaveCount(0)
+	expect(await types()).toEqual(['array', 'code', 'draw'])
+	expect((await codeBoxes(page))[0].props.algorithm).toBe('merge-sort')
+	// Putting them back is an undo step of its own; the tree's never comes back.
+	await page.keyboard.press('Escape')
+	await page.keyboard.press('ControlOrMeta+z')
+	expect(await types()).toEqual(['array'])
+	await page.keyboard.press('ControlOrMeta+Shift+z')
+	expect(await types()).toEqual(['array', 'code', 'draw'])
+})

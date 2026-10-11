@@ -314,7 +314,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   (`playbackLayout(shape, frame)`: left edge, bottom), and the overlay places strips and bar once per
   operation (`view.frames`), from the leftmost edge and under the lowest point any step reaches; the bar's
   buttons come first in fixed places, the caption last and keys go to it first (window capture: Space, Left/Right and PageUp/PageDown (clickers), Enter /
-  Shift+Enter, Esc cancels without changing anything). Once the result is committed the bar stays (`done`):
+  Shift+Enter, Esc cancels without changing anything: `onCancel` undoes to before what the operation set up, a view or
+  recursion tree it opened, the code it showed, and `keepingWhatWasAdded` puts back what the teacher added meanwhile, a
+  code box from </>, a pen stroke, as an undo step of its own). Once the result is committed the bar stays (`done`):
   step back through it or replay it, then Done / Enter / Esc, or select something else / edit the shape;
   `isBusy` says when the shape's own controls should hide. Once the result is in, a step with no props or scene of
   its own shows the structure as it was before (`committed.before`), the last step the result (`isLastFrame`). Operations open paused on step 1 so the teacher sets
