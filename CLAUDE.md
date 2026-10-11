@@ -210,7 +210,7 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   deg v), not E; is u adjacent to v: 1 cell, u's list, the pairs); frames carry the graph (`props`, so the views draw
   the step's graph) and `Frame.views`, each view's own highlights for that step; counts per representation in the play
   bar. The graph's Step by step opens the matrix and lists for them (`playCosts`; Esc takes them back).
-- `src/transcript/` - the code beside a structure (dds-2tt, arrays, linked lists, binary trees and graphs so far): every move kept as code. Each
+- `src/transcript/` - the code beside a structure (dds-2tt, arrays, linked lists, binary trees, graphs and heaps so far): every move kept as code. Each
   kind says what its log follows and how a change reads as moves (`Tracked` in `log.ts`): an array's values in use; a
   list's nodes by id (`list-moves.ts`: set / insertAtHead / append / insert / remove / reverse / cycle, exact as nodes
   have ids; a later node holding a value an earlier one holds goes by its place, remove_at), written with drawds' own list
@@ -220,7 +220,11 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   told from what it did (`args`: the key put in, the node taken out: t.insert(5), t.delete(t.root.left)); a graph's
   vertices by their labels (`graph-moves.ts`: vertices and edges in and out, a vertex taking its edges, labels typed,
   weights; where nodes are drawn logs nothing; a rewire or a switch of labels builds it again), as `Graph` / `DiGraph`
-  with add_edge (weights while it shows them), directed and weighted read as it is drawn. Typing straight into what a +
+  with add_edge (weights while it shows them), directed and weighted read as it is drawn; a heap's array and type
+  (`heap-moves.ts`: a value typed, `a.heap[4] = 0`, no sifting; the values Floyd's heapify gives as build_heap(); else a
+  new heap), as a `MinHeap` / `MaxHeap` made from its array as it is, its operations calls to the heap's own code (insert
+  / extract_min / remove_at / build_heap, the value or index told from what it did); min to max logs a new MaxHeap of the
+  same values, then build_heap(), its shuffle `random.shuffle(a.heap)` and what came out. Typing straight into what a +
   just put in folds into that insert (a connect grip's new vertex: its label into its addVertex and edges). `log.ts`: a store
   side effect (`startCodeLog`, App onMount) keeps language-neutral moves (`array-moves.ts`: new / set / append / insert
   / pop / delete / swap / sort / reverse / shuffle / assign / call) in the shape's meta (`drawdsCode`), inside the same
@@ -233,7 +237,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   The view is a code box with `transcript` on, following the structure: its text is worked out as it is drawn
   (`CodeShapeUtil.shown`), it can't be edited, and the play bar's algorithm box never takes it over (`codeBoxesOf`).
   Show > Code beside it (`toggleTranscript`). The Python of 200 random array logs, 400 list logs (many repeated values)
-  300 tree logs and 300 graph logs, run, rebuilt their structures.
+  300 tree logs, 300 graph logs and 300 heap logs (against a class made of the heap's own Python code), run, rebuilt
+  their structures.
 - `src/cells/clean-copy.ts` - Clean copy, last in every structure's own submenu (`NodeOperationsMenu` adds it): the
   same props (values, shape, seed) without marks or pointers, under the original past anything in the way
   (`freeTopBelow`, pure), selected, one undo step; followers stay with the original.

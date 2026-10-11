@@ -7,6 +7,8 @@ import type { TreeShapeProps } from '../shapes/tree/tree-shape-types'
 import { diffTree, sameTree, shapeOf, treeArgs, type TreeMove } from './tree-moves'
 import type { GraphShapeProps } from '../shapes/graph/graph-shape-types'
 import { built, diffGraph, graphState, sameGraph, type GraphMove, type GraphState } from './graph-moves'
+import type { HeapShapeProps } from '../shapes/heap/heap-shape-types'
+import { diffHeap, heapArgs, sameHeap, type HeapMove, type HeapState } from './heap-moves'
 
 // The code log: every move on a structure, kept in its meta (`drawdsCode`) by a store side effect
 // that runs inside the same change, so the move and its line are one undo step, redo brings the
@@ -22,7 +24,7 @@ import { built, diffGraph, graphState, sameGraph, type GraphMove, type GraphStat
 
 export const LOG_KEY = 'drawdsCode'
 
-export type Move = ArrayMove | ListMove | TreeMove | GraphMove
+export type Move = ArrayMove | ListMove | TreeMove | GraphMove | HeapMove
 
 /** What a kind of structure's log follows, and how a change of it reads as moves. */
 interface Tracked<S> {
@@ -119,12 +121,35 @@ const graphs: Tracked<GraphState> = {
 	sketching: 'graph.sketching',
 }
 
+const heaps: Tracked<HeapState> = {
+	state: (props) => {
+		const { heapType, values } = props as HeapShapeProps
+		return { type: heapType, values }
+	},
+	touches: (a, b) => {
+		const [p, n] = [a as HeapShapeProps, b as HeapShapeProps]
+		return p.values !== n.values || p.heapType !== n.heapType
+	},
+	follows: () => true,
+	same: sameHeap,
+	diff: diffHeap,
+	start: (name, h) => ({ op: 'new', name, ...h, values: [...h.values] }),
+	restart: (first, h) => ({ ...(first as Extract<HeapMove, { op: 'new' }>), ...h, values: [...h.values] }),
+	cell: (a, b) => {
+		const i = a.values.findIndex((v, k) => v !== b.values[k])
+		return i < 0 ? undefined : String(i)
+	},
+	sketching: 'heap.sketching',
+	args: heapArgs,
+}
+
 /** The structures with a log, by shape type. */
 const TRACKED: Record<string, Tracked<unknown>> = {
 	array: arrays as Tracked<unknown>,
 	'linked-list': lists as Tracked<unknown>,
 	'binary-tree': trees as Tracked<unknown>,
 	graph: graphs as Tracked<unknown>,
+	heap: heaps as Tracked<unknown>,
 }
 
 /** Whether a shape's moves are logged. */

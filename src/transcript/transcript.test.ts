@@ -3,7 +3,10 @@ import { diffValues, replay, type ArrayMove } from './array-moves'
 import { diffList, replayList, type ListMove, type ListState } from './list-moves'
 import { addChild, mirrorSubtree, removeSubtree, swapChildren } from '../shapes/tree/model'
 import { diffGraph, graphState, type GraphMove, type GraphState } from './graph-moves'
-import { renderArrayLog, renderGraphLog, renderListLog, renderTreeLog } from './render'
+import { renderArrayLog, renderGraphLog, renderHeapLog, renderListLog, renderTreeLog } from './render'
+import { diffHeap, heapArgs, type HeapMove, type HeapState } from './heap-moves'
+import { heapify, heapInsert, heapRemoveAt } from '../shapes/heap/heap'
+import { heapCode } from '../shapes/heap/code'
 import { diffTree, shapeOf, treeArgs, type TreeMove } from './tree-moves'
 
 const v = (...xs: (number | string)[]) => xs.map(String)
@@ -290,5 +293,85 @@ describe('a graph change as the move a teacher made', () => {
 			'addEdge(g, "A", "B");',
 			'addVertex(g, "C");',
 		])
+	})
+})
+
+describe('a heap change as the move a teacher made', () => {
+	// A min heap: 1 (3 (8, 5), 4).
+	const heap: HeapState = { type: 'min', values: v(1, 3, 4, 8, 5) }
+
+	it('a value typed, the heap built (min and max switched); anything else, a new heap', () => {
+		expect(diffHeap(heap, { ...heap, values: v(1, 3, 4, 8, 0) })).toEqual([{ op: 'set', i: 4, v: '0' }])
+		// Switching to max: the same values in a MaxHeap, then Floyd's build makes it one.
+		const max: HeapState = { type: 'max', values: heap.values }
+		expect(diffHeap(heap, max)).toEqual([{ op: 'assign', type: 'max', values: v(1, 3, 4, 8, 5) }])
+		expect(diffHeap(max, { type: 'max', values: heapify(max.values, 'max').values })).toEqual([{ op: 'build' }])
+		expect(diffHeap(heap, { ...heap, values: v(2, 3, 4) })).toEqual([{ op: 'assign', type: 'min', values: v(2, 3, 4) }])
+		expect(diffHeap(heap, { ...heap })).toEqual([])
+	})
+
+	it("an operation's value and index, as what it did tells them", () => {
+		expect(heapArgs(heap, { ...heap, values: heapInsert(heap.values, '2', 'min').values })).toEqual({ value: '2' })
+		expect(heapArgs(heap, { ...heap, values: heapRemoveAt(heap.values, 1, 'min').values })).toEqual({ i: '1' })
+		// Repeated values: an index whose removal leaves this heap.
+		const twos: HeapState = { type: 'min', values: v(1, 2, 2, 7, 8, 9) }
+		const after = heapRemoveAt(twos.values, 2, 'min').values
+		const { i } = heapArgs(twos, { ...twos, values: after })
+		expect(heapRemoveAt(twos.values, Number(i), 'min').values).toEqual(after)
+	})
+
+	it("written out: a MinHeap over its array, its operations called as the heap's own code declares them", () => {
+		const log: HeapMove[] = [
+			{ op: 'new', name: 'h', type: 'min', values: heap.values },
+			{ op: 'set', i: 4, v: '0' },
+			{ op: 'shuffle', values: v(4, 1, 3, 0, 8) },
+			{ op: 'call', algorithm: heapCode('build', 'min'), label: 'build heap', effect: [] },
+			{ op: 'call', algorithm: heapCode('insert', 'min'), label: 'insert into heap', effect: [], args: { value: '2' } },
+			{ op: 'call', algorithm: heapCode('extract', 'min'), label: 'remove from heap', effect: [], args: { i: '0' } },
+			{ op: 'call', algorithm: heapCode('remove', 'min'), label: 'remove from heap', effect: [], args: { i: '2' } },
+			{ op: 'assign', type: 'max', values: v(1, 2, 3) },
+			{ op: 'build' },
+			{ op: 'call', algorithm: heapCode('extract', 'max'), label: 'remove from heap', effect: [], args: { i: '0' } },
+		]
+		expect(renderHeapLog(log, 'python').split('\n')).toEqual([
+			'h = MinHeap([1, 3, 4, 8, 5])',
+			'h.heap[4] = 0',
+			'random.shuffle(h.heap)    # came out [4, 1, 3, 0, 8]',
+			'h.build_heap()',
+			'h.insert(2)',
+			'h.extract_min()',
+			'h.remove_at(2)',
+			'h = MaxHeap([1, 2, 3])',
+			'h.build_heap()',
+			'h.extract_max()',
+		])
+		expect(renderHeapLog(log, 'java').split('\n')).toEqual([
+			'Heap h = new MinHeap(1, 3, 4, 8, 5);',
+			'h.heap[4] = 0;',
+			'shuffle(h.heap, h.size);    // came out {4, 1, 3, 0, 8}',
+			'h.buildHeap();',
+			'h.insert(2);',
+			'h.extractMin();',
+			'h.removeAt(2);',
+			'h = new MaxHeap(1, 2, 3);',
+			'h.buildHeap();',
+			'h.extractMax();',
+		])
+		expect(renderHeapLog(log, 'c').split('\n')).toEqual([
+			'Heap *h = newMinHeap(5, (int[]){1, 3, 4, 8, 5});',
+			'h->a[4] = 0;',
+			'shuffle(h->a, h->size);    // came out {4, 1, 3, 0, 8}',
+			'buildHeap(h);',
+			'insert(h, 2);',
+			'extractMin(h);',
+			'removeAt(h, 2);',
+			'h = newMaxHeap(3, (int[]){1, 2, 3});',
+			'buildHeap(h);',
+			'extractMax(h);',
+		])
+	})
+
+	it('text values are quoted', () => {
+		expect(renderHeapLog([{ op: 'new', name: 'h', type: 'min', values: ['B', 'K'] }], 'c')).toBe('Heap *h = newMinHeap(2, (const char *[]){"B", "K"});')
 	})
 })

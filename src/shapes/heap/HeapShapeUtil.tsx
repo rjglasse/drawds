@@ -13,6 +13,8 @@ import { getTreeMetrics, legendMarks } from '../tree/layout'
 import { termMarks, treeTerms } from '../tree/terms'
 import { ORDER_NAMES, traverseTree, type TreeOrder } from '../tree/traverse'
 import { playbackFor, playOperation, type Frame } from '../../nodelink/playback'
+import { withMoves } from '../../transcript/log'
+import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
 import {
 	buildByInsertion,
 	buildHeapSteps,
@@ -212,6 +214,13 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 					this.editor.updateShape<HeapShape>({ id: shape.id, type: HEAP_SHAPE_TYPE, props: { terms: !shape.props.terms } })
 				},
 			},
+			// Every move made on it, as code.
+			{
+				section: 'show',
+				id: 'heap-code-beside',
+				label: transcriptsOf(this.editor, shape.id).length ? 'Hide the code beside it' : 'Code beside it: every move as code',
+				run: () => toggleTranscript(this.editor, shape),
+			},
 		]
 	}
 
@@ -244,8 +253,10 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 		const shape = this.editor.getShape(id) as HeapShape | undefined
 		if (!shape) return
 		const { values, marks } = shape.props
+		const props = rearrange(values, marks, shuffledOrder(values.length, mulberry32(newSeed())))
 		this.editor.markHistoryStoppingPoint('shuffle heap')
-		this.editor.updateShape({ id, type: HEAP_SHAPE_TYPE, props: rearrange(values, marks, shuffledOrder(values.length, mulberry32(newSeed()))) })
+		// The code beside it says it was shuffled, not just that new values came.
+		withMoves(this.editor, id, [{ op: 'shuffle', values: props.values }], () => this.editor.updateShape({ id, type: HEAP_SHAPE_TYPE, props }))
 	}
 
 	private traverse(id: HeapShape['id'], start: string, order: TreeOrder) {

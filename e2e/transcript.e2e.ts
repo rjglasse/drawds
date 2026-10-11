@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { arrayStep, connectNodes, hoverNode, insertKey, nodeScreenPosition, open, rightClick, sketchArray, sketchGraph, sketchList, sketchTree } from './helpers'
+import { arrayStep, connectNodes, focusedLabel, hoverNode, insertKey, menusClosed, nodeScreenPosition, open, rightClick, sketchArray, sketchGraph, sketchHeap, sketchList, sketchTree } from './helpers'
 
 // The code beside an array: every move made on it, as code, kept in its meta so undo and redo take
 // the lines with the moves.
@@ -140,4 +140,41 @@ test('the code beside a graph: vertices by their labels; a new vertex named as i
 	await expect.poll(async () => (await lines(page)).slice(-2)).toEqual(['a.addVertex("Z");', 'a.addEdge("C", "Z");'])
 	await page.keyboard.press('ControlOrMeta+z')
 	await expect.poll(async () => (await lines(page)).at(-1)).not.toBe('a.addEdge("C", "Z");')
+})
+
+test('the code beside a heap: a MinHeap over its array, its operations as calls; min to max rebuilds it', async ({ page }) => {
+	await sketchHeap(page, [400, 120], 5)
+	await rightClick(page, await nodeScreenPosition(page, '0'))
+	await page.getByTestId('context-menu-sub.drawds-heap-show-button').click()
+	await page.getByTestId('context-menu.heap-code-beside').click()
+	await expect.poll(async () => (await lines(page))[0]).toMatch(/^Heap a = new MinHeap\(\d+(, \d+){4}\);$/)
+
+	// Typed into the array: one line, no sifting.
+	await menusClosed(page)
+	await page.mouse.dblclick(...(await nodeScreenPosition(page, 'a4')))
+	await expect.poll(() => focusedLabel(page)).toBe('Cell a4')
+	await page.keyboard.type('-5')
+	await page.keyboard.press('Enter')
+	await expect.poll(() => lines(page)).toEqual([expect.any(String), 'a.heap[4] = -5;'])
+
+	await insertKey(page, '-9')
+	await page.keyboard.press('Enter')
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a.insert(-9);')
+	await hoverNode(page, '0')
+	await page.getByTestId('remove-node-0').click()
+	await page.keyboard.press('Enter')
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a.extractMin();')
+
+	// Min to max: the same values in a MaxHeap, then Floyd's build makes it one.
+	await page.getByTestId('style.heap-type.max').click()
+	await expect.poll(async () => (await lines(page)).slice(-2)).toEqual([expect.stringMatching(/^a = new MaxHeap\(.+\);$/), 'a.buildHeap();'])
+	await page.keyboard.press('ControlOrMeta+z')
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a.extractMin();')
+
+	await page.evaluate(() => {
+		const editor = window.editor!
+		void editor.select(editor.getCurrentPageShapes().find((s) => s.type === 'code')!.id)
+	})
+	await page.getByTestId('style.code-language.python').click()
+	await expect.poll(async () => (await lines(page)).slice(1)).toEqual(['a.heap[4] = -5', 'a.insert(-9)', 'a.extract_min()'])
 })

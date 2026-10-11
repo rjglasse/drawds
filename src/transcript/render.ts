@@ -4,6 +4,9 @@ import type { ArrayMove } from './array-moves'
 import type { ListMove } from './list-moves'
 import type { TreeMove, TreeShape } from './tree-moves'
 import type { GraphMove } from './graph-moves'
+import type { HeapMove } from './heap-moves'
+import { heapCode } from '../shapes/heap/code'
+import type { HeapType } from '../shapes/heap/heap'
 
 // An array's moves written out in a language, a line each (a call that can't be written out is its
 // effect, under a comment naming it). Python: a list. Java: a List (an ArrayList, as a growing array
@@ -12,7 +15,7 @@ import type { GraphMove } from './graph-moves'
 
 const numeric = (v: string) => v.trim() !== '' && Number.isFinite(Number(v))
 
-type AnyMove = ArrayMove | ListMove | TreeMove
+type AnyMove = ArrayMove | ListMove | TreeMove | HeapMove
 
 /** Every value a tree holds. */
 const treeValues = (t: TreeShape): string[] => (t ? [t.v, ...treeValues(t.l), ...treeValues(t.r)] : [])
@@ -56,8 +59,8 @@ function made(values: readonly string[], s: Spelling): string {
 function call(
 	algorithm: string,
 	s: Spelling,
-	kind: 'array' | 'list' | 'tree' = 'array',
-	/** Other parameters, as what the operation did tells them (a tree's key, its node). */
+	kind: 'array' | 'list' | 'tree' | 'heap' = 'array',
+	/** Other parameters, as what the operation did tells them (a tree's key, its node, a heap's value or index). */
 	more: (param: string) => string | undefined = () => undefined
 ): string | undefined {
 	const code = algorithmCode(algorithm, s.language)
@@ -73,7 +76,7 @@ function call(
 		.map((p) => p.trim())
 		.filter(Boolean)
 	const names = all.map((p) => /(\w+)\s*(\[\])?$/.exec(p)?.[1] ?? p)
-	const structure = kind === 'array' ? ['a', 'arr', 'nums', 'array'] : kind === 'list' ? ['list'] : ['t', 'tree']
+	const structure = kind === 'array' ? ['a', 'arr', 'nums', 'array'] : kind === 'list' ? ['list'] : kind === 'heap' ? ['h'] : ['t', 'tree']
 	const method = names[0] === 'self' || (language === 'java' && !names.some((p) => structure.includes(p)))
 	const args = names
 		.filter((p) => p !== 'self')
@@ -237,6 +240,54 @@ export function renderTreeLog(moves: readonly TreeMove[], language: CodeLanguage
 	const first = moves[0]
 	const s: Spelling = { ints: allNumbers(moves), name: first?.op === 'new' ? first.name : 't', language }
 	return moves.flatMap((m) => treeLines(m, s, field)).join('\n')
+}
+
+/**
+ * A heap's moves, a line each: a MinHeap or MaxHeap made from its array as it is, a value typed
+ * straight into that array, its operations called as the heap's own code (`src/shapes/heap/code.ts`)
+ * declares them.
+ */
+function heapLines(move: HeapMove, s: Spelling): string[] {
+	const { name: h, language } = s
+	const [py, java] = [language === 'python', language === 'java']
+	const end = py ? '' : ';'
+	const note = py ? '#' : '//'
+	const made = (type: HeapType, values: readonly string[]) => {
+		const cls = type === 'min' ? 'MinHeap' : 'MaxHeap'
+		const items = list(values, s)
+		return py ? `${cls}([${items}])` : java ? `new ${cls}(${items})` : `new${cls}(${values.length}, (${s.ints ? 'int' : 'const char *'}[]){${items}})`
+	}
+	// The heap's array, as its code names it.
+	const array = py || java ? `${h}.heap` : `${h}->a`
+	switch (move.op) {
+		case 'new':
+			return [`${py ? '' : java ? 'Heap ' : 'Heap *'}${h} = ${made(move.type, move.values)}${end}`]
+		case 'assign':
+			return [`${h} = ${made(move.type, move.values)}${end}`]
+		case 'set':
+			return [`${array}[${move.i}] = ${literal(move.v, s)}${end}`]
+		case 'build':
+			// A min heap's and a max heap's are called the same.
+			return [call(heapCode('build', 'min'), s, 'heap') ?? `${note} build the heap`]
+		case 'shuffle': {
+			const shuffled = py ? `random.shuffle(${array})` : `shuffle(${array}, ${h}${java ? '.' : '->'}size)${end}`
+			return [`${shuffled}    ${note} came out ${py ? '[' : '{'}${list(move.values, s)}${py ? ']' : '}'}`]
+		}
+		case 'call': {
+			const { args } = move
+			const more = (param: string) => (param === 'value' && args?.value !== undefined ? literal(args.value, s) : param === 'i' ? args?.i : undefined)
+			const written = call(move.algorithm, s, 'heap', more)
+			if (written) return [written]
+			return [`${note} ${move.label}, step by step:`, ...move.effect.flatMap((m) => heapLines(m, s))]
+		}
+	}
+}
+
+/** A heap's log written out in `language`. */
+export function renderHeapLog(moves: readonly HeapMove[], language: CodeLanguage): string {
+	const first = moves[0]
+	const s: Spelling = { ints: allNumbers(moves), name: first?.op === 'new' ? first.name : 'h', language }
+	return moves.flatMap((m) => heapLines(m, s)).join('\n')
 }
 
 /** How a graph's code reads: directed (a DiGraph) or not, its weights written or not (as the graph shows them). */
