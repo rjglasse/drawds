@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { arrayStep, CELL, connectNodes, focusedLabel, handlePosition, hoverNode, insertKey, menusClosed, nodeScreenPosition, open, rightClick, sketchArray, sketchGraph, sketchHashTable, sketchHeap, sketchList, sketchMatrix, sketchTree } from './helpers'
+import { arrayStep, CELL, connectNodes, focusedLabel, handlePosition, hoverNode, insertKey, menusClosed, nodeScreenPosition, open, rightClick, sketchArray, sketchGraph, sketchHashTable, sketchHeap, sketchList, sketchMatrix, sketchTree, sketchUnionFind } from './helpers'
 
 // The code beside an array: every move made on it, as code, kept in its meta so undo and redo take
 // the lines with the moves.
@@ -274,4 +274,49 @@ test('the code beside a matrix: an int[][] (Python a list of rows); grips, inser
 	})
 	await page.getByTestId('style.code-language.python').click()
 	await expect.poll(async () => (await lines(page)).slice(1, 3)).toEqual(['a[1][1] = 42', expect.stringMatching(/^for row, v in zip\(a, \[\d+, \d+\]\): row\.append\(v\)$/)])
+})
+
+test('the code beside union-find: union and find called by index (names in a comment), how they work as fields', async ({ page }) => {
+	await sketchUnionFind(page, [200, 150], 5)
+	const element = (i: number) => nodeScreenPosition(page, String(i))
+	await rightClick(page, await element(0))
+	await page.getByTestId('context-menu-sub.drawds-uf-show-button').click()
+	await page.getByTestId('context-menu.uf-code-beside').click()
+	await expect.poll(() => lines(page)).toEqual(['UnionFind a = new UnionFind(5);'])
+
+	const union = async (i: number, other: string) => {
+		await rightClick(page, await element(i))
+		await page.getByTestId('context-menu-sub.drawds-uf-steps-button').click()
+		await page.getByTestId('context-menu.uf-union').click()
+		await page.getByTestId('key-prompt').fill(other)
+		await page.keyboard.press('Enter')
+		while (!(await page.getByTestId('play-done').count())) await page.keyboard.press('ArrowRight')
+		await page.keyboard.press('Enter')
+	}
+	await union(1, '3')
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a.union(1, 3);')
+
+	// Named elements: the code still works by index, the names in a comment. A name logs nothing.
+	await menusClosed(page)
+	await page.mouse.dblclick(...(await element(0)))
+	await expect.poll(() => focusedLabel(page)).toBe('Cell 0')
+	await page.keyboard.press('ControlOrMeta+a')
+	await page.keyboard.type('A')
+	await page.keyboard.press('Enter')
+	await union(0, '2')
+	await expect.poll(async () => (await lines(page)).slice(1)).toEqual(['a.union(1, 3);', 'a.union(0, 2);    // union(A, 2)'])
+
+	await page.getByTestId('style.uf-union.rank').click()
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a.by = By.RANK;')
+	await insertKey(page, 'E')
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a.makeSet();')
+	await page.keyboard.press('ControlOrMeta+z')
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a.by = By.RANK;')
+
+	await page.evaluate(() => {
+		const editor = window.editor!
+		void editor.select(editor.getCurrentPageShapes().find((s) => s.type === 'code')!.id)
+	})
+	await page.getByTestId('style.code-language.python').click()
+	await expect.poll(() => lines(page)).toEqual(['a = UnionFind(5)', 'a.union(1, 3)', 'a.union(0, 2)    # union(A, 2)', "a.by = 'rank'"])
 })

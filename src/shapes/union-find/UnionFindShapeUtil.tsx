@@ -7,6 +7,7 @@ import { playOperation, type Frame } from '../../nodelink/playback'
 import type { Scene, SceneNode } from '../../nodelink/scene'
 import type { PointerAnchor } from '../../pointers/layout'
 import { prunePointers } from '../../pointers/pointers'
+import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
 import { getTreeMetrics } from '../tree/layout'
 import { edgeKey, elementKey, elementOfKey, parentKey, unionFindScene } from './layout'
 import { findSteps, unionSteps } from './operations'
@@ -155,6 +156,13 @@ export class UnionFindShapeUtil extends NodeLinkShapeUtil<UnionFindShape> {
 		return [
 			{ section: 'actions', id: 'uf-random', label: 'Random unions', run: () => this.randomise(shape.id) },
 			{ section: 'actions', id: 'uf-reset', label: 'Every element on its own again', run: () => this.reset(shape.id) },
+			// Every move made on it, as code.
+			{
+				section: 'show',
+				id: 'uf-code-beside',
+				label: transcriptsOf(this.editor, shape.id).length ? 'Hide the code beside it' : 'Code beside it: every move as code',
+				run: () => toggleTranscript(this.editor, shape),
+			},
 		]
 	}
 
@@ -202,7 +210,7 @@ export class UnionFindShapeUtil extends NodeLinkShapeUtil<UnionFindShape> {
 		const shape = this.editor.getShape(id) as UnionFindShape | undefined
 		if (!shape) return
 		const { frames, forest, code } = findSteps(shape.props, this.forestOf(shape), i)
-		this.play(shape, `find(${shape.props.labels[i]})`, frames, forest, code)
+		this.play(shape, `find(${shape.props.labels[i]})`, frames, forest, code, { i: String(i) })
 	}
 
 	private union(id: UnionFindShape['id'], a: number, other: string) {
@@ -211,10 +219,11 @@ export class UnionFindShapeUtil extends NodeLinkShapeUtil<UnionFindShape> {
 		const b = this.elementNamed(shape, other)
 		if (b === undefined) return
 		const { frames, forest, code } = unionSteps(shape.props, a, b)
-		this.play(shape, `union(${shape.props.labels[a]}, ${shape.props.labels[b]})`, frames, forest, code)
+		this.play(shape, `union(${shape.props.labels[a]}, ${shape.props.labels[b]})`, frames, forest, code, { a: String(a), b: String(b) })
 	}
 
-	private play(shape: UnionFindShape, label: string, frames: Frame[], forest: Forest, code: string) {
+	/** `args`: what its code is called with (elements by index), for the code beside it. */
+	private play(shape: UnionFindShape, label: string, frames: Frame[], forest: Forest, code: string, args: Record<string, string>) {
 		const final: TLShapePartial<UnionFindShape> = { id: shape.id, type: UNION_FIND_SHAPE_TYPE, props: { ...forest } }
 		playOperation(this.editor, {
 			shapeId: shape.id,
@@ -222,6 +231,7 @@ export class UnionFindShapeUtil extends NodeLinkShapeUtil<UnionFindShape> {
 			frames,
 			final,
 			code,
+			args,
 			// Shift: the step's highlights stay as marks (per element, and on parent pointers).
 			withMarks: (_update, highlights) => {
 				const kept = Object.fromEntries(Object.entries(highlights).filter(([k]) => /^\d+$/.test(k) || k.startsWith('edge:')))

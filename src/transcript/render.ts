@@ -10,6 +10,8 @@ import type { HeapType } from '../shapes/heap/heap'
 import type { HashMove, HashTable } from './hash-moves'
 import type { MatrixMove } from './matrix-moves'
 import { colsOf, rowsOf, type Grid } from '../shapes/matrix/model'
+import { isSingletons, type UnionFindMove, type UnionFindState } from './union-find-moves'
+import type { UnionBy } from '../shapes/union-find/union-find'
 import { entriesOf, isTombstone } from '../shapes/hash/hash'
 import { hashCodeId } from '../shapes/hash/code'
 
@@ -64,7 +66,7 @@ function made(values: readonly string[], s: Spelling): string {
 function call(
 	algorithm: string,
 	s: Spelling,
-	kind: 'array' | 'list' | 'tree' | 'heap' | 'hash' = 'array',
+	kind: 'array' | 'list' | 'tree' | 'heap' | 'hash' | 'uf' = 'array',
 	/** Other parameters, as what the operation did tells them (a tree's key, its node, a heap's value or index). */
 	more: (param: string) => string | undefined = () => undefined
 ): string | undefined {
@@ -81,7 +83,7 @@ function call(
 		.map((p) => p.trim())
 		.filter(Boolean)
 	const names = all.map((p) => /(\w+)\s*(\[\])?$/.exec(p)?.[1] ?? p)
-	const structure = kind === 'array' ? ['a', 'arr', 'nums', 'array'] : kind === 'list' ? ['list'] : kind === 'heap' ? ['h'] : kind === 'hash' ? ['t'] : ['t', 'tree']
+	const structure = kind === 'array' ? ['a', 'arr', 'nums', 'array'] : kind === 'list' ? ['list'] : kind === 'heap' ? ['h'] : kind === 'hash' ? ['t'] : kind === 'uf' ? ['u'] : ['t', 'tree']
 	const method = names[0] === 'self' || (language === 'java' && !names.some((p) => structure.includes(p)))
 	const args = names
 		.filter((p) => p !== 'self')
@@ -447,6 +449,78 @@ export function renderMatrixLog(moves: readonly MatrixMove[], language: CodeLang
 	const values = moves.flatMap((m) => ('values' in m ? (m.op === 'new' || m.op === 'assign' ? m.values.flat() : m.values) : 'v' in m ? [m.v] : []))
 	const s: Spelling = { ints: values.every((v) => v === '' || numeric(v)), name: first?.op === 'new' ? first.name : 'm', language }
 	return moves.flatMap((m) => matrixLines(m, s, values.includes(''))).join('\n')
+}
+
+/**
+ * Union-find's moves, a line each: a UnionFind of n elements (union by size, with path compression,
+ * unless `by` and `compress` say otherwise), its arrays as its code keeps them, union and find called
+ * as its code (`src/shapes/union-find/code.ts`) declares them, the elements' names in a comment.
+ */
+function unionFindLines(move: UnionFindMove, s: Spelling, stale = false): string[] {
+	const { name: u, language } = s
+	const [py, java] = [language === 'python', language === 'java']
+	const end = py ? '' : ';'
+	const note = py ? '#' : '//'
+	const dot = py || java ? '.' : '->'
+	const by = (b: UnionBy) => (py ? `'${b}'` : java ? `By.${b.toUpperCase()}` : `BY_${b.toUpperCase()}`)
+	const off = (on: boolean) => `${u}${dot}compress = ${py ? (on ? 'True' : 'False') : on ? 'true' : 'false'}${end}`
+	// C's arrays can't be assigned: copied in.
+	const array = (field: string, values: readonly number[]) =>
+		py || java
+			? `${u}.${field} = ${py ? '' : 'new int[]'}${py ? '[' : '{'}${values.join(', ')}${py ? ']' : '}'}${end}`
+			: `memcpy(${u}->${field}, (int[]){${values.join(', ')}}, ${values.length} * sizeof(int));`
+	const arrays = (st: UnionFindState) => [array('parent', st.parent), array('size', st.sizes), array('rank', st.ranks)]
+	const made = (st: UnionFindState, fresh: boolean) => [
+		py ? `${u} = UnionFind(${st.parent.length})` : java ? `${fresh ? 'UnionFind ' : ''}${u} = new UnionFind(${st.parent.length});` : `${fresh ? 'UF *' : ''}${u} = newUF(${st.parent.length});`,
+		...(st.by !== 'size' ? [`${u}${dot}by = ${by(st.by)}${end}`] : []),
+		...(st.compress ? [] : [off(false)]),
+		...(isSingletons(st) ? [] : arrays(st)),
+	]
+	switch (move.op) {
+		case 'new':
+			return made(move.state, true)
+		case 'assign':
+			// Every element on its own again: a new one; else (random unions) its arrays.
+			return isSingletons(move.state) ? made(move.state, false) : arrays(move.state)
+		case 'by':
+			// Sizes a union by rank or naively left behind (their code doesn't add them up): the ones drawds kept.
+			return [`${u}${dot}by = ${by(move.by)}${end}`, ...(stale && move.sizes ? [array('size', move.sizes)] : [])]
+		case 'compress':
+			return [off(move.on)]
+		case 'makeSet':
+			return [py ? `${u}.make_set()` : java ? `${u}.makeSet();` : `makeSet(${u});`]
+		case 'parent':
+			return [
+				`${u}${dot}parent[${move.i}] = ${move.p}${end}`,
+				...move.size.map(([k, v]) => `${u}${dot}size[${k}] = ${v}${end}`),
+				...move.rank.map(([k, v]) => `${u}${dot}rank[${k}] = ${v}${end}`),
+			]
+		case 'call': {
+			const args = move.args ?? {}
+			const written = call(move.algorithm, s, 'uf', (param) => args[param])
+			if (!written) return [`${note} ${move.label}, step by step:`, ...move.effect.flatMap((m) => unionFindLines(m, s))]
+			// Elements with names: the call as the steps named it.
+			const plain = move.label === `${move.algorithm.startsWith('uf-union') ? 'union' : 'find'}(${Object.values(args).join(', ')})`
+			return [plain ? written : `${written}    ${note} ${move.label}`]
+		}
+	}
+}
+
+/** Union-find's log written out in `language`. */
+export function renderUnionFindLog(moves: readonly UnionFindMove[], language: CodeLanguage): string {
+	const first = moves[0]
+	const s: Spelling = { ints: true, name: first?.op === 'new' ? first.name : 'u', language }
+	// Whether a union by rank or naively has left the code's sizes behind drawds' since they were last written.
+	let [by, stale] = ['size' as UnionBy, false]
+	return moves
+		.flatMap((m) => {
+			const lines = unionFindLines(m, s, stale)
+			if (m.op === 'new' || m.op === 'assign') [by, stale] = [m.state.by, false]
+			if (m.op === 'by') [by, stale] = [m.by, stale && !m.sizes]
+			if (m.op === 'call' && by !== 'size' && m.algorithm.startsWith('uf-union')) stale = true
+			return lines
+		})
+		.join('\n')
 }
 
 /** How a graph's code reads: directed (a DiGraph) or not, its weights written or not (as the graph shows them). */

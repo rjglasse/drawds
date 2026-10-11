@@ -3,7 +3,7 @@ import { diffValues, replay, type ArrayMove } from './array-moves'
 import { diffList, replayList, type ListMove, type ListState } from './list-moves'
 import { addChild, mirrorSubtree, removeSubtree, swapChildren } from '../shapes/tree/model'
 import { diffGraph, graphState, type GraphMove, type GraphState } from './graph-moves'
-import { renderArrayLog, renderGraphLog, renderHashLog, renderHeapLog, renderListLog, renderMatrixLog, renderTreeLog } from './render'
+import { renderArrayLog, renderGraphLog, renderHashLog, renderHeapLog, renderListLog, renderMatrixLog, renderTreeLog, renderUnionFindLog } from './render'
 import { diffHeap, heapArgs, type HeapMove, type HeapState } from './heap-moves'
 import { heapify, heapInsert, heapRemoveAt } from '../shapes/heap/heap'
 import { heapCode } from '../shapes/heap/code'
@@ -12,6 +12,9 @@ import { TOMBSTONE, buildTable, deleteKey, entriesOf, insertEntry, rehash } from
 import { hashCodeId } from '../shapes/hash/code'
 import { diffGrid, replayGrid, type MatrixMove } from './matrix-moves'
 import { deleteCol, deleteRow, insertCol, insertRow, transpose } from '../shapes/matrix/model'
+import { diffUnionFind, type UnionFindMove, type UnionFindState } from './union-find-moves'
+import { recount, singletons, union } from '../shapes/union-find/union-find'
+import { unionFindCode } from '../shapes/union-find/code'
 import { diffTree, shapeOf, treeArgs, type TreeMove } from './tree-moves'
 
 const v = (...xs: (number | string)[]) => xs.map(String)
@@ -570,5 +573,68 @@ describe('a matrix change as the move a teacher made', () => {
 		expect(renderMatrixLog([{ op: 'new', name: 'a', values: [['x', 'y']] }], 'java')).toBe('String[][] a = {{"x", "y"}};')
 		expect(renderMatrixLog([{ op: 'new', name: 'a', values: [v(1, '')] }], 'java')).toBe('Integer[][] a = {{1, null}};')
 		expect(renderMatrixLog([{ op: 'new', name: 'a', values: [v(1, '')] }], 'python')).toBe('a = [[1, None]]')
+	})
+})
+
+describe('a union-find change as the move a teacher made', () => {
+	const start: UnionFindState = { ...singletons(4), by: 'size', compress: true }
+	// 0 under 1, 2 under 3: two sets (by size: the ranks stay 0).
+	const two: UnionFindState = { ...start, ...union(union(singletons(4), 0, 1, 'size').forest, 2, 3, 'size').forest }
+
+	it('how union and find work, an element added, a parent typed (and the roots it recounts); else the new arrays', () => {
+		expect(diffUnionFind(start, { ...start, by: 'rank', compress: false })).toEqual([{ op: 'by', by: 'rank' }, { op: 'compress', on: false }])
+		expect(diffUnionFind(start, { ...start, ...singletons(5) })).toEqual([{ op: 'makeSet' }])
+		// parent[3] = 1 by hand: 3's set goes under 1, whose size and rank are recounted.
+		const parent = two.parent.map((p, i) => (i === 3 ? 1 : p))
+		expect(diffUnionFind(two, { ...two, parent, ...recount(parent) })).toEqual([{ op: 'parent', i: 3, p: 1, size: [[1, 4]], rank: [[1, 2]] }])
+		// Cut 0 off: a new root, its counts written whatever they were; 3's rank recounted as its height.
+		const cut = two.parent.map((p, i) => (i === 0 ? 0 : p))
+		expect(diffUnionFind(two, { ...two, parent: cut, ...recount(cut) })).toEqual([{ op: 'parent', i: 0, p: 0, size: [[0, 1], [1, 1]], rank: [[0, 0], [3, 1]] }])
+		expect(diffUnionFind(two, start)).toEqual([{ op: 'assign', state: start }])
+	})
+
+	it('written out: a UnionFind, its arrays as its code keeps them, union and find called as its code declares them', () => {
+		const log: UnionFindMove[] = [
+			{ op: 'new', name: 'u', state: start },
+			{ op: 'call', algorithm: unionFindCode('union', 'size', true), label: 'union(0, 1)', effect: [], args: { a: '0', b: '1' } },
+			{ op: 'call', algorithm: unionFindCode('find', 'size', true), label: 'find(C)', effect: [], args: { i: '2' } },
+			{ op: 'by', by: 'rank' },
+			{ op: 'compress', on: false },
+			{ op: 'makeSet' },
+			{ op: 'parent', i: 3, p: 1, size: [[1, 4]], rank: [[1, 2]] },
+			{ op: 'assign', state: two },
+		]
+		expect(renderUnionFindLog(log, 'python').split('\n')).toEqual([
+			'u = UnionFind(4)',
+			'u.union(0, 1)',
+			'u.find(2)    # find(C)',
+			"u.by = 'rank'",
+			'u.compress = False',
+			'u.make_set()',
+			'u.parent[3] = 1',
+			'u.size[1] = 4',
+			'u.rank[1] = 2',
+			'u.parent = [1, 1, 3, 3]',
+			'u.size = [1, 2, 1, 2]',
+			'u.rank = [0, 0, 0, 0]',
+		])
+		expect(renderUnionFindLog(log, 'java').split('\n').slice(0, 6)).toEqual(['UnionFind u = new UnionFind(4);', 'u.union(0, 1);', 'u.find(2);    // find(C)', 'u.by = By.RANK;', 'u.compress = false;', 'u.makeSet();'])
+		const c = renderUnionFindLog(log, 'c').split('\n')
+		expect(c.slice(0, 7)).toEqual(['UF *u = newUF(4);', 'unite(u, 0, 1);', 'find(u, 2);    // find(C)', 'u->by = BY_RANK;', 'u->compress = false;', 'makeSet(u);', 'u->parent[3] = 1;'])
+		expect(c.at(-1)).toBe('memcpy(u->rank, (int[]){0, 0, 0, 0}, 4 * sizeof(int));')
+	})
+
+	it("back to union by size after unions by rank or naively: the sizes drawds kept, which their code didn't add up", () => {
+		const back: UnionFindMove = { op: 'by', by: 'size', sizes: [1, 2, 1, 1] }
+		const naive: UnionFindMove[] = [{ op: 'new', name: 'u', state: start }, { op: 'by', by: 'naive' }]
+		const joined: UnionFindMove = { op: 'call', algorithm: unionFindCode('union', 'naive', true), label: 'union(0, 1)', effect: [], args: { a: '0', b: '1' } }
+		expect(renderUnionFindLog([...naive, joined, back], 'python').split('\n').slice(-2)).toEqual(["u.by = 'size'", 'u.size = [1, 2, 1, 1]'])
+		// No union in between: nothing to catch up.
+		expect(renderUnionFindLog([...naive, back], 'python').split('\n').at(-1)).toBe("u.by = 'size'")
+	})
+
+	it('every element on its own again: a new one, told how it unions', () => {
+		const rank: UnionFindState = { ...start, by: 'naive' }
+		expect(renderUnionFindLog([{ op: 'new', name: 'u', state: two }, { op: 'assign', state: rank }], 'python').split('\n').slice(-2)).toEqual(['u = UnionFind(4)', "u.by = 'naive'"])
 	})
 })

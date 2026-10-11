@@ -113,6 +113,15 @@ export async function sketchHeap(page: Page, [x, y]: [number, number], n: number
 	await page.mouse.up()
 }
 
+/** Shift+U, then drag right so union-find has `n` elements, element 0 under (x, y). */
+export async function sketchUnionFind(page: Page, [x, y]: [number, number], n: number) {
+	await page.keyboard.press('Shift+U')
+	await page.mouse.move(x, y)
+	await page.mouse.down()
+	await page.mouse.move(x + (n - 1) * CELL + 10, y, { steps: 20 })
+	await page.mouse.up()
+}
+
 /** Shift+M, then drag from the first cell's centre so a matrix of `rows` x `cols` cells appears. */
 export async function sketchMatrix(page: Page, [x, y]: [number, number], rows: number, cols: number) {
 	await page.keyboard.press('Shift+M')

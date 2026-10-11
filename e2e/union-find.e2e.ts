@@ -1,18 +1,9 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { UnionFindShapeProps } from '../src/shapes/union-find/union-find-shape-types'
-import { CELL, hoverNode, nodeScreenPosition, open, rightClick, shapesOfType, withEditor } from './helpers'
+import { hoverNode, nodeScreenPosition, open, rightClick, shapesOfType, sketchUnionFind, withEditor } from './helpers'
 
 const uf = async (page: Page) => (await shapesOfType<UnionFindShapeProps>(page, 'union-find'))[0].props
 const caption = (page: Page) => page.getByTestId('play-caption')
-
-/** Shift+U, then drag right: an element per cell-width, element 0 under the press. */
-async function sketchUnionFind(page: Page, [x, y]: [number, number], n: number) {
-	await page.keyboard.press('Shift+U')
-	await page.mouse.move(x, y)
-	await page.mouse.down()
-	await page.mouse.move(x + (n - 1) * CELL + 10, y, { steps: 20 })
-	await page.mouse.up()
-}
 
 /** 0 <- 1 <- 2 <- 3 <- 4 (a chain), and 6 under 5. */
 async function chainAndPair(page: Page) {

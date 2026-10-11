@@ -281,6 +281,8 @@ interface Operation {
 	/** Played again from a record (the lesson log): not recorded, and its result stays out of the undo history. */
 	replay: boolean
 	code?: string
+	/** Its algorithm's arguments, where what it did can't tell them (union(a, b)). */
+	args?: Record<string, string>
 	/** When each step came on screen (step, epoch ms), for lining the steps up with a transcript. */
 	shown: [number, number][]
 	/** Told when the operation closes, if it is being recorded. */
@@ -491,6 +493,7 @@ export function playOperation(
 		onClose,
 		replay = false,
 		code,
+		args,
 	}: {
 		shapeId: TLShapeId
 		label: string
@@ -508,6 +511,8 @@ export function playOperation(
 		replay?: boolean
 		/** The algorithm it runs, if it has code: a code box following the structure shows it, its lines lit. */
 		code?: string
+		/** The arguments it is called with, for the code beside the structure, where what it did can't tell them. */
+		args?: Record<string, string>
 	}
 ) {
 	const p = player(editor)
@@ -536,6 +541,7 @@ export function playOperation(
 		onClose,
 		replay,
 		code,
+		args,
 		shown: [],
 		ended: ended || undefined,
 		step: 0,
@@ -780,7 +786,7 @@ function commit(editor: Editor, keepNow: boolean) {
 		else {
 			editor.markHistoryStoppingPoint(op.label)
 			// The code beside it logs the algorithm (bubble_sort(a)), not what a diff would guess (a.sort()).
-			if (op.code) withMoves(editor, op.shapeId, { call: op.code, label: op.label }, () => editor.updateShape(update))
+			if (op.code) withMoves(editor, op.shapeId, { call: op.code, label: op.label, args: op.args }, () => editor.updateShape(update))
 			else editor.updateShape(update)
 		}
 		const after = editor.getShape(op.shapeId)

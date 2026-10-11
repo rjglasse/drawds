@@ -14,6 +14,8 @@ import { diffHash, hashArgs, hashState, sameHash, tableOf, type HashMove, type H
 import type { MatrixShapeProps } from '../shapes/matrix/matrix-shape-types'
 import { diffGrid, sameGrid, type MatrixMove } from './matrix-moves'
 import type { Grid } from '../shapes/matrix/model'
+import type { UnionFindShapeProps } from '../shapes/union-find/union-find-shape-types'
+import { diffUnionFind, sameUnionFind, unionFindState, type UnionFindMove, type UnionFindState } from './union-find-moves'
 
 // The code log: every move on a structure, kept in its meta (`drawdsCode`) by a store side effect
 // that runs inside the same change, so the move and its line are one undo step, redo brings the
@@ -29,7 +31,7 @@ import type { Grid } from '../shapes/matrix/model'
 
 export const LOG_KEY = 'drawdsCode'
 
-export type Move = ArrayMove | ListMove | TreeMove | GraphMove | HeapMove | HashMove | MatrixMove
+export type Move = ArrayMove | ListMove | TreeMove | GraphMove | HeapMove | HashMove | MatrixMove | UnionFindMove
 
 /** What a kind of structure's log follows, and how a change of it reads as moves. */
 interface Tracked<S> {
@@ -186,6 +188,25 @@ const matrices: Tracked<Grid> = {
 	sketching: 'matrix.sketching',
 }
 
+const unionFinds: Tracked<UnionFindState> = {
+	state: (props) => unionFindState(props as UnionFindShapeProps),
+	// Element names are how it is drawn: the code works by index.
+	touches: (a, b) => {
+		const [p, n] = [a as UnionFindShapeProps, b as UnionFindShapeProps]
+		return p.parent !== n.parent || p.sizes !== n.sizes || p.ranks !== n.ranks || p.unionBy !== n.unionBy || p.compression !== n.compression
+	},
+	follows: () => true,
+	same: sameUnionFind,
+	diff: diffUnionFind,
+	start: (name, state) => ({ op: 'new', name, state }),
+	restart: (first, state) => ({ ...(first as Extract<UnionFindMove, { op: 'new' }>), state }),
+	cell: (a, b) => {
+		const i = a.parent.findIndex((p, k) => p !== b.parent[k])
+		return i < 0 ? undefined : `p${i}`
+	},
+	sketching: 'union-find.sketching',
+}
+
 /** The structures with a log, by shape type. */
 const TRACKED: Record<string, Tracked<unknown>> = {
 	array: arrays as Tracked<unknown>,
@@ -195,6 +216,7 @@ const TRACKED: Record<string, Tracked<unknown>> = {
 	heap: heaps as Tracked<unknown>,
 	'hash-table': hashTables as Tracked<unknown>,
 	matrix: matrices as Tracked<unknown>,
+	'union-find': unionFinds as Tracked<unknown>,
 }
 
 /** Whether a shape's moves are logged. */
@@ -232,14 +254,14 @@ function freshName(editor: Editor, id: TLShapeId): string {
 }
 
 /** What the change about to happen to a shape did, told by the code making it. */
-type Intent = Move[] | { call: string; label: string }
+type Intent = Move[] | { call: string; label: string; args?: Record<string, string> }
 
 const intents = new WeakMap<Editor, Map<TLShapeId, Intent>>()
 
 /**
  * Run `change` (an update to shape `id`) saying what it does, so the log has that, not what a diff
  * would guess: [{ op: 'shuffle', values }] for a shuffle, a call for an operation played step by step
- * (its algorithm's code id and name; the diff kept as its effect).
+ * (its algorithm's code id and name, its arguments if the operation says them; the diff kept as its effect).
  */
 export function withMoves<T>(editor: Editor, id: TLShapeId, intent: Intent, change: () => T): T {
 	let map = intents.get(editor)
@@ -288,7 +310,7 @@ export function logged(editor: Editor, prev: TLShape, next: TLShape): Move[] | u
 	if (intent) {
 		intents.get(editor)!.delete(next.id)
 		if (Array.isArray(intent)) return [...log, ...intent]
-		const args = tracked.args?.(from, to)
+		const args = intent.args ?? tracked.args?.(from, to)
 		return [...log, { op: 'call', algorithm: intent.call, label: intent.label, effect: tracked.diff(from, to), ...(args ? { args } : {}) } as Move]
 	}
 	if (tracked.same(from, to)) return undefined
