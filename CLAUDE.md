@@ -211,6 +211,17 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   deg v), not E; is u adjacent to v: 1 cell, u's list, the pairs); frames carry the graph (`props`, so the views draw
   the step's graph) and `Frame.views`, each view's own highlights for that step; counts per representation in the play
   bar. The graph's Step by step opens the matrix and lists for them (`playCosts`; Esc takes them back).
+- `src/shapes/memory/` - a structure in memory (lecture 5's locality, dds-szw.25): Show > In memory on an array (any
+  kind) or a linked list (`toggleMemoryView` in `show.ts`, placed by `putBeside`) opens a `memory-view` following it
+  (`structureId`), redrawn from it as it renders, an operation's step and highlights included (as graph views are).
+  `model.ts` is pure: a grid of 4-cell rows, 16 cells to start, each with its address (0x0..0xF); other data in some
+  cells (style `drawds:memory-busy`, `MemoryPickers`: free, some (a cell a row), crowded (two a row)), each row's
+  pattern seeded by its row, so growing moves nothing. An array books one block side by side (`a[i] at start + i`,
+  named as the code beside it names it); outside crowded memory it books its block first, the other data around it;
+  crowded, the first gap big enough, else a red "No room" (no 5 or more free cells side by side: the lecture's point).
+  A list's nodes (prev, value, next; a sentinel too) each from a seeded address on, oldest id first, a whole row if
+  there is one, so a new head moves no node; next / prev cells hold addresses, arrows chase them (prev dashed), drawn
+  under the values. Memory grows a row at a time for nodes that don't fit (crowded leaves every row room for one).
 - `src/transcript/` - the code beside a structure (dds-2tt, every structure: arrays, stacks and queues, linked lists, binary trees, graphs, heaps, hash tables, matrices, union-find): every move kept as code. Each
   kind says what its log follows and how a change reads as moves (`Tracked` in `log.ts`): an array's values in use; a
   list's nodes by id (`list-moves.ts`: set / insertAtHead / append / insert / remove / reverse / cycle, exact as nodes
@@ -260,7 +271,7 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   300 tree logs, 300 graph logs, 300 heap logs, 400 hash table logs (against classes made of their own Python code;
   every scheme, deleted markers, keys typed anywhere), 300 matrix logs and 400 union-find logs (against the code's own
   union and find per kind), run, rebuilt their structures. The code box goes right of the structure, past its grips,
-  or under it if something else is in the way there (`codeSpot`, pure). Stacks and queues: 400 array logs and 300
+  else further right or under it, whichever is nearer (`putBeside`, `spotBeside` pure, `src/cells/beside.ts`). Stacks and queues: 400 array logs and 300
   linked ones against lecture 6's code, run, rebuilt. A drag of a 40-node graph's node costs the log ~2-3 µs a change.
   Track with code (dds-2tt.5, main menu: a toggle and Code language), the board's setting in its document meta
   (`mode.ts`: `drawdsCode` {on, language}), so a reload and a board file keep it. It is out of undo, as the lesson

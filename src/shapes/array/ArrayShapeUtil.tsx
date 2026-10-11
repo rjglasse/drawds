@@ -70,6 +70,7 @@ import { allUnique, allUniqueBySet, allUniqueBySorting, findMax, sentinelSearch 
 import type { ArrayMove } from '../../transcript/array-moves'
 import { withMoves } from '../../transcript/log'
 import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
+import { memoryViewsOf, toggleMemoryView } from '../memory/show'
 import { fisherYates, unfairShuffle, type ShuffleKind } from './shuffles'
 import { everyRunOperation, manyRunsOperation, TALLY_MAX, TREE_MAX, type OutcomesMode } from '../outcomes/outcomes'
 import { openOutcomes } from '../outcomes/OutcomesShapeUtil'
@@ -493,6 +494,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			{ ...actions, id: 'array-reroll', label: 'New values', run: () => this.reroll(shape.id) },
 			this.indicesToggle(shape),
 			this.codeBesideToggle(shape),
+			this.memoryToggle(shape),
 		]
 	}
 
@@ -503,6 +505,16 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			id: 'array-code-beside',
 			label: transcriptsOf(this.editor, shape.id).length ? 'Hide the code beside it' : 'Code beside it: every move as code',
 			run: () => toggleTranscript(this.editor, shape),
+		}
+	}
+
+	/** The array in memory beside it (lecture 5: one block of cells), or not: Show in the menu. */
+	private memoryToggle(shape: ArrayShape): NodeOperation {
+		return {
+			section: 'show',
+			id: 'array-memory',
+			label: memoryViewsOf(this.editor, shape).length ? 'Hide it in memory' : 'In memory: one block of cells',
+			run: () => toggleMemoryView(this.editor, shape),
 		}
 	}
 
@@ -678,6 +690,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			{ section: 'actions', id: 'array-reroll', label: 'New values', run: () => this.reroll(shape.id) },
 			this.indicesToggle(shape),
 			this.codeBesideToggle(shape),
+			this.memoryToggle(shape),
 		]
 	}
 

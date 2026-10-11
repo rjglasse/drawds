@@ -1,5 +1,6 @@
-import { createShapeId, type Editor, type TLShape, type TLShapeId } from 'tldraw'
-import { followedBy, followersOf } from '../cells/followers'
+import type { Editor, TLShape, TLShapeId } from 'tldraw'
+import { putBeside } from '../cells/beside'
+import { followersOf } from '../cells/followers'
 import type { CodeLanguage } from '../shapes/code/highlight'
 import { CODE_TYPE, CodeLanguageStyle, type CodeShape } from '../shapes/code/code-shape-types'
 import { algorithmCode } from '../shapes/code/algorithms'
@@ -42,70 +43,19 @@ export function transcriptOf(editor: Editor, structure: TLShape, language: CodeL
 export const transcriptsOf = (editor: Editor, id: TLShapeId) =>
 	followersOf(editor, id).filter((s): s is CodeShape => s.type === CODE_TYPE && (s as CodeShape).props.transcript)
 
-/** Space between a structure and its transcript (a code box's pc room is on its left). */
-const GAP = 16
-
-/** A grow grip's radius at 100% (`GrowGrip`): a grip outside the structure's box still needs room. */
-const GRIP = 9
-
 /** Every shape on the board, page by page. */
 const everyShape = (editor: Editor): TLShape[] =>
 	editor.getPages().flatMap((page) => [...editor.getPageShapeIds(page.id)].flatMap((id) => editor.getShape(id) ?? []))
 
 const isTranscript = (s: TLShape): s is CodeShape => s.type === CODE_TYPE && (s as CodeShape).props.transcript
 
-interface Rect {
-	x: number
-	y: number
-	w: number
-	h: number
-}
-
-/**
- * Where the code beside a structure goes (`box`: where it would go, to the structure's right; page
- * space): there if nothing else is in the way, else under the structure, past anything in the way
- * there. `gap` from the structure, half that clear of anything else. How far to move it.
- */
-export function codeSpot(structure: Rect, box: Rect, others: readonly Rect[], gap = GAP): { x: number; y: number } {
-	const clear = gap / 2
-	const hit = (x: number, y: number) => others.find((o) => o.x < x + box.w + clear && o.x + o.w + clear > x && o.y < y + box.h + clear && o.y + o.h + clear > y)
-	if (!hit(box.x, box.y)) return { x: 0, y: 0 }
-	let y = structure.y + structure.h + gap
-	for (let o = hit(structure.x, y); o; o = hit(structure.x, y)) y = o.y + o.h + clear
-	return { x: structure.x - box.x, y: y - box.y }
-}
-
-/**
- * A transcript box to a structure's right, past its grips (a matrix's column grip sits outside its
- * box) and anything already following it, top-aligned, on its page; under it if something else is
- * in the way there (`codeSpot`).
- */
+/** A transcript box beside a structure (`putBeside`), its size the structure's. */
 function addTranscript(editor: Editor, structure: TLShape) {
-	const bounds = editor.getShapePageBounds(structure)
-	const page = editor.getAncestorPageId(structure)
-	if (!bounds || !page) return
-	const shapes = [...editor.getPageShapeIds(page)].flatMap((id) => editor.getShape(id) ?? [])
-	const transform = editor.getShapePageTransform(structure)
-	const grips = (editor.getShapeHandles(structure) ?? []).map((h) => transform.applyToPoint(h).x + GRIP)
-	const followers = shapes.filter((s) => followedBy(s) === structure.id)
-	const right = Math.max(bounds.maxX, ...grips, ...followers.map((f) => editor.getShapePageBounds(f)?.maxX ?? -Infinity))
 	const { size } = structure.props as { size?: CodeShape['props']['size'] }
-	const id = createShapeId()
-	const [x, y] = [right + GAP, bounds.minY]
-	editor.createShape<CodeShape>({
-		id,
+	putBeside<CodeShape>(editor, structure, {
 		type: CODE_TYPE,
-		parentId: page,
-		x,
-		y,
 		props: { structureId: structure.id, transcript: true, language: codeLanguage(editor), ...(size ? { size } : {}) },
 	})
-	// Its size is known once it is made (its text is the structure's code).
-	const box = editor.getShapePageBounds(id)
-	if (!box) return
-	const others = shapes.filter((s) => s.id !== structure.id).flatMap((s) => editor.getShapePageBounds(s) ?? [])
-	const by = codeSpot(bounds, box, others)
-	if (by.x || by.y) editor.updateShape<CodeShape>({ id, type: CODE_TYPE, x: x + by.x, y: y + by.y })
 }
 
 /** Show the code beside a structure, or take it away (every transcript it has). One undo step either way. */

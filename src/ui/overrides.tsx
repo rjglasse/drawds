@@ -67,6 +67,7 @@ import { TreePickers, treePickerTranslations } from './TreePickers'
 import { UnionFindPickers, unionFindPickerTranslations } from './UnionFindPickers'
 import { TracerPickers, tracerPickerTranslations } from './TracerPickers'
 import { CodePickers, codePickerTranslations } from './CodePickers'
+import { MemoryPickers, memoryPickerTranslations } from './MemoryPickers'
 import { makeCodeBox } from '../shapes/code/convert'
 import { StructureHint } from './StructureHint'
 
@@ -237,6 +238,8 @@ export const uiOverrides: TLUiOverrides = {
 			...invariantPickerTranslations,
 			...graphPickerTranslations,
 			...graphViewPickerTranslations,
+			...memoryPickerTranslations,
+			...memoryPickerTranslations,
 		},
 	},
 }
@@ -563,6 +566,7 @@ export const components: TLComponents = {
 			<HashPickers />
 			<GraphPickers />
 			<GraphViewPickers />
+			<MemoryPickers />
 			<StructureHint />
 		</DefaultStylePanel>
 	),

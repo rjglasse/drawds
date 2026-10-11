@@ -35,6 +35,7 @@ import { anchorShift, insertListNode, removeListNode, resizeList } from './ops'
 import { dequeueFrom, enqueueOnto, peekAt, popFrom, pushOnto } from './stack-queue'
 import { checkInvariants, countNodes, withSizeStep } from './size'
 import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
+import { memoryViewsOf, toggleMemoryView } from '../memory/show'
 import {
 	appendToList,
 	deleteFromList,
@@ -333,6 +334,13 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 				id: 'list-code-beside',
 				label: transcriptsOf(this.editor, id).length ? 'Hide the code beside it' : 'Code beside it: every move as code',
 				run: () => toggleTranscript(this.editor, shape),
+			},
+			// Its nodes in memory (lecture 5: wherever there is room, the pointers chased).
+			{
+				section: 'show',
+				id: 'list-memory',
+				label: memoryViewsOf(this.editor, shape).length ? 'Hide it in memory' : 'In memory: nodes wherever there is room',
+				run: () => toggleMemoryView(this.editor, shape),
 			},
 		]
 	}
