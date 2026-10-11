@@ -4,6 +4,7 @@ import type { Pointer } from '../pointers/pointers'
 import type { Scene } from './scene'
 import { isTyping, swallowKeyUp } from '../controls/keys'
 import { showCodeOf } from '../shapes/code/follow'
+import { withMoves } from '../transcript/log'
 
 /** A row of values shown under the structure while an operation runs (a queue, a stack, an output). */
 export interface Strip {
@@ -778,7 +779,9 @@ function commit(editor: Editor, keepNow: boolean) {
 		if (op.replay) editor.run(() => editor.updateShape(update), { history: 'ignore' })
 		else {
 			editor.markHistoryStoppingPoint(op.label)
-			editor.updateShape(update)
+			// The code beside it logs the algorithm (bubble_sort(a)), not what a diff would guess (a.sort()).
+			if (op.code) withMoves(editor, op.shapeId, { call: op.code, label: op.label }, () => editor.updateShape(update))
+			else editor.updateShape(update)
 		}
 		const after = editor.getShape(op.shapeId)
 		if (before && after) op.committed = { before, after }

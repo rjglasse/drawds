@@ -434,6 +434,16 @@ describe('list variants', () => {
 })
 
 describe('code box migrations', () => {
+	it('code boxes saved before the code beside a structure are boxes of their own', () => {
+		const [, , addTranscript] = codeShapeMigrations.sequence
+		if (!('up' in addTranscript) || typeof addTranscript.down !== 'function') throw new Error('expected a props migration')
+		const props: Record<string, unknown> = { code: 'x = 1' }
+		addTranscript.up(props)
+		expect(props).toMatchObject({ transcript: false })
+		addTranscript.down(props)
+		expect(props).not.toHaveProperty('transcript')
+	})
+
 	it('code boxes saved before the times column have it off', () => {
 		const [, addLineCounts] = codeShapeMigrations.sequence
 		if (!('up' in addLineCounts) || typeof addLineCounts.down !== 'function') throw new Error('expected a props migration')

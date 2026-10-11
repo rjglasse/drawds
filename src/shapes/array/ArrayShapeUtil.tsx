@@ -67,6 +67,9 @@ import {
 import { parseCutoff, partition3Array, quicksort } from './quicksorts'
 import { insertionPasses, selectionPasses } from './passes'
 import { allUnique, allUniqueBySet, allUniqueBySorting, findMax, sentinelSearch } from './scans'
+import type { ArrayMove } from '../../transcript/array-moves'
+import { withMoves } from '../../transcript/log'
+import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
 import { fisherYates, unfairShuffle, type ShuffleKind } from './shuffles'
 import { everyRunOperation, manyRunsOperation, TALLY_MAX, TREE_MAX, type OutcomesMode } from '../outcomes/outcomes'
 import { openOutcomes } from '../outcomes/OutcomesShapeUtil'
@@ -489,7 +492,18 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			order('array-reverse', 'Reverse', (values) => reversedOrder(values.length)),
 			{ ...actions, id: 'array-reroll', label: 'New values', run: () => this.reroll(shape.id) },
 			this.indicesToggle(shape),
+			this.codeBesideToggle(shape),
 		]
+	}
+
+	/** The code beside it (every move made on it, as code), or not: Show in the menu. */
+	private codeBesideToggle(shape: ArrayShape): NodeOperation {
+		return {
+			section: 'show',
+			id: 'array-code-beside',
+			label: transcriptsOf(this.editor, shape.id).length ? 'Hide the code beside it' : 'Code beside it: every move as code',
+			run: () => toggleTranscript(this.editor, shape),
+		}
 	}
 
 	/** Indices under the cells, or not: Show in the menu. */
@@ -875,7 +889,16 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		if (!movesAnything(order)) return
 		const moved = rearrange(values, marks, order)
 		this.editor.markHistoryStoppingPoint(label)
-		this.editor.updateShape(this.withValues(shape, { ...moved, values: padded(moved.values, shape.props.values.length) }))
+		// The code beside it says what was done: a shuffle isn't just some order the values came out in.
+		const said: Record<string, ArrayMove[]> = {
+			sort: [{ op: 'sort' }],
+			'sort descending': [{ op: 'sort', descending: true }],
+			reverse: [{ op: 'reverse' }],
+			shuffle: [{ op: 'shuffle', values: moved.values }],
+		}
+		const update = () => this.editor.updateShape(this.withValues(shape, { ...moved, values: padded(moved.values, shape.props.values.length) }))
+		if (said[label]) withMoves(this.editor, id, said[label], update)
+		else update()
 		this.slide(shape, orderSlides(order))
 	}
 

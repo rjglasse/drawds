@@ -22,6 +22,7 @@ import { POINTER_FONT_SCALE, placePointers, pointerReachSideways, type PointerAn
 import { prunePointers } from '../../pointers/pointers'
 import { algorithmCode, shownValues, taggedLine, type ShownValue } from './algorithms'
 import { CODE_TYPE, codeShapeMigrations, codeShapeProps, type CodeShape } from './code-shape-types'
+import { transcriptOf } from '../../transcript/transcript'
 import { applyEdit, closeBraceEdit, indentEdit, newlineEdit, type CodeEdit } from './editing'
 import { highlightLines, type CodeLanguage, type TokenKind } from './highlight'
 import { INDENT, codeLines, getCodeLayout, getCodeMetrics, offsetOf, type CodeLayout, type CodeMetrics } from './layout'
@@ -57,6 +58,9 @@ const VALUE_CHARS = 5
 const COUNT_CHARS = 4
 
 const shownCache = new WeakMap<CodeShape['props'], ShownValue[]>()
+
+/** A transcript box as last drawn, by its record: kept while its code reads the same. */
+const shownTranscripts = new WeakMap<CodeShape, CodeShape>()
 
 /** The variables whose values show after their lines while the box's algorithm plays. */
 function valuesOf(shape: CodeShape): ShownValue[] {
@@ -137,12 +141,34 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 			structureId: '',
 			algorithm: '',
 			lineCounts: false,
+			transcript: false,
 			color: 'black',
 			size: 'm',
 		}
 	}
 
-	getGeometry(shape: CodeShape) {
+	/**
+	 * The box as it is drawn: a transcript's code is its structure's log written out in its language
+	 * (the same object while neither changes, so what is worked out from it stays worked out).
+	 */
+	shown(shape: CodeShape): CodeShape {
+		if (!shape.props.transcript) return shape
+		const structure = this.editor.getShape(shape.props.structureId as TLShapeId)
+		const code = structure ? transcriptOf(this.editor, structure, shape.props.language) : ''
+		const cached = shownTranscripts.get(shape)
+		if (cached?.props.code === code) return cached
+		const drawn = { ...shape, props: { ...shape.props, code } }
+		shownTranscripts.set(shape, drawn)
+		return drawn
+	}
+
+	/** The code beside a structure is the structure's: typing goes there, not here. */
+	override canEdit(shape: CodeShape): boolean {
+		return !shape.props.transcript && super.canEdit(shape)
+	}
+
+	getGeometry(given: CodeShape) {
+		const shape = this.shown(given)
 		const { box } = layoutOf(shape)
 		const body = new Rectangle2d({ x: box.x, y: box.y, width: box.w, height: box.h, isFilled: true })
 		// The room the pc arrow walks in counts in the bounds, so it is drawn inside them.
@@ -213,20 +239,20 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 
 	/** Room made on the left for pointers (`layoutOf`): the shape moves so the code stays put. */
 	override layoutOffset(shape: CodeShape): VecLike {
-		return { x: layoutOf(shape).box.x, y: 0 }
+		return { x: layoutOf(this.shown(shape)).box.x, y: 0 }
 	}
 
 	// Pointers (pc...) come from the left of a line; the arrow keys step them up and down the code.
 
 	pointerAnchor(shape: CodeShape, key: string): PointerAnchor | undefined {
 		const line = lineOf(key)
-		const layout = layoutOf(shape)
+		const layout = layoutOf(this.shown(shape))
 		if (line === undefined || line >= layout.lines) return undefined
 		return { box: layout.rowBox(line), side: 'left' }
 	}
 
 	override pointerTargetAt(shape: CodeShape, point: VecLike): string | undefined {
-		const layout = layoutOf(shape)
+		const layout = layoutOf(this.shown(shape))
 		const { box } = layout
 		if (point.y < box.y || point.y > box.y + box.h || point.x > box.x + box.w) return undefined
 		return lineKey(layout.caretAt(point).line)
@@ -252,7 +278,8 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 	}
 
 	/** A mark (1-4) lights the line under the pointer. */
-	override markKeyAt(shape: CodeShape, point: VecLike): string | undefined {
+	override markKeyAt(given: CodeShape, point: VecLike): string | undefined {
+		const shape = this.shown(given)
 		if (codeCells.cellAt(shape, point) === undefined) return undefined
 		return lineKey(layoutOf(shape).caretAt(point).line)
 	}
@@ -318,7 +345,8 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 		if (current && !current.props.code.trim()) this.editor.deleteShapes([shape.id])
 	}
 
-	component(shape: CodeShape) {
+	component(given: CodeShape) {
+		const shape = this.shown(given)
 		const colors = this.editor.getCurrentTheme().colors[this.editor.getColorMode()]
 		const metrics = getCodeMetrics(shape.props.size)
 		const layout = layoutOf(shape)
@@ -359,7 +387,8 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 		)
 	}
 
-	override toSvg(shape: CodeShape, ctx: SvgExportContext) {
+	override toSvg(given: CodeShape, ctx: SvgExportContext) {
+		const shape = this.shown(given)
 		const colors = this.editor.getCurrentTheme().colors[ctx.colorMode]
 		// Exporting its structure's steps: the step's line, as on the canvas.
 		const live = !!shape.props.structureId && !!exportingStep(this.editor, shape.props.structureId as TLShapeId)
@@ -384,7 +413,7 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 	}
 
 	getIndicatorPath(shape: CodeShape) {
-		const { box } = layoutOf(shape)
+		const { box } = layoutOf(this.shown(shape))
 		const path = new Path2D()
 		path.rect(box.x, box.y, box.w, box.h)
 		return path

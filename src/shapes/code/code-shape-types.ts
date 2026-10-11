@@ -41,6 +41,11 @@ export interface CodeShapeProps {
 	algorithm: string
 	/** A column of how many times each line has run, while the algorithm plays (lecture 3's "times"). */
 	lineCounts: boolean
+	/**
+	 * The code beside its structure: every move made on it, as code (`src/transcript/`), written out
+	 * as it is drawn, so its own `code` is unused and it can't be edited.
+	 */
+	transcript: boolean
 	color: TLDefaultColorStyle
 	size: TLDefaultSizeStyle
 }
@@ -62,6 +67,7 @@ export const codeShapeProps: RecordProps<CodeShape> = {
 	structureId: T.string,
 	algorithm: T.string,
 	lineCounts: T.boolean,
+	transcript: T.boolean,
 	color: DefaultColorStyle,
 	size: DefaultSizeStyle,
 }
@@ -69,6 +75,7 @@ export const codeShapeProps: RecordProps<CodeShape> = {
 const versions = createShapePropsMigrationIds(CODE_TYPE, {
 	AddFollowing: 1,
 	AddLineCounts: 2,
+	AddTranscript: 3,
 })
 
 /** Code boxes are persisted in the browser, so every props change needs a step here. */
@@ -92,6 +99,15 @@ export const codeShapeMigrations = createShapePropsMigrationSequence({
 			},
 			down(props) {
 				delete props.lineCounts
+			},
+		},
+		{
+			id: versions.AddTranscript,
+			up(props) {
+				props.transcript = false
+			},
+			down(props) {
+				delete props.transcript
 			},
 		},
 	],

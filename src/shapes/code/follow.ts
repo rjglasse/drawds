@@ -7,9 +7,9 @@ import { CODE_TYPE, CodeLanguageStyle, type CodeShape } from './code-shape-types
 // code plays on it (`playOperation`'s `code`), the box shows that algorithm's code, the line each
 // step is on lit with a pc arrow beside it. The play bar's code button opens one or takes it away.
 
-/** The code boxes following a structure. */
+/** The code boxes following a structure that show what plays on it (not the code beside it, its transcript). */
 export const codeBoxesOf = (editor: Editor, structureId: TLShapeId) =>
-	followersOf(editor, structureId).filter((s): s is CodeShape => s.type === CODE_TYPE)
+	followersOf(editor, structureId).filter((s): s is CodeShape => s.type === CODE_TYPE && !(s as CodeShape).props.transcript)
 
 /** Space between the structure and a new code box (its pc arrow has room of its own on top). */
 const GAP = 16

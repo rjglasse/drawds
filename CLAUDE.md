@@ -210,6 +210,18 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   deg v), not E; is u adjacent to v: 1 cell, u's list, the pairs); frames carry the graph (`props`, so the views draw
   the step's graph) and `Frame.views`, each view's own highlights for that step; counts per representation in the play
   bar. The graph's Step by step opens the matrix and lists for them (`playCosts`; Esc takes them back).
+- `src/transcript/` - the code beside a structure (dds-2tt, arrays so far): every move kept as code. `log.ts`: a store
+  side effect (`startCodeLog`, App onMount) keeps language-neutral moves (`array-moves.ts`: new / set / append / insert
+  / pop / delete / swap / sort / reverse / shuffle / assign / call) in the shape's meta (`drawdsCode`), inside the same
+  change, so undo, redo and board files carry them; a change bringing its own log (undo, redo, a load) passes through.
+  Moves come from a diff of the values in use (`diffValues`, pure), or from what our code says it did (`withMoves`:
+  rearrange's sort / reverse / shuffle, and playback's commit, a call to the operation's algorithm with the diff kept as
+  its effect). Runs rewrite their own lines: typing in one cell, the creating drag, a grip dragged (ended on pointer up).
+  `render.ts` writes a log out: Python a list, Java a List (ArrayList), C a list type (`append(&a, 7)`, items / size);
+  a call from its algorithm's own signature in that language (a, n, lo, hi filled in), else its effect under a comment.
+  The view is a code box with `transcript` on, following the structure: its text is worked out as it is drawn
+  (`CodeShapeUtil.shown`), it can't be edited, and the play bar's algorithm box never takes it over (`codeBoxesOf`).
+  Show > Code beside it (`toggleTranscript`). The Python of 200 random logs, run, rebuilt their arrays.
 - `src/cells/clean-copy.ts` - Clean copy, last in every structure's own submenu (`NodeOperationsMenu` adds it): the
   same props (values, shape, seed) without marks or pointers, under the original past anything in the way
   (`freeTopBelow`, pure), selected, one undo step; followers stay with the original.
