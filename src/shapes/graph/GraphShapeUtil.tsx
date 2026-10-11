@@ -1,3 +1,4 @@
+import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
 import {
 	SVGContainer,
 	Vec,
@@ -317,6 +318,13 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 				id: 'graph-degrees',
 				label: `${shape.props.degrees ? 'Hide' : 'Show'} degrees${shape.props.direction === 'directed' ? ' (in/out)' : ''}`,
 				run: () => this.toggleDegrees(shape.id),
+			},
+			// Every move made on it, as code.
+			{
+				...show,
+				id: 'graph-code-beside',
+				label: transcriptsOf(this.editor, shape.id).length ? 'Hide the code beside it' : 'Code beside it: every move as code',
+				run: () => toggleTranscript(this.editor, shape),
 			},
 		]
 		return [...views, ...this.algorithmOperations(shape)]

@@ -5,6 +5,8 @@ import { diffValues, type ArrayMove } from './array-moves'
 import { diffList, type ListMove, type ListState } from './list-moves'
 import type { TreeShapeProps } from '../shapes/tree/tree-shape-types'
 import { diffTree, sameTree, shapeOf, treeArgs, type TreeMove } from './tree-moves'
+import type { GraphShapeProps } from '../shapes/graph/graph-shape-types'
+import { built, diffGraph, graphState, sameGraph, type GraphMove, type GraphState } from './graph-moves'
 
 // The code log: every move on a structure, kept in its meta (`drawdsCode`) by a store side effect
 // that runs inside the same change, so the move and its line are one undo step, redo brings the
@@ -20,7 +22,7 @@ import { diffTree, sameTree, shapeOf, treeArgs, type TreeMove } from './tree-mov
 
 export const LOG_KEY = 'drawdsCode'
 
-export type Move = ArrayMove | ListMove | TreeMove
+export type Move = ArrayMove | ListMove | TreeMove | GraphMove
 
 /** What a kind of structure's log follows, and how a change of it reads as moves. */
 interface Tracked<S> {
@@ -99,11 +101,30 @@ const trees: Tracked<TreeNodes> = {
 	args: treeArgs,
 }
 
+const graphs: Tracked<GraphState> = {
+	state: (props) => graphState(props as GraphShapeProps),
+	touches: (a, b) => {
+		const [p, n] = [a as GraphShapeProps, b as GraphShapeProps]
+		return p.nodes !== n.nodes || p.edges !== n.edges
+	},
+	follows: () => true,
+	same: sameGraph,
+	diff: diffGraph,
+	start: (name, g) => ({ op: 'new', name, ...built(g) }),
+	restart: (first, g) => ({ ...(first as Extract<GraphMove, { op: 'new' }>), ...built(g) }),
+	// A vertex's label, or an edge's weight.
+	cell: (a, b) =>
+		a.nodes.find((n) => b.nodes.find((m) => m.id === n.id && m.value !== n.value))?.id ??
+		a.edges.find((e) => b.edges.find((f) => f.id === e.id && f.weight !== e.weight))?.id,
+	sketching: 'graph.sketching',
+}
+
 /** The structures with a log, by shape type. */
 const TRACKED: Record<string, Tracked<unknown>> = {
 	array: arrays as Tracked<unknown>,
 	'linked-list': lists as Tracked<unknown>,
 	'binary-tree': trees as Tracked<unknown>,
+	graph: graphs as Tracked<unknown>,
 }
 
 /** Whether a shape's moves are logged. */
@@ -225,7 +246,22 @@ export function logged(editor: Editor, prev: TLShape, next: TLShape): Move[] | u
 function typedIntoNew(before: Move[], moves: Move[]): Move[] | undefined {
 	const [set] = moves
 	const last = before.at(-1)
-	if (moves.length !== 1 || set.op !== 'set' || !last) return undefined
+	if (moves.length !== 1 || !last) return undefined
+	// A graph's new vertex (the connect grip's, opened for its label): its label in the lines that brought it in.
+	if (set.op === 'rename') {
+		const { from, to } = set
+		let k = before.length - 1
+		while (k >= 0 && before[k].op === 'addEdge' && ((before[k] as { from: string }).from === from || (before[k] as { to: string }).to === from)) k--
+		const added = before[k]
+		if (k < 0 || added.op !== 'addVertex' || added.v !== from) return undefined
+		const named = (x: string) => (x === from ? to : x)
+		return [
+			...before.slice(0, k),
+			{ op: 'addVertex', v: to },
+			...before.slice(k + 1).map((m) => (m.op === 'addEdge' ? { ...m, from: named(m.from), to: named(m.to) } : m)),
+		]
+	}
+	if (set.op !== 'set') return undefined
 	const at = 'i' in set ? set.i : set.path
 	const into = (last.op === 'insert' && last.i === at) || (last.op === 'insertAtHead' && at === 0) || (last.op === 'add' && last.path === at)
 	return into ? [...before.slice(0, -1), { ...last, v: set.v } as Move] : undefined

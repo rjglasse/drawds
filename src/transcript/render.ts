@@ -3,6 +3,7 @@ import type { CodeLanguage } from '../shapes/code/highlight'
 import type { ArrayMove } from './array-moves'
 import type { ListMove } from './list-moves'
 import type { TreeMove, TreeShape } from './tree-moves'
+import type { GraphMove } from './graph-moves'
 
 // An array's moves written out in a language, a line each (a call that can't be written out is its
 // effect, under a comment naming it). Python: a list. Java: a List (an ArrayList, as a growing array
@@ -236,4 +237,55 @@ export function renderTreeLog(moves: readonly TreeMove[], language: CodeLanguage
 	const first = moves[0]
 	const s: Spelling = { ints: allNumbers(moves), name: first?.op === 'new' ? first.name : 't', language }
 	return moves.flatMap((m) => treeLines(m, s, field)).join('\n')
+}
+
+/** How a graph's code reads: directed (a DiGraph) or not, its weights written or not (as the graph shows them). */
+export interface GraphKind {
+	directed: boolean
+	weighted: boolean
+}
+
+/** A graph's moves, a line each: vertices by their labels, as the graph's code (BFS, DFS...) names them. */
+function graphLines(move: GraphMove, s: Spelling, kind: GraphKind): string[] {
+	const { name: g, language } = s
+	const [py, java] = [language === 'python', language === 'java']
+	const label = (x: string) => JSON.stringify(x)
+	const callOn = (m: [string, string], ...args: string[]) =>
+		py ? `${g}.${m[0]}(${args.join(', ')})` : java ? `${g}.${m[1]}(${args.join(', ')});` : `${m[1]}(${[g, ...args].join(', ')});`
+	const edge = (from: string, to: string, weight: string) => callOn(['add_edge', 'addEdge'], label(from), label(to), ...(kind.weighted ? [literal(weight, { ...s, ints: true })] : []))
+	const build = (vertices: string[], edges: [string, string, string][], fresh: boolean) => {
+		const cls = kind.directed ? 'DiGraph' : 'Graph'
+		const all = vertices.map(label).join(', ')
+		const head = py
+			? `${g} = ${cls}([${all}])`
+			: java
+				? `${fresh ? `${cls} ` : ''}${g} = new ${cls}(${all});`
+				: `${fresh ? `${cls} *` : ''}${g} = new${cls}(${vertices.length}, (const char *[]){${all}});`
+		return [head, ...edges.map(([from, to, weight]) => edge(from, to, weight))]
+	}
+	switch (move.op) {
+		case 'new':
+			return build(move.vertices, move.edges, true)
+		case 'assign':
+			return build(move.vertices, move.edges, false)
+		case 'addVertex':
+			return [callOn(['add_vertex', 'addVertex'], label(move.v))]
+		case 'removeVertex':
+			return [callOn(['remove_vertex', 'removeVertex'], label(move.v))]
+		case 'rename':
+			return [callOn(['rename_vertex', 'renameVertex'], label(move.from), label(move.to))]
+		case 'addEdge':
+			return [edge(move.from, move.to, move.weight)]
+		case 'removeEdge':
+			return [callOn(['remove_edge', 'removeEdge'], label(move.from), label(move.to))]
+		case 'weight':
+			return [callOn(['set_weight', 'setWeight'], label(move.from), label(move.to), literal(move.weight, { ...s, ints: true }))]
+	}
+}
+
+/** A graph's log written out in `language`. */
+export function renderGraphLog(moves: readonly GraphMove[], language: CodeLanguage, kind: GraphKind): string {
+	const first = moves[0]
+	const s: Spelling = { ints: false, name: first?.op === 'new' ? first.name : 'g', language }
+	return moves.flatMap((m) => graphLines(m, s, kind)).join('\n')
 }

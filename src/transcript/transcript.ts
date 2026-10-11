@@ -5,7 +5,8 @@ import { CODE_TYPE, CodeLanguageStyle, type CodeShape } from '../shapes/code/cod
 import { logOrStart } from './log'
 import type { ArrayMove } from './array-moves'
 import type { ListMove } from './list-moves'
-import { renderArrayLog, renderListLog, renderTreeLog } from './render'
+import { renderArrayLog, renderGraphLog, renderListLog, renderTreeLog } from './render'
+import type { GraphMove } from './graph-moves'
 import type { TreeMove } from './tree-moves'
 
 // The code beside a structure: a code box following it (`structureId`) with `transcript` on, whose
@@ -18,6 +19,11 @@ export function transcriptOf(editor: Editor, structure: TLShape, language: CodeL
 	if (structure.type === 'linked-list') return renderListLog(log as ListMove[], language)
 	// A BST's nodes hold keys, as its code calls them.
 	if (structure.type === 'binary-tree') return renderTreeLog(log as TreeMove[], language, (structure.props as { kind?: string }).kind === 'bst' ? 'key' : 'value')
+	if (structure.type === 'graph') {
+		// Directed or not, weights written or not: as the graph is drawn now.
+		const { direction, weights } = structure.props as { direction?: string; weights?: string }
+		return renderGraphLog(log as GraphMove[], language, { directed: direction === 'directed', weighted: weights === 'weighted' })
+	}
 	return renderArrayLog(log as ArrayMove[], language)
 }
 

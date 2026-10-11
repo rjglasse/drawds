@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { diffValues, replay, type ArrayMove } from './array-moves'
 import { diffList, replayList, type ListMove, type ListState } from './list-moves'
 import { addChild, mirrorSubtree, removeSubtree, swapChildren } from '../shapes/tree/model'
-import { renderArrayLog, renderListLog, renderTreeLog } from './render'
+import { diffGraph, graphState, type GraphMove, type GraphState } from './graph-moves'
+import { renderArrayLog, renderGraphLog, renderListLog, renderTreeLog } from './render'
 import { diffTree, shapeOf, treeArgs, type TreeMove } from './tree-moves'
 
 const v = (...xs: (number | string)[]) => xs.map(String)
@@ -238,5 +239,56 @@ describe('a binary tree change as the move a teacher made', () => {
 		expect(c[0]).toBe('Tree *t = newTree(node(8, node(3, newNode(1), newNode(6)), node(10, NULL, newNode(14))));')
 		expect(c.slice(1, 3)).toEqual(['t->root->left->right->key = 7;', 't->root->right->left = newNode(9);'])
 		expect(c.slice(-2)).toEqual(['insert(t, 5);', 'delete(t, t->root->right);'])
+	})
+})
+
+describe('a graph change as the move a teacher made', () => {
+	const g = (nodes: string, edges: string): GraphState => ({
+		nodes: nodes.split(' ').map((v, i) => ({ id: `v${i}`, value: v })),
+		edges: edges ? edges.split(' ').map((e, i) => ({ id: `e${i}`, from: `v${e[0]}`, to: `v${e[1]}`, weight: String(i + 2) })) : [],
+	})
+	const abc = g('A B C', '01 12')
+
+	it('vertices and edges in and out (a vertex taking its edges), labels typed, weights changed', () => {
+		expect(diffGraph(abc, { ...abc, nodes: [...abc.nodes, { id: 'v3', value: 'D' }], edges: [...abc.edges, { id: 'e2', from: 'v2', to: 'v3', weight: '7' }] })).toEqual([
+			{ op: 'addVertex', v: 'D' },
+			{ op: 'addEdge', from: 'C', to: 'D', weight: '7' },
+		])
+		expect(diffGraph(abc, { nodes: abc.nodes.slice(0, 2), edges: abc.edges.slice(0, 1) })).toEqual([{ op: 'removeVertex', v: 'C' }])
+		expect(diffGraph(abc, { ...abc, edges: abc.edges.slice(1) })).toEqual([{ op: 'removeEdge', from: 'A', to: 'B' }])
+		expect(diffGraph(abc, { ...abc, nodes: abc.nodes.map((n) => (n.id === 'v1' ? { ...n, value: 'Z' } : n)) })).toEqual([{ op: 'rename', from: 'B', to: 'Z' }])
+		expect(diffGraph(abc, { ...abc, edges: abc.edges.map((e) => (e.id === 'e1' ? { ...e, weight: '9' } : e)) })).toEqual([{ op: 'weight', from: 'B', to: 'C', weight: '9' }])
+	})
+
+	it('where nodes are drawn is not the graph: dragging one logs nothing', () => {
+		expect(diffGraph(graphState({ nodes: abc.nodes.map((n) => ({ ...n, x: 1, y: 2 })), edges: abc.edges }), abc)).toEqual([])
+	})
+
+	it('written out: a Graph (DiGraph directed), edges with weights while it shows them', () => {
+		const log: GraphMove[] = [
+			{ op: 'new', name: 'g', vertices: ['A', 'B'], edges: [['A', 'B', '4']] },
+			{ op: 'addVertex', v: 'C' },
+			{ op: 'addEdge', from: 'B', to: 'C', weight: '7' },
+			{ op: 'weight', from: 'A', to: 'B', weight: '9' },
+			{ op: 'rename', from: 'C', to: 'D' },
+			{ op: 'removeEdge', from: 'A', to: 'B' },
+			{ op: 'removeVertex', v: 'A' },
+		]
+		expect(renderGraphLog(log, 'python', { directed: false, weighted: true }).split('\n')).toEqual([
+			'g = Graph(["A", "B"])',
+			'g.add_edge("A", "B", 4)',
+			'g.add_vertex("C")',
+			'g.add_edge("B", "C", 7)',
+			'g.set_weight("A", "B", 9)',
+			'g.rename_vertex("C", "D")',
+			'g.remove_edge("A", "B")',
+			'g.remove_vertex("A")',
+		])
+		expect(renderGraphLog(log, 'java', { directed: true, weighted: false }).split('\n').slice(0, 2)).toEqual(['DiGraph g = new DiGraph("A", "B");', 'g.addEdge("A", "B");'])
+		expect(renderGraphLog(log, 'c', { directed: false, weighted: false }).split('\n').slice(0, 3)).toEqual([
+			'Graph *g = newGraph(2, (const char *[]){"A", "B"});',
+			'addEdge(g, "A", "B");',
+			'addVertex(g, "C");',
+		])
 	})
 })

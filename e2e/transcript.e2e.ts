@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { arrayStep, hoverNode, insertKey, nodeScreenPosition, open, rightClick, sketchArray, sketchList, sketchTree } from './helpers'
+import { arrayStep, connectNodes, hoverNode, insertKey, nodeScreenPosition, open, rightClick, sketchArray, sketchGraph, sketchList, sketchTree } from './helpers'
 
 // The code beside an array: every move made on it, as code, kept in its meta so undo and redo take
 // the lines with the moves.
@@ -114,4 +114,30 @@ test('the code beside a tree: nodes by their paths; a BST insert and delete are 
 	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a.delete(a.root.left);')
 	await page.keyboard.press('ControlOrMeta+z')
 	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a.insert(12);')
+})
+
+test('the code beside a graph: vertices by their labels; a new vertex named as it is typed, in its lines', async ({ page }) => {
+	await sketchGraph(page, [300, 200], 3)
+	await page.evaluate(() => {
+		const editor = window.editor!
+		const graph = editor.getCurrentPageShapes().find((s) => s.type === 'graph')!
+		editor.updateShape({ id: graph.id, type: 'graph', props: { edges: [{ id: 'e0', from: 'v0', to: 'v1', weight: '4' }] } } as never)
+	})
+	await rightClick(page, await nodeScreenPosition(page, 'v0'))
+	await page.getByTestId('context-menu-sub.drawds-graph-show-button').click()
+	await page.getByTestId('context-menu.graph-code-beside').click()
+	await expect.poll(async () => (await lines(page))[0]).toBe('Graph a = new Graph("A", "B", "C");')
+
+	await page.evaluate(() => {
+		const editor = window.editor!
+		void editor.select(editor.getCurrentPageShapes().find((s) => s.type === 'graph')!.id)
+	})
+	await connectNodes(page, 'v2', [300, 480])
+	// The new vertex opens for its label a moment after the drop.
+	await page.waitForFunction(() => !!window.editor!.getEditingShapeId())
+	await page.keyboard.type('Z')
+	await page.keyboard.press('Enter')
+	await expect.poll(async () => (await lines(page)).slice(-2)).toEqual(['a.addVertex("Z");', 'a.addEdge("C", "Z");'])
+	await page.keyboard.press('ControlOrMeta+z')
+	await expect.poll(async () => (await lines(page)).at(-1)).not.toBe('a.addEdge("C", "Z");')
 })
