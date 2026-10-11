@@ -9,8 +9,10 @@ import { compareKeys } from '../data/compare'
 export interface Scale {
 	id: string
 	name: string
-	/** Semitones above the root, within an octave. */
+	/** Semitones above the root, within an octave: rising, but for a tone row, in its order. */
 	steps: number[]
+	/** The bass's two notes (semitones above the root), if not the root and the nearest to a fifth. */
+	bass?: [number, number]
 	/** Its intervals as musicians write them. */
 	intervals: string
 	/** What it is, in a line. */
@@ -24,6 +26,15 @@ export const SCALES: Scale[] = [
 	{ id: 'dorian', name: 'Dorian', steps: [0, 2, 3, 5, 7, 9, 10], intervals: '1 2 ♭3 4 5 6 ♭7', about: 'A minor mode with a bright 6th: jazz, Scarborough Fair' },
 	{ id: 'hirajoshi', name: 'Hirajoshi', steps: [0, 2, 3, 7, 8], intervals: '1 2 ♭3 5 ♭6', about: "A Japanese pentatonic, from the koto's tuning" },
 	{ id: 'whole-tone', name: 'Whole tone', steps: [0, 2, 4, 6, 8, 10], intervals: '1 2 3 ♯4 ♯5 ♭7', about: 'Every step a whole tone: no home note, dreamy (Debussy)' },
+	// The final boss: values climb the row, so the notes leap about; the bass a tritone.
+	{
+		id: 'twelve-tone',
+		name: 'Twelve-tone row',
+		steps: [4, 5, 7, 1, 6, 3, 8, 2, 11, 0, 9, 10],
+		bass: [4, 10],
+		intervals: 'E F G D♭ G♭ E♭ A♭ D B C A B♭',
+		about: "Schoenberg's row (Op. 25): all twelve notes, none again till all have sounded, no home key",
+	},
 ]
 
 export const KEYS = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B']
@@ -100,18 +111,12 @@ export const tick = (tuning: Tuning = DEFAULT_TUNING) => frequencyOf(degreesOf(t
 
 /**
  * The bass: the root two octaves down, and the fifth (the scale's note nearest seven semitones up:
- * the whole tone scale has none, so its ♯5), by turns.
+ * the whole tone scale has none, so its ♯5), by turns; or the scale's own pair (the row's tritone).
  */
 export function bassNotes(tuning: Tuning = DEFAULT_TUNING): [number, number] {
-	const { steps } = scaleOf(tuning)
-	const fifth = steps.reduce((best, s) => (Math.abs(s - 7) <= Math.abs(best - 7) ? s : best), steps[0])
+	const { steps, bass } = scaleOf(tuning)
+	const fifth = steps.reduce((best, s) => (Math.abs(s - 7) <= Math.abs(best - 7) ? s : best), 0)
+	const [a, b] = bass ?? [0, fifth]
 	const root = rootOf(tuning) / 4
-	return [root, root * 2 ** (fifth / 12)]
-}
-
-/** The scale itself, up an octave and back: what a scale picked sounds like. */
-export function scaleRun(tuning: Tuning): number[] {
-	const n = scaleOf(tuning).steps.length
-	const up = Array.from({ length: n + 1 }, (_, d) => frequencyOf(d, tuning))
-	return [...up, ...up.slice(0, -1).reverse()]
+	return [root * 2 ** (a / 12), root * 2 ** (b / 12)]
 }

@@ -34,7 +34,7 @@ import {
 	reverseList,
 } from '../list/operations'
 import { mergeSortList, mergeSortedLists } from '../list/merge'
-import { bogosort } from '../array/bogo'
+import { bogosort, bozosort } from '../array/bogo'
 import { dequeueFrom, enqueueOnto, peekAt, popFrom, pushOnto } from '../list/stack-queue'
 import { countNodes } from '../list/size'
 import { deleteKey, findKey, insertEntry, rehash, buildTable } from '../hash/hash'
@@ -136,6 +136,7 @@ describe('algorithm code', () => {
 			allUnique(array(4, 1, 3)),
 			allUnique(array(1, 2, 1)),
 			bogosort({ values: ['3', '1', '2'], marks: {} }, mulberry32(2), 5),
+			bozosort({ values: ['3', '1', '2'], marks: {} }, mulberry32(2), 5),
 			insertionSort(array(5, 2, 4, 1, 3)),
 			selectionSort(array(5, 2, 4, 1, 3)),
 			selectionSort(array(1, 2, 3)),

@@ -5,9 +5,9 @@ import type { Scene } from '../nodelink/scene'
 import { giveUp, gone, pitches, sweep, tick, touchedKeys } from './notes'
 import { isSoundOn, play, soundTuning } from './player'
 
-// When drawds makes its sounds (once bogosort has been run): each step an operation shows, going
-// forward, plays what it lights, swaps and moves; a sort ends on a run up its values (bogosort only if
-// it got lucky, else three notes down). Moves made by hand play too: a value typed, cells or nodes
+// When drawds makes its sounds (once bogosort or bozosort has been run): each step an operation shows,
+// going forward, plays what it lights, swaps and moves; a sort ends on a run up its values (bogosort or
+// bozosort only if it got lucky, else three notes down). Moves made by hand play too: a value typed, cells or nodes
 // drawn out, swapped, taken away (a low note), a mark (a tick). Nothing in the operations changes:
 // this reads the play bar's view and the shapes.
 
@@ -44,11 +44,11 @@ export function startSounds(editor: Editor) {
 		const pitch = pitches([...values.values()], tuning)
 		const notes = touchedKeys(view.frame).flatMap((k) => (values.has(k) ? [pitch(values.get(k)!)] : []))
 		play(notes.slice(0, 12))
-		// A sort's last step: up through its values; bogosort giving up, three notes down.
+		// A sort's last step: up through its values; bogosort or bozosort giving up, three notes down.
 		if (view.step !== view.steps - 1 || shape.type !== 'array' || !view.code || !/sort/.test(view.code)) return
 		const all = [...values.values()]
 		if (sortedUp(all)) play(sweep(all, tuning), { gap: 0.045, ahead: 2 })
-		else if (view.code === 'bogosort') play(giveUp(tuning), { gap: 0.22, loud: 0.8, ahead: 1 })
+		else if (view.code === 'bogosort' || view.code === 'bozosort') play(giveUp(tuning), { gap: 0.22, loud: 0.8, ahead: 1 })
 	})
 	const changed = editor.sideEffects.registerAfterChangeHandler('shape', (prev, next, source) => {
 		// An operation open on it makes its own sounds, its result going in too.

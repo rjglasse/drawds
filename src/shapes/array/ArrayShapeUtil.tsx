@@ -72,7 +72,7 @@ import { withMoves } from '../../transcript/log'
 import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
 import { memoryViewsOf, toggleMemoryView } from '../memory/show'
 import { ringViewsOf, toggleRingView } from '../ring/show'
-import { bogosort } from './bogo'
+import { bogosort, bozosort } from './bogo'
 import { startSound } from '../../sound/player'
 import { fisherYates, unfairShuffle, type ShuffleKind } from './shuffles'
 import { everyRunOperation, manyRunsOperation, TALLY_MAX, TREE_MAX, type OutcomesMode } from '../outcomes/outcomes'
@@ -489,6 +489,17 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 							run: () => {
 								startSound()
 								this.play(shape.id, 'bogosort', (a) => bogosort(a, mulberry32(newSeed())))
+							},
+						},
+						// Its cousin: swap two at random until sorted. Turns the sounds on too.
+						{
+							group: 'bogo',
+							submenu: 'Sorts',
+							id: 'array-bozosort',
+							label: 'Bozosort (swap two at random until sorted)',
+							run: () => {
+								startSound()
+								this.play(shape.id, 'bozosort', (a) => bozosort(a, mulberry32(newSeed())))
 							},
 						},
 					]),

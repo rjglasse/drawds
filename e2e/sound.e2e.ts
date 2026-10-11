@@ -65,13 +65,16 @@ test('bogosort turns the sounds on: its steps and moves by hand play notes, unti
 	await page.keyboard.press('Enter')
 	await expect.poll(() => notes(page)).toBeGreaterThan(before)
 
-	// The speaker's menu: a scale (played as it is picked), a key, and off.
+	// The speaker's menu: a scale (quietly: it may change while a sort plays), a key, and off.
 	await page.getByTestId('sound-menu.button').click()
+	await page.waitForTimeout(400)
 	const picked = await notes(page)
 	await page.getByRole('menuitemcheckbox', { name: /^Blues/ }).click()
 	await expect(page.getByTestId('sound-menu.button')).toHaveText('C blues')
-	await expect.poll(() => notes(page)).toBeGreaterThan(picked)
 	await expect(page.getByText('Minor pentatonic with the ♭5 added: the blue note')).toBeVisible()
+	expect(await notes(page)).toBe(picked)
+	// The final boss is last.
+	await expect(page.getByRole('menuitemcheckbox').last()).toHaveText(/^Twelve-tone row: E F G D♭ G♭ E♭ A♭ D B C A B♭/)
 	await page.getByTestId('menu-sub.sound-key-button').click()
 	// Into the submenu and down it, as a hand moves (straight to D would cross the menu's last item and close it).
 	// (The checked one's name starts "Checked".)
@@ -96,4 +99,18 @@ test('bogosort turns the sounds on: its steps and moves by hand play notes, unti
 	await page.keyboard.press('ArrowRight')
 	await page.keyboard.press('ArrowRight')
 	expect(await notes(page)).toBe(off)
+})
+
+test('bozosort, two swapped at random until sorted, turns the sounds on too', async ({ page }) => {
+	await page.addInitScript(fakeAudio)
+	await open(page)
+	await sketchArray(page, [200, 200], 5)
+	await rightClick(page, [200, 200])
+	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
+	await arrayStep(page, 'array-bozosort')
+	await expect(page.getByTestId('sound-menu.button')).toBeVisible()
+	await expect(page.getByTestId('play-caption')).toContainText('Bozosort: swap two at random until sorted')
+	await page.keyboard.press('ArrowRight')
+	await page.keyboard.press('ArrowRight')
+	await expect.poll(() => notes(page)).toBeGreaterThan(0)
 })

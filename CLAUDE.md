@@ -229,11 +229,14 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   indices outside, a marker's arrow and name beyond them); values in spare slots faded as on the row, front and rear
   from `arrayMarkers` (one arrow when they share a cell), "size k of n" in the middle.
 - `src/sound/` - an easter egg (dds-egh.1), for a student to find: Sorts > Bogosort (`src/shapes/array/bogo.ts`: shuffle
-  until sorted, pairs checked left to right, giving up after `BOGO_SHUFFLES`, saying n!) turns sounds on for the tab
+  until sorted; or Bozosort, two values swapped at random, maybe the same one; pairs checked left to right, giving up
+  after `LUCK_TRIES`, saying n!) turns sounds on for the tab
   (`startSound` on the menu click, the gesture browsers need; a reload turns them off). While on, a speaker at the top
   (`SoundButton` in tldraw's TopPanel, labelled with the key and scale) opens a menu: the scale (`SCALES` in `notes.ts`:
-  major and minor pentatonic, blues, Dorian, hirajoshi, whole tone, each with its intervals and a line on what it is),
-  the key (all 12), each played as it is picked (`scaleRun`), and off; tab only too. Web Audio, no files (`player.ts`: a
+  major and minor pentatonic, blues, Dorian, hirajoshi, whole tone, each with its intervals and a line on what it is,
+  and the final boss, Schoenberg's Op. 25 twelve-tone row: `steps` in the row's order, so values climbing it leap about,
+  its bass a tritone, `Scale.bass`), the key (all 12), and off; picked quietly (changing them while a sort plays is the
+  fun), tab only too. Web Audio, no files (`player.ts`: a
   triangle blip with quiet sines an octave up and down, 6 ms attack, 180 ms fade; under each group of notes a bass, the
   key's root and fifth by turns, two octaves down (`bassNotes`; the whole tone scale's ♯5); a limiter; notes 35 ms apart
   at least, at most 14 sounding, none queued past 0.35 s but runs). `notes.ts` (pure): each value a note by its rank among

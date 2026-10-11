@@ -407,6 +407,43 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			            return False
 			    return True                               @sorted`,
 	},
+	// Swap two at random until sorted (the easter egg's other way in).
+	bozosort: {
+		c: String.raw`
+			bool isSorted(int a[], int n) {
+			    for (int i = 0; i + 1 < n; i++)
+			        if (a[i] > a[i + 1]) return false;   @compare $i
+			    return true;                              @sorted
+			}
+
+			void bozoSort(int a[], int n) {
+			    while (!isSorted(a, n))                   @check
+			        swap(&a[rand() % n], &a[rand() % n]);   @swap
+			}`,
+		java: String.raw`
+			void bozoSort(int[] a) {
+			    Random random = new Random();
+			    while (!isSorted(a))                      @check
+			        swap(a, random.nextInt(a.length), random.nextInt(a.length));   @swap
+			}
+
+			boolean isSorted(int[] a) {
+			    for (int i = 0; i + 1 < a.length; i++)
+			        if (a[i] > a[i + 1]) return false;   @compare $i
+			    return true;                              @sorted
+			}`,
+		python: String.raw`
+			def bozo_sort(a):
+			    while not is_sorted(a):                   @check
+			        x, y = random.randrange(len(a)), random.randrange(len(a))   @swap $x $y
+			        a[x], a[y] = a[y], a[x]
+
+			def is_sorted(a):
+			    for i in range(len(a) - 1):
+			        if a[i] > a[i + 1]:                   @compare $i
+			            return False
+			    return True                               @sorted`,
+	},
 	'selection-sort': {
 		c: String.raw`
 			void selectionSort(int a[], int n) {

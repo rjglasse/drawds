@@ -10,23 +10,21 @@ import {
 	TldrawUiMenuSubmenu,
 	useValue,
 } from 'tldraw'
-import { KEYS, SCALES, scaleRun, type Tuning } from '../sound/notes'
-import { isSoundOn, play, setSoundTuning, soundTuning, stopSound } from '../sound/player'
+import { KEYS, SCALES, type Tuning } from '../sound/notes'
+import { isSoundOn, setSoundTuning, soundTuning, stopSound } from '../sound/player'
 
 /**
- * While drawds makes sounds (bogosort found them): a speaker at the top, its menu the scale (each with
- * its intervals and what it is: some music theory with the algorithms) and the key, each played as it
- * is picked, and the way to turn them off.
+ * While drawds makes sounds (bogosort or bozosort found them): a speaker at the top, its menu the scale
+ * (each with its intervals and what it is: some music theory with the algorithms; a twelve-tone row the
+ * final boss) and the key, and the way to turn them off.
  */
 export function SoundButton() {
 	const on = useValue('sound on', isSoundOn, [])
 	const tuning = useValue('sound tuning', soundTuning, [])
 	if (!on) return null
 	const scale = SCALES.find((s) => s.id === tuning.scale) ?? SCALES[0]
-	const pick = (next: Tuning) => {
-		setSoundTuning(next)
-		play(scaleRun(next), { gap: 0.09, ahead: 2 })
-	}
+	// Quietly: changing them while a sort plays is the fun of it.
+	const pick = (next: Tuning) => void setSoundTuning(next)
 	return (
 		<div style={{ pointerEvents: 'all', margin: 8 }}>
 			<TldrawUiDropdownMenuRoot id="sound">
