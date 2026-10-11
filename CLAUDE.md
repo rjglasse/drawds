@@ -288,8 +288,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   The arrays' code is `src/shapes/array/code.ts` (searches, scans, every sort, shuffles, lecture 6's ArrayStack push / pop /
   peek for a fixed stack and ArrayQueue enqueue / dequeue / peek for the circular buffer, insert / delete by shifting, growing
   or with a fixed capacity), the lists' `src/shapes/list/code.ts` (lecture 5's indexOf for find, size counted,
-  insert after / at the head, append, delete, reverse, and the linked stack's and queue's operations, `linked-*`: on a plain
-  singly linked list only, with a tail a version of its own (`plainCode`, `-tail`); curr, prev, node shown by their nodes'
+  insert after / at the head, append, delete, reverse, insert in order, print, and the linked stack's and queue's operations,
+  `linked-*`: on a plain singly linked list only, with a tail a version of its own (`plainCode`, `-tail`); the walks whose
+  code any list shares: the middle and Floyd's cycle start with slow / fast (no sentinel), print backwards (doubly, not
+  circular, from the tail if there is one); curr, prev, node, slow, fast shown by their nodes'
   values through `Frame.vars`, since a list pointer is at a node key), the trees' `src/shapes/tree/code.ts` (traversals,
   measures, BST min / max, and lecture 8b's BST search, insert and delete as `bstInsertSteps` / `bstDeleteSteps` walk them,
   delete's three cases with the successor relinked, 3.1 or 3.2), the graphs' `src/shapes/graph/code.ts`.

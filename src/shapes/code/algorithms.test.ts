@@ -21,7 +21,18 @@ import { partition3Array, quicksort } from '../array/quicksorts'
 import { allUnique, findMax, sentinelSearch } from '../array/scans'
 import { fisherYates, unfairShuffle } from '../array/shuffles'
 import { dequeue, enqueue, peekQueue, peekStack, pop, push } from '../array/stack-queue'
-import { appendToList, deleteFromList, findInList, insertIntoList, reverseList } from '../list/operations'
+import {
+	appendToList,
+	deleteFromList,
+	detectCycle,
+	findInList,
+	findMiddle,
+	insertIntoList,
+	insertSorted,
+	printBackwards,
+	printList,
+	reverseList,
+} from '../list/operations'
 import { dequeueFrom, enqueueOnto, peekAt, popFrom, pushOnto } from '../list/stack-queue'
 import { countNodes } from '../list/size'
 import { measureTree } from '../tree/measure'
@@ -158,6 +169,7 @@ describe('algorithm code', () => {
 			// Lecture 5's list, changed: plain singly linked, with a tail and without; the linked stack and queue.
 			...[{}, { tail: 'tail' as const }].flatMap((variant) => {
 				const props = { ...plainList(['7', '3', '9']), ...variant }
+				const sorted = { ...plainList(['3', '7', '9']), ...variant }
 				return [
 					insertIntoList(props, 'n1', 'n9', '5'),
 					insertIntoList(props, 'n2', 'n9', '5'),
@@ -168,6 +180,16 @@ describe('algorithm code', () => {
 					deleteFromList(props, 'n2'),
 					deleteFromList({ ...props, nodes: props.nodes.slice(0, 1) }, 'n0'),
 					reverseList(props),
+					// The walks: the middle, insert in order (first, between, last), print, Floyd.
+					findMiddle(props),
+					findMiddle({ ...props, nodes: props.nodes.slice(0, 2) }),
+					insertSorted(sorted, 'n9', '1'),
+					insertSorted(sorted, 'n9', '5'),
+					insertSorted(sorted, 'n9', '12'),
+					printList(props),
+					detectCycle(props),
+					detectCycle({ ...props, cycleTo: 'n1' }),
+					printBackwards({ ...props, links: 'doubly' as const }),
 				]
 			}),
 			pushOnto({ ...plainList(['7', '3']), kind: 'stack' }, 'n9', '5'),

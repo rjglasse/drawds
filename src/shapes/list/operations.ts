@@ -620,10 +620,13 @@ export function findMiddle(props: ListProps): ListOperation {
 	let slow = 0
 	let fast = 0
 	const start = v.sentinel ? 'head.next' : 'head'
+	const vars = () => ({ slow: name(slow), fast: name(fast) })
 	frames.push({
 		pointers: [pointer('slow', at(slow)), pointer('fast', at(fast))],
 		flash: { [at(slow)]: LOOK },
 		caption: `slow = ${start}, fast = ${start}`,
+		vars: vars(),
+		line: 'start',
 	})
 	let steps = 0
 	while (fast < nodes.length && fast + 1 < nodes.length) {
@@ -635,6 +638,8 @@ export function findMiddle(props: ListProps): ListOperation {
 			pointers: [pointer('slow', at(slow)), pointer('fast', at(fast))],
 			flash: { [at(before)]: null, [at(slow)]: LOOK },
 			caption: `slow = slow.next (${name(slow)}), fast = fast.next.next (${name(fast)})`,
+			vars: vars(),
+			line: 'step',
 		})
 	}
 	const why = fast >= nodes.length ? 'fast is null' : "fast.next is null: fast can't take two more steps"
@@ -642,8 +647,15 @@ export function findMiddle(props: ListProps): ListOperation {
 		pointers: [pointer('slow', at(slow)), pointer('fast', at(fast))],
 		flash: { [at(slow)]: FOUND },
 		caption: `${why}, so slow is at the middle: ${name(slow)} (after ${steps} step${steps === 1 ? '' : 's'}, half the list)`,
+		vars: vars(),
+		line: 'done',
 	})
-	return { frames: asking(frames, 'Find the middle: where do slow and fast start?', 'Where do slow and fast go next?'), finalFlash: { [at(slow)]: FOUND } }
+	return {
+		frames: asking(frames, 'Find the middle: where do slow and fast start?', 'Where do slow and fast go next?'),
+		finalFlash: { [at(slow)]: FOUND },
+		// The same walk for any list with ends: only a sentinel changes where it starts.
+		code: v.sentinel ? undefined : 'list-middle',
+	}
 }
 
 /**
@@ -665,6 +677,8 @@ export function insertSorted(props: ListProps, id: string, value: string): ListO
 		frames.push({ flash: { [a.id]: null, [b.id]: null }, caption: 'Insert in order anyway' })
 	}
 	const start = v.sentinel ? 'curr = head.next' : 'curr = head'
+	// The code's variables: prev and curr by their nodes' values.
+	const walking = (k: number) => ({ value, prev: k > 0 ? nodes[k - 1].value : 'null', curr: nodes[k]?.value ?? 'null' })
 	let k = 0
 	while (k < nodes.length && compareKeys(nodes[k].value, value) < 0) {
 		const prev = k > 0 ? [pointer('prev', nodes[k - 1].id)] : v.sentinel ? [pointer('prev', SENTINEL_KEY)] : []
@@ -672,6 +686,8 @@ export function insertSorted(props: ListProps, id: string, value: string): ListO
 			pointers: [...prev, pointer('curr', nodes[k].id)],
 			flash: { [nodes[k].id]: LOOK, ...(k ? { [nodes[k - 1].id]: null } : {}) },
 			caption: `${k === 0 ? start : 'prev = curr, curr = curr.next'}: ${nodes[k].value} < ${value}, so keep going`,
+			vars: walking(k),
+			line: k === 0 ? 'start' : 'walk',
 		})
 		k++
 	}
@@ -684,17 +700,26 @@ export function insertSorted(props: ListProps, id: string, value: string): ListO
 		caption: stop
 			? `${k === 0 ? start : 'prev = curr, curr = curr.next'}: ${stop.value} ≥ ${value}, so ${value} goes ${k === 0 ? 'first, at the head' : `between ${nodes[k - 1].value} and ${stop.value}`}`
 			: `curr = ${end === NULL_KEY ? 'null' : 'back round'}: ${value} is the largest, so it goes at the end, after ${nodes[k - 1].value}`,
+		vars: walking(k),
+		line: k === 0 ? 'start' : 'walk',
 	})
 	const insert = insertIntoList(props, k > 0 ? nodes[k - 1].id : undefined, id, value)
-	if (!before) return { ...insert, frames: [...asking(frames, undefined), ...insert.frames] }
+	const code = plainCode(props, 'list-insert-sorted')
+	const vars = { ...walking(k), node: value }
+	if (!before) {
+		// At the head: the code's head = node is the branch for prev == null.
+		const linking = insert.frames.map((f) => ({ ...f, vars, ...(f.line === 'point' ? { line: 'point-head' } : {}) }))
+		return { ...insert, frames: [...asking(frames, undefined), ...linking], code }
+	}
 	// The walk replaces insertIntoList's opening step ("curr is at ..."), and what it calls curr (the
-	// node before) is prev here, with curr staying on the node after.
+	// node before) is prev here, with curr staying on the node after: node.next = curr, as the code says.
 	const linking = insert.frames.slice(1).map((f) => ({
 		...f,
 		pointers: [...(f.pointers ?? []).map((p) => (p.name === 'curr' ? pointer('prev', p.at) : p)), pointer('curr', stopKey)],
-		caption: f.caption?.replace(/\bcurr\b/g, 'prev'),
+		caption: f.caption?.replace(/\bcurr\b/g, 'prev').replace('node.next = prev.next', 'node.next = curr'),
+		vars,
 	}))
-	return { ...insert, frames: [...asking(frames, undefined), ...linking] }
+	return { ...insert, frames: [...asking(frames, undefined), ...linking], code }
 }
 
 /**
@@ -807,7 +832,14 @@ export function printList(props: ListProps): ListOperation {
 			? 'do { print; curr = curr.next } while (curr != head): the test comes after the body, or it would stop before it started'
 			: `while (curr != ${end === NULL_KEY ? 'null' : 'sentinel'})`
 	const first = v.sentinel ? `curr = head.next (past the sentinel): ${name(nodes[0].id)}` : `curr = head (${name(nodes[0].id)})`
-	frames.push({ pointers: [pointer('curr', nodes[0].id)], flash: { [nodes[0].id]: LOOK }, strips: strips(), caption: `${first}. ${loop}` })
+	frames.push({
+		pointers: [pointer('curr', nodes[0].id)],
+		flash: { [nodes[0].id]: LOOK },
+		strips: strips(),
+		caption: `${first}. ${loop}`,
+		vars: { curr: name(nodes[0].id) },
+		line: 'start',
+	})
 	for (const [i, node] of nodes.entries()) {
 		printed.push(node.value)
 		const to = nodes[i + 1]?.id ?? end
@@ -817,9 +849,15 @@ export function printList(props: ListProps): ListOperation {
 			flash: { [node.id]: VISITED, ...(last ? {} : { [to]: LOOK }) },
 			strips: strips(),
 			caption: `print ${node.value}; curr = curr.next${last ? `: ${stop}${v.circular && !v.sentinel ? ' again' : ''}, so stop` : ` (${name(to)})`}`,
+			vars: { curr: name(to) },
+			line: 'print',
 		})
 	}
-	return { frames: asking(frames, 'Print the list: where does curr start?', 'What is printed next, and where does curr go?') }
+	return {
+		frames: asking(frames, 'Print the list: where does curr start?', 'What is printed next, and where does curr go?'),
+		// A circular list's do-while and a sentinel's start are the variants' own code.
+		code: v.circular || v.sentinel ? undefined : 'list-print',
+	}
 }
 
 /**
@@ -834,7 +872,14 @@ export function printBackwards(props: ListProps): ListOperation {
 	const printed: string[] = []
 	const strips = (): Strip[] => [{ title: 'printed backwards', items: [...printed] }]
 	if (v.tail) {
-		frames.push({ pointers: [pointer('curr', lastId)], flash: { [lastId]: LOOK }, strips: strips(), caption: `curr = tail (${name(lastId)})` })
+		frames.push({
+			pointers: [pointer('curr', lastId)],
+			flash: { [lastId]: LOOK },
+			strips: strips(),
+			caption: `curr = tail (${name(lastId)})`,
+			vars: { curr: name(lastId) },
+			line: 'start',
+		})
 	} else if (v.circular) {
 		frames.push({
 			pointers: [pointer('curr', lastId)],
@@ -851,6 +896,8 @@ export function printBackwards(props: ListProps): ListOperation {
 				flash: { [node.id]: LOOK, ...(i ? { [nodes[i - 1].id]: null } : {}) },
 				strips: strips(),
 				caption: node.id === lastId ? `${how}: the last node. Now back` : `${how}: no tail, so walk to the end first`,
+				vars: { curr: node.value },
+				line: i === 0 ? 'start' : 'walk',
 			})
 		}
 	}
@@ -865,9 +912,11 @@ export function printBackwards(props: ListProps): ListOperation {
 			flash: { [node.id]: VISITED, ...(i > 0 ? { [to]: LOOK } : {}) },
 			strips: strips(),
 			caption: `print ${node.value}; curr = curr.prev${i > 0 ? ` (${name(to)})` : `: ${stop}, so stop`}`,
+			vars: { curr: name(to) },
+			line: 'print',
 		})
 	}
-	return { frames }
+	return { frames, code: v.circular || v.sentinel ? undefined : v.tail ? 'list-print-backwards-tail' : 'list-print-backwards' }
 }
 
 const CYCLE_START = 'Is there a cycle? Where do slow and fast start?'
@@ -891,21 +940,32 @@ export function detectCycle(props: ListProps): ListOperation {
 	const frames: Frame[] = []
 	let [slow, fast, steps] = [first, first, 0]
 	let lit = first
-	const show = (caption: string, color: MarkColor = LOOK) => {
+	const show = (caption: string, line: string, color: MarkColor = LOOK) => {
 		frames.push({
 			pointers: [pointer('slow', slow), pointer('fast', fast)],
 			flash: { ...(lit !== slow ? { [lit]: null } : {}), ...(slow === NULL_KEY ? {} : { [slow]: color }) },
 			counts: { steps },
 			caption,
+			vars: { slow: name(slow), fast: name(fast) },
+			line,
 		})
 		lit = slow
 	}
-	show(`slow = ${start}, fast = ${start}: slow takes one step at a time, fast two`)
+	// The same code for any list: only a sentinel changes where the walk starts.
+	const code = v.sentinel ? undefined : 'list-floyd'
+	show(`slow = ${start}, fast = ${start}: slow takes one step at a time, fast two`, 'start')
 	for (;;) {
 		if (fast === NULL_KEY || nextOf(fast) === NULL_KEY) {
 			const why = fast === NULL_KEY ? 'fast is null' : "fast.next is null: fast can't take two more steps"
-			frames.push({ pointers: [pointer('slow', slow), pointer('fast', fast)], flash: { [lit]: null }, counts: { steps }, caption: `${why}, so it ran off the end: no cycle` })
-			return { frames: asking(frames, CYCLE_START, CYCLE_STEP) }
+			frames.push({
+				pointers: [pointer('slow', slow), pointer('fast', fast)],
+				flash: { [lit]: null },
+				counts: { steps },
+				caption: `${why}, so it ran off the end: no cycle`,
+				vars: { slow: name(slow), fast: name(fast) },
+				line: 'none',
+			})
+			return { frames: asking(frames, CYCLE_START, CYCLE_STEP), code }
 		}
 		slow = nextOf(slow)
 		fast = nextOf(nextOf(fast))
@@ -913,21 +973,22 @@ export function detectCycle(props: ListProps): ListOperation {
 		const met = slow === fast
 		show(
 			`slow = slow.next (${name(slow)}), fast = fast.next.next (${name(fast)})${met ? ': they meet, so fast has lapped slow round a cycle' : ''}`,
+			met ? 'meet' : 'step',
 			met ? FOUND : LOOK
 		)
 		if (met) break
 	}
 	const meet = slow
 	slow = first
-	show(`slow = ${start} again; fast stays at ${name(meet)}, where they met. Now both take one step at a time`)
+	show(`slow = ${start} again; fast stays at ${name(meet)}, where they met. Now both take one step at a time`, 'restart')
 	while (slow !== fast) {
 		slow = nextOf(slow)
 		fast = nextOf(fast)
 		steps++
-		show(`slow = slow.next (${name(slow)}), fast = fast.next (${name(fast)})`)
+		show(`slow = slow.next (${name(slow)}), fast = fast.next (${name(fast)})`, 'walk')
 	}
-	show(`They meet at ${name(slow)}: the cycle starts here (the head and the meeting point are as far from it, going round)`, FOUND)
-	return { frames: asking(frames, CYCLE_START, CYCLE_STEP), finalFlash: { [slow]: FOUND } }
+	show(`They meet at ${name(slow)}: the cycle starts here (the head and the meeting point are as far from it, going round)`, 'found', FOUND)
+	return { frames: asking(frames, CYCLE_START, CYCLE_STEP), finalFlash: { [slow]: FOUND }, code }
 }
 
 /** Whether two scenes draw the same: nodes in the same places, arrows to the same nodes, the same way. */

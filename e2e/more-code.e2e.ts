@@ -45,3 +45,27 @@ test("an array's insert by shifting: grow, shift from the end, place", async ({ 
 	await page.keyboard.press('ArrowRight')
 	await expect.poll(() => litLine(page)).toContain('a[i] = a[i - 1];')
 })
+
+test("a list's walks have their code too: the middle, and Floyd's cycle detection to where the cycle starts", async ({ page }) => {
+	await sketchList(page, [200, 200], 5)
+	await rightClick(page, await nodeScreenPosition(page, 'n0'))
+	await page.getByTestId('context-menu-sub.drawds-list-steps-button').click()
+	await page.getByTestId('context-menu.list-middle').click()
+	await page.getByTestId('play-code').click()
+	await expect.poll(() => litLine(page)).toContain('Node slow = head, fast = head;')
+	await page.keyboard.press('ArrowRight')
+	await expect.poll(() => litLine(page)).toContain('slow = slow.next;')
+	await page.keyboard.press('Escape')
+
+	await page.evaluate(() => {
+		const editor = window.editor!
+		const list = editor.getCurrentPageShapes().find((s) => s.type === 'linked-list')!
+		editor.updateShape({ id: list.id, type: 'linked-list', props: { cycleTo: 'n1' } } as never)
+	})
+	await rightClick(page, await nodeScreenPosition(page, 'n0'))
+	await page.getByTestId('context-menu-sub.drawds-list-steps-button').click()
+	await page.getByTestId('context-menu.list-floyd').click()
+	await expect.poll(() => litLine(page)).toContain('Node slow = head, fast = head;')
+	while (!(await page.getByTestId('play-done').count())) await page.keyboard.press('ArrowRight')
+	await expect.poll(() => litLine(page)).toContain('return slow;')
+})

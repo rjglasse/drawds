@@ -344,6 +344,246 @@ export const LIST_CODE: Record<string, CodeSource> = {
 			    self.tail = self.head
 			    self.head = prev                @head`,
 	},
+	// Find the middle: fast takes two steps for slow's one, so slow is half way when fast runs out.
+	'list-middle': {
+		c: String.raw`
+			Node *middle(List *list) {
+			    Node *slow = list->head, *fast = list->head;          @start $slow $fast
+			    while (fast != NULL && fast->next != NULL) {
+			        slow = slow->next;                                @step
+			        fast = fast->next->next;
+			    }
+			    return slow;                                          @done
+			}`,
+		java: String.raw`
+			Node middle() {
+			    Node slow = head, fast = head;                  @start $slow $fast
+			    while (fast != null && fast.next != null) {
+			        slow = slow.next;                           @step
+			        fast = fast.next.next;
+			    }
+			    return slow;                                    @done
+			}`,
+		python: String.raw`
+			def middle(self):
+			    slow = fast = self.head                         @start $slow $fast
+			    while fast is not None and fast.next is not None:
+			        slow = slow.next                            @step
+			        fast = fast.next.next
+			    return slow                                     @done`,
+	},
+	// Insert in order: prev and curr walk until curr's value isn't smaller, then the node goes between them.
+	'list-insert-sorted': {
+		c: String.raw`
+			void insertSorted(List *list, int value) {               $value
+			    Node *prev = NULL, *curr = list->head;               @start $prev $curr
+			    while (curr != NULL && curr->value < value) {
+			        prev = curr;
+			        curr = curr->next;                               @walk
+			    }
+			    Node *node = newNode(value);                         @new $node
+			    node->next = curr;                                   @link
+			    if (prev == NULL) list->head = node;                 @point-head
+			    else prev->next = node;                              @point
+			}`,
+		java: String.raw`
+			void insertSorted(int value) {                           $value
+			    Node prev = null, curr = head;                       @start $prev $curr
+			    while (curr != null && curr.value < value) {
+			        prev = curr;
+			        curr = curr.next;                                @walk
+			    }
+			    Node node = new Node(value);                         @new $node
+			    node.next = curr;                                    @link
+			    if (prev == null) head = node;                       @point-head
+			    else prev.next = node;                               @point
+			}`,
+		python: String.raw`
+			def insert_sorted(self, value):                          $value
+			    prev, curr = None, self.head                         @start $prev $curr
+			    while curr is not None and curr.value < value:
+			        prev, curr = curr, curr.next                     @walk
+			    node = Node(value)                                   @new $node
+			    node.next = curr                                     @link
+			    if prev is None:
+			        self.head = node                                 @point-head
+			    else:
+			        prev.next = node                                 @point`,
+	},
+	// Insert in order, a tail moving on when the node goes last.
+	'list-insert-sorted-tail': {
+		c: String.raw`
+			void insertSorted(List *list, int value) {               $value
+			    Node *prev = NULL, *curr = list->head;               @start $prev $curr
+			    while (curr != NULL && curr->value < value) {
+			        prev = curr;
+			        curr = curr->next;                               @walk
+			    }
+			    Node *node = newNode(value);                         @new $node
+			    node->next = curr;                                   @link
+			    if (prev == NULL) list->head = node;                 @point-head
+			    else prev->next = node;                              @point
+			    if (curr == NULL) list->tail = node;                 @tail
+			}`,
+		java: String.raw`
+			void insertSorted(int value) {                           $value
+			    Node prev = null, curr = head;                       @start $prev $curr
+			    while (curr != null && curr.value < value) {
+			        prev = curr;
+			        curr = curr.next;                                @walk
+			    }
+			    Node node = new Node(value);                         @new $node
+			    node.next = curr;                                    @link
+			    if (prev == null) head = node;                       @point-head
+			    else prev.next = node;                               @point
+			    if (curr == null) tail = node;                       @tail
+			}`,
+		python: String.raw`
+			def insert_sorted(self, value):                          $value
+			    prev, curr = None, self.head                         @start $prev $curr
+			    while curr is not None and curr.value < value:
+			        prev, curr = curr, curr.next                     @walk
+			    node = Node(value)                                   @new $node
+			    node.next = curr                                     @link
+			    if prev is None:
+			        self.head = node                                 @point-head
+			    else:
+			        prev.next = node                                 @point
+			    if curr is None:                                     @tail
+			        self.tail = node`,
+	},
+	// Print front to back: curr walks to null.
+	'list-print': {
+		c: String.raw`
+			void print(List *list) {
+			    Node *curr = list->head;                 @start $curr
+			    while (curr != NULL) {
+			        printf("%d\n", curr->value);         @print
+			        curr = curr->next;
+			    }
+			}`,
+		java: String.raw`
+			void print() {
+			    Node curr = head;                        @start $curr
+			    while (curr != null) {
+			        System.out.println(curr.value);      @print
+			        curr = curr.next;
+			    }
+			}`,
+		python: String.raw`
+			def print_list(self):
+			    curr = self.head                         @start $curr
+			    while curr is not None:
+			        print(curr.value)                    @print
+			        curr = curr.next`,
+	},
+	// Print back to front, doubly linked: walk to the last node, then curr = curr.prev to null.
+	'list-print-backwards': {
+		c: String.raw`
+			void printBackwards(List *list) {
+			    Node *curr = list->head;                 @start $curr
+			    while (curr->next != NULL)
+			        curr = curr->next;                   @walk
+			    while (curr != NULL) {
+			        printf("%d\n", curr->value);         @print
+			        curr = curr->prev;
+			    }
+			}`,
+		java: String.raw`
+			void printBackwards() {
+			    Node curr = head;                        @start $curr
+			    while (curr.next != null)
+			        curr = curr.next;                    @walk
+			    while (curr != null) {
+			        System.out.println(curr.value);      @print
+			        curr = curr.prev;
+			    }
+			}`,
+		python: String.raw`
+			def print_backwards(self):
+			    curr = self.head                         @start $curr
+			    while curr.next is not None:
+			        curr = curr.next                     @walk
+			    while curr is not None:
+			        print(curr.value)                    @print
+			        curr = curr.prev`,
+	},
+	// Print back to front from the tail: no walk.
+	'list-print-backwards-tail': {
+		c: String.raw`
+			void printBackwards(List *list) {
+			    Node *curr = list->tail;                 @start $curr
+			    while (curr != NULL) {
+			        printf("%d\n", curr->value);         @print
+			        curr = curr->prev;
+			    }
+			}`,
+		java: String.raw`
+			void printBackwards() {
+			    Node curr = tail;                        @start $curr
+			    while (curr != null) {
+			        System.out.println(curr.value);      @print
+			        curr = curr.prev;
+			    }
+			}`,
+		python: String.raw`
+			def print_backwards(self):
+			    curr = self.tail                         @start $curr
+			    while curr is not None:
+			        print(curr.value)                    @print
+			        curr = curr.prev`,
+	},
+	// Floyd's cycle detection: fast laps slow round a cycle; then from the head and the meeting point
+	// together, one step at a time, they meet where it starts.
+	'list-floyd': {
+		c: String.raw`
+			Node *cycleStart(List *list) {
+			    Node *slow = list->head, *fast = list->head;          @start $slow $fast
+			    while (fast != NULL && fast->next != NULL) {
+			        slow = slow->next;                                @step
+			        fast = fast->next->next;
+			        if (slow == fast) {                               @meet
+			            slow = list->head;                            @restart
+			            while (slow != fast) {
+			                slow = slow->next;                        @walk
+			                fast = fast->next;
+			            }
+			            return slow;                                  @found
+			        }
+			    }
+			    return NULL;                                          @none
+			}`,
+		java: String.raw`
+			Node cycleStart() {
+			    Node slow = head, fast = head;                  @start $slow $fast
+			    while (fast != null && fast.next != null) {
+			        slow = slow.next;                           @step
+			        fast = fast.next.next;
+			        if (slow == fast) {                         @meet
+			            slow = head;                            @restart
+			            while (slow != fast) {
+			                slow = slow.next;                   @walk
+			                fast = fast.next;
+			            }
+			            return slow;                            @found
+			        }
+			    }
+			    return null;                                    @none
+			}`,
+		python: String.raw`
+			def cycle_start(self):
+			    slow = fast = self.head                         @start $slow $fast
+			    while fast is not None and fast.next is not None:
+			        slow = slow.next                            @step
+			        fast = fast.next.next
+			        if slow is fast:                            @meet
+			            slow = self.head                        @restart
+			            while slow is not fast:
+			                slow = slow.next                    @walk
+			                fast = fast.next
+			            return slow                             @found
+			    return None                                     @none`,
+	},
 	// A linked stack (lecture 6): push and pop at the top, O(1).
 	'linked-push': {
 		c: String.raw`

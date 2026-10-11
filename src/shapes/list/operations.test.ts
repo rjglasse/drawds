@@ -150,7 +150,7 @@ describe('insertSorted', () => {
 			'prev = curr, curr = curr.next: 5 < 6, so keep going',
 			'prev = curr, curr = curr.next: 8 ≥ 6, so 6 goes between 5 and 8',
 			'node = new Node(6): its next is null for now',
-			'node.next = prev.next: the new node points at 8 too',
+			'node.next = curr: the new node points at 8 too',
 			'prev.next = node: 5 now points at 6. (The other way round, the rest of the list would be lost)',
 		])
 		expect(where(frames[4])).toEqual(['prev@n1', 'node@n9', 'curr@n2'])
