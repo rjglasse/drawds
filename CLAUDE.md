@@ -135,7 +135,11 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
 - `src/shapes/array/scans.ts` - lectures 2-3's counted scans (Levitin's MaxElement, UniqueElements, SequentialSearch2):
   find the largest (`maxval` in a strip, n - 1 comparisons, updates counted), all unique? (every pair i < j, n(n - 1)/2
   at worst, a repeat stops it red), sentinel search (the key in an extra cell past the end, no i < n check, counts the
-  checks saved). Scans in the Step by step menu's `scan` group; sentinel search with the searches, from a cell.
+  checks saved). Lecture 3's faster unique checks: a set (`allUniqueBySet`: every value added to a `seen` strip, a
+  repeat adding nothing, then size vs length once, as the lecture writes it) and sorting first (`allUniqueBySorting`: a
+  copy `b` as the second row, sorted with its values sliding within it, `moves` `aux:<i>` -> `aux:<k>`; `AuxRow.marks`
+  light its cells; merge sort's comparisons stand for the sort, then neighbours until a repeat, set against every pair's
+  n(n - 1)/2). Scans in the Step by step menu's `scan` group; sentinel search with the searches, from a cell.
 - `src/shapes/array/passes.ts` - lectures 2 and 3's sorts a pass at a time (Sorts > "a row per pass", selection and
   insertion): each outer pass one step, its row added under the array (a strip, `Strip.marks` colouring the sorted part
   green and what moved orange; the title what the pass cost), ending on the series written out and its closed form

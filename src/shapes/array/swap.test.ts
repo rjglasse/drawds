@@ -31,8 +31,9 @@ describe('slides between rows', () => {
 			['0', 'aux:0'],
 			['aux:1', '1'],
 			['3', '2'],
+			['aux:2', 'aux:0'],
 		]
 		expect(frameSlides([], moves)).toEqual({ 2: 3 })
-		expect(crossSlides(moves)).toEqual({ toAux: { 0: 0 }, toMain: { 1: 1 } })
+		expect(crossSlides(moves)).toEqual({ toAux: { 0: 0 }, toMain: { 1: 1 }, inAux: { 0: 2 } })
 	})
 })

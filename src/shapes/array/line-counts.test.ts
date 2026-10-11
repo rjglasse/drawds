@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { bubbleSort, insertionSort, linearSearch, selectionSort, type ArrayOperation } from './operations'
-import { allUnique, findMax } from './scans'
+import { allUnique, allUniqueBySet, allUniqueBySorting, findMax } from './scans'
 
 // Lecture 3's times column: how many times each line runs, loop headers once per test (one more
 // than their body when the loop runs out).
@@ -45,6 +45,12 @@ describe('times each line runs', () => {
 	it('unique: every pair when all differ, n(n - 1)/2 comparisons; a repeat stops it', () => {
 		expect(totals(allUnique(array(1, 2, 3, 4, 5)))).toEqual({ n: 1, outer: 5, inner: 14, compare: 10, repeat: 0, unique: 1 })
 		expect(totals(allUnique(array(1, 2, 2, 4, 5)))).toEqual({ n: 1, outer: 2, inner: 6, compare: 5, repeat: 1, unique: 0 })
+	})
+
+	it("unique, lecture 3's faster ways: the set's n adds and one comparison; sorted, n - 1 neighbours at most", () => {
+		expect(totals(allUniqueBySet(array(1, 2, 2, 4, 5)))).toEqual({ init: 1, loop: 6, add: 5, compare: 1 })
+		expect(totals(allUniqueBySorting(array(1, 2, 3, 4, 5)))).toEqual({ copy: 1, sort: 1, loop: 5, compare: 4, repeat: 0, unique: 1 })
+		expect(totals(allUniqueBySorting(array(1, 2, 2, 4, 5)))).toEqual({ copy: 1, sort: 1, loop: 2, compare: 2, repeat: 1, unique: 0 })
 	})
 
 	it('selection sort: n(n - 1)/2 comparisons for any order; bubble sort stops after a pass with no swaps', () => {

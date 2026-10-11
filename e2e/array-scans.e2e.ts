@@ -58,6 +58,35 @@ test('all unique?: a repeat stops it, both red; all different takes every pair',
 	await expect(caption(page)).toContainText('all unique, return true after 10 comparisons')
 })
 
+test("all unique? lecture 3's faster ways: a set's size, and sorting a copy then comparing neighbours", async ({ page }) => {
+	await sketch(page, ['1', '2', '2', '4', '5'])
+	await steps(page, 0, 'array-all-unique-set')
+	await expect(caption(page)).toHaveText('seen = an empty set: a value is in it once, however often it is added')
+	await stepToEnd(page)
+	await expect(page.getByTestId('playback-strip').filter({ hasText: 'seen' })).toContainText('1245')
+	await expect(caption(page)).toContainText('seen.size() = 4 ≠ a.length = 5: not all unique, return false')
+	await expect(counts(page)).toHaveText('adds 5 · comparisons 1')
+	await page.keyboard.press('Enter')
+
+	await page.evaluate(() => {
+		const editor = window.editor!
+		const shape = editor.getCurrentPageShapes()[0]
+		editor.updateShape({ id: shape.id, type: 'array', props: { values: ['4', '2', '5', '2', '1'] } } as never)
+	})
+	await steps(page, 0, 'array-all-unique-sorted')
+	await expect(page.getByTestId('array-aux')).toContainText('b42521')
+	await page.keyboard.press('ArrowRight')
+	await expect(page.getByTestId('array-aux')).toContainText('b12245')
+	await stepToEnd(page)
+	await expect(caption(page)).toContainText('b[1] = b[2] = 2: neighbours, so not all unique')
+	await expect(page.locator('[data-aux-mark]')).toHaveCount(2)
+	await expect(counts(page)).toHaveText('sorting comparisons 7 · neighbour comparisons 2')
+	await page.keyboard.press('Enter')
+	// a is as it was, and the copy is gone.
+	expect((await props(page)).values).toEqual(['4', '2', '5', '2', '1'])
+	await expect(page.getByTestId('array-aux')).toHaveCount(0)
+})
+
 test('sentinel search: the key goes past the end, the loop stops on it, and it comes out again', async ({ page }) => {
 	await sketch(page, ['31', '8', '47', '15'])
 	await steps(page, 2, 'array-sentinel-search')

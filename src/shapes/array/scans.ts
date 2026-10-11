@@ -1,10 +1,12 @@
 import type { MarkColor } from '../../cells/marks'
 import { compareKeys } from '../../data/compare'
 import { lit, ptr, recorder, span, type ArrayOperation, type ArrayState } from './operations'
+import { countSort, ranks } from './sort-counts'
 
 // The scans lectures 2 and 3 analyse by counting their basic operation (Levitin's MaxElement,
 // UniqueElements and SequentialSearch2): one pass for the largest value, every pair for "all
-// unique?", and a search that puts the key past the end so its loop needs no bounds check.
+// unique?" (and lecture 3's faster ways: a set, or sorting first), and a search that puts the key
+// past the end so its loop needs no bounds check.
 
 const LOOK: MarkColor = 'orange'
 const DONE: MarkColor = 'green'
@@ -102,6 +104,125 @@ export function allUnique(start: ArrayState): ArrayOperation {
 		line: 'unique',
 	})
 	return { frames: r.frames, finalFlash: lit(0, n - 1, DONE), code: 'all-unique' }
+}
+
+/**
+ * Lecture 3's first faster way: every value goes into a set, and a repeat adds nothing, so one
+ * comparison at the end, the set's size against the array's length, answers it. n adds (each O(1)
+ * on average: hashing, lecture 7) and a set as big as the array: time traded for space. As the
+ * lecture writes it, it adds every value even after a repeat; add's answer (false: there already)
+ * could stop at the first one.
+ */
+export function allUniqueBySet(start: ArrayState): ArrayOperation {
+	const { values } = start
+	const n = values.length
+	const r = recorder(start, { adds: 0, comparisons: 0 })
+	const seen: string[] = []
+	const repeats: number[] = []
+	const set = (marks?: Record<number, MarkColor>) => [{ title: 'seen', items: [...seen], ...(marks ? { marks } : {}) }]
+	r.counting('init', 'loop', 'add', 'compare')
+	r.ran('init')
+	r.step('seen = an empty set: a value is in it once, however often it is added', {
+		strips: set(),
+		ask: 'All unique? Every value goes into a set: what will its size tell us?',
+		line: 'init',
+	})
+	for (let i = 0; i < n; i++) {
+		const v = values[i]
+		r.counts.adds++
+		r.ran('loop', 'add')
+		r.let('x', v)
+		const at = seen.findIndex((s) => compareKeys(s, v) === 0)
+		const step = { pointers: [ptr('i', i)], ask: `seen.add(${v}): does the set grow?`, askFocus: [i], line: 'add' }
+		if (at >= 0) {
+			repeats.push(i)
+			r.step(`seen.add(a[${i}] = ${v}): ${v} is in the set already, so it stays at ${seen.length}`, {
+				...step,
+				lit: { [i]: GONE },
+				strips: set({ [at]: GONE }),
+			})
+		} else {
+			seen.push(v)
+			r.step(`seen.add(a[${i}] = ${v}): new, the set has ${seen.length}`, { ...step, lit: { [i]: LOOK }, strips: set({ [seen.length - 1]: LOOK }) })
+		}
+	}
+	r.let('x', undefined)
+	r.counts.comparisons++
+	r.ran('loop', 'compare')
+	const cost = `${times(n, 'add')} and 1 comparison`
+	const unique = seen.length === n
+	const flash = unique ? lit(0, n - 1, DONE) : Object.fromEntries(repeats.map((i) => [i, GONE]))
+	r.step(
+		unique
+			? `seen.size() = ${n} == a.length = ${n}: all unique, return true. ${cost}: linear, but the set takes as much room again as the array (time traded for space)`
+			: `seen.size() = ${seen.length} ≠ a.length = ${n}: not all unique, return false. ${cost}, every value added even after the repeat: add's answer (false: already there) could stop at the first one`,
+		{ lit: flash, strips: set(), ask: false, line: 'compare' }
+	)
+	return { frames: r.frames, finalFlash: flash, code: 'all-unique-set' }
+}
+
+/**
+ * Lecture 3's second faster way: sort a copy (sorting reorders, and a is the caller's), and equal
+ * values end up side by side, so each value need only be compared with the one before it: about
+ * n log n to sort (merge sort's comparisons on these values stand for it), then at most n - 1, the
+ * first repeat stopping it. The copy is the second row under the array. For a few values every
+ * pair is cheaper; as n grows n log n + n wins by far.
+ */
+export function allUniqueBySorting(start: ArrayState): ArrayOperation {
+	const { values } = start
+	const n = values.length
+	const pairs = (n * (n - 1)) / 2
+	const order = [...values.keys()].sort((x, y) => compareKeys(values[x], values[y]) || x - y)
+	const sorted = order.map((k) => values[k])
+	const sorting = countSort('merge-sort', ranks(values)).comparisons
+	const r = recorder(start, { 'sorting comparisons': 0, 'neighbour comparisons': 0 })
+	const b = (row: string[], marks?: Record<number, MarkColor>) => ({ ...r.state, aux: { title: 'b', values: row, ...(marks ? { marks } : {}) } })
+	r.counting('copy', 'sort', 'loop', 'compare', 'repeat', 'unique')
+	r.ran('copy')
+	r.set(b([...values]))
+	r.step('b = a copy of a: sorting reorders values, so a stays as it was', {
+		moves: values.map((_, k): [number, string] => [k, `aux:${k}`]),
+		ask: 'All unique? Sort first: why sort a copy, not a itself?',
+		line: 'copy',
+	})
+	r.ran('sort')
+	r.counts['sorting comparisons'] = sorting
+	r.set(b(sorted))
+	r.step(`Sort b: equal values end up side by side. About n log n comparisons (merge sort makes ${sorting} on these)`, {
+		moves: order.map((from, k): [string, string] => [`aux:${from}`, `aux:${k}`]),
+		ask: 'Sort b: where do equal values end up?',
+		line: 'sort',
+	})
+	const total = () => `${sorting} comparisons sorting + ${r.counts['neighbour comparisons']} after`
+	for (let i = 1; i < n; i++) {
+		r.counts['neighbour comparisons']++
+		r.ran('loop', 'compare')
+		r.let('i', i)
+		const ask = `b[${i - 1}] = ${sorted[i - 1]} vs b[${i}] = ${sorted[i]}: the same?`
+		if (compareKeys(sorted[i - 1], sorted[i]) === 0) {
+			r.ran('repeat')
+			r.set(b(sorted, { [i - 1]: GONE, [i]: GONE }))
+			r.step(`b[${i - 1}] = b[${i}] = ${sorted[i]}: neighbours, so not all unique, return false after ${total()}`, {
+				lit: { [order[i - 1]]: GONE, [order[i]]: GONE },
+				ask,
+				line: 'repeat',
+			})
+			return { frames: r.frames, finalFlash: { [order[i - 1]]: GONE, [order[i]]: GONE }, code: 'all-unique-sorted' }
+		}
+		r.set(b(sorted, { [i - 1]: HELD, [i]: LOOK }))
+		r.step(`b[${i - 1}] = ${sorted[i - 1]} ≠ b[${i}] = ${sorted[i]}`, { ask, line: 'compare' })
+	}
+	r.ran('loop', 'unique')
+	r.let('i', undefined)
+	r.set(b(sorted, Object.fromEntries(sorted.map((_, k) => [k, DONE]))))
+	const spent = sorting + n - 1
+	r.step(
+		`No two neighbours are equal: all unique, return true after ${total()} = ${spent}, against every pair's n(n - 1)/2 = ${pairs}. ` +
+			(spent > pairs ? `For ${n} values every pair is cheaper, but` : 'Already fewer, and') +
+			' n log n + n grows far slower: at n = 1000 about 11 000 against 499 500',
+		{ lit: lit(0, n - 1, DONE), ask: false, line: 'unique' }
+	)
+	return { frames: r.frames, finalFlash: lit(0, n - 1, DONE), code: 'all-unique-sorted' }
 }
 
 /**

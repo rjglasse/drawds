@@ -71,16 +71,20 @@ export function frameSlides(swaps: readonly [string, string][] = [], moves: read
 
 /**
  * Values copied between the array and a second row under it (`aux:<i>` keys): into the second row
- * (aux index -> array index it came from) and back up (array index -> aux index).
+ * (aux index -> array index it came from), back up (array index -> aux index), and within the
+ * second row (aux index -> aux index: the copy being sorted).
  */
 export function crossSlides(moves: readonly [string, string][] = []) {
 	const toAux: Record<number, number> = {}
 	const toMain: Record<number, number> = {}
+	const inAux: Record<number, number> = {}
+	const auxIndex = (key: string) => Number(key.slice(AUX.length))
 	for (const [a, b] of moves) {
-		if (b.startsWith(AUX) && !a.startsWith(AUX)) toAux[Number(b.slice(AUX.length))] = Number(a)
-		else if (a.startsWith(AUX) && !b.startsWith(AUX)) toMain[Number(b)] = Number(a.slice(AUX.length))
+		if (b.startsWith(AUX) && a.startsWith(AUX)) inAux[auxIndex(b)] = auxIndex(a)
+		else if (b.startsWith(AUX)) toAux[auxIndex(b)] = Number(a)
+		else if (a.startsWith(AUX)) toMain[Number(b)] = auxIndex(a)
 	}
-	return { toAux, toMain }
+	return { toAux, toMain, inAux }
 }
 
 /** Slides for a rearrangement: `order[i]` is the old index of the value now at i. */

@@ -266,6 +266,66 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			                return False            @repeat
 			    return True                         @unique`,
 	},
+	// Lecture 3's faster ways: a set (as it writes it, every value added, then one comparison), and
+	// sorting a copy, then comparing neighbours. C has no set of its own: a small library's, as a
+	// slide would assume one.
+	'all-unique-set': {
+		c: String.raw`
+			bool uniqueBySet(int a[], int n) {
+			    Set *seen = newSet();                @init
+			    for (int i = 0; i < n; i++) {        @loop $i
+			        setAdd(seen, a[i]);              @add
+			    }
+			    return setSize(seen) == n;           @compare
+			}`,
+		java: String.raw`
+			boolean uniqueBySet(int[] a) {
+			    Set<Integer> seen = new HashSet<>();        @init
+			    for (int i = 0; i < a.length; i++) {        @loop $i
+			        seen.add(a[i]);                         @add
+			    }
+			    return seen.size() == a.length;             @compare
+			}`,
+		python: String.raw`
+			def unique_by_set(a):
+			    seen = set()                        @init
+			    for x in a:                         @loop $x
+			        seen.add(x)                     @add
+			    return len(seen) == len(a)          @compare`,
+	},
+	'all-unique-sorted': {
+		c: String.raw`
+			bool uniqueBySorting(int a[], int n) {
+			    int b[n];
+			    memcpy(b, a, n * sizeof(int));           @copy
+			    qsort(b, n, sizeof(int), compare);       @sort
+			    for (int i = 1; i < n; i++) {            @loop $i
+			        if (b[i] == b[i - 1]) {              @compare
+			            return false;                    @repeat
+			        }
+			    }
+			    return true;                             @unique
+			}`,
+		java: String.raw`
+			boolean uniqueBySorting(int[] a) {
+			    int[] b = Arrays.copyOf(a, a.length);       @copy
+			    Arrays.sort(b);                             @sort
+			    for (int i = 1; i < b.length; i++) {        @loop $i
+			        if (b[i] == b[i - 1]) {                 @compare
+			            return false;                       @repeat
+			        }
+			    }
+			    return true;                                @unique
+			}`,
+		python: String.raw`
+			def unique_by_sorting(a):
+			    b = list(a)                         @copy
+			    b.sort()                            @sort
+			    for i in range(1, len(b)):          @loop $i
+			        if b[i] == b[i - 1]:            @compare
+			            return False                @repeat
+			    return True                         @unique`,
+	},
 	'insertion-sort': {
 		c: String.raw`
 			void insertionSort(int a[], int n) {

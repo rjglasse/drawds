@@ -15,10 +15,12 @@ const GONE: MarkColor = 'red'
 const PIVOT: MarkColor = 'red'
 const SMALL: MarkColor = 'blue'
 
-/** A second row of cells drawn under the array during a step: a new array being filled. */
+/** A second row of cells drawn under the array during a step: a new array being filled, a sorted copy. */
 export interface AuxRow {
 	title: string
 	values: string[]
+	/** Its cells lit at this step, by index (the neighbours being compared). */
+	marks?: Record<number, MarkColor>
 }
 
 /**

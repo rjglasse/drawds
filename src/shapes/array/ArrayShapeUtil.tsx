@@ -66,7 +66,7 @@ import {
 } from './operations'
 import { parseCutoff, partition3Array, quicksort } from './quicksorts'
 import { insertionPasses, selectionPasses } from './passes'
-import { allUnique, findMax, sentinelSearch } from './scans'
+import { allUnique, allUniqueBySet, allUniqueBySorting, findMax, sentinelSearch } from './scans'
 import { fisherYates, unfairShuffle, type ShuffleKind } from './shuffles'
 import { everyRunOperation, manyRunsOperation, TALLY_MAX, TREE_MAX, type OutcomesMode } from '../outcomes/outcomes'
 import { openOutcomes } from '../outcomes/OutcomesShapeUtil'
@@ -373,7 +373,19 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		return [
 			// Scans counted in lectures 2 and 3: the largest value, and whether any two are equal.
 			...(n < 1 ? [] : [{ ...scans, id: 'array-find-max', label: 'Find the largest (maxval)', run: () => this.play(shape.id, 'find the largest', findMax) }]),
-			...(n < 2 ? [] : [{ ...scans, id: 'array-all-unique', label: 'All unique? (every pair)', run: () => this.play(shape.id, 'all unique?', allUnique) }]),
+			...(n < 2
+				? []
+				: [
+						{ ...scans, id: 'array-all-unique', label: 'All unique? (every pair)', run: () => this.play(shape.id, 'all unique?', allUnique) },
+						// Lecture 3's faster ways.
+						{ ...scans, id: 'array-all-unique-set', label: 'All unique? (a set)', run: () => this.play(shape.id, 'all unique?', allUniqueBySet) },
+						{
+							...scans,
+							id: 'array-all-unique-sorted',
+							label: 'All unique? (sort, then neighbours)',
+							run: () => this.play(shape.id, 'all unique?', allUniqueBySorting),
+						},
+					]),
 			// Lecture 2's shuffles, step by step: random picks from the pinned seed, if there is one.
 			...(n < 2
 				? []
@@ -1232,8 +1244,8 @@ function ArraySvg({
 	pulse?: readonly string[]
 	/** Canvas only: a second row under the array, such as a new array being filled. */
 	aux?: AuxRow
-	/** Values moving between the array and the second row this step. */
-	cross?: { toAux: Record<number, number>; toMain: Record<number, number>; id: number }
+	/** Values moving between the array and the second row this step, or within the second row. */
+	cross?: { toAux: Record<number, number>; toMain: Record<number, number>; inAux?: Record<number, number>; id: number }
 	/** Colour-blind cues: marked and highlighted cells get a shape badge (`cues.ts`). */
 	cues?: boolean
 }) {
@@ -1246,33 +1258,36 @@ function ArraySvg({
 	const { cell, strokeWidth } = metrics
 	const stroke = getColorValue(colors, color, 'solid')
 	const textSize = (value: string) => metrics.fontSize * Math.min(1, 2.5 / Math.max(1, value.length))
-	const badgeAt = (i: number) => {
-		const { x, y } = cellAt(i)
-		return cueBadgeAt({ x: x + cell / 2, y: y + cell / 2, w: cell, h: cell }, false, strokeWidth * 1.2)
-	}
+	const cueAt = ({ x, y }: { x: number; y: number }) => cueBadgeAt({ x: x + cell / 2, y: y + cell / 2, w: cell, h: cell }, false, strokeWidth * 1.2)
+	const badgeAt = (i: number) => cueAt(cellAt(i))
 
 	// A value arcs from its old cell into its new one: those moving towards the end over the array,
 	// those moving back under it, so two that swap or cross pass each other. When every value moves
 	// the same way (a shift) none cross, so they slide straight along.
-	const moves = Object.entries(slides?.from ?? {}).map(([to, from]) => Math.sign(Number(to) - from))
-	const crossing = moves.includes(1) && moves.includes(-1)
-	const slideStyle = (i: number): CSSProperties | undefined => {
-		const from = slides?.from[i]
-		if (from === undefined || from === i) return undefined
-		const dx = cellAt(from).x - cellAt(i).x
-		const dy = cellAt(from).y - cellAt(i).y
-		const lift = crossing ? (i > from ? -1 : 1) * cell * Math.min(0.9, 0.35 + 0.15 * Math.abs(i - from)) : 0
-		const [mx, my] = direction === 'horizontal' ? [dx / 2, dy / 2 + lift] : [dx / 2 + lift, dy / 2]
-		return {
-			'--from-x': `${dx}px`,
-			'--from-y': `${dy}px`,
-			'--mid-x': `${mx}px`,
-			'--mid-y': `${my}px`,
-			animation: `drawds-swap ${slides?.ms ?? SLIDE_MS}ms ease-in-out`,
-		} as CSSProperties
+	const arcs = (slid: Record<number, number> | undefined, at: (i: number) => { x: number; y: number }) => {
+		const moves = Object.entries(slid ?? {}).map(([to, from]) => Math.sign(Number(to) - from))
+		const crossing = moves.includes(1) && moves.includes(-1)
+		return (i: number): CSSProperties | undefined => {
+			const from = slid?.[i]
+			if (from === undefined || from === i) return undefined
+			const dx = at(from).x - at(i).x
+			const dy = at(from).y - at(i).y
+			const lift = crossing ? (i > from ? -1 : 1) * cell * Math.min(0.9, 0.35 + 0.15 * Math.abs(i - from)) : 0
+			const [mx, my] = direction === 'horizontal' ? [dx / 2, dy / 2 + lift] : [dx / 2 + lift, dy / 2]
+			return {
+				'--from-x': `${dx}px`,
+				'--from-y': `${dy}px`,
+				'--mid-x': `${mx}px`,
+				'--mid-y': `${my}px`,
+				animation: `drawds-swap ${slides?.ms ?? SLIDE_MS}ms ease-in-out`,
+			} as CSSProperties
+		}
 	}
+	const slideStyle = arcs(slides?.from, cellAt)
 	const dimmed = new Set(dim)
 	const auxLayout = aux && getAuxLayout(aux.values.length, metrics, layout)
+	// The second row's values sliding within it (a copy being sorted), arcing as the array's do.
+	const auxSlideStyle = auxLayout && arcs(cross?.inAux, auxLayout.cellAt)
 	// Values moving up from a second row the step no longer draws (a = newArr): where it was, as
 	// long as the array now is.
 	const fromBelow = auxLayout ?? (cross && Object.keys(cross.toMain).length ? getAuxLayout(values.length, metrics, layout) : undefined)
@@ -1528,17 +1543,36 @@ function ArraySvg({
 							<line key={k} x1={x} y1={lineY} x2={x + cell} y2={lineY} stroke={stroke} strokeWidth={strokeWidth} />
 						)
 					})}
+					{Object.entries(aux.marks ?? {}).map(([key, mark]) => {
+						const { x, y } = auxLayout.cellAt(Number(key))
+						return (
+							<g key={`aux-mark-${key}`} data-aux-mark={key}>
+								<rect
+									x={x}
+									y={y}
+									width={cell}
+									height={cell}
+									fill={getColorValue(colors, mark, 'semi')}
+									stroke={getColorValue(colors, mark, 'solid')}
+									strokeWidth={strokeWidth * 1.6}
+									strokeLinejoin="round"
+								/>
+								{cues && <CueBadge color={mark} at={cueAt({ x, y })} colors={colors} strokeWidth={strokeWidth} />}
+							</g>
+						)
+					})}
 					{aux.values.map((value, j) => {
 						const { x, y } = auxLayout.cellAt(j)
 						const down = cross?.toAux[j]
+						const along = auxSlideStyle?.(j)
 						return (
 							<text
-								key={down !== undefined ? `aux${j}:${cross!.id}` : `aux${j}`}
+								key={down !== undefined ? `aux${j}:${cross!.id}` : along ? `aux${j}:in-${cross!.id}` : `aux${j}`}
 								x={x + cell / 2}
 								y={y + cell / 2}
 								fontSize={textSize(value)}
 								fill={colors.text}
-								style={down !== undefined ? crossStyle(auxLayout.cellAt(j), cellAt(down)) : undefined}
+								style={down !== undefined ? crossStyle(auxLayout.cellAt(j), cellAt(down)) : along}
 							>
 								{value}
 							</text>
