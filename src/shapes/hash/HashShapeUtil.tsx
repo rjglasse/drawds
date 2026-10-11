@@ -215,7 +215,7 @@ export class HashShapeUtil extends NodeLinkShapeUtil<HashShape> implements Refil
 		if (shape) this.play(shape, label, op(shape), false)
 	}
 
-	private play(shape: HashShape, label: string, { frames, buckets, finalFlash }: HashOperation, keep: boolean) {
+	private play(shape: HashShape, label: string, { frames, buckets, finalFlash, code }: HashOperation, keep: boolean) {
 		const after = buckets ?? shape.props.buckets
 		const keys = hashScene({ ...shape.props, buckets: after }).nodes.map((n) => n.key)
 		const final = buckets && this.update(shape, { buckets, marks: pruneMarks(shape.props.marks, keys) })
@@ -226,6 +226,7 @@ export class HashShapeUtil extends NodeLinkShapeUtil<HashShape> implements Refil
 			final,
 			finalFlash,
 			keep,
+			code,
 			// Shift: the highlights become marks, on what is still there.
 			withMarks: (_update, highlights) =>
 				this.update(shape, { ...(buckets ? { buckets } : {}), marks: pruneMarks({ ...shape.props.marks, ...highlights }, keys) }),

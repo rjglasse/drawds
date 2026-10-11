@@ -1,7 +1,10 @@
 import type { MarkColor } from '../../cells/marks'
 import type { Frame, Strip } from '../../nodelink/playback'
 import type { Pointer } from '../../pointers/pointers'
-import { MAX_BUCKETS, type HashCode, type HashCompression, type HashStrategy } from './hash-shape-types'
+import { hashCodeId, type HashOp } from './code'
+import { MAD, MAX_BUCKETS, type HashCode, type HashCompression, type HashStrategy } from './hash-shape-types'
+
+export { MAD }
 
 // A hash table, pure: the hash function (with how it was worked out, for the captions), building
 // a table, finding keys out of place, and insert / find / delete / rehash as frames.
@@ -29,9 +32,6 @@ export interface HashScheme {
 /** A collision strategy alone: character codes added, then mod m (the table's first scheme). */
 export type SchemeLike = HashStrategy | HashScheme
 export const schemeOf = (s: SchemeLike): HashScheme => (typeof s === 'string' ? { strategy: s, code: 'sum', compress: 'mod' } : s)
-
-/** MAD's constants: ((a·h + b) mod p) mod m, p a prime larger than any table. */
-export const MAD = { a: 7, b: 3, p: 101 }
 
 const isInteger = (key: string) => /^-?\d+$/.test(key)
 const floorMod = (x: number, m: number) => ((x % m) + m) % m
@@ -210,6 +210,17 @@ export interface HashOperation {
 	/** The table afterwards, if the operation changes it. */
 	buckets?: string[][]
 	finalFlash?: Record<string, MarkColor>
+	/** Its code (`code.ts`), for this table's strategy, keys and hash. */
+	code: string
+}
+
+/**
+ * The code an operation shows on this table, for these keys: an integer is its own hash code, so the
+ * key an insert, find or delete works on decides (even in a table of words); a rehash, all of them.
+ */
+function codeOf(op: HashOp, scheme: SchemeLike, keys: readonly string[]): string {
+	const { strategy, code, compress } = schemeOf(scheme)
+	return hashCodeId(op, { strategy, code, compress, ints: keys.every(isInteger) })
 }
 
 const at = (i: number): Pointer[] => [{ id: '#i', name: 'i', at: slotKey(i) }]
@@ -225,7 +236,7 @@ function walk(buckets: string[][], scheme: SchemeLike, key: string, verb: string
 	const frames: Frame[] = []
 	// Direct addressing that can't place the key: says why, and that's all.
 	if (refused !== undefined) {
-		frames.push({ caption: `${verb} ${key}: ${refused}`, ask: `${verb} ${key} by direct addressing: which index?` })
+		frames.push({ caption: `${verb} ${key}: ${refused}`, ask: `${verb} ${key} by direct addressing: which index?`, line: 'hash', vars: { key } })
 		return { frames, b, refused, found: undefined as number | undefined, compared: 0 }
 	}
 	const hashed = `${verb} ${key}: h(${key}) = ${how}`
@@ -234,17 +245,20 @@ function walk(buckets: string[][], scheme: SchemeLike, key: string, verb: string
 	if (strategy === 'chaining') {
 		const chain = buckets[b]
 		const keys = chainNodeKeys(buckets)[b]
+		const vars = { key, i: String(b) }
 		if (!chain.length) {
-			frames.push({ flash: { [bucketKey(b)]: LOOK }, counts: { compared: 0 }, caption: `${hashed}: bucket ${b}, which is empty`, ask: where })
+			frames.push({ flash: { [bucketKey(b)]: LOOK }, counts: { compared: 0 }, caption: `${hashed}: bucket ${b}, which is empty`, ask: where, line: 'hash', vars })
 			return { frames, b, found: undefined as number | undefined, compared: 0 }
 		}
-		frames.push({ flash: { [bucketKey(b)]: LOOK }, counts: { compared: 0 }, caption: `${hashed}: walk bucket ${b}'s chain`, ask: where })
+		frames.push({ flash: { [bucketKey(b)]: LOOK }, counts: { compared: 0 }, caption: `${hashed}: walk bucket ${b}'s chain`, ask: where, line: 'hash', vars })
 		for (const [j, entry] of chain.entries()) {
 			const same = keyOf(entry) === key
 			frames.push({
 				flash: { [j ? keys[j - 1] : bucketKey(b)]: null, [keys[j]]: same ? FOUND : LOOK },
 				counts: { compared: j + 1 },
 				caption: same ? `${keyOf(entry)} = ${key}: found it` : `${keyOf(entry)} ≠ ${key}${j + 1 < chain.length ? ': on along the chain' : ': the end of the chain'}`,
+				line: same ? 'found' : 'compare',
+				vars,
 			})
 			if (same) return { frames, b, found: j, compared: j + 1 }
 		}
@@ -263,12 +277,28 @@ function walk(buckets: string[][], scheme: SchemeLike, key: string, verb: string
 					: keyOf(entry) === key
 						? `${key}: found it`
 						: `${keyOf(entry)}: taken, try the next`
+		// The line the slot settles: empty ends the run, a match is found; a deleted marker is noted
+		// (insert may reuse it) or passed; another key, on to the next slot.
+		const line =
+			k === 0
+				? 'hash'
+				: entry === undefined
+					? 'probe'
+					: isTombstone(entry)
+						? verb === 'Insert'
+							? 'deleted'
+							: 'next'
+						: keyOf(entry) === key
+							? 'found'
+							: 'next'
 		frames.push({
 			pointers: at(i),
 			flash: { ...(previous ? { [previous]: null } : {}), [slotKey(i)]: entry !== undefined && keyOf(entry) === key ? FOUND : LOOK },
 			counts: { probes: k + 1 },
 			caption: `${step}: ${what}`,
 			ask: k === 0 ? where : `Slot ${p.path[k - 1]} didn't settle it: which slot next?`,
+			line,
+			vars: { key, i: String(i) },
 		})
 		previous = slotKey(i)
 	}
@@ -281,11 +311,13 @@ export function insertEntry(buckets: string[][], scheme: SchemeLike, entry: stri
 	const { strategy } = schemeOf(scheme)
 	const w = walk(buckets, scheme, key, 'Insert')
 	const { frames } = w
-	if (w.refused !== undefined) return { frames }
+	const code = codeOf('insert', scheme, [key])
+	const vars = { key, i: String(w.b) }
+	if (w.refused !== undefined) return { frames, code }
 	const n = entriesOf(buckets).length
 	if (w.found !== undefined) {
-		frames.push({ caption: `${key} is in the table already: it keeps one copy of each key` })
-		return { frames }
+		frames.push({ caption: `${key} is in the table already: it keeps one copy of each key`, line: 'found', vars })
+		return { frames, code }
 	}
 	const after = buckets.map((bucket) => [...bucket])
 	if (strategy === 'chaining') {
@@ -297,13 +329,15 @@ export function insertEntry(buckets: string[][], scheme: SchemeLike, entry: stri
 			caption: `${buckets[w.b].length ? 'Add it at the end of the chain' : `It starts bucket ${w.b}'s chain`}. ${loadLine(n + 1, after.length)}`,
 			ask: `${key} isn't in bucket ${w.b}: where does it go?`,
 			askFocus: [bucketKey(w.b)],
+			line: buckets[w.b].length ? 'append' : 'first',
+			vars,
 		})
-		return { frames, buckets: after, finalFlash: { [node]: FOUND } }
+		return { frames, buckets: after, finalFlash: { [node]: FOUND }, code }
 	}
 	const p = w.probe!
 	if (p.end === 'full' && p.tomb === undefined) {
-		frames.push({ caption: `Every slot is taken: the table is full. Grow and rehash first` })
-		return { frames }
+		frames.push({ caption: `Every slot is taken: the table is full. Grow and rehash first`, line: 'full', vars: { key, i: String(p.path.at(-1)) } })
+		return { frames, code }
 	}
 	const slot = p.tomb ?? p.at!
 	after[slot] = [entry]
@@ -312,8 +346,10 @@ export function insertEntry(buckets: string[][], scheme: SchemeLike, entry: stri
 		pointers: at(slot),
 		flash: { [slotKey(slot)]: FOUND },
 		caption: `${p.tomb !== undefined && p.end !== 'found' ? `${key} isn't further on, so reuse the deleted slot ${slot}` : `Put ${key} in slot ${slot}`}. ${loadLine(n + 1, after.length)}`,
+		line: p.tomb !== undefined ? 'reuse' : 'place',
+		vars: { key, i: String(slot) },
 	})
-	return { frames, buckets: after, finalFlash: { [slotKey(slot)]: FOUND } }
+	return { frames, buckets: after, finalFlash: { [slotKey(slot)]: FOUND }, code }
 }
 
 /** Find `key`: hash, then walk the chain or probe until it turns up, or a chain ends or a slot is empty. */
@@ -321,13 +357,17 @@ export function findKey(buckets: string[][], scheme: SchemeLike, key: string): H
 	const { strategy } = schemeOf(scheme)
 	const w = walk(buckets, scheme, key, 'Find')
 	const { frames } = w
-	if (w.refused !== undefined) return { frames }
+	const code = codeOf('find', scheme, [key])
+	if (w.refused !== undefined) return { frames, code }
 	if (w.found !== undefined) {
 		const node = strategy === 'chaining' ? chainNodeKeys(buckets)[w.b][w.found] : slotKey(w.found)
-		frames.push({ flash: { [node]: FOUND }, caption: `${key} found after ${w.compared} comparison${w.compared === 1 ? '' : 's'}` })
-		return { frames, finalFlash: { [node]: FOUND } }
+		const i = String(strategy === 'chaining' ? w.b : w.found)
+		frames.push({ flash: { [node]: FOUND }, caption: `${key} found after ${w.compared} comparison${w.compared === 1 ? '' : 's'}`, line: 'found', vars: { key, i } })
+		return { frames, finalFlash: { [node]: FOUND }, code }
 	}
 	frames.push({
+		line: 'missing',
+		vars: { key, i: String(strategy === 'chaining' ? w.b : (w.probe!.path.at(-1) ?? w.b)) },
 		caption:
 			strategy === 'chaining'
 				? `${key} is not in the table: not in bucket ${w.b}'s chain, the only place it could be`
@@ -335,7 +375,7 @@ export function findKey(buckets: string[][], scheme: SchemeLike, key: string): H
 					? `An empty slot: ${key} would have gone here, so it isn't in the table`
 					: `Round every slot: ${key} is not in the table`,
 	})
-	return { frames }
+	return { frames, code }
 }
 
 /**
@@ -346,19 +386,23 @@ export function deleteKey(buckets: string[][], scheme: SchemeLike, key: string):
 	const { strategy } = schemeOf(scheme)
 	const w = walk(buckets, scheme, key, 'Delete')
 	const { frames } = w
-	if (w.refused !== undefined) return { frames }
+	const code = codeOf('delete', scheme, [key])
+	if (w.refused !== undefined) return { frames, code }
 	if (w.found === undefined) {
-		frames.push({ caption: `${key} is not in the table: nothing to delete` })
-		return { frames }
+		frames.push({ caption: `${key} is not in the table: nothing to delete`, line: 'missing', vars: { key, i: String(w.b) } })
+		return { frames, code }
 	}
 	const after = buckets.map((bucket) => [...bucket])
 	const n = entriesOf(buckets).length
 	if (strategy === 'chaining') {
 		const node = chainNodeKeys(buckets)[w.b][w.found]
-		frames.push({ flash: { [node]: GONE }, caption: `Unlink ${key}: whatever pointed at it (the bucket, or the key before) now points past it` })
+		// The bucket itself points at the first in its chain; a later one, the key before it.
+		const line = w.found === 0 ? 'unlink-first' : 'unlink'
+		const vars = { key, i: String(w.b) }
+		frames.push({ flash: { [node]: GONE }, caption: `Unlink ${key}: whatever pointed at it (the bucket, or the key before) now points past it`, line, vars })
 		after[w.b].splice(w.found, 1)
-		frames.push({ props: { buckets: after }, caption: `${key} is gone. ${loadLine(n - 1, after.length)}` })
-		return { frames, buckets: after }
+		frames.push({ props: { buckets: after }, caption: `${key} is gone. ${loadLine(n - 1, after.length)}`, line, vars })
+		return { frames, buckets: after, code }
 	}
 	after[w.found] = [TOMBSTONE]
 	frames.push({
@@ -366,8 +410,10 @@ export function deleteKey(buckets: string[][], scheme: SchemeLike, key: string):
 		pointers: at(w.found),
 		flash: { [slotKey(w.found)]: GONE },
 		caption: `Mark slot ${w.found} deleted, not empty: a key that collided and went further on must still be found past it`,
+		line: 'mark',
+		vars: { key, i: String(w.found) },
 	})
-	return { frames, buckets: after }
+	return { frames, buckets: after, code }
 }
 
 /**
@@ -382,7 +428,7 @@ export function rehash(buckets: string[][], scheme: SchemeLike): HashOperation {
 	const left = [...entries]
 	const strips = (): Strip[] => [{ title: 'keys to move', items: left.map(keyOf) }]
 	const frames: Frame[] = [
-		{ props: { buckets: table }, strips: strips(), caption: `A new table of ${m} buckets. Every key must move: h(key) depends on m` },
+		{ props: { buckets: table }, strips: strips(), caption: `A new table of ${m} buckets. Every key must move: h(key) depends on m`, line: 'grow' },
 	]
 	for (const entry of entries) {
 		left.shift()
@@ -391,8 +437,8 @@ export function rehash(buckets: string[][], scheme: SchemeLike): HashOperation {
 		const h = hashOf(key, m, scheme)
 		const node = strategy === 'chaining' ? chainNodeKeys(table)[h.index].at(-1)! : slotKey(table.findIndex((slot) => slot[0] === entry))
 		const where = strategy === 'probing' && node !== slotKey(h.index) ? `, taken, so slot ${node.slice(1)}` : ''
-		frames.push({ props: { buckets: table }, strips: strips(), flash: { [node]: FOUND }, caption: `h(${key}) = ${h.how}${where}` })
+		frames.push({ props: { buckets: table }, strips: strips(), flash: { [node]: FOUND }, caption: `h(${key}) = ${h.how}${where}`, line: 'move' })
 	}
 	frames.push({ props: { buckets: table }, strips: strips(), caption: `All ${entries.length} keys moved. ${loadLine(entries.length, m)}` })
-	return { frames, buckets: table }
+	return { frames, buckets: table, code: codeOf('rehash', scheme, entries.map(keyOf)) }
 }

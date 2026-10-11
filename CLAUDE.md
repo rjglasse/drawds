@@ -301,7 +301,7 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   values through `Frame.vars`, since a list pointer is at a node key), the trees' `src/shapes/tree/code.ts` (traversals,
   measures, BST min / max, and lecture 8b's BST search, insert and delete as `bstInsertSteps` / `bstDeleteSteps` walk them,
   delete's three cases with the successor relinked, 3.1 or 3.2), the graphs' `src/shapes/graph/code.ts`, the heaps'
-  `src/shapes/heap/code.ts`.
+  `src/shapes/heap/code.ts`, the hash tables' `src/shapes/hash/code.ts`.
 - `src/shapes/hash/` - hash tables (node-link): `buckets: string[][]` (a chain per bucket, or one entry per slot with
   `TOMBSTONE` for deleted), strategy style `drawds:hash-strategy` chaining / probing (switching re-inserts the
   keys). Lecture 7: a hash code (`drawds:hash-code`: character codes added; the first three letters, A = 1, added, the
@@ -312,7 +312,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   what it can't place and says why (256 in a small table: the slots it would waste; X70: no index); switching to it
   sizes the table for the largest key (`withScheme`), and it has no compression to pick and nothing to rehash. `hash.ts` is pure: `hashOf` (k mod m, or character codes added; with how, for captions), `buildTable`,
   `misplaced` (keys a find wouldn't reach: the red ring), insert / find / delete / rehash as frames. Entries are
-  keys or `key:value`; scene keys `b<i>` buckets, `k:<entry>` chained entries, `s<i>` slots, `#load`. Shift+B.
+  keys or `key:value`; scene keys `b<i>` buckets, `k:<entry>` chained entries, `s<i>` slots, `#load`. Shift+B. Code
+  (`code.ts`, `hashCodeId`): insert / find (contains) / delete (remove) for chaining (a chain of nodes, a new key on the
+  end) and probing (at most m slots tried, a DELETED marker), and rehash, each over index(key) as the scheme says; an
+  integer key is its own hash code, so the key worked on picks int or text code. MAD runs in a long (a hashCode near 2^31
+  would overflow 7·h); C has its own floorMod. The index functions were checked against `hashOf` by running them in real
+  Python, Java and C (keys including misused / horsemints and negatives).
 - `src/nodelink/playback.ts` - animated operations, stepped through: frames (props override, value swaps
   between node keys and one-way `moves` (copies), highlights on nodes and `edge:` keys that accumulate and can
   be cleared with null, badges, a queue/stack `strip`, faded elements `dim` and running `counts` (both

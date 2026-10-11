@@ -134,3 +134,32 @@ test('the Bus Map, direct addressing: routes 1, 2, 3 at their own indexes; 256 w
 	await page.keyboard.press('Escape')
 	expect(await keys(page)).toEqual(['1', '2', '3'])
 })
+
+test("the code beside: chaining's insert walks the chain under index(key); probing's find passes a deleted marker", async ({ page }) => {
+	const litLine = async () => {
+		const line = await page.locator('[data-step-line]').getAttribute('data-step-line')
+		return page.locator(`[data-code-line="${line}"]`).textContent()
+	}
+	await sketchTable(page, [200, 150], 7)
+	await setBuckets(page, [[], ['8'], [], [], [], [], []])
+	await page.getByTestId('insert-key').click()
+	await page.getByTestId('key-prompt').fill('22')
+	await page.keyboard.press('Enter')
+	await page.getByTestId('play-code').click()
+	await expect.poll(litLine).toContain('int i = index(key);')
+	await expect(page.locator('[data-code-line]').filter({ hasText: 'return Math.floorMod(key, m);' })).toHaveCount(1)
+	await stepToEnd(page)
+	await expect.poll(litLine).toContain('else prev.next = node;')
+	await page.keyboard.press('Enter')
+
+	await page.getByTestId('style.hash-strategy.probing').click()
+	await setBuckets(page, [[], ['8'], ['\u0000deleted'], ['15'], [], [], []])
+	await rightClick(page, await nodeScreenPosition(page, 's3'))
+	await page.getByTestId('context-menu-sub.drawds-hash-steps-button').click()
+	await page.getByTestId('context-menu.hash-find').click()
+	await expect.poll(litLine).toContain('int i = index(key);')
+	await page.keyboard.press('ArrowRight')
+	await expect.poll(litLine).toContain('i = (i + 1) % m;')
+	await stepToEnd(page)
+	await expect.poll(litLine).toContain('return true;')
+})

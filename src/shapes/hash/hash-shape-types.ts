@@ -116,3 +116,6 @@ export const hashShapeMigrations = createShapePropsMigrationSequence({
 		},
 	],
 })
+
+/** MAD's constants: ((a·h + b) mod p) mod m, p a prime larger than any table. */
+export const MAD = { a: 7, b: 3, p: 101 }

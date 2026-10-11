@@ -35,6 +35,7 @@ import {
 } from '../list/operations'
 import { dequeueFrom, enqueueOnto, peekAt, popFrom, pushOnto } from '../list/stack-queue'
 import { countNodes } from '../list/size'
+import { deleteKey, findKey, insertEntry, rehash, buildTable } from '../hash/hash'
 import { heapCode } from '../heap/code'
 import { buildHeapSteps } from '../heap/heap'
 import { insertSteps, removeSteps } from '../heap/steps'
@@ -295,6 +296,54 @@ describe('algorithm code', () => {
 		])
 		// A call of one value has no mid.
 		expect(op.frames.find((f) => f.line === 'base')?.vars?.mid).toBeUndefined()
+	})
+})
+
+describe('hash tables', () => {
+	// Every strategy, kind of key and scheme: insert (new, in already, a collision), find (there, not),
+	// delete (there, the first and a later one in a chain, not there), rehash.
+	const schemes = (['chaining', 'probing'] as const).flatMap((strategy) => [
+		...(['sum', 'letters', 'java'] as const).flatMap((code) => (['mod', 'mad'] as const).map((compress) => ({ strategy, code, compress, ints: false }))),
+		...(['mod', 'mad'] as const).map((compress) => ({ strategy, code: 'sum' as const, compress, ints: true })),
+		{ strategy, code: 'direct' as const, compress: 'mod' as const, ints: true },
+	])
+	it.each(schemes)('%o: every operation shows its code, every line and value in it', ({ ints, ...scheme }) => {
+		const keys = ints ? ['3', '10', '17', '5', '1'] : ['cat', 'dog', 'emu', 'act', 'god']
+		const table = buildTable(keys, 7, scheme)
+		const ops = [
+			insertEntry(table, scheme, ints ? '24' : 'tac'),
+			insertEntry(table, scheme, keys[0]),
+			findKey(table, scheme, keys[1]),
+			findKey(table, scheme, ints ? '6' : 'owl'),
+			deleteKey(table, scheme, keys[0]),
+			deleteKey(table, scheme, keys[3]),
+			deleteKey(table, scheme, ints ? '6' : 'owl'),
+			deleteKey(table, scheme, keys[4]),
+			rehash(table, scheme),
+		]
+		const given = new Map<string, Set<string>>()
+		for (const op of ops) {
+			const names = op.frames.flatMap((f) => [...(f.pointers ?? []).map((p) => p.name), ...Object.keys(f.vars ?? {})])
+			given.set(op.code, new Set([...(given.get(op.code) ?? []), ...names]))
+		}
+		for (const op of ops) {
+			expect(ALGORITHMS[op.code], op.code).toBeTruthy()
+			const lines = op.frames.flatMap((f) => (f.line ? [f.line] : []))
+			expect(lines.length, op.code).toBeGreaterThan(0)
+			for (const language of ['c', 'java', 'python'] as const) {
+				const code = algorithmCode(op.code, language)!
+				for (const line of lines) expect(code.lines, `${op.code} ${language} @${line}`).toHaveProperty(line)
+				for (const v of code.values) expect(given.get(op.code), `${op.code} ${language} $${v.name}`).toContain(v.key)
+			}
+		}
+	})
+
+	it('integer keys are their own hash code: text keys use the table\'s hash code', () => {
+		const scheme = { strategy: 'chaining' as const, code: 'java' as const, compress: 'mod' as const }
+		expect(findKey(buildTable(['3', '10'], 7, scheme), scheme, '3').code).toBe('hash-find-chaining-int-mod')
+		expect(findKey(buildTable(['cat'], 7, scheme), scheme, 'cat').code).toBe('hash-find-chaining-java-mod')
+		expect(algorithmCode('hash-find-chaining-java-mod', 'java')!.text).toContain('int h = key.hashCode();')
+		expect(algorithmCode('hash-find-probing-direct', 'python')!.text).toContain('return key    # the key is the index')
 	})
 })
 
