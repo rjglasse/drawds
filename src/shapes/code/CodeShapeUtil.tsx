@@ -20,7 +20,8 @@ import { exportingStep } from '../../export/exporting'
 import { playbackFor, shownFrame } from '../../nodelink/playback'
 import { POINTER_FONT_SCALE, placePointers, pointerReachSideways, type PointerAnchor } from '../../pointers/layout'
 import { prunePointers } from '../../pointers/pointers'
-import { algorithmCode, shownValues, taggedLine, type ShownValue } from './algorithms'
+import { algorithmCode, shownValues, taggedLine, testsShown, type ShownValue } from './algorithms'
+import { conditionOf, shownTest, type ShownTest } from './tests'
 import { CODE_TYPE, codeShapeMigrations, codeShapeProps, type CodeShape } from './code-shape-types'
 import { transcriptOf } from '../../transcript/transcript'
 import { applyEdit, closeBraceEdit, indentEdit, newlineEdit, type CodeEdit } from './editing'
@@ -56,6 +57,8 @@ const VALUE_SCALE = 0.85
 const VALUE_CHARS = 5
 /** Room for the times column's counts (×999), as small as the values. */
 const COUNT_CHARS = 4
+/** After a test written out: whether it held. */
+const TEST_MARK = '→ false'
 
 const shownCache = new WeakMap<CodeShape['props'], ShownValue[]>()
 
@@ -93,6 +96,13 @@ function layoutOf(shape: CodeShape) {
 	)
 	const after: Record<number, number> = {}
 	for (const v of valuesOf(shape)) after[v.line] = (after[v.line] ?? 2) + Math.ceil((v.name.length + 3 + VALUE_CHARS + 2) * VALUE_SCALE)
+	// A loop's or an if's test, written out with its values while a step is on it (in place of the line's values).
+	if (algorithm && testsShown(algorithm)) {
+		codeLines(code).forEach((line, i) => {
+			const c = conditionOf(line, shape.props.language)
+			if (c) after[i] = Math.max(after[i] ?? 0, 2 + Math.ceil(((c.to - c.from) * 1.1 + TEST_MARK.length + 2) * VALUE_SCALE))
+		})
+	}
 	const right = algorithm && lineCounts ? Math.ceil((COUNT_CHARS + 2) * VALUE_SCALE) : 0
 	return getCodeLayout(code, metrics, { lineNumbers, left, after, right })
 }
@@ -185,7 +195,7 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 	private following(
 		shape: CodeShape,
 		live: boolean
-	): { line?: number; values: { line: number; text: string }[]; counts: { line: number; text: string }[] } | undefined {
+	): { line?: number; values: { line: number; text: string }[]; counts: { line: number; text: string }[]; test?: ShownTest & { line: number } } | undefined {
 		const { structureId, algorithm, code, language, lineCounts } = shape.props
 		if (!live || !structureId || !algorithm) return undefined
 		const view = playbackFor(this.editor, structureId as TLShapeId)
@@ -207,10 +217,23 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 				if (line !== undefined) counts.set(line, (counts.get(line) ?? 0) + (frame ? times : 0))
 			}
 		}
+		const line = frame?.line && source ? taggedLine(code, source, frame.line) : undefined
+		// On a loop's or an if's line: its test, from the step's values and its array as the step has it.
+		// Arrays only, so far: a list's or a tree's steps give their nodes' values, and slow == fast is about
+		// which node, not which value.
+		const structure = this.editor.getShape(structureId as TLShapeId)
+		const array = structure?.type === 'array' ? ((frame?.props as { values?: string[] } | undefined)?.values ?? (structure.props as { values: string[] }).values) : undefined
+		// Only a step that is the test itself: a line that tests and acts (if (...) swap(...)) has the test's tag first.
+		const testing = array && frame?.line && source && source.firstTags[source.lines[frame.line]] === frame.line
+		// Pointers at indexes, and the step's own variables.
+		const values = { ...Object.fromEntries((frame?.pointers ?? []).filter((p) => /^-?\d+$/.test(p.at)).map((p) => [p.name, p.at])), ...frame?.vars }
+		const shown = line === undefined || !testing ? undefined : shownTest(codeLines(code)[line] ?? '', language, { vars: values, arrays: { a: array } })
+		const test = shown && line !== undefined ? { ...shown, line } : undefined
 		return {
-			line: frame?.line && source ? taggedLine(code, source, frame.line) : undefined,
-			values: [...byLine].map(([line, texts]) => ({ line, text: texts.join('  ') })),
-			counts: [...counts].map(([line, times]) => ({ line, text: `×${times}` })),
+			line,
+			values: [...byLine].filter(([at]) => at !== test?.line).map(([at, texts]) => ({ line: at, text: texts.join('  ') })),
+			counts: [...counts].map(([at, times]) => ({ line: at, text: `×${times}` })),
+			test,
 		}
 	}
 
@@ -367,6 +390,7 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 						step={step}
 						values={follow?.values}
 						counts={follow?.counts}
+						test={follow?.test}
 					/>
 					{this.renderPointers(shape, colors, step === undefined ? {} : { placed: this.withPc(shape, step) })}
 				</SVGContainer>
@@ -406,6 +430,7 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 					step={step}
 					values={follow?.values}
 					counts={follow?.counts}
+					test={follow?.test}
 				/>
 				{this.renderPointers(shape, colors, { exporting: true, ...(step === undefined ? {} : { placed: this.withPc(shape, step) }) })}
 			</>
@@ -436,6 +461,67 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 const STEP_COLOR: TLDefaultColorStyle = 'yellow'
 
 /**
+ * A loop's or an if's test as it is tested: its condition boxed, green if it held and red if not, and
+ * after the line its parts with their values (each green or red, a part never evaluated greyed, as
+ * written), then whether it held.
+ */
+function TestSvg({ test, layout, metrics, colors }: { test: ShownTest & { line: number }; layout: CodeLayout; metrics: CodeMetrics; colors: TLThemeColors }) {
+	const { charW, lineH, fontSize, strokeWidth } = metrics
+	const at = layout.lineAt(test.line)
+	const end = layout.endOf(test.line)
+	const color = (held: boolean | undefined, tone: 'solid' | 'semi' = 'solid') => (held === undefined ? colors.text : getColorValue(colors, held ? 'green' : 'red', tone))
+	const pad = charW * 0.15
+	return (
+		<g data-test-line={test.line} data-test-result={String(test.result)}>
+			<rect
+				x={at.x + test.from * charW - pad}
+				y={at.y - lineH * 0.42}
+				width={(test.to - test.from) * charW + pad * 2}
+				height={lineH * 0.84}
+				rx={lineH * 0.18}
+				fill={color(test.result, 'semi')}
+				stroke={color(test.result)}
+				strokeWidth={strokeWidth}
+			/>
+			<text x={end.x + charW * 2} y={end.y} fontSize={fontSize * VALUE_SCALE} dominantBaseline="central" style={{ whiteSpace: 'pre' }}>
+				{test.parts.map((part, k) => (
+					<tspan key={k}>
+						{k > 0 && <tspan fill={colors.text}>{` ${test.ops[k - 1]} `}</tspan>}
+						<tspan data-test-part={k} fill={part.value === undefined ? colors.text : color(part.value)} opacity={part.value === undefined ? 0.4 : 1}>
+							{part.shown ?? '…'}
+						</tspan>
+					</tspan>
+				))}
+				<tspan fill={color(test.result)} fontWeight="bold">{`  ${test.result ? '→ true' : TEST_MARK}`}</tspan>
+			</text>
+		</g>
+	)
+}
+
+/** The parts of a test it never got to (short-circuited), faded where they are written: drawn over the code. */
+function SkippedSvg({ test, layout, metrics, colors }: { test: ShownTest & { line: number }; layout: CodeLayout; metrics: CodeMetrics; colors: TLThemeColors }) {
+	const { charW, lineH } = metrics
+	const at = layout.lineAt(test.line)
+	return (
+		<g data-test-skipped={test.line}>
+			{test.parts.map((part, k) =>
+				part.value === undefined && part.shown === undefined ? (
+					<rect
+						key={k}
+						x={at.x + part.from * charW}
+						y={at.y - lineH * 0.4}
+						width={(part.to - part.from) * charW}
+						height={lineH * 0.8}
+						fill={getColorValue(colors, 'red', 'semi')}
+						opacity={0.65}
+					/>
+				) : null
+			)}
+		</g>
+	)
+}
+
+/**
  * The box, lit lines, line numbers and the highlighted code: the canvas and exports alike. `step`:
  * the line an operation's step is on, lit over any mark; `values`: variables' values after their
  * lines, in the pointers' colour (i and j are the pointers on the structure too); `counts`: how many
@@ -451,6 +537,7 @@ export function CodeSvg({
 	step,
 	values,
 	counts,
+	test,
 }: {
 	shape: CodeShape
 	layout: CodeLayout
@@ -461,6 +548,8 @@ export function CodeSvg({
 	step?: number
 	values?: { line: number; text: string }[]
 	counts?: { line: number; text: string }[]
+	/** The test on the step's line: its condition boxed green or red, written out with its values after the line. */
+	test?: ShownTest & { line: number }
 }) {
 	const { code, language, lineNumbers, marks, color } = shape.props
 	const { box } = layout
@@ -549,6 +638,7 @@ export function CodeSvg({
 					{text}
 				</text>
 			))}
+			{test && <TestSvg test={test} layout={layout} metrics={metrics} colors={colors} />}
 			{values?.map(({ line, text }) => {
 				const end = layout.endOf(line)
 				return (
@@ -583,6 +673,7 @@ export function CodeSvg({
 					</text>
 				)
 			})}
+			{test && <SkippedSvg test={test} layout={layout} metrics={metrics} colors={colors} />}
 		</g>
 	)
 }

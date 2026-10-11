@@ -347,7 +347,14 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   colour) as the steps run; a value is the step's pointer of that name (at its element) or its `Frame.vars` (the
   array recorder's `r.let('maxval', v)`, kept for later steps; undefined: out of scope); `$min_idx=min` shows the
   step's `min` under the language's own name; room after those lines is kept in the layout (`after`), long values
-  cut to fit. `algorithms.ts` (pure): each algorithm written per language with `@tag`s and `$tag`s at line ends,
+  cut to fit. Tests as they are tested (beside an array, `tests.ts`, pure): a step on a while / for / if line (the
+  line's first tag: a line that tests and acts, if (...) swap(...), tags its test first) boxes the condition green or red
+  and writes it out after the line with the step's values (pointers at indexes, its variables, a[...] from the step's
+  array, a.length, len(a), C's n; Python's for i in range(...) as `3 in range(1, 5)`), each && / and part coloured, a
+  part never reached faded in the code and `…` after it, then `→ true` / `→ false`; one it can't work out (a method
+  call, an unknown name) shows nothing. Not for lists, trees or graphs yet: their steps give nodes' values, not which
+  node. The code's columns are the mono font's 0.6 em, so boxes sit on their characters.
+  `algorithms.ts` (pure): each algorithm written per language with `@tag`s and `$tag`s at line ends,
   two spaces before (`parseCode`), `algorithmCode` (every algorithm in C, Java and Python; C as a slide would put it:
   arrays with their length, `swap(&a[i], &a[j])`, structs by pointer, `newNode`, `NULL`), `taggedLine` / `shownValues`
   (find a tag's line in code edited since, by its text). Line counts (dds-szw.14, lecture 3's "times" column): Show >

@@ -30,6 +30,8 @@ export interface AlgorithmCode {
 	language: CodeLanguage
 	text: string
 	lines: Record<string, number>
+	/** Each tagged line's first tag: on a line that tests and acts (if (...) swap(...)), the test's. */
+	firstTags: Record<number, string>
 	values: ShownValue[]
 }
 
@@ -40,20 +42,26 @@ export function parseCode(source: string, language: CodeLanguage): AlgorithmCode
 	const raw = source.replace(/^\n+|\s+$/g, '').split('\n')
 	const indent = Math.min(...raw.filter((l) => l.trim()).map((l) => l.length - l.trimStart().length))
 	const lines: Record<string, number> = {}
+	const firstTags: Record<number, string> = {}
 	const values: ShownValue[] = []
 	const text = raw.map((line, i) => {
 		const tagged = TAGS.exec(line)
 		for (const tag of tagged ? tagged[2].trim().split(/\s+/) : []) {
-			if (tag[0] === '@') lines[tag.slice(1)] = i
-			else {
+			if (tag[0] === '@') {
+				lines[tag.slice(1)] = i
+				firstTags[i] ??= tag.slice(1)
+			} else {
 				const [name, key = name] = tag.slice(1).split('=')
 				values.push({ line: i, name, key })
 			}
 		}
 		return (tagged ? tagged[1] : line).slice(indent).trimEnd()
 	})
-	return { language, text: text.join('\n'), lines, values }
+	return { language, text: text.join('\n'), lines, firstTags, values }
 }
+
+/** The arrays' algorithms: their tests are written out as they are tested (`tests.ts`). */
+export const testsShown = (algorithm: string) => algorithm in ARRAY_CODE
 
 /** Every algorithm with code, by id (what an operation names as its `code`). */
 export const ALGORITHMS: Record<string, CodeSource> = { ...ARRAY_CODE, ...LIST_CODE, ...TREE_CODE, ...GRAPH_CODE, ...HEAP_CODE, ...HASH_CODE, ...UNION_FIND_CODE }

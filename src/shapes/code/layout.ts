@@ -1,12 +1,17 @@
 import type { TLDefaultSizeStyle, VecLike } from 'tldraw'
 import type { Box } from '../../nodelink/geometry'
-import { CHAR_WIDTH } from '../recursion/calls'
 import { CELL_SIZES } from '../sizes'
 
 // A code box: the code in a monospace font, one line per row, in a box sized to it (never smaller
 // than a short line, so an empty one can be clicked), line numbers in a gutter on the left if shown.
 // Pointers at lines (pc) come from the left: the box starts past the room they take. The in-place
 // editor is laid over the text exactly, so both use these numbers.
+
+/**
+ * tldraw's mono font (IBM Plex Mono) moves 0.6 em a character: the code's columns exactly, so what is
+ * drawn at a column (a test's box, values after a line) sits on its characters.
+ */
+const MONO_ADVANCE = 0.6
 
 /** Spaces a tab becomes (typed Tab indents by as much). */
 export const INDENT = '    '
@@ -19,7 +24,7 @@ export function getCodeMetrics(size: TLDefaultSizeStyle) {
 	return {
 		fontSize,
 		/** A column's width (the mono font's advance, a little over). */
-		charW: fontSize * CHAR_WIDTH.mono,
+		charW: fontSize * MONO_ADVANCE,
 		lineH: Math.round(fontSize * 1.5 * 10) / 10,
 		padX: Math.round(fontSize * 0.75),
 		padY: Math.round(fontSize * 0.5),

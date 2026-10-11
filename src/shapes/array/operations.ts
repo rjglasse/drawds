@@ -385,9 +385,10 @@ export function sortCounts() {
 	return { comparisons: 0, swaps: 0 }
 }
 
-function sorted(r: ReturnType<typeof recorder>, n: number, code: string): ArrayOperation {
+/** The last step, the array sorted; `end`: the loop test that ends it (its line, with i where it fails). */
+function sorted(r: ReturnType<typeof recorder>, n: number, code: string, end: Pick<Step, 'line' | 'pointers'> = {}): ArrayOperation {
 	const { comparisons, swaps } = r.counts
-	r.step(`Sorted: ${comparisons} comparisons, ${swaps} swaps`, { lit: lit(0, n - 1, DONE), ask: false })
+	r.step(`Sorted: ${comparisons} comparisons, ${swaps} swaps`, { lit: lit(0, n - 1, DONE), ask: false, ...end })
 	return { frames: r.frames, result: r.state, code }
 }
 
@@ -459,11 +460,12 @@ export function insertionSort(start: ArrayState): ArrayOperation {
 	if (tests > comparisons) {
 		r.step(
 			`Sorted: ${comparisons} comparisons, ${swaps} swaps. The while test ran ${tests} times, ${tests - comparisons} more: once for each value that reached the front, where j > 0 stops it before it compares anything`,
-			{ lit: lit(0, n - 1, DONE), ask: false }
+			// The for loop's last test, i < n with i = n, is what ends it.
+			{ lit: lit(0, n - 1, DONE), ask: false, line: 'outer', pointers: [ptr('i', n)] }
 		)
 		return { frames: r.frames, result: r.state, code: 'insertion-sort' }
 	}
-	return sorted(r, n, 'insertion-sort')
+	return sorted(r, n, 'insertion-sort', { line: 'outer', pointers: [ptr('i', n)] })
 }
 
 /**
