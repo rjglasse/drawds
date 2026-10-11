@@ -54,6 +54,32 @@ test('marks follow list nodes and go when a node is removed', async ({ page }) =
 	expect(await listMarks(page)).toEqual({})
 })
 
+test('lists and trees mark their arrows too: a next pointer, an edge down; each goes with its node', async ({ page }) => {
+	await sketchList(page, [300, 250], 3)
+	await hoverNode(page, 'n0', 'n1')
+	await page.keyboard.press('2')
+	expect(await listMarks(page)).toEqual({ 'edge:n0->': 'orange' })
+	// The mark is on n0's next pointer: a node put in after n0 leaves it there.
+	await page.getByTestId('insert-on-n0->').click()
+	await page.keyboard.press('Enter')
+	expect(await listMarks(page)).toEqual({ 'edge:n0->': 'orange' })
+	await hoverNode(page, 'n0')
+	await page.getByTestId('remove-node-n0').click()
+	expect(await listMarks(page)).toEqual({})
+	await withEditor(page, (editor) => void editor.deleteShapes([...editor.getCurrentPageShapeIds()]))
+
+	await sketchTree(page, [500, 150], 1)
+	await hoverNode(page, 'n')
+	await page.getByTestId('add-child-n-left').click()
+	await page.keyboard.press('Enter')
+	await hoverNode(page, 'n', 'nL')
+	await page.keyboard.press('3')
+	expect(await treeMarks(page)).toEqual({ 'edge:n->nL': 'green' })
+	await hoverNode(page, 'nL')
+	await page.getByTestId('remove-node-nL').click()
+	expect(await treeMarks(page)).toEqual({})
+})
+
 test("a tree node added where a marked one was removed doesn't inherit its mark", async ({ page }) => {
 	await sketchTree(page, [500, 150], 1)
 	await hoverNode(page, 'n')

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { generateTree, levelIndex, randomTreePaths } from './generate'
-import { getTreeMetrics, nullKey, treeBasePosition, treeRootCentre, treeScene } from './layout'
+import { getTreeMetrics, nullKey, treeBasePosition, treeMarkKeys, treeRootCentre, treeScene } from './layout'
 import { addChild, childId, levelOrder, mirrorSubtree, removeSubtree, swapChildren } from './model'
 import type { TreeNode } from './tree-shape-types'
 
@@ -168,5 +168,14 @@ describe('swap children and mirror', () => {
 		expect(mirrorSubtree(mirrored, 'n')).toEqual(tree)
 		// A subtree only: the rest stays.
 		expect(kids(mirrorSubtree(tree, 'nL'))).toMatchObject({ n: ['nL', 'nR'], nL: [null, 'nLL'], nR: [null, 'nRR'] })
+	})
+})
+
+describe('what can carry a mark', () => {
+	it('each node, and each edge down to a child, as the scene draws it', () => {
+		const nodes = [node('n', ['nL', 'nR']), node('nL', [null, 'nLR']), node('nR'), node('nLR')]
+		expect(treeMarkKeys(nodes)).toEqual(['n', 'nL', 'nR', 'nLR', 'edge:n->nL', 'edge:n->nR', 'edge:nL->nLR'])
+		const drawn = treeScene({ nodes, size: 'm' } as never).edges.map((e) => `edge:${e.key}`)
+		expect(treeMarkKeys(nodes).filter((k) => k.startsWith('edge:')).every((k) => drawn.includes(k))).toBe(true)
 	})
 })

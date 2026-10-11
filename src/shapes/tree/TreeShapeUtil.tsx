@@ -13,7 +13,7 @@ import { bstBuild, bstDeleteSteps, bstExtreme, bstInsertSteps, bstSearch } from 
 import { mulberry32 } from '../../data/random'
 import { seedForSketch } from '../../data/seed'
 import { shuffledOrder } from '../array/rearrange'
-import { legendMarks, nullKey, treeBasePosition, treeScene } from './layout'
+import { legendMarks, nullKey, treeBasePosition, treeMarkKeys, treeScene } from './layout'
 import { pathAndSubtree, termMarks, treeTerms } from './terms'
 import { ORDER_NAMES, traverseTree, type TreeOrder } from './traverse'
 import { measureTree, type TreeMeasure } from './measure'
@@ -30,6 +30,9 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 	static override type = TREE_SHAPE_TYPE
 	static override props = treeShapeProps
 	static override migrations = treeShapeMigrations
+
+	/** A search path's edges, say: point at an edge and press 1-4. */
+	override readonly markableEdges = true
 
 	getDefaultProps(): TreeShape['props'] {
 		return {
@@ -367,10 +370,7 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 			code,
 			withMarks: (_update, highlights) => {
 				const current = (this.editor.getShape(id) as TreeShape | undefined) ?? shape
-				const marks = pruneMarks(
-					{ ...current.props.marks, ...highlights },
-					current.props.nodes.map((n) => n.id)
-				)
+				const marks = pruneMarks({ ...current.props.marks, ...highlights }, treeMarkKeys(current.props.nodes))
 				return this.withMarks(current, marks)
 			},
 		})
@@ -440,10 +440,7 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 			// Shift held: the highlights become marks, in the same undo step as the result.
 			withMarks: (_update, highlights) => {
 				const nodes = result.nodes ?? shape.props.nodes
-				const marks = pruneMarks(
-					{ ...(final?.props?.marks ?? shape.props.marks), ...highlights },
-					nodes.map((n) => n.id)
-				)
+				const marks = pruneMarks({ ...(final?.props?.marks ?? shape.props.marks), ...highlights }, treeMarkKeys(nodes))
 				return final ? { ...final, props: { ...final.props, marks } } : this.withMarks(shape, marks)
 			},
 		})
@@ -451,13 +448,11 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 
 	/**
 	 * New nodes (the root stays where it is on the page: layouts are anchored on it). Marks and pointers
-	 * on removed nodes go with them (ids are paths, so a node added later in the same place mustn't inherit one).
+	 * on removed nodes go with them, and marks on the edges to them (ids are paths, so a node added
+	 * later in the same place mustn't inherit one).
 	 */
 	private withNodes(shape: TreeShape, nodes: TreeNode[]): TLShapePartial<TreeShape> {
-		const marks = pruneMarks(
-			shape.props.marks,
-			nodes.map((n) => n.id)
-		)
+		const marks = pruneMarks(shape.props.marks, treeMarkKeys(nodes))
 		// Pointers may also sit on null markers: any empty slot of a surviving node.
 		const slots = nodes.flatMap((n) => [0, 1].filter((slot) => !n.children[slot]).map((slot) => nullKey(n.id, slot)))
 		const pointers = prunePointers(shape.props.pointers, [...nodes.map((n) => n.id), ...slots])

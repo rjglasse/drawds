@@ -1,6 +1,6 @@
 import type { TLDefaultSizeStyle } from 'tldraw'
 import { pointerAnchor, type Point } from '../../nodelink/geometry'
-import type { Scene, SceneEdge, SceneNode } from '../../nodelink/scene'
+import { edgeCellKey, type Scene, type SceneEdge, type SceneNode } from '../../nodelink/scene'
 import { POINTER_FONT_SCALE, pointerReach } from '../../pointers/layout'
 import type { SketchState } from '../../sketch/line-sketch'
 import { CELL_SIZES } from '../sizes'
@@ -74,6 +74,16 @@ export function listVariant({ links, tail, ends, sentinel, cycleTo, kind = 'list
 		cycleTo: plain && cycleTo && (!nodes || nodes.some((n) => n.id === cycleTo)) ? cycleTo : undefined,
 		names: { head: kind === 'stack' ? 'top' : kind === 'queue' ? 'front' : 'head', tail: kind === 'queue' ? 'rear' : 'tail' },
 	}
+}
+
+/**
+ * What can carry a mark: each node, and each arrow (its next; a doubly linked list's prev; head's and
+ * tail's), as `edge:<key>`. A mark on an arrow stays with the pointer while its node is there.
+ */
+export function listMarkKeys(props: ListLayoutProps): string[] {
+	const v = listVariant(props, props.nodes)
+	const arrows = [...chainKeys(props).flatMap((k) => [`${k}->`, ...(v.doubly ? [`${k}<-`] : [])]), `${HEAD_KEY}->`, ...(v.tail ? [`${TAIL_KEY}->`] : [])]
+	return [...props.nodes.map((n) => n.id), ...arrows.map(edgeCellKey)]
 }
 
 /** The nodes in link order: a sentinel first if there is one, then the list's own. */

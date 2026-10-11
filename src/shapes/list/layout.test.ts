@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { listShapeMigrations, type ListDirection, type ListNode } from './list-shape-types'
-import { HEAD_KEY, NULL_KEY, NULL_PREV_KEY, SENTINEL_KEY, TAIL_KEY, getListMetrics, listBasePosition, listHeadCentre, listScene } from './layout'
+import { HEAD_KEY, NULL_KEY, NULL_PREV_KEY, SENTINEL_KEY, TAIL_KEY, getListMetrics, listBasePosition, listHeadCentre, listMarkKeys, listScene } from './layout'
 
 const M = getListMetrics('m')
 const nodes = (n: number): ListNode[] => Array.from({ length: n }, (_, i) => ({ id: `n${i}`, value: String(i), dx: 0, dy: 0 }))
@@ -167,5 +167,17 @@ describe('linked stacks and queues', () => {
 		expect(old.kind).toBe('list')
 		step.down(old)
 		expect(old).not.toHaveProperty('kind')
+	})
+})
+
+describe('what can carry a mark', () => {
+	it('each node and each arrow drawn: next, a doubly linked list’s prev, head’s and tail’s', () => {
+		expect(listMarkKeys(props(2))).toEqual(['n0', 'n1', 'edge:n0->', 'edge:n1->', `edge:${HEAD_KEY}->`])
+		for (const variant of [{ links: 'doubly' as const, tail: 'tail' as const }, { sentinel: 'sentinel' as const }, { kind: 'queue' as const }]) {
+			const p = { ...props(3), ...variant }
+			const keys = listMarkKeys(p)
+			const edges = listScene(p).edges.map((e) => `edge:${e.key}`)
+			expect(keys.filter((k) => k.startsWith('edge:')).sort()).toEqual(edges.sort())
+		}
 	})
 })

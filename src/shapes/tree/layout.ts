@@ -1,6 +1,6 @@
 import type { TLDefaultSizeStyle } from 'tldraw'
 import type { Point } from '../../nodelink/geometry'
-import type { Scene, SceneEdge, SceneNode } from '../../nodelink/scene'
+import { edgeCellKey, type Scene, type SceneEdge, type SceneNode } from '../../nodelink/scene'
 import { CELL_SIZES } from '../sizes'
 import { byId } from './model'
 import { TERM_COLORS, termsSummary, treeTerms, type NodeTerm } from './terms'
@@ -186,6 +186,11 @@ function termAnnotations(props: LayoutProps, nodes: SceneNode[], m: Metrics): Sc
 }
 
 /** The tree's scene: the automatic layout plus each node's drag offset; null markers follow their parent. */
+/** What can carry a mark: each node, and each edge down to a child (`edge:<parent>-><child>`). */
+export function treeMarkKeys(nodes: readonly TreeShapeProps['nodes'][number][]): string[] {
+	return [...nodes.map((n) => n.id), ...nodes.flatMap((n) => n.children.flatMap((c) => (c ? [edgeCellKey(`${n.id}->${c}`)] : [])))]
+}
+
 export function treeScene(props: LayoutProps): Scene {
 	const scene = baseScene(props)
 	const index = byId(props.nodes)

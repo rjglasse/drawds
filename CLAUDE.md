@@ -646,7 +646,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   label when there is one). A hovered node wins over edges, so node buttons never compete with edge buttons.
 - Edge marks: set `markableEdges = true`; `markKeyAt` then returns `edge:<key>` for an edge near the pointer
   (the same key as the edge's label cell) and SceneSvg draws it heavier in the mark colour. Prune edge marks
-  when edges go (graphs: `markKeys`). Lists and trees don't opt in yet (dds-55z.26.3 notes).
+  when edges go (graphs: `markKeys`; lists: `listMarkKeys`, each node's next and prev arrow and head's and tail's, so a
+  mark stays on a pointer while its node is there; trees: `treeMarkKeys`, the edge down to each child).
 - Editing after a handle drag: tldraw's DraggingHandle returns to idle after `onHandleDragEnd` (which gets the
   initial handle, not the drop point: keep that in your own drag state), so start the edit with
   `editor.timers.setTimeout(..., 0)`. It opens ~30 ms after pointer up; tests should poll for it.

@@ -21,6 +21,7 @@ import {
 	listAxis,
 	listBasePosition,
 	listGrowPoint,
+	listMarkKeys,
 	listScene,
 	listStartGripPoint,
 } from './layout'
@@ -55,6 +56,9 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 	static override type = LIST_SHAPE_TYPE
 	static override props = listShapeProps
 	static override migrations = listShapeMigrations
+
+	/** A next pointer about to change, head's arrow: point at an arrow and press 1-4. */
+	override readonly markableEdges = true
 
 	getDefaultProps(): ListShape['props'] {
 		return {
@@ -497,7 +501,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 			code,
 			// Shift: the highlights become marks, on the nodes still in the list.
 			withMarks: (_update, highlights) => {
-				const keep = (nodes ?? shape.props.nodes).map((n) => n.id)
+				const keep = listMarkKeys({ ...shape.props, ...final?.props, nodes: nodes ?? shape.props.nodes })
 				const marks = pruneMarks({ ...shape.props.marks, ...highlights }, keep)
 				return final ? { ...final, props: { ...final.props, marks } } : this.withMarks(shape, marks)
 			},
@@ -506,7 +510,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 
 	/**
 	 * New nodes, positioned so the first surviving node of `initial` stays put on the page; marks and
-	 * pointers on removed nodes go with them.
+	 * pointers on removed nodes go with them, and marks on their arrows.
 	 */
 	private withNodes(
 		shape: ListShape,
@@ -515,10 +519,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		direction = initial.props.direction
 	): TLShapePartial<ListShape> {
 		const shift = Vec.Rot(anchorShift(initial.props, { ...initial.props, nodes, direction }), initial.rotation)
-		const marks = pruneMarks(
-			initial.props.marks,
-			nodes.map((n) => n.id)
-		)
+		const marks = pruneMarks(initial.props.marks, listMarkKeys({ ...initial.props, nodes }))
 		const pointers = prunePointers(initial.props.pointers, [...nodes.map((n) => n.id), NULL_KEY, SENTINEL_KEY])
 		// A cycle into a node that has gone is gone too.
 		const cycleTo = nodes.some((n) => n.id === initial.props.cycleTo) ? initial.props.cycleTo : ''
