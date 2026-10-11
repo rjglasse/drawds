@@ -71,6 +71,7 @@ import type { ArrayMove } from '../../transcript/array-moves'
 import { withMoves } from '../../transcript/log'
 import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
 import { memoryViewsOf, toggleMemoryView } from '../memory/show'
+import { ringViewsOf, toggleRingView } from '../ring/show'
 import { fisherYates, unfairShuffle, type ShuffleKind } from './shuffles'
 import { everyRunOperation, manyRunsOperation, TALLY_MAX, TREE_MAX, type OutcomesMode } from '../outcomes/outcomes'
 import { openOutcomes } from '../outcomes/OutcomesShapeUtil'
@@ -691,6 +692,17 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			this.indicesToggle(shape),
 			this.codeBesideToggle(shape),
 			this.memoryToggle(shape),
+			// A circular buffer (a queue with a fixed capacity) round a ring, front and rear marching round it.
+			...(shape.props.kind === 'queue' && shape.props.sizing === 'fixed'
+				? [
+						{
+							section: 'show' as const,
+							id: 'array-ring',
+							label: ringViewsOf(this.editor, shape).length ? 'Hide the ring' : 'As a ring beside it: the wrap-around at a glance',
+							run: () => toggleRingView(this.editor, shape),
+						},
+					]
+				: []),
 		]
 	}
 

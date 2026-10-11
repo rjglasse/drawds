@@ -222,6 +222,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   A list's nodes (prev, value, next; a sentinel too) each from a seeded address on, oldest id first, a whole row if
   there is one, so a new head moves no node; next / prev cells hold addresses, arrows chase them (prev dashed), drawn
   under the values. Memory grows a row at a time for nodes that don't fit (crowded leaves every row room for one).
+- `src/shapes/ring/` - a circular buffer as a ring (dds-55z.31): Show > As a ring beside it on a queue with a fixed
+  capacity (`toggleRingView`, placed by `putBeside`) opens a `ring-view` following it, redrawn from it as it renders (a
+  step's values, front and used, and its highlights, as views are); the row stays as it is, closer to the code.
+  `model.ts` is pure (`ringLayout`: cells as slices of a ring about a cell long, index 0 at the top and on clockwise,
+  indices outside, a marker's arrow and name beyond them); values in spare slots faded as on the row, front and rear
+  from `arrayMarkers` (one arrow when they share a cell), "size k of n" in the middle.
 - `src/transcript/` - the code beside a structure (dds-2tt, every structure: arrays, stacks and queues, linked lists, binary trees, graphs, heaps, hash tables, matrices, union-find): every move kept as code. Each
   kind says what its log follows and how a change reads as moves (`Tracked` in `log.ts`): an array's values in use; a
   list's nodes by id (`list-moves.ts`: set / insertAtHead / append / insert / remove / reverse / cycle, exact as nodes
