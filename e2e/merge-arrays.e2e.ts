@@ -63,6 +63,18 @@ test('two sorted arrays merged into a new one: i on a, j on b where it is, k on 
 	await expect(page.getByTestId('play-counts')).toContainText('copies 7')
 	// The result: a new array where c's row was, a and b as they were.
 	expect(await arrays(page)).toEqual(['1 4 7', '2 3 9 12', '1 2 3 4 7 9 12'])
+	// Stepping back or replaying, the steps fill c's row again: the new array waits for the last step.
+	const c = (await shapesOfType(page, 'array'))[2].id
+	const drawnC = page.locator(`[data-shape-id="${c}"] svg`)
+	await expect(drawnC).not.toHaveCount(0)
+	await page.keyboard.press('ArrowLeft')
+	await expect(drawnC).toHaveCount(0)
+	await page.keyboard.press('ArrowRight')
+	await expect(drawnC).not.toHaveCount(0)
+	await page.getByTestId('play-toggle').click()
+	await expect(drawnC).toHaveCount(0)
+	await expect(drawnC).not.toHaveCount(0, { timeout: 20_000 })
+	await expect(page.getByTestId('play-counter')).toHaveText('10/10')
 	await page.keyboard.press('Enter')
 	await expect(page.getByTestId('play-bar')).toHaveCount(0)
 	await expect(page.locator(`[data-shape-id="${b}"] .drawds-flash`)).toHaveCount(0)

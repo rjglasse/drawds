@@ -304,8 +304,10 @@ interface Operation {
 	args?: Record<string, string>
 	/** Other shapes its steps draw (a list merged in), hidden while it is open. */
 	covers?: TLShapeId[]
-	/** More changes in its result's undo step (the list merged in deleted). */
-	onCommit?(): void
+	/** More changes in its result's undo step (the list merged in deleted); the shapes it made, if any. */
+	onCommit?(): TLShapeId[] | void
+	/** Shapes its result made (the array a merge fills): hidden while a step before the last shows. */
+	made?: TLShapeId[]
 	/** When each step came on screen (step, epoch ms), for lining the steps up with a transcript. */
 	shown: [number, number][]
 	/** Told when the operation closes, if it is being recorded. */
@@ -552,8 +554,12 @@ export function playOperation(
 		args?: Record<string, string>
 		/** Other shapes its steps draw (a list being merged in): hidden while it is open. */
 		covers?: TLShapeId[]
-		/** More changes in its result's undo step (the list merged in deleted); not for a replay. */
-		onCommit?(): void
+		/**
+		 * More changes in its result's undo step (the list merged in deleted); not for a replay. It returns
+		 * the shapes it made (the array a merge fills), hidden while a step before the last shows (stepping
+		 * back, the bar's replay), so the steps don't draw over them.
+		 */
+		onCommit?(): TLShapeId[] | void
 	}
 ) {
 	const p = player(editor)
@@ -643,7 +649,8 @@ function show(p: Player, { back = false, still = false } = {}) {
 		question: asked && (asked.ask || DEFAULT_QUESTION),
 		pulse: asked?.askFocus,
 		code: op.code,
-		covers: op.covers,
+		// What the result made shows at its last step, not before.
+		covers: [...(op.covers ?? []), ...(last ? [] : (op.made ?? []))],
 	})
 }
 
@@ -832,7 +839,8 @@ function commit(editor: Editor, keepNow: boolean) {
 			// The code beside it logs the algorithm (bubble_sort(a)), not what a diff would guess (a.sort()).
 			if (op.code) withMoves(editor, op.shapeId, { call: op.code, label: op.label, args: op.args }, () => editor.updateShape(update))
 			else editor.updateShape(update)
-			op.onCommit?.()
+			const made = op.onCommit?.()
+			if (made?.length) op.made = made
 		}
 		const after = editor.getShape(op.shapeId)
 		if (before && after) op.committed = { before, after }

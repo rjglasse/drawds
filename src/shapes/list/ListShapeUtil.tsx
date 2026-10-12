@@ -497,7 +497,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		const first = Number(this.newId(shape.props).slice(1))
 		const ids = other.props.nodes.map((_, k) => `n${first + k}`)
 		const op = mergeSortedLists(shape.props, other.props, { x: b.x - a.x, y: b.y - a.y }, ids)
-		this.play(id, 'merge', () => op, { covers: [otherId], onCommit: () => this.editor.deleteShapes([otherId]) })
+		this.play(id, 'merge', () => op, { covers: [otherId], onCommit: () => void this.editor.deleteShapes([otherId]) })
 	}
 
 	/** An id no node has: one past the highest. */

@@ -30,7 +30,7 @@ import { extendValues, fillValues, insertValue } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
 import { mulberry32, newSeed } from '../../data/random'
 import { seedForSketch } from '../../data/seed'
-import { animationMs, isBusy, otherMarks, parseOtherKey, playOperation, playbackFor, type Frame } from '../../nodelink/playback'
+import { animationMs, isBusy, isCovered, otherMarks, parseOtherKey, playOperation, playbackFor, type Frame } from '../../nodelink/playback'
 import { placePointers, pointerReach, type PointerAnchor } from '../../pointers/layout'
 import { prunePointers, type Pointer } from '../../pointers/pointers'
 import { ARRAY_SHAPE_TYPE, arrayShapeMigrations, arrayShapeProps, usedCount, type ArrayShape } from './array-shape-types'
@@ -580,7 +580,10 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 				const at = getArrayLayout(op.merged.length, getArrayMetrics(props)).cells
 				const page = toPage.applyToPoint(cells)
 				const { x, y } = this.editor.getPointInParentSpace(shape, { x: page.x - at.x, y: page.y - at.y })
-				this.editor.createShape<ArrayShape>({ id: createShapeId(), type: ARRAY_SHAPE_TYPE, parentId: shape.parentId, x, y, props })
+				const made = createShapeId()
+				this.editor.createShape<ArrayShape>({ id: made, type: ARRAY_SHAPE_TYPE, parentId: shape.parentId, x, y, props })
+				// Stepping back or replaying, the steps fill its row again: the new array waits for the last.
+				return [made]
 			},
 		})
 	}
@@ -1233,6 +1236,8 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	}
 
 	component(shape: ArrayShape) {
+		// Hidden while an operation's steps draw it (an array a merge made, its row filling again).
+		if (isCovered(this.editor, shape.id)) return null
 		const colors = this.editor.getCurrentTheme().colors[this.editor.getColorMode()]
 		const editingKey = this.getEditingKey(shape)
 		const { drag, last } = swapState(this.editor)

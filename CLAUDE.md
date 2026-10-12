@@ -457,7 +457,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   recursion tree it opened, the code it showed, and `keepingWhatWasAdded` puts back what the teacher added meanwhile, a
   code box from </>, a pen stroke, as an undo step of its own). An operation whose steps draw another shape too (a list
   merged in) names it in `covers` (hidden meanwhile, `isCovered`) and changes it in `onCommit` (the result's undo
-  step). Once the result is committed the bar stays (`done`):
+  step); a shape `onCommit` makes and returns (the array a merge fills) is covered while a step before the last
+  shows, so stepping back or the bar's replay draw the steps, not it. Once the result is committed the bar stays (`done`):
   step back through it or replay it, then Done / Enter / Esc, or select something else / edit the shape;
   `isBusy` says when the shape's own controls should hide. Once the result is in, a step with no props or scene of
   its own shows the structure as it was before (`committed.before`), the last step the result (`isLastFrame`). Operations open paused on step 1 so the teacher sets
