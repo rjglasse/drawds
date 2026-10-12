@@ -1,7 +1,7 @@
 import { Box, type Editor, type TLShape } from 'tldraw'
 import { CellShapeUtil } from '../cells/CellShapeUtil'
 import { followersOf } from '../cells/followers'
-import { completeOperation, currentPlayback, openOperation, showStep } from '../nodelink/playback'
+import { completeOperation, currentPlayback, openOperation, othersOf, showStep } from '../nodelink/playback'
 import { stepFileName } from './caption'
 import { whileExportingSteps } from './exporting'
 import { stepExtent, stepHeader } from './StepExtrasSvg'
@@ -53,7 +53,8 @@ export async function exportSteps(
 	const util = first && editor.getShapeUtil(first)
 	if (!first || !(util instanceof CellShapeUtil) || !util.playbackLayout) return []
 	const cellUtil = util as CellShapeUtil<TLShape>
-	const ids = [first.id, ...followersOf(editor, first.id).map((s) => s.id)]
+	// The views following it, and any other shape its steps light (an array merged in).
+	const ids = [first.id, ...followersOf(editor, first.id).map((s) => s.id), ...othersOf(currentPlayback(editor)?.frames ?? [])]
 	/** The page area step `k` takes: the shapes, and what the step adds beyond them. */
 	const area = () => {
 		const shape = shapeOf()!

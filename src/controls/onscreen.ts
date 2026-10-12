@@ -24,12 +24,15 @@ const MIN_ZOOM = 0.4
 /**
  * The camera that shows `box` (page space) inside `room` (screen space), or undefined if it already
  * does: the same zoom panned as little as can be, else zoomed out to fit (not past MIN_ZOOM) and placed
- * at the top of the room, centred across it. tldraw's screen point is (page + camera) × zoom.
+ * at the top of the room, centred across it. `zoom: false` only pans: a box bigger than the room shows
+ * its top left. tldraw's screen point is (page + camera) × zoom.
  */
-export function cameraToShow(camera: Camera, room: Rect, box: Rect): Camera | undefined {
-	const z = Math.max(MIN_ZOOM, Math.min(camera.z, room.w / box.w, room.h / box.h))
+export function cameraToShow(camera: Camera, room: Rect, box: Rect, { zoom = true }: { zoom?: boolean } = {}): Camera | undefined {
+	const z = zoom ? Math.max(MIN_ZOOM, Math.min(camera.z, room.w / box.w, room.h / box.h)) : camera.z
 	if (z < camera.z) return { x: (room.x + (room.w - box.w * z) / 2) / z - box.x, y: room.y / z - box.y, z }
-	const shift = (at: number, size: number, from: number, length: number) => (at < from ? from - at : at + size > from + length ? from + length - (at + size) : 0)
+	// Too big to show whole: its start, if that is off the room.
+	const shift = (at: number, size: number, from: number, length: number) =>
+		size > length ? (at < from || at > from + length ? from - at : 0) : at < from ? from - at : at + size > from + length ? from + length - (at + size) : 0
 	const dx = shift((box.x + camera.x) * z, box.w * z, room.x, room.w)
 	const dy = shift((box.y + camera.y) * z, box.h * z, room.y, room.h)
 	return dx || dy ? { x: camera.x + dx / z, y: camera.y + dy / z, z } : undefined
@@ -38,8 +41,8 @@ export function cameraToShow(camera: Camera, room: Rect, box: Rect): Camera | un
 /** Room kept around what is shown (screen px): the menus at the top, the toolbar and the play bar below, a margin. */
 const MARGIN = { left: 16, top: 56, right: 16, bottom: 190 }
 
-/** Move the camera, if need be, so these shapes are all on screen, clear of the style panel. */
-export function keepOnScreen(editor: Editor, ids: readonly TLShapeId[]) {
+/** Move the camera, if need be, so these shapes are all on screen, clear of the style panel (`zoom: false`: only pan). */
+export function keepOnScreen(editor: Editor, ids: readonly TLShapeId[], options: { zoom?: boolean } = {}) {
 	const boxes = ids.flatMap((id) => editor.getShapePageBounds(id) ?? [])
 	if (!boxes.length) return
 	const box = Box.Common(boxes)
@@ -49,6 +52,6 @@ export function keepOnScreen(editor: Editor, ids: readonly TLShapeId[]) {
 	const container = editor.getContainer().getBoundingClientRect()
 	const right = panel ? Math.max(MARGIN.right, container.right - panel.left + MARGIN.right) : MARGIN.right
 	const room = { x: MARGIN.left, y: MARGIN.top, w: screen.w - MARGIN.left - right, h: screen.h - MARGIN.top - MARGIN.bottom }
-	const camera = cameraToShow(editor.getCamera(), room, { x: box.x, y: box.y, w: box.w, h: box.h })
+	const camera = cameraToShow(editor.getCamera(), room, { x: box.x, y: box.y, w: box.w, h: box.h }, options)
 	if (camera) editor.setCamera(camera, { animation: { duration: 320 } })
 }

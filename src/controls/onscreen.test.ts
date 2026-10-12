@@ -34,4 +34,14 @@ describe('keeping what an operation opens on screen', () => {
 		expect(cameraToShow({ x: 0, y: 0, z: 0.5 }, room, { x: 100, y: 200, w: 100, h: 100 })).toBeUndefined()
 		expect(cameraToShow({ x: 0, y: 0, z: 1 }, room, { x: 0, y: 0, w: 10000, h: 100 })!.z).toBe(0.4)
 	})
+
+	it('only panned when it mustn’t zoom (a code box): one too big shows its top left, left alone if that shows', () => {
+		const tall = { x: 900, y: 100, w: 500, h: 2000 }
+		const c = cameraToShow({ x: 0, y: 0, z: 1 }, room, tall, { zoom: false })!
+		expect(c.z).toBe(1)
+		const s = onScreen(c, tall)
+		expect(s.x + s.w).toBeCloseTo(room.x + room.w)
+		expect(s.y).toBe(100)
+		expect(cameraToShow({ x: 0, y: 0, z: 1 }, room, { x: 100, y: -50, w: 500, h: 2000 }, { zoom: false })).toEqual({ x: 0, y: 106, z: 1 })
+	})
 })

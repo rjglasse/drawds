@@ -65,7 +65,7 @@ export function frameSlides(swaps: readonly [string, string][] = [], moves: read
 		from[Number(a)] = Number(b)
 		from[Number(b)] = Number(a)
 	}
-	for (const [a, b] of moves) if (!a.startsWith(AUX) && !b.startsWith(AUX)) from[Number(b)] = Number(a)
+	for (const [a, b] of moves) if (/^-?\d+$/.test(a) && /^-?\d+$/.test(b)) from[Number(b)] = Number(a)
 	return from
 }
 
@@ -78,13 +78,18 @@ export function crossSlides(moves: readonly [string, string][] = []) {
 	const toAux: Record<number, number> = {}
 	const toMain: Record<number, number> = {}
 	const inAux: Record<number, number> = {}
+	/** Into the second row from another shape's cell (an array merged in): aux index -> that cell's key. */
+	const fromOther: Record<number, string> = {}
 	const auxIndex = (key: string) => Number(key.slice(AUX.length))
+	const isIndex = (key: string) => /^-?\d+$/.test(key)
 	for (const [a, b] of moves) {
 		if (b.startsWith(AUX) && a.startsWith(AUX)) inAux[auxIndex(b)] = auxIndex(a)
-		else if (b.startsWith(AUX)) toAux[auxIndex(b)] = Number(a)
-		else if (a.startsWith(AUX)) toMain[Number(b)] = auxIndex(a)
+		else if (b.startsWith(AUX)) {
+			if (isIndex(a)) toAux[auxIndex(b)] = Number(a)
+			else fromOther[auxIndex(b)] = a
+		} else if (a.startsWith(AUX)) toMain[Number(b)] = auxIndex(a)
 	}
-	return { toAux, toMain, inAux }
+	return { toAux, toMain, inAux, fromOther }
 }
 
 /** Slides for a rearrangement: `order[i]` is the old index of the value now at i. */

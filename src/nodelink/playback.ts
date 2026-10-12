@@ -90,7 +90,24 @@ export interface Frame {
 	 * loop invariant over the part done so far).
 	 */
 	band?: { from: number; to: number; label: string }
+	/**
+	 * Highlights on other shapes' cells at this step, by shape id (an array being merged in: the cell
+	 * j is on), drawn by those shapes (`otherMarks`); a pointer at one is at `otherKey(id, cell)`.
+	 */
+	others?: Record<string, Marks>
 }
+
+/** A step's pointer at another shape's cell (an array being merged in): `at` for it. */
+export const otherKey = (id: string, cell: string) => `${id}#${cell}`
+
+/** The shape and cell an `otherKey` names, if it names one. */
+export function parseOtherKey(key: string): { id: TLShapeId; cell: string } | undefined {
+	const at = key.lastIndexOf('#')
+	return at > 0 ? { id: key.slice(0, at) as TLShapeId, cell: key.slice(at + 1) } : undefined
+}
+
+/** Shapes an operation's steps light besides its own (exported with it). */
+export const othersOf = (frames: readonly Frame[]): TLShapeId[] => [...new Set(frames.flatMap((f) => Object.keys(f.others ?? {})))] as TLShapeId[]
 
 /**
  * A shuffle's outcomes at a step: every run as a tree, revealed down to pick `level` (past the last
@@ -479,6 +496,12 @@ export function currentPlayback(editor: Editor): PlaybackView | null {
 }
 
 /** Whether an open operation's steps draw this shape (a list being merged in): it isn't drawn itself meanwhile. Reactive. */
+/** The highlights the open operation's step puts on this shape's cells (it is merged in), if any. Reactive. */
+export function otherMarks(editor: Editor, shapeId: TLShapeId): Marks | undefined {
+	const view = player(editor).view.get()
+	return view && !view.fading && view.shapeId !== shapeId ? view.frame?.others?.[shapeId] : undefined
+}
+
 export function isCovered(editor: Editor, shapeId: TLShapeId): boolean {
 	const view = player(editor).view.get()
 	return !!view?.covers?.includes(shapeId) && !view.fading

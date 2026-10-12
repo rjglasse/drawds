@@ -1,7 +1,9 @@
 import type { CSSProperties } from 'react'
 import {
+	Box,
 	Group2d,
 	Rectangle2d,
+	createShapeId,
 	SVGContainer,
 	getColorValue,
 	getIndices,
@@ -28,8 +30,8 @@ import { extendValues, fillValues, insertValue } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
 import { mulberry32, newSeed } from '../../data/random'
 import { seedForSketch } from '../../data/seed'
-import { animationMs, isBusy, playOperation, playbackFor, type Frame } from '../../nodelink/playback'
-import { placePointers, type PointerAnchor } from '../../pointers/layout'
+import { animationMs, isBusy, otherMarks, parseOtherKey, playOperation, playbackFor, type Frame } from '../../nodelink/playback'
+import { placePointers, pointerReach, type PointerAnchor } from '../../pointers/layout'
 import { prunePointers, type Pointer } from '../../pointers/pointers'
 import { ARRAY_SHAPE_TYPE, arrayShapeMigrations, arrayShapeProps, usedCount, type ArrayShape } from './array-shape-types'
 import { arrayCells } from './cells'
@@ -73,6 +75,7 @@ import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
 import { memoryViewsOf, toggleMemoryView } from '../memory/show'
 import { ringViewsOf, toggleRingView } from '../ring/show'
 import { bogosort, bozosort } from './bogo'
+import { canMergeValues, mergeArrays } from './merge'
 import { startSound } from '../../sound/player'
 import { fisherYates, unfairShuffle, type ShuffleKind } from './shuffles'
 import { everyRunOperation, manyRunsOperation, TALLY_MAX, TREE_MAX, type OutcomesMode } from '../outcomes/outcomes'
@@ -503,6 +506,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 							},
 						},
 					]),
+			...this.mergeOperations(shape),
 			// Summing recursively, two ways, each with its recursion tree beside the array.
 			...(usedCount(shape.props) < 1 || !allNumbers(shape.props.values.slice(0, usedCount(shape.props)))
 				? []
@@ -521,6 +525,64 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			this.codeBesideToggle(shape),
 			this.memoryToggle(shape),
 		]
+	}
+
+	/**
+	 * Merge it with another sorted array on the page, step by step (dds-55z.20.10): into a new array
+	 * under it, the two left as they were. Plain growing arrays in a row, both sorted.
+	 */
+	private mergeOperations(shape: ArrayShape): NodeOperation[] {
+		const mergeable = (s: ArrayShape) => s.props.kind === 'array' && s.props.sizing === 'grows' && s.props.direction === 'horizontal'
+		if (!mergeable(shape)) return []
+		const others = this.editor
+			.getCurrentPageShapes()
+			.filter((s): s is ArrayShape => s.type === ARRAY_SHAPE_TYPE && s.id !== shape.id && mergeable(s as ArrayShape))
+			.filter((s) => canMergeValues(shape.props.values, s.props.values))
+		return others.map((other, k) => ({
+			group: 'merge',
+			submenu: 'Sorts',
+			id: others.length === 1 ? 'array-merge' : `array-merge-${k + 1}`,
+			label: `Merge with the sorted array [${other.props.values.join(', ')}]`,
+			run: () => this.mergeWith(shape.id, other.id),
+		}))
+	}
+
+	/** Merge sorted `otherId` with array `id` into a new array, made under it when the result goes in (one undo step). */
+	private mergeWith(id: ArrayShape['id'], otherId: ArrayShape['id']) {
+		const [shape, other] = [this.editor.getShape(id) as ArrayShape | undefined, this.editor.getShape(otherId) as ArrayShape | undefined]
+		if (!shape || !other) return
+		const { values, marks } = shape.props
+		const n = values.length + other.props.values.length
+		const metrics = getArrayMetrics(shape.props)
+		const layout = getArrayLayout(values.length, metrics)
+		// The new array's row: room above its cells for k; under the other array if that is in the way
+		// (with room above it for j).
+		const gap = pointerReach(this.getPointerFontSize(shape))
+		const toPage = this.editor.getShapePageTransform(shape)
+		const rowOnPage = (drop: number) => {
+			const { x, y, w, h } = getAuxLayout(n, metrics, layout, { drop, gap }).bounds
+			return Box.FromPoints([toPage.applyToPoint({ x, y }), toPage.applyToPoint({ x: x + w, y: y + h })])
+		}
+		const otherBox = this.editor.getShapePageBounds(other)
+		const clear = otherBox && new Box(otherBox.x, otherBox.y - gap, otherBox.w, otherBox.h + gap)
+		const drop = clear && rowOnPage(0).collides(clear) ? clear.maxY + metrics.fontSize * 0.6 - rowOnPage(0).y : 0
+		const op = mergeArrays({ values, marks }, other.props.values, otherId, { drop, gap })
+		const cells = getAuxLayout(n, metrics, layout, { drop, gap }).cells
+		playOperation(this.editor, {
+			shapeId: id,
+			label: 'merge',
+			frames: op.frames,
+			// Nothing in the array changes, but the result goes in: the new array.
+			final: { id, type: ARRAY_SHAPE_TYPE },
+			code: op.code,
+			onCommit: () => {
+				const props: ArrayShape['props'] = { ...shape.props, values: op.merged, marks: {}, pointers: [], used: op.merged.length, front: 0 }
+				const at = getArrayLayout(op.merged.length, getArrayMetrics(props)).cells
+				const page = toPage.applyToPoint(cells)
+				const { x, y } = this.editor.getPointInParentSpace(shape, { x: page.x - at.x, y: page.y - at.y })
+				this.editor.createShape<ArrayShape>({ id: createShapeId(), type: ARRAY_SHAPE_TYPE, parentId: shape.parentId, x, y, props })
+			},
+		})
 	}
 
 	/** The code beside it (every move made on it, as code), or not: Show in the menu. */
@@ -1052,7 +1114,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const body = new Rectangle2d({ x: box.x, y: box.y, width: box.w, height: box.h, isFilled: true })
 		// A second row (a new array being filled) lies under or right of the array: inside the box.
 		const aux = this.displayAux(shape)
-		const auxBounds = aux && getAuxLayout(aux.values.length, metrics, layout).bounds
+		const auxBounds = aux && getAuxLayout(aux.values.length, metrics, layout, aux).bounds
 		const extra = auxBounds ? [new Rectangle2d({ x: auxBounds.x, y: auxBounds.y, width: auxBounds.w, height: auxBounds.h, isFilled: true })] : []
 		const pointers = this.pointerGeometry(shape)
 		if (!pointers.length && !extra.length) return body
@@ -1098,12 +1160,24 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const { values } = shown.props
 		const layout = getArrayLayout(values.length, metrics)
 		const framePointers = this.framePointers(shape, frame)
+		const aux = this.displayAux(shape, frame)
 		const slots = framePointers
-			? this.offEndSlots(shown, framePointers).map((i) => ({ ...layout.cellAt(i), w: metrics.cell, h: metrics.cell }))
+			? [
+					...this.offEndSlots(shown, framePointers).map((i) => ({ ...layout.cellAt(i), w: metrics.cell, h: metrics.cell })),
+					// One past the end of an array merged in (j once it is used up).
+					...framePointers.flatMap((p) => {
+						const other = parseOtherKey(p.at)
+						const there = other && (this.editor.getShape(other.id) as ArrayShape | undefined)
+						const past = other && there?.type === ARRAY_SHAPE_TYPE && Number(other.cell) === there.props.values.length
+						const anchor = past ? this.stepAnchor(shown, aux, p.at) : undefined
+						return anchor ? [anchor.box] : []
+					}),
+					// One past the end of the second row (k once every value is in).
+					...framePointers.flatMap((p) => (aux && p.at === `aux:${aux.values.length}` ? [this.stepAnchor(shown, aux, p.at)!.box] : [])),
+				]
 			: []
 		const sceneMetrics = { fontSize: metrics.fontSize, labelFontSize: metrics.indexFontSize, strokeWidth: metrics.strokeWidth }
-		const aux = this.displayAux(shape, frame)
-		const auxBounds = aux && getAuxLayout(aux.values.length, metrics, layout).bounds
+		const auxBounds = aux && getAuxLayout(aux.values.length, metrics, layout, aux).bounds
 		const below = Math.max(layout.box.y + layout.box.h, ...slots.map((b) => b.y + b.h), auxBounds ? auxBounds.y + auxBounds.h : -Infinity)
 		// The step's band: under a row of cells (past the indices), or right of a column.
 		const band: Band | undefined = frame?.band && this.bandFor(layout, metrics, frame.band, below)
@@ -1116,11 +1190,34 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			color: shape.props.color,
 			fontFamily: this.getFontFamily(shape),
 			pointers: framePointers && {
-				placed: placePointers(framePointers, (key) => this.pointerAnchor(shown, key), this.getPointerFontSize(shape), { apart: true }),
+				placed: placePointers(framePointers, (key) => this.stepAnchor(shown, aux, key), this.getPointerFontSize(shape), { apart: true }),
 				fontSize: this.getPointerFontSize(shape),
 				slots,
 			},
 		}
+	}
+
+	/**
+	 * Where a step's pointer goes: at a cell (or just past either end), at a cell of its second row
+	 * (`aux:<k>`, from above), or at a cell of another shape (`otherKey`: an array merged in), in this
+	 * shape's space.
+	 */
+	private stepAnchor(shown: ArrayShape, aux: AuxRow | undefined, key: string): PointerAnchor | undefined {
+		if (key.startsWith('aux:')) {
+			if (!aux) return undefined
+			const metrics = getArrayMetrics(shown.props)
+			const at = getAuxLayout(aux.values.length, metrics, getArrayLayout(shown.props.values.length, metrics), aux).cellAt(Number(key.slice(4)))
+			return { box: { ...at, w: metrics.cell, h: metrics.cell }, side: 'above' }
+		}
+		const other = parseOtherKey(key)
+		if (!other) return this.pointerAnchor(shown, key)
+		const there = this.editor.getShape(other.id)
+		const util = there && this.editor.getShapeUtil(there)
+		const anchor = there && util instanceof CellShapeUtil ? util.pointerAnchor?.(there, other.cell) : undefined
+		if (!there || !anchor) return undefined
+		const page = this.editor.getShapePageTransform(there).applyToPoint(anchor.box)
+		const here = this.editor.getShapePageTransform(shown.id).clone().invert().applyToPoint(page)
+		return { box: { ...anchor.box, x: here.x, y: here.y }, side: anchor.side }
 	}
 
 	/** Where a step's band goes: along cells from..to, under them in a row (below `under`), right of them in a column. */
@@ -1152,7 +1249,12 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 					? swapped
 					: undefined
 		const aux = this.displayAux(shape)
-		const cross = frame?.moves?.length && playing ? { ...crossSlides(frame.moves), id: playing.id } : undefined
+		const crossing = frame?.moves?.length && playing ? crossSlides(frame.moves) : undefined
+		// Values copied in from another shape (an array merged in) come from its cell, wherever it is.
+		const fromAt = crossing && Object.fromEntries(Object.entries(crossing.fromOther).map(([k, key]) => [k, this.stepAnchor(shape, aux, key)?.box]))
+		const cross = crossing && playing ? { ...crossing, fromAt, id: playing.id } : undefined
+		// Lit by an operation playing on another shape (this array is being merged in).
+		const lent = playing ? undefined : otherMarks(this.editor, shape.id)
 		return (
 			<>
 				<SVGContainer>
@@ -1164,7 +1266,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 						hiddenIndex={editingKey === undefined ? undefined : Number(editingKey)}
 						drag={dragging?.shapeId === shape.id ? dragging : undefined}
 						slides={slides}
-						flash={playing && { marks: playing.flash, fading: playing.fading, id: playing.id }}
+						flash={playing ? { marks: playing.flash, fading: playing.fading, id: playing.id } : lent && { marks: lent, fading: false, id: 0 }}
 						dim={playing && !playing.fading ? (playing.dim ?? []) : undefined}
 						pulse={playing && !playing.fading ? playing.pulse : undefined}
 						badges={playing && !playing.fading ? playing.badges : undefined}
@@ -1219,9 +1321,18 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 				</>
 			)
 		}
+		// An array merged in, exported with the merge's steps: lit as the step lights it.
+		const lent = otherMarks(this.editor, shape.id)
 		return (
 			<>
-				<ArraySvg shape={shape} colors={colors} fontFamily={this.getFontFamily(shape)} offEnd={this.offEndSlots(shape)} cues={showsColourCues()} />
+				<ArraySvg
+					shape={shape}
+					colors={colors}
+					fontFamily={this.getFontFamily(shape)}
+					offEnd={this.offEndSlots(shape)}
+					flash={lent && { marks: lent, fading: false, id: 0 }}
+					cues={showsColourCues()}
+				/>
 				{this.renderPointers(shape, colors, { exporting: true })}
 			</>
 		)
@@ -1317,8 +1428,14 @@ function ArraySvg({
 	pulse?: readonly string[]
 	/** Canvas only: a second row under the array, such as a new array being filled. */
 	aux?: AuxRow
-	/** Values moving between the array and the second row this step, or within the second row. */
-	cross?: { toAux: Record<number, number>; toMain: Record<number, number>; inAux?: Record<number, number>; id: number }
+	/** Values moving between the array and the second row this step, or within the second row, or into it from another shape's cells (`fromAt`, this shape's space). */
+	cross?: {
+		toAux: Record<number, number>
+		toMain: Record<number, number>
+		inAux?: Record<number, number>
+		fromAt?: Record<number, { x: number; y: number } | undefined>
+		id: number
+	}
 	/** Colour-blind cues: marked and highlighted cells get a shape badge (`cues.ts`). */
 	cues?: boolean
 }) {
@@ -1358,7 +1475,7 @@ function ArraySvg({
 	}
 	const slideStyle = arcs(slides?.from, cellAt)
 	const dimmed = new Set(dim)
-	const auxLayout = aux && getAuxLayout(aux.values.length, metrics, layout)
+	const auxLayout = aux && getAuxLayout(aux.values.length, metrics, layout, aux)
 	// The second row's values sliding within it (a copy being sorted), arcing as the array's do.
 	const auxSlideStyle = auxLayout && arcs(cross?.inAux, auxLayout.cellAt)
 	// Values moving up from a second row the step no longer draws (a = newArr): where it was, as
@@ -1638,14 +1755,15 @@ function ArraySvg({
 						const { x, y } = auxLayout.cellAt(j)
 						const down = cross?.toAux[j]
 						const along = auxSlideStyle?.(j)
+						const from = down !== undefined ? cellAt(down) : cross?.fromAt?.[j]
 						return (
 							<text
-								key={down !== undefined ? `aux${j}:${cross!.id}` : along ? `aux${j}:in-${cross!.id}` : `aux${j}`}
+								key={from ? `aux${j}:${cross!.id}` : along ? `aux${j}:in-${cross!.id}` : `aux${j}`}
 								x={x + cell / 2}
 								y={y + cell / 2}
 								fontSize={textSize(value)}
 								fill={colors.text}
-								style={down !== undefined ? crossStyle(auxLayout.cellAt(j), cellAt(down)) : along}
+								style={from ? crossStyle(auxLayout.cellAt(j), from) : along}
 							>
 								{value}
 							</text>

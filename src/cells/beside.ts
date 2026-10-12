@@ -1,4 +1,4 @@
-import { createShapeId, type Editor, type TLShape, type TLShapePartial } from 'tldraw'
+import { createShapeId, type Editor, type TLShape, type TLShapeId, type TLShapePartial } from 'tldraw'
 import { followedBy } from './followers'
 
 // Where a shape that follows a structure goes when it is opened (the code beside it, its memory):
@@ -41,7 +41,7 @@ export function spotBeside(structure: Rect, box: Rect, others: readonly Rect[], 
  * sits outside its box) and anything already following it, top-aligned; further right or under it if
  * something else is in the way there (`spotBeside`, once the new shape's size is known).
  */
-export function putBeside<S extends TLShape>(editor: Editor, structure: TLShape, shape: Omit<TLShapePartial<S>, 'id' | 'x' | 'y' | 'parentId'>) {
+export function putBeside<S extends TLShape>(editor: Editor, structure: TLShape, shape: Omit<TLShapePartial<S>, 'id' | 'x' | 'y' | 'parentId'>): TLShapeId | undefined {
 	const bounds = editor.getShapePageBounds(structure)
 	const page = editor.getAncestorPageId(structure)
 	if (!bounds || !page) return
@@ -54,8 +54,9 @@ export function putBeside<S extends TLShape>(editor: Editor, structure: TLShape,
 	const [x, y] = [right + GAP, bounds.minY]
 	editor.createShape({ ...shape, id, parentId: page, x, y } as TLShapePartial)
 	const box = editor.getShapePageBounds(id)
-	if (!box) return
+	if (!box) return id
 	const others = shapes.filter((s) => s.id !== structure.id).flatMap((s) => editor.getShapePageBounds(s) ?? [])
 	const by = spotBeside(bounds, box, others)
 	if (by.x || by.y) editor.updateShape({ id, type: shape.type, x: x + by.x, y: y + by.y } as TLShapePartial)
+	return id
 }

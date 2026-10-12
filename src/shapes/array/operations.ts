@@ -21,6 +21,9 @@ export interface AuxRow {
 	values: string[]
 	/** Its cells lit at this step, by index (the neighbours being compared). */
 	marks?: Record<number, MarkColor>
+	/** Room above its title (to clear something in the way: an array being merged in), and between the title and its cells (for pointers). */
+	drop?: number
+	gap?: number
 }
 
 /**
@@ -76,6 +79,8 @@ interface Step {
 	band?: Frame['band']
 	/** Small notes in cells' corners, by index, kept for later steps ('' takes one away). */
 	badges?: Record<string, string>
+	/** Highlights on other shapes' cells (an array being merged in), by shape id. */
+	others?: Frame['others']
 }
 
 /**
@@ -117,7 +122,7 @@ export function recorder(start: ArrayState, counts: Record<string, number>) {
 		set(next: ArrayState) {
 			state = next
 		},
-		step(caption: string, { lit: next = {}, pointers = [], dim = [], swaps, moves, strips, ask, askFocus, calls, line, band, badges }: Step = {}) {
+		step(caption: string, { lit: next = {}, pointers = [], dim = [], swaps, moves, strips, ask, askFocus, calls, line, band, badges, others }: Step = {}) {
 			const flash: Record<string, MarkColor | null> = {}
 			for (const key of Object.keys(shown)) if (!next[key]) flash[key] = null
 			for (const [key, color] of Object.entries(next)) if (shown[key] !== color) flash[key] = color
@@ -140,6 +145,7 @@ export function recorder(start: ArrayState, counts: Record<string, number>) {
 				...(line ? { line } : {}),
 				...(band ? { band } : {}),
 				...(badges ? { badges } : {}),
+				...(others ? { others } : {}),
 				...(Object.keys(vars).length ? { vars: { ...vars } } : {}),
 				...(Object.keys(runs).length ? { runs: { ...runs } } : {}),
 			})

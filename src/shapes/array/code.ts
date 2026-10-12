@@ -950,6 +950,59 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			    for k in range(len(merged)):            @copy-loop
 			        a[lo + k] = merged[k]               @copy`,
 	},
+	// Two sorted arrays merged into a new one (dds-55z.20.10): merge sort's merge, without the halves.
+	'merge-arrays': {
+		c: String.raw`
+			int *merge(int a[], int n, int b[], int m) {
+			    int *c = malloc((n + m) * sizeof(int));        @alloc
+			    int i = 0, j = 0, k = 0;                       @start
+			    while (i < n && j < m) {                       @loop $i $j $k
+			        if (a[i] <= b[j])                          @compare
+			            c[k++] = a[i++];                       @left
+			        else
+			            c[k++] = b[j++];                       @right
+			    }
+			    while (i < n)                                  @rest-left-loop
+			        c[k++] = a[i++];                           @rest-left
+			    while (j < m)                                  @rest-right-loop
+			        c[k++] = b[j++];                           @rest-right
+			    return c;                                      @return
+			}`,
+		java: String.raw`
+			int[] merge(int[] a, int[] b) {
+			    int[] c = new int[a.length + b.length];             @alloc
+			    int i = 0, j = 0, k = 0;                            @start
+			    while (i < a.length && j < b.length) {              @loop $i $j $k
+			        if (a[i] <= b[j])                               @compare
+			            c[k++] = a[i++];                            @left
+			        else
+			            c[k++] = b[j++];                            @right
+			    }
+			    while (i < a.length)                                @rest-left-loop
+			        c[k++] = a[i++];                                @rest-left
+			    while (j < b.length)                                @rest-right-loop
+			        c[k++] = b[j++];                                @rest-right
+			    return c;                                           @return
+			}`,
+		python: String.raw`
+			def merge(a, b):
+			    c = []                                  @alloc
+			    i, j = 0, 0                             @start
+			    while i < len(a) and j < len(b):        @loop $i $j
+			        if a[i] <= b[j]:                    @compare
+			            c.append(a[i])                  @left
+			            i += 1                          @next-i
+			        else:
+			            c.append(b[j])                  @right
+			            j += 1                          @next-j
+			    while i < len(a):                       @rest-left-loop
+			        c.append(a[i])                      @rest-left
+			        i += 1                              @rest-next-i
+			    while j < len(b):                       @rest-right-loop
+			        c.append(b[j])                      @rest-right
+			        j += 1                              @rest-next-j
+			    return c                                @return`,
+	},
 	'unfair-shuffle': {
 		c: String.raw`
 			void shuffleArray(int numbers[], int len) {

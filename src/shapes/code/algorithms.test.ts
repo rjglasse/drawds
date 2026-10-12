@@ -35,6 +35,7 @@ import {
 } from '../list/operations'
 import { mergeSortList, mergeSortedLists } from '../list/merge'
 import { bogosort, bozosort } from '../array/bogo'
+import { mergeArrays } from '../array/merge'
 import { dequeueFrom, enqueueOnto, peekAt, popFrom, pushOnto } from '../list/stack-queue'
 import { countNodes } from '../list/size'
 import { deleteKey, findKey, insertEntry, rehash, buildTable } from '../hash/hash'
@@ -154,6 +155,8 @@ describe('algorithm code', () => {
 			quicksort(array(7, 2, 9, 1, 5, 3, 8), 'quicksort-cutoff', { cutoff: 3 }),
 			hoarePartition(array(5, 2, 9, 1, 7, 3)),
 			mergeSort(array(7, 2, 9, 1, 5, 3)),
+			mergeArrays(array(1, 4, 7), ['2', '3', '9'], 'shape:b', { drop: 0, gap: 0 }),
+			mergeArrays(array(5, 9), ['2'], 'shape:b', { drop: 0, gap: 0 }),
 			unfairShuffle(array(7, 2, 9, 1), mulberry32(3)),
 			fisherYates(array(7, 2, 9, 1), mulberry32(3)),
 			// Insert and delete by shifting, growing and with a fixed capacity; lecture 6's ArrayQueue.

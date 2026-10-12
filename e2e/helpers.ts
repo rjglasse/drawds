@@ -37,7 +37,7 @@ export async function rightClick(page: Page, at: [number, number]) {
 
 /** Where an array's Step by step item sits: in a category of its own (stacks and queues have none). */
 function arrayCategory(item: string): string {
-	if (/^array-(insertion-sort|selection-sort|bubble-sort|partition|quicksort|hoare-partition|merge-sort|sort-growth|selection-passes|insertion-passes|bogosort|bozosort)/.test(item)) return 'sorts'
+	if (/^array-(insertion-sort|selection-sort|bubble-sort|partition|quicksort|hoare-partition|merge-sort|sort-growth|selection-passes|insertion-passes|bogosort|bozosort|merge$|merge-\d)/.test(item)) return 'sorts'
 	if (/^array-(unfair|fisher-yates)/.test(item)) return 'shuffles'
 	return 'basics'
 }
@@ -244,8 +244,13 @@ export async function nodeScreenPosition(page: Page, ...keys: string[]): Promise
 	return at!
 }
 
-/** Move the pointer to a node (or between nodes); with a mouse, node and edge controls only appear near it. */
+/**
+ * Move the pointer to a node (or between nodes); with a mouse, node and edge controls only appear near it.
+ * Once the camera is still: opening a code box can pan it (`keepOnScreen`), and a node moving away from
+ * under the pointer loses its controls.
+ */
 export async function hoverNode(page: Page, ...keys: string[]) {
+	await page.waitForFunction(() => window.editor!.getCameraState() === 'idle')
 	await page.mouse.move(...(await nodeScreenPosition(page, ...keys)))
 }
 

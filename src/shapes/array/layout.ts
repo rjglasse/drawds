@@ -184,19 +184,20 @@ export function hoveredCell(point: Point, count: number, metrics: ArrayMetrics, 
  * a horizontal array, with its title above it; right of a column, clear of its pointers, running
  * the same way. Cells line up with the array's, so a[i] -> newArr[i] is a straight move.
  */
-export function getAuxLayout(count: number, metrics: ArrayMetrics, main: ArrayLayout) {
+export function getAuxLayout(count: number, metrics: ArrayMetrics, main: ArrayLayout, { drop = 0, gap = 0 }: { drop?: number; gap?: number } = {}) {
 	const { cell, gutter, origin, indexFontSize, fontSize, axis } = metrics
 	const title = indexFontSize * 1.8
 	const n = Math.max(1, count)
 	if (axis === 'horizontal') {
-		const top = main.box.y + main.box.h + fontSize * 0.6
-		const y = top + title
+		// `drop`: under something in the way; `gap`: room for pointers between the title and the cells.
+		const top = main.box.y + main.box.h + fontSize * 0.6 + drop
+		const y = top + title + gap
 		return {
 			titleAt: { x: origin.x, y: top + title / 2 },
 			cells: { x: origin.x, y, w: n * cell, h: cell },
 			cellAt: (i: number) => ({ x: origin.x + i * cell, y }),
 			indexAt: (i: number) => ({ x: origin.x + i * cell + cell / 2, y: y + cell + gutter / 2 }),
-			bounds: { x: origin.x, y: top, w: n * cell, h: title + cell + gutter },
+			bounds: { x: origin.x, y: top, w: n * cell, h: title + gap + cell + gutter },
 		}
 	}
 	const x = main.box.x + main.box.w + cell * 2.2

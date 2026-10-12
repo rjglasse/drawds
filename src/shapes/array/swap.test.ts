@@ -34,6 +34,12 @@ describe('slides between rows', () => {
 			['aux:2', 'aux:0'],
 		]
 		expect(frameSlides([], moves)).toEqual({ 2: 3 })
-		expect(crossSlides(moves)).toEqual({ toAux: { 0: 0 }, toMain: { 1: 1 }, inAux: { 0: 2 } })
+		expect(crossSlides(moves)).toEqual({ toAux: { 0: 0 }, toMain: { 1: 1 }, inAux: { 0: 2 }, fromOther: {} })
+	})
+
+	it("copies into the second row from another shape's cell come from there, and slide nothing in the array", () => {
+		const moves: [string, string][] = [['shape:b#2', 'aux:3']]
+		expect(frameSlides([], moves)).toEqual({})
+		expect(crossSlides(moves)).toEqual({ toAux: {}, toMain: {}, inAux: {}, fromOther: { 3: 'shape:b#2' } })
 	})
 })

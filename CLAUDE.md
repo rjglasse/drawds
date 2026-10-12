@@ -152,6 +152,13 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   any (`seedForSketch`), the last step saying why (len^len runs against len! orders). `everyRun` (pure) lists every
   run of picks and the order it leaves: on [1, 2, 3] the unfair one's 27 runs come out 5/5/5/4/4/4, Fisher-Yates' 6
   once each.
+- `src/shapes/array/merge.ts` - two sorted arrays merged (dds-55z.20.10, the list merge's counterpart): Sorts > Merge with
+  the sorted array [..] for each other plain growing array in a row on the page, both sorted. merge(a, b): c a new array
+  of n + m (a's second row, `AuxRow.drop` under b if b is in the way, `gap` for k above it), the smaller of a[i] and
+  b[j] copied (a's on a tie), then the rest; b stays where it is, lit through `Frame.others` and pointed into with
+  `otherKey(b, j)` (the step's pointers anchor on its cells, `stepAnchor`; its values slide from there into c,
+  `crossSlides`' `fromOther`). Nothing changes; the result is a new array where the row was (`onCommit`, one undo
+  step), a and b as they were: arrays copy, lists re-point.
 - `src/shapes/outcomes/` - a shuffle's outcomes (dds-szw.16, lecture 2's "Draw: Unfair / FY Shuffle Permutations" and
   its demo "run a shuffle many times and show the distribution"), a `shuffle-outcomes` shape following the array
   (`structureId`; `kind` unfair / fisher-yates, `mode` tree / tally, the start `values`, a `seed`). `outcomes.ts` (pure):
@@ -363,8 +370,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `pointerReachSideways`) and `layoutOffset` moves the shape so the code stays put. `convert.ts`: right-click a tldraw
   text box > Make a code box (its plain text, the language guessed from telltale signs by `guessLanguage`, pure).
   The running algorithm's code (dds-2tt.4): a code box can follow a structure (props `structureId`, `algorithm`;
-  `follow.ts`). The play bar's </> button (shown when the operation has `code`) opens one to the structure's right or
-  takes it away; while one is there, every operation with code shows its algorithm in it (`playOperation`'s `code`
+  `follow.ts`). The play bar's </> button (shown when the operation has `code`) opens one to the structure's right
+  (`putBeside`: past anything in the way, the camera panning to it but never zooming, `keepOnScreen`'s `zoom: false`)
+  or takes it away; while one is there, every operation with code shows its algorithm in it (`playOperation`'s `code`
   replaces the box's code, Esc puts the old back), the frame's `line` lit yellow with a pc arrow (room kept on the
   left whenever `algorithm` is set). Live values: a line tagged `$i` shows `i = 2` after it in violet (the pointers'
   colour) as the steps run; a value is the step's pointer of that name (at its element) or its `Frame.vars` (the
@@ -430,7 +438,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
 - `src/nodelink/playback.ts` - animated operations, stepped through: frames (props override, value swaps
   between node keys and one-way `moves` (copies), highlights on nodes and `edge:` keys that accumulate and can
   be cleared with null, badges, a queue/stack `strip`, faded elements `dim` and running `counts` (both
-  replacing earlier ones; counts show in the play bar), a one-line `caption`) shown every STEP_MS, then the final update commits as one undo
+  replacing earlier ones; counts show in the play bar), `others` (highlights on other shapes' cells, drawn by them via
+  `otherMarks`, exported with the steps), a one-line `caption`) shown every STEP_MS, then the final update commits as one undo
   step; highlights fade (FADE_MS) or, with Shift, become marks. While an operation is open `PlayBar` sits
   under the structure (drawn by `PlaybackOverlay` in tldraw's InFrontOfTheCanvas, with the queue/stack strip,
   so neither lies outside the shape's box). It holds still: shapes report each step's extent

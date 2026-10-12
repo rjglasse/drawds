@@ -1,4 +1,6 @@
 import type { Editor, TLShape, TLShapeId } from 'tldraw'
+import { putBeside } from '../../cells/beside'
+import { keepOnScreen } from '../../controls/onscreen'
 import { followersOf } from '../../cells/followers'
 import { algorithmCode } from './algorithms'
 import { CODE_TYPE, type CodeShape } from './code-shape-types'
@@ -12,8 +14,6 @@ import { codeLanguage } from '../../transcript/mode'
 export const codeBoxesOf = (editor: Editor, structureId: TLShapeId) =>
 	followersOf(editor, structureId).filter((s): s is CodeShape => s.type === CODE_TYPE && !(s as CodeShape).props.transcript)
 
-/** Space between the structure and a new code box (its pc arrow has room of its own on top). */
-const GAP = 16
 
 /**
  * Show `algorithm`'s code beside a structure: in the code boxes following it (any other code there
@@ -41,19 +41,21 @@ export function showCodeOf(editor: Editor, structureId: TLShapeId, algorithm: st
 	return () => void editor.bailToMark(mark)
 }
 
-/** A code box following `structure`, to its right past anything else following it, top-aligned. */
+/**
+ * A code box following `structure`, to its right past anything else following it, top-aligned; further
+ * right or under it if something else is in the way there (an array being merged in: `putBeside`), the
+ * camera moved if that is off the screen.
+ */
 function createCodeBox(editor: Editor, structure: TLShape, algorithm: string) {
-	const bounds = editor.getShapePageBounds(structure)
-	if (!bounds) return
-	const right = Math.max(bounds.maxX, ...followersOf(editor, structure.id).map((f) => editor.getShapePageBounds(f)?.maxX ?? -Infinity))
 	const code = algorithmCode(algorithm, codeLanguage(editor))!
 	const { size } = structure.props as { size?: CodeShape['props']['size'] }
-	editor.createShape<CodeShape>({
+	const id = putBeside<CodeShape>(editor, structure, {
 		type: CODE_TYPE,
-		x: right + GAP,
-		y: bounds.minY,
 		props: { structureId: structure.id, algorithm, code: code.text, language: code.language, ...(size ? { size } : {}) },
 	})
+	// Past whatever is in the way it can run off the screen (under the style panel): the camera pans to
+	// it, never zooming out (code is read from the back of the room).
+	if (id) keepOnScreen(editor, [id], { zoom: false })
 }
 
 /** The code boxes following a structure go, as one undo step. */
