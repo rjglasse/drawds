@@ -412,8 +412,19 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   and writes it out after the line with the step's values (pointers at indexes, its variables, a[...] from the step's
   array, a.length, len(a), C's n; Python's for i in range(...) as `3 in range(1, 5)`), each && / and part coloured, a
   part never reached faded in the code and `…` after it, then `→ true` / `→ false`; one it can't work out (a method
-  call, an unknown name) shows nothing. Not for lists, trees or graphs yet: their steps give nodes' values, not which
-  node. The code's columns are the mono font's 0.6 em, so boxes sit on their characters.
+  call, an unknown name) shows nothing. What a test reads comes from the structure (`testValues(shape, frame)` on the
+  util; arrays, heaps and union-find through `indexTestValues`: a, heap / C's h->a, parent[] / u->parent, self. and
+  this. read through). Beside lists, trees and graphs (dds-ung, `src/nodelink/scene-tests.ts`, from the step's scene):
+  names refer to nodes, a pointer at a node or a label (head, tail, top) at the node its arrow points to, a null marker
+  null; a tree's steps name nodes by value (curr = 40), the one node holding it; fields follow the arrows (next, prev;
+  left / right by which side the child is drawn; value / key the node's value), C's `->` too; == compares which node,
+  written as its value, `9@2` (the node at 2) when another node holds the same, so Floyd's slow == fast is right with
+  repeated values. A graph's vertices go by their labels, its strips' arrays by vertex (visited[w], T / F booleans,
+  the strip as it stands at the step). A one-line test that also acts, one tag (`if (key < curr.key) curr = curr.left;`:
+  the step shows curr moved), reads the step before (`readsBefore`; not a return, a break or an exit); Python's two
+  lines tag the statement, not the if. The room kept after a test line is what it reads as written out (`testWidth`).
+  Hash tables show none yet (their steps don't name the chain node; Java's casts). The code's columns are the mono
+  font's 0.6 em, so boxes sit on their characters.
   `algorithms.ts` (pure): each algorithm written per language with `@tag`s and `$tag`s at line ends,
   two spaces before (`parseCode`), `algorithmCode` (every algorithm in C, Java and Python; C as a slide would put it:
   arrays with their length, `swap(&a[i], &a[j])`, structs by pointer, `newNode`, `NULL`), `taggedLine` / `shownValues`

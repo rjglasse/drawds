@@ -225,8 +225,8 @@ const WRITTEN: Record<string, CodeSource> = {
 			    node = Node(value)                  @new $node
 			    node.next = curr.next               @link
 			    curr.next = node                    @point
-			    if curr is self.tail:               @tail
-			        self.tail = node`,
+			    if curr is self.tail:
+			        self.tail = node                @tail`,
 	},
 	// Insert at the head, the first node the tail too.
 	'list-insert-head-tail': {
@@ -249,8 +249,8 @@ const WRITTEN: Record<string, CodeSource> = {
 			    node = Node(value)              @new $node
 			    node.next = self.head           @link
 			    self.head = node                @point
-			    if self.tail is None:           @tail
-			        self.tail = node`,
+			    if self.tail is None:
+			        self.tail = node            @tail`,
 	},
 	// Append with a tail: O(1), no walk.
 	'list-append-tail': {
@@ -306,8 +306,8 @@ const WRITTEN: Record<string, CodeSource> = {
 			        self.head = curr.next           @unlink-head
 			    else:
 			        prev.next = curr.next           @unlink
-			    if curr is self.tail:               @tail
-			        self.tail = prev`,
+			    if curr is self.tail:
+			        self.tail = prev                @tail`,
 	},
 	// Reverse in place: each arrow turned round as prev and curr walk; the old head is the tail.
 	'list-reverse-tail': {
@@ -597,8 +597,8 @@ const WRITTEN: Record<string, CodeSource> = {
 			        self.head = node                                 @point-head
 			    else:
 			        prev.next = node                                 @point
-			    if curr is None:                                     @tail
-			        self.tail = node`,
+			    if curr is None:
+			        self.tail = node                                 @tail`,
 	},
 	// Print front to back: curr walks to null.
 	'list-print': {

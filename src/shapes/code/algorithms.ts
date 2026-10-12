@@ -60,9 +60,6 @@ export function parseCode(source: string, language: CodeLanguage): AlgorithmCode
 	return { language, text: text.join('\n'), lines, firstTags, values }
 }
 
-/** The arrays' algorithms: their tests are written out as they are tested (`tests.ts`). */
-export const testsShown = (algorithm: string) => algorithm in ARRAY_CODE
-
 /** Every algorithm with code, by id (what an operation names as its `code`). */
 export const ALGORITHMS: Record<string, CodeSource> = { ...ARRAY_CODE, ...LIST_CODE, ...TREE_CODE, ...GRAPH_CODE, ...HEAP_CODE, ...HASH_CODE, ...UNION_FIND_CODE }
 

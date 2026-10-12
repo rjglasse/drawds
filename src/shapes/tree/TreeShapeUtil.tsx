@@ -325,6 +325,8 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 
 	override readonly menuId = 'tree'
 
+	protected override readonly testChildren = true
+
 	override moves(shape: TreeShape) {
 		return [
 			'Double-click a node to type its value',

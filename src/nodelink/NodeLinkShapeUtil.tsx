@@ -38,6 +38,8 @@ import { hoveredEdge, hoveredNode } from './hover'
 import { ROOM_KEY, animationMs, isBusy, isCovered, isLastFrame, playbackFor, roomOf, type Frame, type PlaybackView, type Room } from './playback'
 import { edgeCellKey, translateScene, type Scene, type SceneEdge, type SceneNode } from './scene'
 import { sceneCells } from './scene-cells'
+import { sceneTestValues } from './scene-tests'
+import type { TestValues } from '../shapes/code/tests'
 import { SceneSvg } from './SceneSvg'
 
 export type { NodeOperation } from '../cells/CellShapeUtil'
@@ -316,6 +318,14 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	}
 
 	/** What a step draws (shape space): its scene, and its pointers (a list's curr and prev under it). */
+	/** A tree's nodes have left and right children (whichever side they are drawn), for its tests. */
+	protected readonly testChildren: boolean = false
+
+	/** A test in the code beside it reads the step's scene: names at nodes, their values and arrows (`sceneTestValues`). */
+	override testValues(shape: S, frame: Frame): TestValues | undefined {
+		return sceneTestValues(this.displayScene(shape, frame), frame, { children: this.testChildren })
+	}
+
 	override playbackLayout(shape: S, frame: Frame | undefined): PlaybackLayout {
 		const scene = this.displayScene(shape, frame)
 		const framePointers = this.framePointers(shape, frame, scene)

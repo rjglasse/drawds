@@ -119,7 +119,7 @@ export function buildHeapSteps(start: readonly string[], type: HeapType): { fram
 			? 'A single value is a heap already'
 			: `The leaves (index ${last + 1} on) are heaps on their own. Sift down each parent, from the last (index ${last}) back to the root`,
 		green(last + 1),
-		{ ask: last < 0 ? false : 'Build a heap bottom-up (Floyd): where does it start?', line: 'loop' }
+		{ ask: last < 0 ? false : 'Build a heap bottom-up (Floyd): where does it start?', line: 'loop', vars: { i: String(last) } }
 	)
 	// Predict mode: swap with a child, or stop? The same question at every step of a sift.
 	const swapOrStop = (at: number): Partial<Frame> => {
@@ -147,9 +147,11 @@ export function buildHeapSteps(start: readonly string[], type: HeapType): { fram
 			.filter((c) => c < n)
 			.map((c) => values[c])
 		const rest = kids.length ? `${holds} its children (${kids.join(', ')})` : 'has no children'
-		step(`${values[at]} ${rest}: the subtree at index ${i} is a heap`, green(i), { pointers, ...swapOrStop(at), line: 'down' })
+		// siftDown's own i has come down to where the value stopped: the best of it and its children.
+		const stop = String(at)
+		step(`${values[at]} ${rest}: the subtree at index ${i} is a heap`, green(i), { pointers, ...swapOrStop(at), line: 'down', vars: { i: stop, [type === 'min' ? 'smallest' : 'largest']: stop } })
 	}
 	const s = swaps.length
-	step(`Every parent ${holds} its children: a ${type} heap, after ${s} swap${s === 1 ? '' : 's'}`, green(0), { ask: false, line: 'loop' })
+	step(`Every parent ${holds} its children: a ${type} heap, after ${s} swap${s === 1 ? '' : 's'}`, green(0), { ask: false, line: 'loop', vars: { i: '-1' } })
 	return { frames, values, swaps }
 }

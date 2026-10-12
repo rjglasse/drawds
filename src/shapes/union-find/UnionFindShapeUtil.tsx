@@ -5,6 +5,8 @@ import { mulberry32, newSeed } from '../../data/random'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import { playOperation, type Frame } from '../../nodelink/playback'
 import type { Scene, SceneNode } from '../../nodelink/scene'
+import type { TestValues } from '../code/tests'
+import { indexTestValues } from '../../nodelink/scene-tests'
 import type { PointerAnchor } from '../../pointers/layout'
 import { prunePointers } from '../../pointers/pointers'
 import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
@@ -171,6 +173,13 @@ export class UnionFindShapeUtil extends NodeLinkShapeUtil<UnionFindShape> {
 	}
 
 	override readonly menuId = 'uf'
+
+	/** A test reads the parent array (and size, rank) and the step's elements by index (curr, root, ra, rb). */
+	override testValues(shape: UnionFindShape, frame: Frame): TestValues {
+		const props = { ...shape.props, ...(frame.props as Partial<UnionFindShape['props']> | undefined) }
+		const strings = (a: readonly number[]) => a.map(String)
+		return indexTestValues(frame, { parent: strings(props.parent), size: strings(props.sizes), rank: strings(props.ranks) })
+	}
 
 	override moves() {
 		return [

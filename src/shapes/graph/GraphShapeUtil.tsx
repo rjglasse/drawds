@@ -20,6 +20,8 @@ import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkSh
 import { prunePointers } from '../../pointers/pointers'
 import { isBusy, playOperation, playbackFor, type Frame } from '../../nodelink/playback'
 import { edgeCellKey, type Scene, type SceneNode } from '../../nodelink/scene'
+import { graphTestValues } from '../../nodelink/scene-tests'
+import type { TestValues } from '../code/tests'
 import {
 	connectHandleId,
 	connectState,
@@ -67,6 +69,11 @@ import {
  */
 export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 	static override type = GRAPH_SHAPE_TYPE
+
+	/** A test reads vertices by their labels, and the strips' arrays by vertex (visited[w]). */
+	override testValues(shape: GraphShape, frame: Frame): TestValues {
+		return graphTestValues(this.displayScene(shape, frame), frame)
+	}
 	static override props = graphShapeProps
 	static override migrations = graphShapeMigrations
 

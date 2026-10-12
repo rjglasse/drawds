@@ -237,3 +237,23 @@ test("lecture 5's empty list: delete the only node, then insert into the empty l
 	await page.keyboard.press('Enter')
 	expect(await values(page)).toHaveLength(1)
 })
+
+test("the code beside a list writes out its tests: find's curr.value == value, Floyd's slow == fast by node (two nodes hold 9)", async ({ page }) => {
+	await sketchList(page, [150, 200], 3)
+	await setValues(page, ['9', '2', '9'])
+	await listOp(page, 'n2', 'list-find')
+	await page.getByTestId('play-code').click()
+	const test = page.locator('[data-test-line]')
+	// Found at the first 9: the test boxed green, written out with values.
+	while (!(await test.count())) await page.keyboard.press('ArrowRight')
+	await expect(test).toHaveAttribute('data-test-result', 'true')
+	await expect(test).toContainText('9 == 9')
+	await stepToEnd(page)
+	await page.keyboard.press('Enter')
+	// Round from the last 9 to the first: slow and fast meet at a 9, one node (9@0), not just a value.
+	await setVariants(page, { cycleTo: 'n0' })
+	await listOp(page, 'n0', 'list-floyd')
+	while (!(await test.count())) await page.keyboard.press('ArrowRight')
+	await expect(test).toContainText('9@0 == 9@0')
+	await expect(test).toHaveAttribute('data-test-result', 'true')
+})

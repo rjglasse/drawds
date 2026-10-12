@@ -14,6 +14,7 @@ import {
 import { KeyPrompt } from '../controls/KeyPrompt'
 import { operationPrompt } from '../controls/prompt'
 import { showsStructureControls } from '../controls/visibility'
+import type { TestValues } from '../shapes/code/tests'
 import { playbackFor, type Frame } from '../nodelink/playback'
 import type { Box } from '../nodelink/geometry'
 import type { SceneMetrics } from '../nodelink/scene'
@@ -137,6 +138,12 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 	shapeOperations?(shape: S): NodeOperation[]
 	/** What a step (or, without one, the shape itself) draws; shapes without it can't show operations. */
 	playbackLayout?(shape: S, frame: Frame | undefined): PlaybackLayout
+
+	/**
+	 * What a loop's or an if's test in the code beside it reads at a step (`src/shapes/code/tests.ts`):
+	 * its variables and arrays, and which nodes its names refer to. Without it, tests aren't written out.
+	 */
+	testValues?(shape: S, frame: Frame): TestValues | undefined
 
 	/** The value prompt of an operation started from an element (e.g. "Find a value..."), above it. */
 	protected renderOperationPrompt(shape: S, colors: TLThemeColors): ReactNode {

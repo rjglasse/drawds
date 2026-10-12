@@ -17,11 +17,11 @@ import { cueBadgeAt, showsColourCues } from '../../cells/cues'
 import { beginCellEdit, getEditingCell, type EditableCells } from '../../cells/editable-cells'
 import { pruneMarks } from '../../cells/marks'
 import { exportingStep } from '../../export/exporting'
-import { playbackFor, shownFrame } from '../../nodelink/playback'
+import { playbackFor, shownFrame, stateAt } from '../../nodelink/playback'
 import { POINTER_FONT_SCALE, placePointers, pointerReachSideways, type PointerAnchor } from '../../pointers/layout'
 import { prunePointers } from '../../pointers/pointers'
-import { algorithmCode, shownValues, taggedLine, testsShown, type ShownValue } from './algorithms'
-import { conditionOf, shownTest, type ShownTest } from './tests'
+import { algorithmCode, shownValues, taggedLine, type ShownValue } from './algorithms'
+import { conditionOf, readsBefore, shownTest, type ShownTest } from './tests'
 import { CODE_TYPE, codeShapeMigrations, codeShapeProps, type CodeShape } from './code-shape-types'
 import { transcriptOf } from '../../transcript/transcript'
 import { applyEdit, closeBraceEdit, indentEdit, newlineEdit, type CodeEdit } from './editing'
@@ -118,14 +118,24 @@ function layoutOf(shape: CodeShape) {
 	const after: Record<number, number> = {}
 	for (const v of valuesOf(shape)) after[v.line] = (after[v.line] ?? 2) + Math.ceil((v.name.length + 3 + VALUE_CHARS + 2) * VALUE_SCALE)
 	// A loop's or an if's test, written out with its values while a step is on it (in place of the line's values).
-	if (algorithm && testsShown(algorithm)) {
+	if (algorithm) {
 		codeLines(code).forEach((line, i) => {
 			const c = conditionOf(line, shape.props.language)
-			if (c) after[i] = Math.max(after[i] ?? 0, 2 + Math.ceil(((c.to - c.from) * 1.1 + TEST_MARK.length + 2) * VALUE_SCALE))
+			if (c) after[i] = Math.max(after[i] ?? 0, 2 + Math.ceil((testWidth(line.slice(c.from, c.to)) + TEST_MARK.length + 2) * VALUE_SCALE))
 		})
 	}
 	const right = algorithm && lineCounts ? Math.ceil((COUNT_CHARS + 2) * VALUE_SCALE) : 0
 	return getCodeLayout(code, metrics, { lineNumbers, left, after, right, folds: foldsOf(shape) })
+}
+
+/**
+ * How wide a test reads written out (`2 > 0 && 7 > 3`): each array access or field (heap[(i - 1) / 2],
+ * curr.next) a value of up to VALUE_CHARS, each short name a value of up to 3 (an index, a label).
+ */
+function testWidth(condition: string) {
+	return condition
+		.replace(/\b[A-Za-z_]\w*(?:\s*(?:\.|->)\s*[A-Za-z_]\w*|\s*\[[^\]]*\])+/g, 'v'.repeat(VALUE_CHARS))
+		.replace(/\b[A-Za-z_]\w*\b/g, (name) => (name.length < 3 ? 'v'.repeat(3) : name)).length
 }
 
 /** Marks and pointers on lines the code no longer has go. */
@@ -222,7 +232,8 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 		if (!live || !structureId || !algorithm) return undefined
 		const view = playbackFor(this.editor, structureId as TLShapeId)
 		if (!view || view.fading || view.code !== algorithm) return undefined
-		const frame = view.frames[shownFrame({ step: view.step, asking: view.question !== undefined })]
+		const shown = shownFrame({ step: view.step, asking: view.question !== undefined })
+		const frame = view.frames[shown]
 		const source = algorithmCode(algorithm, language)
 		// A pointer is the variable of its name, at its element; the step's other variables beside them.
 		const vars: Record<string, string> = { ...Object.fromEntries((frame?.pointers ?? []).map((p) => [p.name, p.at])), ...frame?.vars }
@@ -240,17 +251,23 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 			}
 		}
 		const line = frame?.line && source ? taggedLine(code, source, frame.line) : undefined
-		// On a loop's or an if's line: its test, from the step's values and its array as the step has it.
-		// Arrays only, so far: a list's or a tree's steps give their nodes' values, and slow == fast is about
-		// which node, not which value.
+		// On a loop's or an if's line: its test, from what the structure says the step's names and
+		// arrays are (its nodes, beside a list, a tree or a graph: `testValues`).
 		const structure = this.editor.getShape(structureId as TLShapeId)
-		const array = structure?.type === 'array' ? ((frame?.props as { values?: string[] } | undefined)?.values ?? (structure.props as { values: string[] }).values) : undefined
+		const util = structure && this.editor.getShapeUtil(structure)
 		// Only a step that is the test itself: a line that tests and acts (if (...) swap(...)) has the test's tag first.
-		const testing = array && frame?.line && source && source.firstTags[source.lines[frame.line]] === frame.line
-		// Pointers at indexes, and the step's own variables.
-		const values = { ...Object.fromEntries((frame?.pointers ?? []).filter((p) => /^-?\d+$/.test(p.at)).map((p) => [p.name, p.at])), ...frame?.vars }
-		const shown = line === undefined || !testing ? undefined : shownTest(codeLines(code)[line] ?? '', language, { vars: values, arrays: { a: array } })
-		const test = shown && line !== undefined ? { ...shown, line } : undefined
+		const at = frame?.line && source ? source.lines[frame.line] : undefined
+		const testing = at !== undefined && line !== undefined && source!.firstTags[at] === frame!.line
+		// One step for a test and what it does on the same line (curr has moved): the test reads the step before.
+		const text = codeLines(code)[line ?? -1] ?? ''
+		const tags = Object.values(source?.lines ?? {}).filter((l) => l === at).length
+		const read = testing && readsBefore(text, language, tags) ? Math.max(0, shown - 1) : shown
+		// The strips as they stand at the step (a step that only looks at an edge keeps visited[] as it was).
+		const before = view.frames[read]
+		const step = testing && before ? { ...before, strips: before.strips ?? stateAt(view.frames, read).strips } : undefined
+		const values = step && util instanceof CellShapeUtil ? util.testValues?.(structure as never, step) : undefined
+		const tested = values ? shownTest(text, language, values) : undefined
+		const test = tested && line !== undefined ? { ...tested, line } : undefined
 		return {
 			line,
 			values: [...byLine].filter(([at]) => at !== test?.line).map(([at, texts]) => ({ line: at, text: texts.join('  ') })),

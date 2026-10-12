@@ -87,6 +87,8 @@ import { movesAnything, rearrange, reversedOrder, shuffledOrder, sortedOrder } f
 import { arrayMarkers, frontOf, isUsed, usedIndices } from './kinds'
 import { dequeue, enqueue, peekQueue, peekStack, pop, push } from './stack-queue'
 import { checkBrackets, evaluatePostfix } from './stack-uses'
+import type { TestValues } from '../code/tests'
+import { indexTestValues } from '../../nodelink/scene-tests'
 import {
 	arrayStepVector,
 	getArrayGrowPoint,
@@ -1171,6 +1173,11 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	/** The step's own pointers (lo, mid, hi...), if it has any: drawn by the play overlay. */
 	private framePointers(shape: ArrayShape, frame: Frame | undefined = playbackFor(this.editor, shape.id)?.frame): Pointer[] | undefined {
 		return frame?.pointers
+	}
+
+	/** A test reads the step's array (a) and its names: pointers at indexes, and its own variables. */
+	override testValues(shape: ArrayShape, frame: Frame): TestValues {
+		return indexTestValues(frame, { a: (frame.props as { values?: string[] } | undefined)?.values ?? shape.props.values })
 	}
 
 	/** What a step draws (shape space): the cells it shows, with any second row and dashed slots past the end. */

@@ -111,5 +111,7 @@ function siftSteps(start: readonly string[], sift: Sift, type: HeapType, up: boo
 		: kids.length
 			? `${v} ${holds} its children (${kids.map((c) => values[c]).join(', ')}): done`
 			: `${v} has no children: done`
-	return [...frames, { props: { values: [...values] }, flash: { [at]: 'green' }, caption, ...ask(at), line: up ? 'up' : 'down', vars: { ...vars, i: String(at) } }]
+	// Stopping down: the best of it and its children is itself (smallest == i).
+	const best = up ? {} : { [type === 'min' ? 'smallest' : 'largest']: String(at) }
+	return [...frames, { props: { values: [...values] }, flash: { [at]: 'green' }, caption, ...ask(at), line: up ? 'up' : 'down', vars: { ...vars, i: String(at), ...best } }]
 }

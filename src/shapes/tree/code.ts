@@ -364,8 +364,8 @@ export const TREE_CODE: Record<string, CodeSource> = {
 			        self.replace(node, node.left or node.right)
 			    else:                                           @two
 			        s = node.right                              @go-right $s
-			        while s.left is not None:                   @go-left
-			            s = s.left
+			        while s.left is not None:
+			            s = s.left                              @go-left
 			        if s is not node.right:                     @deep
 			            self.replace(s, s.right)
 			            s.right = node.right

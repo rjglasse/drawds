@@ -120,3 +120,25 @@ test('search for a missing key falls off the tree; traversals are still numbered
 	await page.keyboard.press('ArrowRight')
 	await expect(page.getByTestId('play-caption')).toContainText('curr = null, so 1000 is not in the tree')
 })
+
+test('the code beside a BST writes out each test as curr meets it: key < curr.key at the node it was at', async ({ page }) => {
+	const before = await sketchBst(page, 3, 1)
+	const root = before.nodes.find((n) => n.id === 'n')!
+	const leaf = before.nodes.find((n) => n.id === 'nLR')!
+	await rightClick(page, await nodeScreenPosition(page, 'nLR'))
+	await page.getByTestId('context-menu-sub.drawds-tree-steps-button').click()
+	await page.getByTestId('context-menu.bst-search').click()
+	await page.getByTestId('play-code').click()
+	const test = page.locator('[data-test-line]')
+	// curr = curr.left in the same line: the test is the one asked at the root, before curr moved.
+	await page.keyboard.press('ArrowRight')
+	await expect(test).toContainText(`${leaf.value} < ${root.value}`)
+	await expect(test).toHaveAttribute('data-test-result', 'true')
+	// Then right: the else line, no test of its own; then found.
+	await page.keyboard.press('ArrowRight')
+	await expect(page.getByTestId('play-caption')).toContainText('curr = curr.right')
+	await expect(test).toHaveCount(0)
+	await page.keyboard.press('ArrowRight')
+	await expect(test).toContainText(`${leaf.value} == ${leaf.value}`)
+	await expect(test).toHaveAttribute('data-test-result', 'true')
+})

@@ -6,6 +6,8 @@ import type { Refillable } from '../../data/fill-style'
 import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import type { Scene, SceneNode } from '../../nodelink/scene'
+import type { TestValues } from '../code/tests'
+import { indexTestValues } from '../../nodelink/scene-tests'
 import type { PointerAnchor } from '../../pointers/layout'
 import { prunePointers } from '../../pointers/pointers'
 import { rearrange, shuffledOrder } from '../array/rearrange'
@@ -229,6 +231,12 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 	}
 
 	override readonly menuId = 'heap'
+
+	/** A test reads the heap as an array (heap[i], C's h->a[i]) and the step's indexes. */
+	override testValues(shape: HeapShape, frame: Frame): TestValues {
+		const values = (frame.props as { values?: string[] } | undefined)?.values ?? shape.props.values
+		return indexTestValues(frame, { heap: values, a: values })
+	}
 
 	override moves() {
 		return [
