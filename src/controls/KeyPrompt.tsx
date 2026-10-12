@@ -9,6 +9,8 @@ export function KeyPrompt({
 	editor,
 	at,
 	label,
+	initial,
+	width = 96,
 	colors,
 	onSubmit,
 	onCancel,
@@ -17,20 +19,28 @@ export function KeyPrompt({
 	/** Centre, in shape space. */
 	at: VecLike
 	label: string
+	/** A value filled in, selected (an example: Enter runs it, typing replaces it). */
+	initial?: string
+	/** Screen px. */
+	width?: number
 	colors: TLThemeColors
 	onSubmit(value: string, keep: boolean): void
 	onCancel(): void
 }) {
 	const ref = useRef<HTMLInputElement>(null)
-	useLayoutEffect(() => ref.current?.focus(), [])
+	useLayoutEffect(() => {
+		ref.current?.focus()
+		ref.current?.select()
+	}, [])
 	const zoom = editor.getZoomLevel()
-	const [w, h] = [96 / zoom, 30 / zoom]
+	const [w, h] = [width / zoom, 30 / zoom]
 	return (
 		<input
 			ref={ref}
 			data-testid="key-prompt"
 			aria-label={label}
 			placeholder={label}
+			defaultValue={initial}
 			spellCheck={false}
 			autoComplete="off"
 			onPointerDown={(e) => editor.markEventAsHandled(e)}

@@ -22,6 +22,9 @@ export interface OperationPrompt {
 	/** The node it was asked about: the prompt sits above it. */
 	at: string
 	label: string
+	/** An example filled in, and the input's width (screen px). */
+	value?: string
+	width?: number
 	run(value: string): void
 }
 

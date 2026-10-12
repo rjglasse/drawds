@@ -173,12 +173,25 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   doubling: 1 2 3 1 5 1 1 1 9 1, the aggregate 10 writes + 15 copies = 25) and sums it up; Append 10 values, 3 kr each
   (`appendAccounting`) is the accounting method: 2 kr saved per append as a badge on its cell (`Frame.badges`, drawn in
   array cells' corners), spent on the copies at each doubling, the bank in the play bar, never in debt.
+- `src/shapes/array/stack-uses.ts` - what a stack is for (dds-55z.33), in a stack's Step by step, each asking for its
+  input (the prompt's `promptValue`, an example filled in and selected, and `promptWidth`): are the brackets balanced?
+  (an opener pushed, a closer pops the latest opener, which must be its kind; a closer with the stack empty, a pair that
+  doesn't match, or openers left: unbalanced; other characters passed over) and a postfix expression's value (a number
+  pushed, an operator pops b, then a, and pushes a op b, dividing toward 0; too few or too many operands, division by
+  zero; the value written the usual way with only the brackets it needs). Each runs on a new, empty stack with the drawn
+  one's room (a fixed one overflows: lecture 6's hand of five fingers), the input a strip (the token read orange, pairs
+  and tokens done green, faults red), counting how deep it went; nothing changes. Code `stack-balanced` /
+  `stack-postfix` on a growing stack (Java's ArrayDeque, a Python list, C an array as deep as the input) and `-fixed`
+  (ArrayStack(CAPACITY); C checks before each push), made by `stackUses` in code.ts; run in python3, javac and cc against
+  the steps' outcomes.
 - A fixed stack's pop leaves the value in its slot (lecture 6): drawn faded, as any value in a spare slot is, off the stack
   until a push overwrites it (the caption says so). List find and delete count the nodes they visit; deleting the last node
   of a doubly linked list with a tail jumps there and takes tail.prev (no walk), a singly linked one says it had to walk.
 - Stacks and queues are a *kind* of array (`kind`, the Kind picker; `src/shapes/array/kinds.ts`): a stack
   stands upright (layout axis `'up'` in `getArrayMetrics`: index 0 at the origin, which rises as cells come,
-  so index 0 stays put; use `metrics.axis` and `layout.boundaryAt`, never `props.direction`), a queue lies in a
+  so index 0 stays put; use `metrics.axis` and `layout.boundaryAt`, never `props.direction`; a step's cells and its
+  pointers are laid out with the shape's own metrics, `stepAnchor`, so top follows a step with fewer cells; index -1, an
+  empty stack's top, lies under the size / capacity footer), a queue lies in a
   row; with a fixed capacity a queue is a circular buffer (`front`; `isUsed` / `usedIndices`, values may wrap).
   Built-in markers (top, front, rear: `arrayMarkers`, via `CellShapeUtil.markerPointers`, ids `@...`) are
   laid out with the pointers but can't be picked up. `stack-queue.ts`: push / pop / peek, enqueue / dequeue /

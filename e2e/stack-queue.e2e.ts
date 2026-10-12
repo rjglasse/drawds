@@ -149,3 +149,62 @@ test('on-canvas buttons: push and pop a stack, enqueue and dequeue a queue', asy
 	expect(after.slice(0, 2)).toEqual(queue.slice(1))
 	expect(after).toHaveLength(3)
 })
+
+test("balanced brackets on a new stack of the drawn one's capacity: five slots overflow, as a hand does; the stack stays as drawn", async ({ page }) => {
+	await sketchArrayKind(page, 'stack', [300, 500], 2, 'up')
+	await page.getByTestId('style.array-sizing.fixed').click()
+	await page.evaluate(() => {
+		const editor = window.editor!
+		const s = editor.getOnlySelectedShape()!
+		editor.updateShape({ id: s.id, type: 'array', props: { values: ['1', '2', '', '', ''] } } as never)
+		editor.updateShape({ id: s.id, type: 'array', props: { used: 2 } } as never)
+	})
+	// The prompt offers an example, selected: Enter runs it.
+	await menu(page, [300, 500], 'array-steps', 'array-brackets')
+	await expect(page.getByTestId('key-prompt')).toHaveValue('{[()()]}')
+	await page.keyboard.press('Enter')
+	await expect(caption(page)).toContainText('s = a new, empty stack')
+	await expect(page.getByTestId('playback-strip').first()).toContainText('{[()()]}'.split('').join(''))
+	await stepToEnd(page)
+	await expect(caption(page)).toHaveText('The end of the text, and the stack is empty: every closer closed the latest opener still open. Balanced')
+	await expect(page.getByTestId('play-counts')).toContainText('deepest 3')
+	await page.keyboard.press('Enter')
+	expect(await props(page)).toMatchObject({ values: ['1', '2', '', '', ''], used: 2 })
+	// Six deep on five slots.
+	await menu(page, [300, 500], 'array-steps', 'array-brackets')
+	await page.getByTestId('key-prompt').fill('((((((()))))))')
+	await page.keyboard.press('Enter')
+	await stepToEnd(page)
+	await expect(caption(page)).toContainText('( opens: push it, but all 5 slots are full. Stack overflow')
+	await page.keyboard.press('Escape')
+	expect(await props(page)).toMatchObject({ values: ['1', '2', '', '', ''], used: 2 })
+})
+
+test('a postfix expression evaluated with its code beside; top points at the top value as the stack shrinks', async ({ page }) => {
+	await sketchArrayKind(page, 'stack', [300, 500], 2, 'up')
+	await menu(page, [300, 500], 'array-steps', 'array-postfix')
+	await page.getByTestId('key-prompt').fill('3 4 + 2 *')
+	await page.keyboard.press('Enter')
+	await page.getByTestId('play-code').click()
+	const box = page.locator('[data-shape-type="code"]')
+	await expect(box).toContainText('int evaluate(String postfix)')
+	// 3, 4 pushed, then + pops b = 4: top at index 0, at the 3 (the cell above it gone).
+	for (let k = 0; k < 3; k++) await page.keyboard.press('ArrowRight')
+	await expect(caption(page)).toHaveText('+: an operator. b = pop() = 4: the right operand comes off first, as it went on last')
+	await transitionsDone(page)
+	const [top, cell0] = await Promise.all([
+		pointerBox(page, 'top'),
+		page.evaluate(() => {
+			const editor = window.editor!
+			const s = editor.getCurrentPageShapes().find((shape) => shape.type === 'array')!
+			const util = editor.getShapeUtil(s) as unknown as { cells: { cellBox(s: unknown, k: string): { x: number; y: number; h: number } } }
+			const b = util.cells.cellBox(s, '0')
+			return editor.pageToScreen(editor.getShapePageTransform(s).applyToPoint({ x: b.x, y: b.y + b.h / 2 }))
+		}),
+	])
+	expect(Math.abs(top!.y + top!.height / 2 - cell0.y)).toBeLessThan(CELL / 2)
+	await stepToEnd(page)
+	await expect(caption(page)).toHaveText('The end: one number on the stack, the value, 14: (3 + 4) * 2 as it is usually written')
+	await page.keyboard.press('Enter')
+	expect((await props(page)).values).toHaveLength(2)
+})

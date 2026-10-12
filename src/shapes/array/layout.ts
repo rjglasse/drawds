@@ -111,13 +111,15 @@ export function getArrayLayout(count: number, { axis, cell, gutter, origin, foot
 	// Down a column: index 0 at the top; up a column: at the bottom, at the origin.
 	const top = axis === 'vertical' ? oy : oy - (n - 1) * cell
 	const rowY = (i: number) => (axis === 'vertical' ? oy + i * cell : oy - i * cell)
+	// Up a column, index -1 (an empty stack's top) lies under the footer (size and capacity), not over it.
+	const slotY = (i: number) => rowY(i) + (axis === 'up' && i < 0 ? footer : 0)
 	return {
 		width: gutter + cell,
 		height: n * cell + footer,
 		box: { x: ox, y: top, w: gutter + cell, h: n * cell + footer },
 		cells: { x: ox + gutter, y: top, w: cell, h: n * cell },
-		cellAt: (i) => ({ x: ox + gutter, y: rowY(i) }),
-		indexAt: (i) => ({ x: ox + gutter / 2, y: rowY(i) + cell / 2 }),
+		cellAt: (i) => ({ x: ox + gutter, y: slotY(i) }),
+		indexAt: (i) => ({ x: ox + gutter / 2, y: slotY(i) + cell / 2 }),
 		boundaryAt: (k) => (axis === 'vertical' ? rowY(k) : rowY(k) + cell),
 		footerAt: { x: ox, y: top + n * cell + footer / 2 },
 	}
@@ -132,6 +134,9 @@ export function arrayStepVector(axis: ArrayAxis): Point {
 export function indexAlong(point: Point, count: number, metrics: ArrayMetrics): number {
 	const { cells } = getArrayLayout(count, metrics)
 	if (metrics.axis === 'horizontal') return Math.floor((point.x - cells.x) / metrics.cell)
+	// Under an upright array: its footer, then index -1's slot.
+	const under = point.y - (cells.y + cells.h)
+	if (metrics.axis === 'up' && under >= 0) return under < metrics.footer + metrics.cell ? -1 : -2
 	const fromTop = Math.floor((point.y - cells.y) / metrics.cell)
 	return metrics.axis === 'vertical' ? fromTop : Math.max(1, count) - 1 - fromTop
 }

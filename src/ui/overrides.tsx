@@ -366,7 +366,7 @@ function NodeOperationsMenu() {
 			onSelect={() => {
 				const at = target?.key ?? op.promptAt
 				if (op.prompt && target && at !== undefined) {
-					operationPrompt(editor).set({ shapeId: target.shape.id, at, label: op.prompt, run: op.run })
+					operationPrompt(editor).set({ shapeId: target.shape.id, at, label: op.prompt, value: op.promptValue, width: op.promptWidth, run: op.run })
 				} else {
 					op.run()
 				}

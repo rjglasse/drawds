@@ -63,6 +63,9 @@ export interface NodeOperation {
 	prompt?: string
 	/** The element the prompt sits over when the operation isn't started from one (a stack's top). */
 	promptAt?: string
+	/** An example filled in (selected, so Enter runs it and typing replaces it), and the prompt's width in screen px. */
+	promptValue?: string
+	promptWidth?: number
 	run(value?: string): void
 }
 
@@ -146,6 +149,8 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 				editor={this.editor}
 				at={{ x: box.x + box.w / 2, y: box.y - 24 }}
 				label={asked.label}
+				initial={asked.value}
+				width={asked.width}
 				colors={colors}
 				onCancel={close}
 				onSubmit={(value) => {

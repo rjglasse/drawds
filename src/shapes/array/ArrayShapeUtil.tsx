@@ -86,6 +86,7 @@ import { COUNTED_SORTS, type CountedSort } from './sort-counts'
 import { movesAnything, rearrange, reversedOrder, shuffledOrder, sortedOrder } from './rearrange'
 import { arrayMarkers, frontOf, isUsed, usedIndices } from './kinds'
 import { dequeue, enqueue, peekQueue, peekStack, pop, push } from './stack-queue'
+import { checkBrackets, evaluatePostfix } from './stack-uses'
 import {
 	arrayStepVector,
 	getArrayGrowPoint,
@@ -630,7 +631,12 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			'Double-click a cell to type; Tab and the arrows move on',
 			...(kind === 'array'
 				? ['Drag the + at the end to add cells; hover a cell for x (delete) and + (insert)', 'Drag the dot under a cell onto another cell to swap them']
-				: [kind === 'stack' ? 'The + and x by the top push and pop, step by step' : 'The + by the rear enqueues and the x by the front dequeues, step by step']),
+				: kind === 'stack'
+					? [
+							'The + and x by the top push and pop, step by step',
+							"Step by step: are a text's brackets balanced, and a postfix expression's value, on a new stack this deep",
+						]
+					: ['The + by the rear enqueues and the x by the front dequeues, step by step']),
 			'Style panel: Kind (array, stack, queue) and Length (growing, or a fixed capacity)',
 		]
 	}
@@ -744,6 +750,17 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 				},
 				{ ...stack, id: 'array-pop', label: 'Pop', run: () => this.play(id, 'pop', (a) => pop(state(a)), { whole: true }) },
 				{ ...stack, id: 'array-peek', label: 'Peek', run: () => this.play(id, 'peek', (a) => peekStack(state(a)), { whole: true }) },
+				// What a stack is for, on a new one with this one's room (nothing changes).
+				...[
+					{ id: 'array-brackets', label: 'Are the brackets balanced?', prompt: 'Brackets', promptValue: '{[()()]}', use: checkBrackets },
+					{ id: 'array-postfix', label: 'Evaluate a postfix expression', prompt: 'Postfix expression', promptValue: '5 1 2 + 4 * + 3 -', use: evaluatePostfix },
+				].map(({ use, ...op }) => ({
+					...op,
+					group: 'stack-uses',
+					promptAt: String(Math.max(0, usedCount(shape.props) - 1)),
+					promptWidth: 200,
+					run: (text?: string) => text !== undefined && this.play(id, op.id.slice('array-'.length), (a) => use(state(a), text), { whole: true }),
+				})),
 			]
 		}
 		const queue = { group: 'queue' }
@@ -1039,11 +1056,11 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	// Pointers: above the cells (right of a vertical array, whose indices are on the left). They can
 	// step one past either end, as loops do (i == n, j == -1), where a dashed cell is drawn.
 
-	pointerAnchor(shape: ArrayShape, key: string): PointerAnchor | undefined {
+	/** `metrics`: as the cells are drawn (a step's are drawn with the shape's own, so an upright stack's index 0 stays put). */
+	pointerAnchor(shape: ArrayShape, key: string, metrics = getArrayMetrics(shape.props)): PointerAnchor | undefined {
 		const i = Number(key)
 		const n = shape.props.values.length
 		if (!Number.isInteger(i) || i < -1 || i > n) return undefined
-		const metrics = getArrayMetrics(shape.props)
 		const { x, y } = getArrayLayout(n, metrics).cellAt(i)
 		return { box: { x, y, w: metrics.cell, h: metrics.cell }, side: metrics.axis === 'horizontal' ? 'above' : 'right' }
 	}
@@ -1172,11 +1189,11 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 						const other = parseOtherKey(p.at)
 						const there = other && (this.editor.getShape(other.id) as ArrayShape | undefined)
 						const past = other && there?.type === ARRAY_SHAPE_TYPE && Number(other.cell) === there.props.values.length
-						const anchor = past ? this.stepAnchor(shown, aux, p.at) : undefined
+						const anchor = past ? this.stepAnchor(shown, aux, p.at, metrics) : undefined
 						return anchor ? [anchor.box] : []
 					}),
 					// One past the end of the second row (k once every value is in).
-					...framePointers.flatMap((p) => (aux && p.at === `aux:${aux.values.length}` ? [this.stepAnchor(shown, aux, p.at)!.box] : [])),
+					...framePointers.flatMap((p) => (aux && p.at === `aux:${aux.values.length}` ? [this.stepAnchor(shown, aux, p.at, metrics)!.box] : [])),
 				]
 			: []
 		const sceneMetrics = { fontSize: metrics.fontSize, labelFontSize: metrics.indexFontSize, strokeWidth: metrics.strokeWidth }
@@ -1193,7 +1210,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 			color: shape.props.color,
 			fontFamily: this.getFontFamily(shape),
 			pointers: framePointers && {
-				placed: placePointers(framePointers, (key) => this.stepAnchor(shown, aux, key), this.getPointerFontSize(shape), { apart: true }),
+				placed: placePointers(framePointers, (key) => this.stepAnchor(shown, aux, key, metrics), this.getPointerFontSize(shape), { apart: true }),
 				fontSize: this.getPointerFontSize(shape),
 				slots,
 			},
@@ -1205,15 +1222,14 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	 * (`aux:<k>`, from above), or at a cell of another shape (`otherKey`: an array merged in), in this
 	 * shape's space.
 	 */
-	private stepAnchor(shown: ArrayShape, aux: AuxRow | undefined, key: string): PointerAnchor | undefined {
+	private stepAnchor(shown: ArrayShape, aux: AuxRow | undefined, key: string, metrics: ArrayMetrics): PointerAnchor | undefined {
 		if (key.startsWith('aux:')) {
 			if (!aux) return undefined
-			const metrics = getArrayMetrics(shown.props)
 			const at = getAuxLayout(aux.values.length, metrics, getArrayLayout(shown.props.values.length, metrics), aux).cellAt(Number(key.slice(4)))
 			return { box: { ...at, w: metrics.cell, h: metrics.cell }, side: 'above' }
 		}
 		const other = parseOtherKey(key)
-		if (!other) return this.pointerAnchor(shown, key)
+		if (!other) return this.pointerAnchor(shown, key, metrics)
 		const there = this.editor.getShape(other.id)
 		const util = there && this.editor.getShapeUtil(there)
 		const anchor = there && util instanceof CellShapeUtil ? util.pointerAnchor?.(there, other.cell) : undefined
@@ -1256,7 +1272,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const aux = this.displayAux(shape)
 		const crossing = frame?.moves?.length && playing ? crossSlides(frame.moves) : undefined
 		// Values copied in from another shape (an array merged in) come from its cell, wherever it is.
-		const fromAt = crossing && Object.fromEntries(Object.entries(crossing.fromOther).map(([k, key]) => [k, this.stepAnchor(shape, aux, key)?.box]))
+		const fromAt = crossing && Object.fromEntries(Object.entries(crossing.fromOther).map(([k, key]) => [k, this.stepAnchor(shape, aux, key, getArrayMetrics(shape.props))?.box]))
 		const cross = crossing && playing ? { ...crossing, fromAt, id: playing.id } : undefined
 		// Lit by an operation playing on another shape (this array is being merged in).
 		const lent = playing ? undefined : otherMarks(this.editor, shape.id)

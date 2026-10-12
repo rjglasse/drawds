@@ -21,6 +21,7 @@ import { partition3Array, quicksort } from '../array/quicksorts'
 import { allUnique, findMax, sentinelSearch } from '../array/scans'
 import { fisherYates, unfairShuffle } from '../array/shuffles'
 import { dequeue, enqueue, peekQueue, peekStack, pop, push } from '../array/stack-queue'
+import { checkBrackets, evaluatePostfix } from '../array/stack-uses'
 import {
 	appendToList,
 	deleteFromList,
@@ -178,6 +179,14 @@ describe('algorithm code', () => {
 			pop({ ...array(0, 0), used: 0, fixed: true }),
 			peekStack({ ...array(1, 2, 0), used: 2, fixed: true }),
 			peekStack({ ...array(0), used: 0, fixed: true }),
+			// What a stack is for: balanced, a mismatch, an extra closer, openers left, an overflow; postfix
+			// evaluated, too few and too many operands, a division by zero, an overflow.
+			...[false, true].flatMap((fixed) =>
+				['{[()()]}', '(]', '())', '((', '((((('].map((text) => checkBrackets({ ...array(0, 0, 0), used: 0, fixed }, text))
+			),
+			...[false, true].flatMap((fixed) =>
+				['5 1 2 + 4 * + 3 -', '1 +', '1 2', '4 0 /', '1 2 3 4 + + +'].map((text) => evaluatePostfix({ ...array(0, 0, 0), used: 0, fixed }, text))
+			),
 			// Lecture 5's list, changed: plain singly linked, with a tail and without; the linked stack and queue.
 			...[{}, { tail: 'tail' as const }].flatMap((variant) => {
 				const props = { ...plainList(['7', '3', '9']), ...variant }

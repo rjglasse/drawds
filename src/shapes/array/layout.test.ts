@@ -84,6 +84,21 @@ describe('upright arrays (stacks)', () => {
 		expect(getArrayGrowPoint(3, m).y).toBe(-24)
 	})
 
+	it("an empty fixed stack's top, at -1, lies under its footer (size and capacity), not over it", () => {
+		const m = stack(3, { sizing: 'fixed', used: 0 })
+		expect(m.footer).toBeGreaterThan(0)
+		const layout = getArrayLayout(3, m)
+		expect(layout.cellAt(-1).y).toBe(layout.box.y + layout.box.h)
+		expect(layout.indexAt(-1).y).toBe(layout.box.y + layout.box.h + 24)
+		// Pointing there (or at the footer) is index -1; further down, nothing.
+		const x = m.gutter + 10
+		expect(indexAlong({ x, y: layout.box.y + layout.box.h - 2 }, 3, m)).toBe(-1)
+		expect(indexAlong({ x, y: layout.box.y + layout.box.h + 40 }, 3, m)).toBe(-1)
+		expect(indexAlong({ x, y: layout.box.y + layout.box.h + 60 }, 3, m)).toBe(-2)
+		// Growing, it has no footer: -1 is right under index 0.
+		expect(getArrayLayout(1, stack(1)).cellAt(-1).y).toBe(stack(1).origin.y + 48)
+	})
+
 	it('sketches up from the press point whichever way the drag goes', () => {
 		const m = stack(3)
 		const pos = getSketchPosition({ x: 200, y: 300 }, { direction: 'vertical', sign: 1, count: 3 }, m)
