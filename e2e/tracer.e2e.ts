@@ -102,3 +102,53 @@ test('sayHello has no base case: the stack fills up and overflows, printing all 
 	await rightClick(page, [MAIN[0] + 30, MAIN[1]])
 	await expect(page.getByTestId('context-menu-sub.drawds-tracer-steps-button')).toHaveCount(0)
 })
+
+test("Euclid as a loop beside the recursion: one frame, m and n changed in place, the rounds counted", async ({ page }) => {
+	await place(page)
+	await page.getByTestId('style.recursion-fn.gcd-loop').click()
+	expect((await tracer(page)).props).toMatchObject({ fn: 'gcd-loop', call: 'gcd(60, 24)' })
+	await expect(page.getByTestId('tracer-code')).toContainText('while (n != 0) {')
+	await run(page)
+	await expect(caption(page)).toHaveText('gcd(60, 24): one frame, m = 60 and n = 24 in it. n = 24 ≠ 0: round the loop')
+	await page.keyboard.press('ArrowRight')
+	await page.keyboard.press('ArrowRight')
+	await expect(caption(page)).toHaveText('m = n, n = r: now m = 24, n = 12, in the same frame')
+	await expect(page.locator('[data-line="shift"][data-lit]')).toHaveCount(1)
+	// Still the one frame over main.
+	expect(await stack(page)).toEqual(['main: gcd(60, 24)', 'gcd(60, 24): m = 24, n = 12'])
+	await stepToEnd(page)
+	await expect(caption(page)).toHaveText(
+		'main: gcd(60, 24) = 12. One call and one frame, round the loop 2 times, m and n changed in place: the recursive gcd pushes a frame per call (3 here)'
+	)
+	await expect(page.getByTestId('play-bar')).toContainText('times round 2')
+})
+
+test('sayHello(i) passes i on: each frame says how deep it is, and the overflow says where', async ({ page }) => {
+	await place(page)
+	await page.getByTestId('style.recursion-fn.hello-count').click()
+	expect((await tracer(page)).props).toMatchObject({ fn: 'hello-count', call: 'sayHello(1)' })
+	await run(page)
+	await stepToEnd(page)
+	await expect(caption(page)).toContainText('sayHello(8) calls sayHello(9), but the stack is full: StackOverflowError at i = 9')
+	await expect(page.locator('[data-frame^="sayHello("]')).toHaveCount(8)
+	const output = page.getByTestId('playback-strip').filter({ hasText: 'output' })
+	await expect(output).toContainText('Hello 1')
+	await expect(output).toContainText('Hello 8')
+})
+
+test('a tracer clicked near the top of the window moves down so its call stack shows, in the same undo step', async ({ page }) => {
+	await page.keyboard.press('Shift+R')
+	await page.mouse.click(300, 100)
+	await expect(page.getByTestId('tracer')).toBeVisible()
+	const { bounds, view } = await withEditor(page, (e) => {
+		const s = e.getCurrentPageShapes().find((s) => s.type === 'recursion-tracer')!
+		const b = e.getShapePageBounds(s)!
+		const v = e.getViewportPageBounds()
+		return { bounds: { top: b.minY, bottom: b.maxY }, view: { top: v.minY, bottom: v.maxY } }
+	})
+	expect(bounds.top).toBeGreaterThanOrEqual(view.top)
+	expect(bounds.bottom).toBeLessThanOrEqual(view.bottom)
+	// One undo takes it away, moved or not.
+	await page.keyboard.press('ControlOrMeta+z')
+	await expect.poll(async () => (await shapesOfType(page, 'recursion-tracer')).length).toBe(0)
+})

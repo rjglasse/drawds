@@ -3,6 +3,7 @@ import {
 	Vec,
 	createShapeId,
 	maybeSnapToGrid,
+	type Editor,
 	type TLShape,
 	type TLShapeId,
 	type TLShapePartial,
@@ -24,6 +25,8 @@ export interface DragToolConfig<S extends TLShape, G> {
 	same(a: G, b: G): boolean
 	/** The shape for a gesture state: page position of its top-left, plus any props to change. */
 	layout(shape: S, origin: VecLike, gesture: G): Pick<TLShapePartial<S>, 'x' | 'y' | 'props'>
+	/** Once drawn (the pointer up): anything to settle, in the same undo step (a tracer moved onto the screen). */
+	settle?(editor: Editor, id: TLShapeId): void
 }
 
 /**
@@ -116,6 +119,7 @@ export function createDragTool<S extends TLShape, G>(config: DragToolConfig<S, G
 		}
 
 		private complete() {
+			config.settle?.(this.editor, this.shapeId)
 			if (this.editor.getInstanceState().isToolLocked) {
 				this.parent.transition('idle')
 				return

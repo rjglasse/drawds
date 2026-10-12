@@ -125,3 +125,32 @@ describe('tracer layout', () => {
 		expect(layout.slotBox(0).w - layout.callW).toBeGreaterThanOrEqual(longest * layout.fontSize * 0.62)
 	})
 })
+
+describe('lecture 1’s other two: gcd as a loop, sayHello(i)', () => {
+	it('the call typed picks between them: by its arguments, else the one already picked', () => {
+		expect(parseCall('sayHello(1)', 'hello')).toEqual({ fn: 'hello-count', args: [1] })
+		expect(parseCall('sayHello()', 'hello-count')).toEqual({ fn: 'hello', args: [] })
+		expect(parseCall('gcd(60, 24)', 'gcd-loop')).toEqual({ fn: 'gcd-loop', args: [60, 24] })
+		expect(parseCall('gcd(60, 24)')).toEqual({ fn: 'gcd', args: [60, 24] })
+	})
+
+	it('gcd as a loop: one frame, m and n changed in it, round until n is 0; against the recursion’s frame per call', () => {
+		const t = traceCall('gcd-loop', [60, 24])
+		expect(t.depth).toBe(2)
+		expect(t.frames.map((f) => traceOf(f)?.line)).toEqual(['test', 'body', 'shift', 'test', 'body', 'shift', 'test', 'return', undefined])
+		expect(t.frames.map((f) => traceOf(f)!.stack.at(-1)!.work).slice(0, 4)).toEqual(['m = 60, n = 24', 'm = 60, n = 24, r = 12', 'm = 24, n = 12', 'm = 24, n = 12'])
+		expect(t.frames.at(-1)!.caption).toBe(
+			'main: gcd(60, 24) = 12. One call and one frame, round the loop 2 times, m and n changed in place: the recursive gcd pushes a frame per call (3 here)'
+		)
+		expect(traceCall('gcd', [60, 24]).frames.at(-1)!.counts?.calls).toBe(3)
+	})
+
+	it('sayHello(i): each frame its own i, Hello 1, Hello 2... printed, until the stack is full at i = 9', () => {
+		const t = traceCall('hello-count', [1])
+		expect(t.overflowed).toBe(true)
+		const last = t.frames.at(-1)!
+		expect(last.strips?.[0].items).toEqual(Array.from({ length: STACK_ROOM }, (_, k) => `Hello ${k + 1}`))
+		expect(traceOf(last)!.stack.map((f) => f.call)).toEqual(['main', ...Array.from({ length: STACK_ROOM }, (_, k) => `sayHello(${k + 1})`)])
+		expect(last.caption).toContain('StackOverflowError at i = 9')
+	})
+})

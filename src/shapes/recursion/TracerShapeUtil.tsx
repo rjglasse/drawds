@@ -44,7 +44,7 @@ function modelOf(shape: TracerShape): Model {
 }
 
 /** The colour of each line of code a step can be on. */
-const LINE_COLORS: Record<CodeLine, MarkColor> = { base: 'green', recursive: 'orange', print: 'blue' }
+const LINE_COLORS: Record<CodeLine, MarkColor> = { base: 'green', recursive: 'orange', print: 'blue', test: 'orange', body: 'blue', shift: 'blue', return: 'green' }
 
 const tracerCells: EditableCells<TracerShape> = {
 	cellAt(shape, point) {

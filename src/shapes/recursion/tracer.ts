@@ -7,11 +7,14 @@ import type { Frame, Strip } from '../../nodelink/playback'
 // returning in turn. Functions with no base case, or whose argument never shrinks, fill the stack
 // until it overflows. Pure: frames for the tracer shape (and its recursion tree beside it).
 
-export const TRACED = ['gcd', 'fact', 'fib', 'sum', 'hello', 'stuck'] as const
+export const TRACED = ['gcd', 'gcd-loop', 'fact', 'fib', 'sum', 'hello', 'hello-count', 'stuck'] as const
 export type Traced = (typeof TRACED)[number]
 
-/** Which line of the code a step is on: the base case, the recursive case, or (sayHello) the print. */
-export type CodeLine = 'base' | 'recursive' | 'print'
+/**
+ * Which line of the code a step is on: the base case, the recursive case, or (sayHello) the print;
+ * gcd as a loop: its test, its body (r = m % n; then m = n; n = r), its return.
+ */
+export type CodeLine = 'base' | 'recursive' | 'print' | 'test' | 'body' | 'shift' | 'return'
 
 interface TracedFunction {
 	/** As it is called: gcd(60, 24), sayHello(). */
@@ -36,6 +39,22 @@ export const FUNCTIONS: Record<Traced, TracedFunction> = {
 			{ text: 'int gcd(int m, int n) {' },
 			{ text: '    if (n == 0) return m;', line: 'base', note: 'base case' },
 			{ text: '    return gcd(n, m % n);', line: 'recursive', note: 'recursive case' },
+			{ text: '}' },
+		],
+		check: ([m, n]) => (!natural(m) || !natural(n) ? 'gcd needs two whole numbers ≥ 0' : m === 0 && n === 0 ? 'gcd(0, 0) has no answer' : m > 1e9 || n > 1e9 ? 'gcd: keep the numbers under a billion' : undefined),
+	},
+	// Lecture 1 sets the loop beside the recursion: the same Euclid, one frame whose m and n change.
+	'gcd-loop': {
+		name: 'gcd',
+		params: ['m', 'n'],
+		example: 'gcd(60, 24)',
+		code: [
+			{ text: 'int gcd(int m, int n) {' },
+			{ text: '    while (n != 0) {', line: 'test', note: 'a loop: one frame' },
+			{ text: '        int r = m % n;', line: 'body' },
+			{ text: '        m = n; n = r;', line: 'shift' },
+			{ text: '    }' },
+			{ text: '    return m;', line: 'return', note: 'n is 0' },
 			{ text: '}' },
 		],
 		check: ([m, n]) => (!natural(m) || !natural(n) ? 'gcd needs two whole numbers ≥ 0' : m === 0 && n === 0 ? 'gcd(0, 0) has no answer' : m > 1e9 || n > 1e9 ? 'gcd: keep the numbers under a billion' : undefined),
@@ -88,6 +107,19 @@ export const FUNCTIONS: Record<Traced, TracedFunction> = {
 		],
 		check: () => undefined,
 	},
+	// Lecture 1's second sayHello: i passed on, one more each call, so each frame knows how deep it is.
+	'hello-count': {
+		name: 'sayHello',
+		params: ['i'],
+		example: 'sayHello(1)',
+		code: [
+			{ text: 'void sayHello(int i) {' },
+			{ text: '    System.out.println("Hello " + i);', line: 'print' },
+			{ text: '    sayHello(i + 1);', line: 'recursive', note: 'i passed on, no base case!' },
+			{ text: '}' },
+		],
+		check: ([i]) => (!Number.isInteger(i) ? 'sayHello needs a whole number' : undefined),
+	},
 	stuck: {
 		name: 'sum',
 		params: ['n'],
@@ -111,8 +143,11 @@ export function parseCall(text: string, prefer?: Traced): { fn: Traced; args: nu
 	if (!m) return { error: 'Type a call, like gcd(60, 24)' }
 	const named = TRACED.filter((fn) => FUNCTIONS[fn].name === m[1] || (fn === 'fact' && m[1] === 'factorial'))
 	if (!named.length) return { error: `${m[1]}: try gcd, fact, fib, sum or sayHello` }
-	const fn = prefer && named.includes(prefer) ? prefer : named[0]
 	const args = m[2].trim() ? m[2].split(',').map((a) => Number(a.trim())) : []
+	// The one that takes these arguments (sayHello() or sayHello(1)); `prefer` among those that do.
+	const fitting = named.filter((fn) => FUNCTIONS[fn].params.length === args.length)
+	const pool = fitting.length ? fitting : named
+	const fn = prefer && pool.includes(prefer) ? prefer : pool[0]
 	const { params } = FUNCTIONS[fn]
 	if (args.length !== params.length || args.some((a) => !Number.isFinite(a))) {
 		return { error: `${FUNCTIONS[fn].name} takes ${params.length ? params.join(', ') : 'no arguments'}` }
@@ -162,7 +197,7 @@ function tracer(callText: string) {
 	const frames: Frame[] = []
 	const stack: (StackFrameView & { returned?: string })[] = [{ call: 'main', work: callText }]
 	const texts: StackFrameView[] = [{ call: 'main', work: callText }]
-	const counts = { calls: 0, 'max depth': 0 }
+	const counts: Record<string, number> = { calls: 0, 'max depth': 0 }
 	const output: string[] = []
 	let depth = 1
 	return {
@@ -313,15 +348,51 @@ export function traceCall(fn: Traced, args: readonly number[]): Trace {
 				known.set(call, p + q)
 				return p + q
 			}
+			case 'gcd-loop': {
+				// One frame: m and n change in it, round the loop until n is 0.
+				let [m, n] = a
+				const locals = (rest = '') => `m = ${m}, n = ${n}${rest}`
+				r.counts['times round'] = 0
+				r.step(`${call}: one frame, m = ${m} and n = ${n} in it. n = ${n}${n !== 0 ? ' ≠ 0: round the loop' : ': the loop never starts'}`, {
+					push: call,
+					work: locals(),
+					line: 'test',
+					ask: NEXT_CALL,
+				})
+				while (n !== 0) {
+					const rem = m % n
+					r.counts['times round']++
+					r.step(`r = m % n = ${m} % ${n} = ${rem}`, { work: locals(`, r = ${rem}`), line: 'body', ask: 'What is r?' })
+					;[m, n] = [n, rem]
+					r.step(`m = n, n = r: now m = ${m}, n = ${n}, in the same frame`, { work: locals(), line: 'shift', ask: 'What are m and n now?' })
+					r.step(n !== 0 ? `n = ${n} ≠ 0: round again` : 'n = 0: the loop ends', { work: locals(), line: 'test', ask: 'Round again, or out of the loop?' })
+				}
+				r.step(`return m = ${m}`, { work: `return ${m}`, returns: String(m), line: 'return', ask: `What does ${call} return?` })
+				return m
+			}
 			case 'hello':
+			case 'hello-count':
 			case 'stuck': {
 				if (full()) {
 					overflowed = true
+					// sayHello(i): i says how deep the stack got.
+					const deep = fn === 'hello-count' ? ` at i = ${a[0]}` : ''
 					r.step(
-						`${r.stack[r.stack.length - 1].call} calls ${call}, but the stack is full: StackOverflowError (Java's stack holds thousands of frames; this one holds ${STACK_ROOM})`,
+						`${r.stack[r.stack.length - 1].call} calls ${call}, but the stack is full: StackOverflowError${deep} (Java's stack holds thousands of frames; this one holds ${STACK_ROOM})`,
 						{ overflow: true, ask: 'What happens next?' }
 					)
 					return undefined
+				}
+				if (fn === 'hello-count') {
+					const [i] = a
+					r.output.push(`Hello ${i}`)
+					r.step(`${call}: print "Hello ${i}", then call sayHello(${i + 1}): i is passed on, one more each call, and there is still no base case`, {
+						push: call,
+						work: `print, then sayHello(${i + 1})`,
+						line: 'print',
+						ask: NEXT_CALL,
+					})
+					return run([i + 1])
 				}
 				if (fn === 'hello') {
 					r.output.push('Hello!')
@@ -357,7 +428,13 @@ export function traceCall(fn: Traced, args: readonly number[]): Trace {
 		return r.result(true)
 	}
 	const { calls } = r.counts
-	r.step(`main: ${first} = ${value}. ${calls} call${calls === 1 ? '' : 's'}, at most ${r.counts['max depth']} on the stack at once`, {
+	// The loop against the recursion: the recursive gcd makes a call for every time round, and one more.
+	const round = r.counts['times round']
+	const loop =
+		fn === 'gcd-loop'
+			? `. One call and one frame, round the loop ${round} time${round === 1 ? '' : 's'}, m and n changed in place: the recursive gcd pushes a frame per call (${round + 1} here)`
+			: ''
+	r.step(`main: ${first} = ${value}${loop || `. ${calls} call${calls === 1 ? '' : 's'}, at most ${r.counts['max depth']} on the stack at once`}`, {
 		work: `${first} = ${value}`,
 		done: true,
 		ask: false,

@@ -336,10 +336,13 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   merge sort n per level, quicksort on sorted input n, n - 1, ...), and the last step sums up the levels. Binary
   search, recursive (`recursiveBinarySearch`, low / mid / high as lecture 4 names them) makes a chain, returning up it. Repeated calls (`repeatedCalls`: the
   same call already finished elsewhere, not an ancestor) are green and counted in the heading (fib's overlap).
-- Recursion tracer (dds-szw.13.4, `recursion-tracer`, Shift+R, a click places it): a function traced on the call
-  stack. Props `fn` (style `drawds:recursion-fn`: gcd, fact, fib, sum, hello = sayHello with no base case, stuck = a
-  sum whose n never shrinks) and `call`, main's one editable cell (typing another function's name picks it; the
-  picker types its example call; `onBeforeCreate` / `onBeforeUpdate` keep the two in step). `tracer.ts` is pure:
+- Recursion tracer (dds-szw.13.4, `recursion-tracer`, Shift+R, a click places it, moved down or up so it is wholly on
+  screen: the drag tools' `settle` hook, same undo step): a function traced on the call
+  stack. Props `fn` (style `drawds:recursion-fn`: gcd, gcd-loop = Euclid as a while loop, one frame, its rounds
+  counted against the recursive gcd's calls, fact, fib, sum, hello = sayHello with no base case, hello-count =
+  sayHello(i) passing i + 1 on, overflowing at i = 9, stuck = a sum whose n never shrinks) and `call`, main's one
+  editable cell (typing another function's call picks it, by its name and number of arguments; the picker types its
+  example call; `onBeforeCreate` / `onBeforeUpdate` keep the two in step). `tracer.ts` is pure:
   `parseCall` (or why it can't be traced), `traceCall` frames whose props carry `trace` (the stack from main up, the
   code line, overflow, done) plus `calls` for the tree and `moves` `slot:<i>` with `flowing` values (a returned value
   drops into the frame below: `drawds-drop` keyframes). A frame that returns stays for its step and goes at the next.
