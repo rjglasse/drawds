@@ -94,7 +94,7 @@ export function SeedPicker() {
 						if (e.key === 'Enter' || e.key === 'Escape') e.currentTarget.blur()
 					}}
 					// Pinned shows: it outlasts a reload, and every new sketch takes it.
-					style={isPinned ? { ...inputStyle, borderColor: 'var(--tl-color-selected)', boxShadow: 'inset 0 0 0 1px var(--tl-color-selected)' } : inputStyle}
+					style={isPinned ? { ...inputStyle, border: '1px solid var(--tl-color-selected)', boxShadow: 'inset 0 0 0 1px var(--tl-color-selected)' } : inputStyle}
 				/>
 				<TldrawUiButton
 					type="icon"
