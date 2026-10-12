@@ -316,6 +316,13 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 	override shapeOperations(shape: CodeShape): NodeOperation[] {
 		const { lineNumbers, lineCounts, algorithm } = shape.props
 		return [
+			// Its text as drawn (the code beside a structure, written out), to paste into an editor.
+			{
+				section: 'actions',
+				id: 'code-copy',
+				label: 'Copy the code',
+				run: () => void navigator.clipboard.writeText(this.shown(shape).props.code),
+			},
 			{
 				section: 'show',
 				id: 'code-line-numbers',

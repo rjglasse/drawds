@@ -39,6 +39,7 @@ import { LessonDialog } from '../lesson/LessonDialog'
 import type { CodeLanguage } from '../shapes/code/highlight'
 import { codeLanguage, codeMode } from '../transcript/mode'
 import { codeIn, trackWithCode } from '../transcript/transcript'
+import { downloadBoardScript } from '../transcript/script'
 import type { MenuSection, NodeOperation } from '../cells/CellShapeUtil'
 import { NodeLinkShapeUtil } from '../nodelink/NodeLinkShapeUtil'
 import { placePointer, removePointer, type Pointer } from '../pointers/pointers'
@@ -279,6 +280,7 @@ function CodeMenuGroup() {
 	return (
 		<TldrawUiMenuGroup id="drawds-code">
 			<TldrawUiMenuCheckboxItem id="drawds-track-with-code" label="Track with code" checked={on} toggle onSelect={() => trackWithCode(editor, !on)} />
+			<TldrawUiMenuItem id="drawds-download-code" label="Download the board's code (Python)" onSelect={() => downloadBoardScript(editor)} />
 			<TldrawUiMenuSubmenu id="drawds-code-language" label="Code language">
 				<TldrawUiMenuGroup id="drawds-code-languages">
 					{CODE_LANGUAGES.map(([id, label]) => (

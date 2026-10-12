@@ -1,3 +1,4 @@
+import { boardScript, boardStructures } from './transcript/script'
 import { exportSteps, type StepExportOptions } from './export/steps'
 import { exportLesson, startLessonLog } from './lesson/log'
 import { lessonManifest } from './lesson/manifest'
@@ -53,6 +54,8 @@ declare global {
 		drawdsSteps?: (options?: StepExportOptions) => Promise<{ name: string; caption: string; header: string; width: number; height: number; base64: string }[]>
 		/** Dev: every operation in the lesson log, its steps as images (base64) in folders, and the manifest. */
 		drawdsLesson?: (options?: StepExportOptions) => Promise<{ manifest: unknown; files: { path: string; base64: string }[] }>
+		/** Dev: the board's code as a Python script (Main menu > Download the board's code). */
+		drawdsScript?: () => string
 	}
 }
 
@@ -78,6 +81,7 @@ function onMount(editor: Editor) {
 			)
 			return { manifest: lessonManifest(exported), files }
 		}
+		window.drawdsScript = () => boardScript(boardStructures(editor))
 	}
 	const cleanups = [
 		deleteFollowersWithTheirStructure(editor),

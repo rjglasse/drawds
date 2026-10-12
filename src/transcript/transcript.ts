@@ -5,11 +5,11 @@ import type { CodeLanguage } from '../shapes/code/highlight'
 import { CODE_TYPE, CodeLanguageStyle, type CodeShape } from '../shapes/code/code-shape-types'
 import { algorithmCode } from '../shapes/code/algorithms'
 import { playbackFor } from '../nodelink/playback'
-import { isLogged, isSketching, logOrStart } from './log'
+import { isLogged, isSketching, logOrStart, type Move } from './log'
 import { codeLanguage, codeMode, setCodeMode } from './mode'
 import type { ArrayMove } from './array-moves'
 import type { ListMove } from './list-moves'
-import { renderArrayLog, renderGraphLog, renderHashLog, renderHeapLog, renderListLog, renderMatrixLog, renderTreeLog, renderUnionFindLog } from './render'
+import { renderArrayLog, renderGraphLog, renderHashLog, renderHeapLog, renderListLog, renderMatrixLog, renderTreeLog, renderUnionFindLog, type HashClassOf } from './render'
 import type { GraphMove } from './graph-moves'
 import type { HeapMove } from './heap-moves'
 import type { HashMove } from './hash-moves'
@@ -23,12 +23,16 @@ import type { TreeMove } from './tree-moves'
 
 /** A structure's moves written out in `language`. */
 export function transcriptOf(editor: Editor, structure: TLShape, language: CodeLanguage): string {
-	const log = logOrStart(editor, structure)
+	return renderLog(structure, logOrStart(editor, structure), language)
+}
+
+/** A structure's log written out in `language`, as its kind writes it (`hashClass`: a whole board's script names each scheme's class). */
+export function renderLog(structure: TLShape, log: readonly Move[], language: CodeLanguage, hashClass?: HashClassOf): string {
 	if (structure.type === 'linked-list') return renderListLog(log as ListMove[], language)
 	// A BST's nodes hold keys, as its code calls them.
 	if (structure.type === 'binary-tree') return renderTreeLog(log as TreeMove[], language, (structure.props as { kind?: string }).kind === 'bst' ? 'key' : 'value')
 	if (structure.type === 'heap') return renderHeapLog(log as HeapMove[], language)
-	if (structure.type === 'hash-table') return renderHashLog(log as HashMove[], language)
+	if (structure.type === 'hash-table') return renderHashLog(log as HashMove[], language, hashClass)
 	if (structure.type === 'matrix') return renderMatrixLog(log as MatrixMove[], language)
 	if (structure.type === 'union-find') return renderUnionFindLog(log as UnionFindMove[], language)
 	if (structure.type === 'graph') {

@@ -445,7 +445,7 @@ function indexNote(t: HashTable): string | undefined {
  * keys put in, in order (else laid out bucket by bucket), a key typed straight into a chain or slot,
  * its operations called as the table's own code (`src/shapes/hash/code.ts`) declares them.
  */
-function hashLines(move: HashMove, s: Spelling, probing: boolean): string[] {
+function hashLines(move: HashMove, s: Spelling, probing: boolean, classOf: HashClassOf): string[] {
 	const { name: t, language } = s
 	const [py, java] = [language === 'python', language === 'java']
 	const end = py ? '' : ';'
@@ -463,7 +463,7 @@ function hashLines(move: HashMove, s: Spelling, probing: boolean): string[] {
 		return py ? `Node(${key(first)}, ${chain(rest)})` : java ? `new Node(${key(first)}, ${chain(rest)})` : `node(${key(first)}, ${chain(rest)})`
 	}
 	const made = (table: HashTable, fresh: boolean): string[] => {
-		const cls = table.strategy === 'chaining' ? 'ChainingHashTable' : 'ProbingHashTable'
+		const cls = classOf(table)
 		const keys = 'keys' in table ? table.keys : []
 		const items = keys.map(key).join(', ')
 		const create = py
@@ -507,13 +507,18 @@ function hashLines(move: HashMove, s: Spelling, probing: boolean): string[] {
 			const { args } = move
 			const written = call(move.algorithm, s, 'hash', (param) => (param === 'key' && args?.key !== undefined ? key(args.key) : undefined))
 			if (written) return [written]
-			return [`${note} ${move.label}, step by step:`, ...move.effect.flatMap((m) => hashLines(m, s, probing))]
+			return [`${note} ${move.label}, step by step:`, ...move.effect.flatMap((m) => hashLines(m, s, probing, classOf))]
 		}
 	}
 }
 
+/** The class a table is made of: by its strategy (a whole board's script tells schemes apart: `script.ts`). */
+export type HashClassOf = (table: HashTable) => string
+
+const hashClass: HashClassOf = (table) => (table.strategy === 'chaining' ? 'ChainingHashTable' : 'ProbingHashTable')
+
 /** A hash table's log written out in `language`. */
-export function renderHashLog(moves: readonly HashMove[], language: CodeLanguage): string {
+export function renderHashLog(moves: readonly HashMove[], language: CodeLanguage, classOf: HashClassOf = hashClass): string {
 	const first = moves[0]
 	const keysOf = (m: HashMove): string[] =>
 		m.op === 'new' || m.op === 'assign' ? tableKeys(m.table) : m.op === 'set' ? [m.key] : m.op === 'call' ? [...(m.args?.key ? [m.args.key] : []), ...m.effect.flatMap(keysOf)] : []
@@ -524,7 +529,7 @@ export function renderHashLog(moves: readonly HashMove[], language: CodeLanguage
 	return moves
 		.flatMap((m) => {
 			if (m.op === 'new' || m.op === 'assign') probing = m.table.strategy === 'probing'
-			return hashLines(m, s, probing)
+			return hashLines(m, s, probing, classOf)
 		})
 		.join('\n')
 }

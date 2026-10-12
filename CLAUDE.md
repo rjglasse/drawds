@@ -304,6 +304,13 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   union and find per kind), run, rebuilt their structures. The code box goes right of the structure, past its grips,
   else further right or under it, whichever is nearer (`putBeside`, `spotBeside` pure, `src/cells/beside.ts`). Stacks and queues: 400 array logs and 300
   linked ones against lecture 6's code, run, rebuilt. A drag of a 40-node graph's node costs the log ~2-3 µs a change.
+  The board's code as one runnable Python script (dds-2tt.10, `script.ts`; main menu > Download the board's code, dev
+  `window.drawdsScript`): every structure's code in turn (`renderLog`, the board's names kept apart), after the classes
+  and functions it calls, made of drawds' own Python (`algorithmCode`'s methods in a class with a hand-written
+  `__init__` / `__repr__`; one `Node` for lists, trees and hash chains, a class per hash scheme via `renderHashLog`'s
+  `classOf`, union-find dispatching on `by` / `compress`), only what the board uses, then each structure printed; a
+  shuffle puts back the order the board got. Java and C aren't made runnable. `script.test.ts` runs every kind through
+  python3 (skipped without it); a code box's actions > Copy the code copies its text as drawn.
   Track with code (dds-2tt.5, main menu: a toggle and Code language), the board's setting in its document meta
   (`mode.ts`: `drawdsCode` {on, language}), so a reload and a board file keep it. It is out of undo, as the lesson
   log is (an undo puts back the whole document record), and what it does to boxes is an undo step of its own. On
