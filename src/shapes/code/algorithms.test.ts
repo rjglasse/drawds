@@ -42,7 +42,7 @@ import { dequeueFrom, enqueueOnto, peekAt, popFrom, pushOnto } from '../list/sta
 import { countNodes } from '../list/size'
 import { deleteKey, findKey, insertEntry, rehash, buildTable } from '../hash/hash'
 import { heapCode } from '../heap/code'
-import { findSteps, unionSteps } from '../union-find/operations'
+import { connectedSteps, findSteps, unionSteps } from '../union-find/operations'
 import { buildHeapSteps } from '../heap/heap'
 import { insertSteps, removeSteps } from '../heap/steps'
 import { measureTree } from '../tree/measure'
@@ -378,7 +378,15 @@ describe('union-find', () => {
 	it.each(kinds)('%o: every operation shows its code, every line and value in it', (kind) => {
 		const props = { labels: ['0', '1', '2', '3', '4', '5', '6'], size: 'm' as const, ...forest, ...kind }
 		const f = { parent: [...forest.parent], sizes: [...forest.sizes], ranks: [...forest.ranks] }
-		const ops = [findSteps(props, f, 0), findSteps(props, f, 3), unionSteps(props, 3, 5), unionSteps(props, 3, 1), unionSteps(props, 6, 4)]
+		const ops = [
+			findSteps(props, f, 0),
+			findSteps(props, f, 3),
+			unionSteps(props, 3, 5),
+			unionSteps(props, 3, 1),
+			unionSteps(props, 6, 4),
+			connectedSteps(props, 3, 1),
+			connectedSteps(props, 3, 5),
+		]
 		const given = new Map<string, Set<string>>()
 		for (const op of ops) {
 			const names = op.frames.flatMap((fr) => [...(fr.pointers ?? []).map((p) => p.name), ...Object.keys(fr.vars ?? {})])

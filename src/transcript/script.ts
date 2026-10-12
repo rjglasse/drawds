@@ -302,7 +302,8 @@ const UNION_FIND = `class UnionFind:
         return f'UnionFind(parent={self.parent!r})'`
 
 const unionFind = () => {
-	const renamed = (id: string, to: string) => defsOf([py(id)]).get(id.startsWith('uf-find') ? 'find' : 'union')!.replace(/^def \w+/, `def ${to}`)
+	const own = (id: string) => (id.startsWith('uf-find') ? 'find' : id.startsWith('uf-connected') ? 'connected' : 'union')
+	const renamed = (id: string, to: string) => defsOf([py(id)]).get(own(id))!.replace(/^def \w+/, `def ${to}`)
 	return [
 		UNION_FIND,
 		...[
@@ -311,6 +312,8 @@ const unionFind = () => {
 			renamed('uf-union-size', 'union_by_size'),
 			renamed('uf-union-rank', 'union_by_rank'),
 			renamed('uf-union-naive', 'union_naive'),
+			// Same set?: both finds (as the kind finds), the roots compared.
+			renamed('uf-connected', 'connected'),
 		].map(indent),
 	].join('\n\n')
 }

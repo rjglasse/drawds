@@ -177,6 +177,8 @@ describe.skipIf(!hasPython)('the board as one Python script', () => {
 			{ op: 'call', algorithm: unionFindCode('union', 'rank', false), label: 'union', effect: [], args: { a: '0', b: '2' } },
 			{ op: 'makeSet' },
 			{ op: 'call', algorithm: unionFindCode('find', 'rank', false), label: 'find', effect: [], args: { i: '0' } },
+			// Same set?: a call too, its finds as this kind's.
+			{ op: 'call', algorithm: unionFindCode('connected', 'rank', false), label: 'connected', effect: [], args: { a: '0', b: '3' } },
 		]
 		const graph: GraphMove[] = [
 			{ op: 'new', name: 'g', vertices: ['A', 'B'], edges: [['A', 'B', '4']] },

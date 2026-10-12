@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { stateAt } from '../../nodelink/playback'
 import { elementKey, elementOfKey, forestPositions, parentKey, unionFindScene, weightKey } from './layout'
-import { findSteps, unionSteps } from './operations'
+import { connectedSteps, findSteps, unionSteps } from './operations'
 import { canSetParent, compress, findPath, randomUnions, recount, rootOf, singletons, toCompress, union, type Forest } from './union-find'
 import { mulberry32 } from '../../data/random'
 
@@ -129,5 +129,19 @@ describe('union-find steps', () => {
 		// While b's root is found, the way up to a's root is no longer lit; a's root is.
 		const state = stateAt(joined.frames, joined.frames.findIndex((f) => f.pointers?.some((p) => p.name === 'b')))
 		expect(state.flash[elementKey(4)]).toBe('green')
+	})
+
+	it('Same set?: both finds, then the roots compared; nothing linked, though the finds compress', () => {
+		// chain: 4 on its own; 3 → 2 → 1 → 0.
+		const labels = ['0', '1', '2', '3', '4']
+		const apart = connectedSteps({ ...props(chain(), { compression: 'off' }), labels }, 3, 4)
+		expect(apart.code).toBe('uf-connected')
+		expect(apart.forest.parent).toEqual(chain().parent)
+		expect(apart.frames.at(-1)).toMatchObject({ line: 'answer', caption: 'ra = 0, rb = 4: two roots, so 3 and 4 are in different sets (false)' })
+		const together = connectedSteps({ ...props(chain()), labels }, 3, 1)
+		expect(together.code).toBe('uf-connected-compress')
+		expect(together.frames.at(-1)!.caption).toBe('ra == rb: both roots are 0, so 3 and 1 are in the same set (true)')
+		// find(3) compressed the way up: 3 and 2 now point at 0.
+		expect(together.forest.parent).toEqual([0, 0, 0, 0, 4])
 	})
 })

@@ -534,7 +534,11 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `p<i>` / `w<i>`; an element's mark lights its parent cell. `union-find.ts` pure model, `operations.ts` frames: find
   (walk up with `curr`, then compression re-points arrows in a `scene` frame where the nodes are, then tidies) and
   union (both finds, then link by size / rank / naively, or refuse: one set already, Kruskal's cycle). Element menu: Find,
-  Union with... (prompt: a name or index); actions: Random unions, reset. Type a parent into its cell (a loop is refused;
+  Union with... (prompt: a name or index), Same set as... (`connectedSteps`, code `uf-connected`: both finds, the roots
+  compared, nothing linked; the board script's UnionFind has it too); actions: Random unions, reset. Union by a gesture
+  (dds-55z.34.2, `drag.ts`): each element's grip on its right rim (a 'create' handle, drawn on hover), dragged onto
+  another element or its parent / size cell, plays union(a, b) (a dashed line, the target ringed, union(a, b) by the
+  pointer). Type a parent into its cell (a loop is refused;
   sizes and ranks recounted). Shift+U. Code (`code.ts`, `unionFindCode`): find walking up (with
   compression a second loop re-pointing each node on the way, in the steps' order) and union (C's `unite`) by size / rank /
   naively with find under it, so a union's finds step into it; checked by running 40 random unions in real Python and

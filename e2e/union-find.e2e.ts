@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { UnionFindShapeProps } from '../src/shapes/union-find/union-find-shape-types'
-import { hoverNode, nodeScreenPosition, open, rightClick, shapesOfType, sketchUnionFind, withEditor } from './helpers'
+import { handlePosition, hoverNode, nodeScreenPosition, open, rightClick, shapesOfType, sketchUnionFind, withEditor } from './helpers'
 
 const uf = async (page: Page) => (await shapesOfType<UnionFindShapeProps>(page, 'union-find'))[0].props
 const caption = (page: Page) => page.getByTestId('play-caption')
@@ -14,7 +14,7 @@ async function chainAndPair(page: Page) {
 }
 
 /** Right-click element `i`: Step by step > the operation (union: the other element typed in). */
-async function ufOp(page: Page, i: number, item: 'uf-find' | 'uf-union', other?: string) {
+async function ufOp(page: Page, i: number, item: 'uf-find' | 'uf-union' | 'uf-connected', other?: string) {
 	await rightClick(page, await nodeScreenPosition(page, String(i)))
 	await page.getByTestId('context-menu-sub.drawds-uf-steps-button').click()
 	await page.getByTestId(`context-menu.${item}`).click()
@@ -155,4 +155,24 @@ test('the code beside: find walks up, then compresses each node on the way; unio
 	await expect.poll(litLine).toContain('int find(int i) {')
 	await stepToEnd(page)
 	await expect.poll(litLine).toContain('parent[ra] = rb;')
+})
+
+test("drag an element's grip onto another to union them, step by step; Same set as? finds both roots", async ({ page }) => {
+	await sketchUnionFind(page, [200, 200], 7)
+	await chainAndPair(page)
+	// 6 onto 4 (or onto 4's parent cell): union(6, 4).
+	const [from, to] = [await handlePosition(page, 'union:6'), await nodeScreenPosition(page, '4')]
+	await page.mouse.move(...from)
+	await page.mouse.down()
+	await page.mouse.move(to[0], to[1], { steps: 15 })
+	await page.mouse.up()
+	await expect(caption(page)).toContainText('union(6, 4): find both roots')
+	await stepToEnd(page)
+	await page.keyboard.press('Enter')
+	// By size: 6's set (2) under 4's root, 0 (5).
+	expect((await uf(page)).parent[5]).toBe(0)
+	// Same set? 6 and 1: yes now.
+	await ufOp(page, 6, 'uf-connected', '1')
+	await stepToEnd(page)
+	await expect(caption(page)).toHaveText('ra == rb: both roots are 0, so 6 and 1 are in the same set (true)')
 })

@@ -9,7 +9,7 @@ import type { UnionBy } from './union-find'
 // `src/shapes/code/algorithms.ts`; curr, ra and rb are the steps' pointers.
 
 /** The code id for a find, or a union of this kind, with path compression or not. */
-export const unionFindCode = (op: 'find' | 'union', by: UnionBy, compress: boolean) =>
+export const unionFindCode = (op: 'find' | 'union' | 'connected', by: UnionBy, compress: boolean) =>
 	`uf-${op}${op === 'union' ? `-${by}` : ''}${compress ? '-compress' : ''}`
 
 function find(compress: boolean): CodeSource {
@@ -146,9 +146,25 @@ function union(by: UnionBy, compress: boolean): CodeSource {
 	}
 }
 
+/** Same set? Both roots found (compressing, if on), then compared: no link made. */
+function connected(compress: boolean): CodeSource {
+	const f = find(compress)
+	const indent = (code: string) => {
+		const lines = code.replace(/^\n+/, '').split('\n')
+		const n = Math.min(...lines.filter((l) => l.trim()).map((l) => l.length - l.trimStart().length))
+		return lines.map((l) => l.slice(n)).join('\n')
+	}
+	return {
+		c: ['', 'bool connected(UF *u, int a, int b) {     @connected $a $b', '    int ra = find(u, a);                    $ra', '    int rb = find(u, b);                    $rb', '    return ra == rb;                        @answer', '}', '', indent(f.c!)].join('\n'),
+		java: ['', 'boolean connected(int a, int b) {          @connected $a $b', '    int ra = find(a);                       $ra', '    int rb = find(b);                       $rb', '    return ra == rb;                        @answer', '}', '', indent(f.java)].join('\n'),
+		python: ['', 'def connected(self, a, b):                 @connected $a $b', '    ra = self.find(a)                       $ra', '    rb = self.find(b)                       $rb', '    return ra == rb                         @answer', '', indent(f.python!)].join('\n'),
+	}
+}
+
 export const UNION_FIND_CODE: Record<string, CodeSource> = Object.fromEntries(
 	[false, true].flatMap((compress) => [
 		[unionFindCode('find', 'size', compress), find(compress)],
+		[unionFindCode('connected', 'size', compress), connected(compress)],
 		...(['size', 'rank', 'naive'] as const).map((by) => [unionFindCode('union', by, compress), union(by, compress)]),
 	])
 )

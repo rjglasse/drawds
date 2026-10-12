@@ -633,7 +633,8 @@ function unionFindLines(move: UnionFindMove, s: Spelling, stale = false): string
 			const written = call(move.algorithm, s, 'uf', (param) => args[param])
 			if (!written) return [`${note} ${move.label}, step by step:`, ...move.effect.flatMap((m) => unionFindLines(m, s))]
 			// Elements with names: the call as the steps named it.
-			const plain = move.label === `${move.algorithm.startsWith('uf-union') ? 'union' : 'find'}(${Object.values(args).join(', ')})`
+			const fn = move.algorithm.startsWith('uf-union') ? 'union' : move.algorithm.startsWith('uf-connected') ? 'connected' : 'find'
+			const plain = move.label === `${fn}(${Object.values(args).join(', ')})`
 			return [plain ? written : `${written}    ${note} ${move.label}`]
 		}
 	}

@@ -135,6 +135,43 @@ function cleared(frames: readonly Frame[], keep: Record<string, MarkColor | null
 }
 
 /**
+ * connected(a, b), Same set?: find both roots (compressing on the way, if on) and compare them; no
+ * link is made. One root: one set.
+ */
+export function connectedSteps(props: Props, a: number, b: number): Steps {
+	const L = (j: number) => props.labels[j] ?? String(j)
+	const intro: Frame = {
+		props: stateProps(forestOf(props)),
+		flash: { [elementKey(a)]: START, [elementKey(b)]: START },
+		caption: `connected(${L(a)}, ${L(b)}): find both roots, then compare them`,
+		ask: false,
+		vars: { a: String(a), b: String(b) },
+		line: 'connected',
+	}
+	const code = unionFindCode('connected', props.unionBy, props.compression === 'on')
+	const first = findSteps(props, forestOf(props), a, [], 0, 'a')
+	const ra = pointer('ra', first.root)
+	const second = findSteps(props, first.forest, b, [ra], first.hops, 'b')
+	const rb = pointer('rb', second.root)
+	const fresh = { ...second.frames[0], flash: { ...cleared(first.frames, lit(first.root, ROOT)), ...second.frames[0].flash } }
+	const frames = [intro, ...first.frames, fresh, ...second.frames.slice(1)]
+	const same = first.root === second.root
+	frames.push({
+		props: stateProps(second.forest),
+		pointers: [ra, rb],
+		flash: cleared(frames, same ? { ...lit(a, SAME), ...lit(b, SAME), ...lit(first.root, ROOT) } : { ...lit(first.root, ROOT), ...lit(second.root, ROOT) }),
+		caption: same
+			? `ra == rb: both roots are ${L(first.root)}, so ${L(a)} and ${L(b)} are in the same set (true)`
+			: `ra = ${L(first.root)}, rb = ${L(second.root)}: two roots, so ${L(a)} and ${L(b)} are in different sets (false)`,
+		ask: `Same set or not?`,
+		askFocus: [elementKey(first.root), elementKey(second.root)],
+		line: 'answer',
+		vars: { a: String(a), b: String(b) },
+	})
+	return { frames, forest: second.forest, code }
+}
+
+/**
  * union(a, b): find both roots (compressing on the way, if on), then link one root under the other
  * the way `unionBy` says, or stop if they are the same root (a and b are in one set already: in
  * Kruskal that edge would close a cycle).
