@@ -2,6 +2,7 @@ import {
 	Rectangle2d,
 	SVGContainer,
 	ShapeUtil,
+	createShapeId,
 	type Editor,
 	type SvgExportContext,
 	type TLFontFace,
@@ -11,6 +12,7 @@ import {
 } from 'tldraw'
 import { showsColourCues } from '../../cells/cues'
 import { followersOf } from '../../cells/followers'
+import { keepOnScreen } from '../../controls/onscreen'
 import { exportingStep } from '../../export/exporting'
 import { playbackFor, shownFrame, type Frame } from '../../nodelink/playback'
 import { SceneSvg } from '../../nodelink/SceneSvg'
@@ -208,8 +210,8 @@ const stored = (calls: readonly Call[]): Call[] =>
 
 /**
  * Before playing a recursive operation (frames that make calls): put its recursion tree to the
- * right of `structure` (past anything already following it), one undo step, unless one there
- * already shows these very calls. Returns what takes it away again (cancelling the operation
+ * right of `structure` (past anything already following it; the camera moved if that runs off the
+ * screen), one undo step, unless one there already shows these very calls. Returns what takes it away again (cancelling the operation
  * before its result is in changes nothing), if one was put there.
  */
 export function openRecursionTree(editor: Editor, structure: TLShape, frames: readonly Frame[], title: string): (() => void) | undefined {
@@ -222,11 +224,15 @@ export function openRecursionTree(editor: Editor, structure: TLShape, frames: re
 	const right = Math.max(bounds.maxX, ...followersOf(editor, structure.id).map((f) => editor.getShapePageBounds(f)?.maxX ?? -Infinity))
 	const style = structure.props as Partial<Pick<RecursionTreeShape['props'], 'color' | 'size' | 'font'>>
 	const mark = editor.markHistoryStoppingPoint('show recursion tree')
+	const id = createShapeId()
 	editor.createShape<RecursionTreeShape>({
+		id,
 		type: RECURSION_TREE_TYPE,
 		x: right + 60,
 		y: bounds.minY,
 		props: { structureId: structure.id, title, calls: stored(calls), color: style.color ?? 'black', size: style.size ?? 'm', font: style.font ?? 'mono' },
 	})
+	// A wide tree runs off the screen's edge: the camera moves (pans, or zooms out) to show it all.
+	keepOnScreen(editor, [structure.id, ...followersOf(editor, structure.id).map((f) => f.id)])
 	return () => void editor.bailToMark(mark)
 }

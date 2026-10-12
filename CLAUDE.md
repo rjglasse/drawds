@@ -325,7 +325,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `recursion-tree` shape stores the run's calls and follows the playing operation whose calls match its own
   (`callsSignature`); else it shows the whole run, every result, and its heading counts calls and depth (held back
   while playing, so the class can guess). `openRecursionTree` (before `playOperation`, its take-back as `onCancel`)
-  puts one to the structure's right unless one there already shows the same calls, so two runs can be compared side
+  puts one to the structure's right unless one there already shows the same calls (if that runs off the screen, the
+  camera pans just enough, or zooms out to fit, clear of the style panel: `keepOnScreen`, `cameraToShow` pure, in
+  `src/controls/onscreen.ts`), so two runs can be compared side
   by side. Arrays: Sum: last value + sum of the rest (a stick n deep) and Sum by halves (`sumByRest` / `sumByHalves`,
   shown when every value is a number), counts calls, max depth and additions. Lecture 4: merge sort and quicksort feed
   it too (`callEvents` in operations.ts: each call shows the values it is handed and returns them sorted, `id` its

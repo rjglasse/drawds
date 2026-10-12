@@ -114,3 +114,35 @@ test('the lesson log replays a sum with its tree as it was, then puts the board 
 	await expect(page.getByTestId('play-bar')).toHaveCount(0)
 	await expect.poll(async () => (await trees(page)).length).toBe(0)
 })
+
+test('a tree too wide for the screen: the camera moves so all of it shows, clear of the style panel', async ({ page }) => {
+	await sketchArray(page, [200, 200], 8)
+	await setValues(page, ['3', '1', '4', '1', '5', '9', '2', '6'])
+	await sum(page, 'array-sum-halves')
+	await stepToEnd(page)
+	// Once the camera has settled.
+	await page.waitForTimeout(500)
+	const [tree, panel] = await Promise.all([
+		page.evaluate(() => {
+			const editor = window.editor!
+			const shape = editor.getCurrentPageShapes().find((s) => s.type === 'recursion-tree')!
+			const b = editor.getShapePageBounds(shape)!
+			const [a, z] = [editor.pageToScreen({ x: b.minX, y: b.minY }), editor.pageToScreen({ x: b.maxX, y: b.maxY })]
+			return { left: a.x, top: a.y, right: z.x, bottom: z.y }
+		}),
+		page.locator('.tlui-style-panel').boundingBox(),
+	])
+	expect(tree.left).toBeGreaterThanOrEqual(0)
+	expect(tree.top).toBeGreaterThanOrEqual(0)
+	expect(tree.bottom).toBeLessThanOrEqual(900)
+	expect(tree.right).toBeLessThanOrEqual(panel!.x)
+	// A tree that fits leaves the camera alone.
+	await page.keyboard.press('Escape')
+	await page.evaluate(() => void window.editor!.deleteShapes([...window.editor!.getCurrentPageShapeIds()]))
+	await page.evaluate(() => window.editor!.setCamera({ x: 0, y: 0, z: 1 }))
+	await sketchArray(page, [200, 200], 2)
+	await setValues(page, ['3', '1'])
+	await sum(page, 'array-sum-halves')
+	await page.waitForTimeout(500)
+	expect(await page.evaluate(() => window.editor!.getCamera().z)).toBe(1)
+})
