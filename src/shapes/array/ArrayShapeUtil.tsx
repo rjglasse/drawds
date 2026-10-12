@@ -30,11 +30,11 @@ import { extendValues, fillValues, insertValue } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
 import { mulberry32, newSeed } from '../../data/random'
 import { seedForSketch } from '../../data/seed'
-import { animationMs, isBusy, isCovered, otherMarks, parseOtherKey, playOperation, playbackFor, type Frame } from '../../nodelink/playback'
+import { ROOM_KEY, animationMs, isBusy, isCovered, otherMarks, parseOtherKey, playOperation, playbackFor, roomOf, type Frame } from '../../nodelink/playback'
 import { placePointers, pointerReach, type PointerAnchor } from '../../pointers/layout'
 import { prunePointers, type Pointer } from '../../pointers/pointers'
 import { ARRAY_SHAPE_TYPE, arrayShapeMigrations, arrayShapeProps, usedCount, type ArrayShape } from './array-shape-types'
-import { arrayCells } from './cells'
+import { arrayCells, arrayMetricsOf } from './cells'
 import { openRecursionTree } from '../recursion/RecursionTreeShapeUtil'
 import {
 	allNumbers,
@@ -188,7 +188,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		// While an operation shows its steps, the handles would sit on a state that isn't shown.
 		if (isBusy(playbackFor(this.editor, shape.id))) return []
 		const { values, kind } = shape.props
-		const metrics = getArrayMetrics(shape.props)
+		const metrics = arrayMetricsOf(shape)
 		const layout = getArrayLayout(values.length, metrics)
 		const indices = getIndices(values.length + 1)
 		// A stack or queue changes only by its own operations: no swapping cells by hand.
@@ -225,7 +225,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		if (handle.id !== GROW_HANDLE_ID) return
 		// A circular buffer is unwrapped first (front at 0), so its new spare slots come after its rear.
 		const { values, fill, seed, marks, pointers, sizing } = unwrapped(initial.props)
-		const metrics = getArrayMetrics(initial.props)
+		const metrics = arrayMetricsOf(initial)
 		const fixed = sizing === 'fixed'
 		// A fixed array's grip changes its capacity: blank spare slots, never fewer cells than in use.
 		const count = Math.max(
@@ -558,7 +558,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		if (!shape || !other) return
 		const { values, marks } = shape.props
 		const n = values.length + other.props.values.length
-		const metrics = getArrayMetrics(shape.props)
+		const metrics = arrayMetricsOf(shape)
 		const layout = getArrayLayout(values.length, metrics)
 		// The new array's row: room above its cells for k; under the other array if that is in the way
 		// (with room above it for j).
@@ -854,7 +854,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const n = values.length
 		const used = usedCount(shape.props)
 		const fixed = sizing === 'fixed'
-		const metrics = getArrayMetrics(shape.props)
+		const metrics = arrayMetricsOf(shape)
 		const direction = metrics.axis
 		const layout = getArrayLayout(n, metrics)
 		const zoom = this.editor.getZoomLevel()
@@ -915,7 +915,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	private renderKindButtons(shape: ArrayShape, colors: TLThemeColors) {
 		const { kind } = shape.props
 		if (kind === 'array') return null
-		const metrics = getArrayMetrics(shape.props)
+		const metrics = arrayMetricsOf(shape)
 		const layout = getArrayLayout(shape.props.values.length, metrics)
 		const { cell } = metrics
 		const nudge = 5 / this.editor.getZoomLevel()
@@ -1061,7 +1061,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	// step one past either end, as loops do (i == n, j == -1), where a dashed cell is drawn.
 
 	/** `metrics`: as the cells are drawn (a step's are drawn with the shape's own, so an upright stack's index 0 stays put). */
-	pointerAnchor(shape: ArrayShape, key: string, metrics = getArrayMetrics(shape.props)): PointerAnchor | undefined {
+	pointerAnchor(shape: ArrayShape, key: string, metrics = arrayMetricsOf(shape)): PointerAnchor | undefined {
 		const i = Number(key)
 		const n = shape.props.values.length
 		if (!Number.isInteger(i) || i < -1 || i > n) return undefined
@@ -1076,7 +1076,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	override pointerTargetAt(shape: ArrayShape, point: VecLike): string | undefined {
 		const { values } = shape.props
-		const metrics = getArrayMetrics(shape.props)
+		const metrics = arrayMetricsOf(shape)
 		const { cells } = getArrayLayout(values.length, metrics)
 		const [across, extent] = metrics.axis === 'horizontal' ? [point.y - cells.y, cells.h] : [point.x - cells.x, cells.w]
 		// Generous across the array, so a pointer dropped on its label row still lands on the cell.
@@ -1086,7 +1086,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	}
 
 	pointerStep(shape: ArrayShape, key: string, direction: PointerDirection): string | undefined {
-		const axis = getArrayMetrics(shape.props).axis
+		const axis = arrayMetricsOf(shape).axis
 		const step =
 			axis === 'horizontal'
 				? { left: -1, right: 1, up: 0, down: 0 }[direction]
@@ -1103,17 +1103,17 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	/** Room made above and before the array for pointers (see `getArrayMetrics`). */
 	override layoutOffset(shape: ArrayShape) {
-		return getArrayMetrics(shape.props).origin
+		return arrayMetricsOf(shape).origin
 	}
 
 	private growPoint(shape: ArrayShape) {
-		return getArrayGrowPoint(shape.props.values.length, getArrayMetrics(shape.props))
+		return getArrayGrowPoint(shape.props.values.length, arrayMetricsOf(shape))
 	}
 
 	/** A fixed array's spare slots hold nothing to edit: a double-click on one starts no edit. */
 	override canEdit(shape: ArrayShape) {
 		const point = this.editor.getPointInShapeSpace(shape, this.editor.inputs.getCurrentPagePoint())
-		const { cells } = getArrayLayout(shape.props.values.length, getArrayMetrics(shape.props))
+		const { cells } = getArrayLayout(shape.props.values.length, arrayMetricsOf(shape))
 		const overCells = point.x >= cells.x && point.x <= cells.x + cells.w && point.y >= cells.y && point.y <= cells.y + cells.h
 		return !overCells || this.cells.cellAt(shape, point) !== undefined
 	}
@@ -1128,11 +1128,12 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	}
 
 	getGeometry(shape: ArrayShape) {
-		const metrics = getArrayMetrics(shape.props)
+		const metrics = arrayMetricsOf(shape)
 		// The cells shown: an operation's step may have one more (making room to insert). It only
 		// ever grows past the end, so the origin stays put. Reactive (tldraw caches it in a computed).
-		// (An upright array's extra cells rise above it for a moment: its own cells count.)
-		const count = metrics.axis === 'up' ? shape.props.values.length : this.displayShape(shape).props.values.length
+		// An upright array's extra cells rise above it, into the room its operation made there (`withPlaybackRoom`).
+		const room = roomOf(shape)
+		const count = metrics.axis === 'up' ? shape.props.values.length + (room ? Math.round(-room.minY / metrics.cell) : 0) : this.displayShape(shape).props.values.length
 		const layout = getArrayLayout(count, metrics)
 		const { box } = layout
 		const body = new Rectangle2d({ x: box.x, y: box.y, width: box.w, height: box.h, isFilled: true })
@@ -1177,6 +1178,21 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		return frame?.pointers
 	}
 
+	/**
+	 * Room above an upright array (a growing stack) for the most cells an operation's steps show (the
+	 * stack demos push deeper than the stack drawn), kept in the meta while it is open (playback.ts
+	 * `ROOM_KEY`), so the box holds every step and index 0 stays put. Without `frames`, takes it away.
+	 */
+	withPlaybackRoom(shape: ArrayShape, frames: readonly Frame[] | undefined): TLShapePartial<ArrayShape> | undefined {
+		const metrics = getArrayMetrics(shape.props)
+		const own = shape.props.values.length
+		const most = Math.max(own, ...(frames ?? []).map((f) => (f.props as { values?: string[] } | undefined)?.values?.length ?? own))
+		const extra = metrics.axis === 'up' ? (most - own) * metrics.cell : 0
+		const current = roomOf(shape)
+		if (extra ? current && -current.minY === extra : !current) return undefined
+		return { id: shape.id, type: ARRAY_SHAPE_TYPE, meta: { [ROOM_KEY]: extra ? { minX: 0, minY: -extra, maxX: 0, maxY: 0 } : null } }
+	}
+
 	/** A test reads the step's array (a) and its names: pointers at indexes, and its own variables. */
 	override testValues(shape: ArrayShape, frame: Frame): TestValues {
 		return indexTestValues(frame, { a: (frame.props as { values?: string[] } | undefined)?.values ?? shape.props.values })
@@ -1185,7 +1201,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	/** What a step draws (shape space): the cells it shows, with any second row and dashed slots past the end. */
 	override playbackLayout(shape: ArrayShape, frame: Frame | undefined): PlaybackLayout {
 		const shown = this.displayShape(shape, frame)
-		const metrics = getArrayMetrics(shape.props)
+		const metrics = arrayMetricsOf(shape)
 		const { values } = shown.props
 		const layout = getArrayLayout(values.length, metrics)
 		const framePointers = this.framePointers(shape, frame)
@@ -1281,7 +1297,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const aux = this.displayAux(shape)
 		const crossing = frame?.moves?.length && playing ? crossSlides(frame.moves) : undefined
 		// Values copied in from another shape (an array merged in) come from its cell, wherever it is.
-		const fromAt = crossing && Object.fromEntries(Object.entries(crossing.fromOther).map(([k, key]) => [k, this.stepAnchor(shape, aux, key, getArrayMetrics(shape.props))?.box]))
+		const fromAt = crossing && Object.fromEntries(Object.entries(crossing.fromOther).map(([k, key]) => [k, this.stepAnchor(shape, aux, key, arrayMetricsOf(shape))?.box]))
 		const cross = crossing && playing ? { ...crossing, fromAt, id: playing.id } : undefined
 		// Lit by an operation playing on another shape (this array is being merged in).
 		const lent = playing ? undefined : otherMarks(this.editor, shape.id)
@@ -1290,7 +1306,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 				<SVGContainer>
 					<ArraySvg
 						shape={this.displayShape(shape)}
-						metrics={getArrayMetrics(shape.props)}
+						metrics={arrayMetricsOf(shape)}
 						colors={colors}
 						fontFamily={this.getFontFamily(shape)}
 						hiddenIndex={editingKey === undefined ? undefined : Number(editingKey)}
@@ -1341,7 +1357,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 				<>
 					<ArraySvg
 						shape={this.displayShape(shape)}
-						metrics={getArrayMetrics(shape.props)}
+						metrics={arrayMetricsOf(shape)}
 						colors={colors}
 						fontFamily={this.getFontFamily(shape)}
 						flash={{ marks: step.flash, fading: false, id: step.id }}
@@ -1375,7 +1391,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	getIndicatorPath(shape: ArrayShape) {
 		// The values shown, so the outline follows an operation that adds or removes a cell.
-		const { cells } = getArrayLayout(this.displayShape(shape).props.values.length, getArrayMetrics(shape.props))
+		const { cells } = getArrayLayout(this.displayShape(shape).props.values.length, arrayMetricsOf(shape))
 		const path = new Path2D()
 		path.rect(cells.x, cells.y, cells.w, cells.h)
 		return path
@@ -1386,7 +1402,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	}
 
 	getCellFont(shape: ArrayShape) {
-		return { fontFamily: this.getFontFamily(shape), fontSize: getArrayMetrics(shape.props).fontSize }
+		return { fontFamily: this.getFontFamily(shape), fontSize: arrayMetricsOf(shape).fontSize }
 	}
 
 	private getFontFamily(shape: ArrayShape) {
@@ -1438,7 +1454,7 @@ function ArraySvg({
 	aux,
 	cross,
 	cues,
-	metrics = getArrayMetrics(shape.props),
+	metrics = arrayMetricsOf(shape),
 }: {
 	shape: ArrayShape
 	/** The shape's own metrics: a step showing more cells mustn't move an upright array's origin. */

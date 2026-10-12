@@ -37,6 +37,7 @@ export function getArrayMetrics({
 	used,
 	front,
 	values = [],
+	roomAbove = 0,
 }: {
 	size: TLDefaultSizeStyle
 	showIndices: boolean
@@ -47,6 +48,8 @@ export function getArrayMetrics({
 	used?: number
 	front?: number
 	values?: readonly string[]
+	/** Room above an upright array (px) while an operation's steps rise higher than it: its index 0 comes down as far. */
+	roomAbove?: number
 }): ArrayMetrics {
 	const axis = arrayAxis({ kind, direction })
 	const cell = CELL_SIZES[size]
@@ -67,7 +70,7 @@ export function getArrayMetrics({
 		strokeWidth: Math.max(1.5, cell / 24),
 		footer: sizing === 'fixed' ? Math.round(indexFontSize * 1.9) : 0,
 		origin:
-			axis === 'horizontal' ? { x: before, y: above } : axis === 'vertical' ? { x: 0, y: before } : { x: 0, y: pastTop + (n - 1) * cell },
+			axis === 'horizontal' ? { x: before, y: above } : axis === 'vertical' ? { x: 0, y: before } : { x: 0, y: roomAbove + pastTop + (n - 1) * cell },
 	}
 }
 

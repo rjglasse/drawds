@@ -208,3 +208,33 @@ test('a postfix expression evaluated with its code beside; top points at the top
 	await page.keyboard.press('Enter')
 	expect((await props(page)).values).toHaveLength(2)
 })
+
+test('a growing stack pushed deeper in a step keeps every cell inside its box, index 0 where it was', async ({ page }) => {
+	await sketchArrayKind(page, 'stack', [300, 600], 1, 'up')
+	const measure = () =>
+		page.evaluate(() => {
+			const editor = window.editor!
+			const s = editor.getCurrentPageShapes().find((shape) => shape.type === 'array')!
+			const util = editor.getShapeUtil(s) as unknown as { cells: { cellBox(s: unknown, k: string): { x: number; y: number; w: number; h: number } } }
+			const cell0 = editor.getShapePageTransform(s).applyToPoint(util.cells.cellBox(s, '0'))
+			const bounds = editor.getShapePageBounds(s)!
+			// The cells drawn, on the page (a step's included).
+			const drawn = [...document.querySelectorAll(`.tl-shape[data-shape-id="${s.id}"] rect`)].map((e) => e.getBoundingClientRect()).filter((r) => r.height > 0)
+			const box = editor.pageToScreen({ x: bounds.x, y: bounds.y })
+			return { cell0: Math.round(cell0.y), top: Math.round(box.y), drawnTop: Math.round(Math.min(...drawn.map((r) => r.top))), room: s.meta.drawdsRoom ?? null, cells: drawn.length }
+		})
+	const before = await measure()
+	await menu(page, [300, 600], 'array-steps', 'array-postfix')
+	await page.getByTestId('key-prompt').fill('1 2 3 4 + + +')
+	await page.keyboard.press('Enter')
+	for (let k = 0; k < 4; k++) await page.keyboard.press('ArrowRight')
+	await expect(caption(page)).toHaveText('4: a number: push it')
+	await transitionsDone(page)
+	const deep = await measure()
+	expect(deep.cell0).toBe(before.cell0)
+	// The box reaches the top cell: nothing drawn above it.
+	expect(deep.drawnTop).toBeGreaterThanOrEqual(deep.top - 1)
+	await page.keyboard.press('Escape')
+	await expect.poll(async () => (await measure()).room).toBeNull()
+	expect((await measure()).cell0).toBe(before.cell0)
+})

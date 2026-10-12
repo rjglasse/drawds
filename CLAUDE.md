@@ -631,7 +631,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   open, cleared with null around the commit and on close, always history-ignored), the layout counts it and the
   geometry gets two internal corner points, so the box holds every step and still. Caches keyed by props must also
   key on the meta / layout offset (layouts, placed pointers, the bar's placement; tldraw's own indicator cache is per
-  props, so `getIndicatorPath` reads the live record). `clearStaleRooms` (App onMount).
+  props, so `getIndicatorPath` reads the live record). `clearStaleRooms` (App onMount). An upright array (a growing
+  stack) whose steps show more cells than it has gets room above it the same way (`ArrayShapeUtil.withPlaybackRoom`:
+  `minY` the rows' height), so its index 0 comes down into the box and stays put on the page: measure an array with
+  `arrayMetricsOf(shape)` (cells.ts, reads the room), not `getArrayMetrics(shape.props)`.
 - Use tldraw style props (`DefaultColorStyle`, `DefaultSizeStyle`, `DefaultFontStyle`) so the built-in style panel
   drives our shapes; set `shapeType` on the tool so the panel shows them while the tool is active.
 - Keep gesture/layout maths in pure functions and test them with vitest.
@@ -651,7 +654,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   elements stay put on the page (lists: `anchorShift` keeps the first surviving node fixed).
 - Removable nodes: node-link shapes implement `removeNode` (+ optional `canRemoveNode`); the base draws an x
   on each node and makes each removal one undo step. With a mouse only the node / edge near the pointer shows
-  its button (`src/nodelink/hover.ts`, reach 16 screen px); coarse pointers show all.
+  its button (`src/nodelink/hover.ts`, reach 16 screen px); coarse pointers show all. What the pointer is near is a
+  computed per shape (`hoverTarget`: its value changes only when the hovered node or edge does), and the buttons and
+  grips render in a `Tracked` child (`src/controls/Tracked.tsx`), arrays' too: never read the raw pointer, or
+  `getInstanceState()` (it changes with the cursor; `isCoarsePointer`), in a shape's `component()`, or the whole
+  structure redraws on every pointer move (a selected 40-node graph dropped frames under a 6x CPU throttle; now it
+  doesn't redraw at all). Edge routes are kept per scene (`routeScene`).
 - Marks (`src/cells/marks.ts`, `marking.ts`): every cell shape stores `props.marks` (cell key -> colour);
   `CellShapeUtil.getMarks/withMarks`; keys 1-4 / 0 are tldraw actions acting on the element under the pointer
   (`markTargetUnderPointer`), which is why tldraw's numbered toolbar shortcuts are disabled in App.tsx. Prune
