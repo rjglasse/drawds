@@ -172,10 +172,13 @@ test('code boxes saved before they could follow a structure load as code of thei
 			if (record.typeName !== 'shape' || record.type !== 'code' || !record.props) continue
 			delete record.props.structureId
 			delete record.props.algorithm
+			delete record.props.lineCounts
+			delete record.props.transcript
+			delete record.props.fold
 		}
 		editor.loadSnapshot({ document: doc })
 		return editor.getCurrentPageShapes().map((s) => s.props)
 	})
-	expect(loaded).toEqual([expect.objectContaining({ code: 'x = 1', structureId: '', algorithm: '', lineCounts: false })])
+	expect(loaded).toEqual([expect.objectContaining({ code: 'x = 1', structureId: '', algorithm: '', lineCounts: false, transcript: false, fold: true })])
 	await expect(page.getByTestId('code-box')).toHaveCount(1)
 })

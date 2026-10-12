@@ -26,7 +26,7 @@ import { CODE_TYPE, codeShapeMigrations, codeShapeProps, type CodeShape } from '
 import { transcriptOf } from '../../transcript/transcript'
 import { applyEdit, closeBraceEdit, indentEdit, newlineEdit, type CodeEdit } from './editing'
 import { highlightLines, type CodeLanguage, type TokenKind } from './highlight'
-import { INDENT, codeLines, getCodeLayout, getCodeMetrics, offsetOf, type CodeLayout, type CodeMetrics } from './layout'
+import { FOLD_LINES, INDENT, codeLines, foldText, foldsFor, getCodeLayout, getCodeMetrics, offsetOf, type CodeLayout, type CodeMetrics, type Fold } from './layout'
 
 /** The one editable "cell": the whole code. */
 const CODE_KEY = 'code'
@@ -64,6 +64,27 @@ const shownCache = new WeakMap<CodeShape['props'], ShownValue[]>()
 
 /** A transcript box as last drawn, by its record: kept while its code reads the same. */
 const shownTranscripts = new WeakMap<CodeShape, CodeShape>()
+
+const foldCache = new WeakMap<CodeShape['props'], Fold[]>()
+
+/**
+ * The folds of a long box beside a structure (`foldsFor`): a transcript keeps its first line and its
+ * latest; an algorithm's code (as drawds wrote it) the lines its steps light or show values on. Code
+ * typed into a box of its own never folds, nor with `fold` off (Show > all the lines).
+ */
+function foldsOf(shape: CodeShape): Fold[] {
+	const { fold, structureId, transcript, algorithm, code, language } = shape.props
+	if (!fold || !structureId) return []
+	let folds = foldCache.get(shape.props)
+	if (!folds) {
+		const count = codeLines(code).length
+		const source = !transcript && algorithm ? algorithmCode(algorithm, language) : undefined
+		const reached = source && new Set([...Object.values(source.lines), ...source.values.map((v) => v.line)])
+		folds = transcript ? foldsFor(count) : source && source.text === code ? foldsFor(count, FOLD_LINES, reached) : []
+		foldCache.set(shape.props, folds)
+	}
+	return folds
+}
 
 /** The variables whose values show after their lines while the box's algorithm plays. */
 function valuesOf(shape: CodeShape): ShownValue[] {
@@ -104,7 +125,7 @@ function layoutOf(shape: CodeShape) {
 		})
 	}
 	const right = algorithm && lineCounts ? Math.ceil((COUNT_CHARS + 2) * VALUE_SCALE) : 0
-	return getCodeLayout(code, metrics, { lineNumbers, left, after, right })
+	return getCodeLayout(code, metrics, { lineNumbers, left, after, right, folds: foldsOf(shape) })
 }
 
 /** Marks and pointers on lines the code no longer has go. */
@@ -152,6 +173,7 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 			algorithm: '',
 			lineCounts: false,
 			transcript: false,
+			fold: true,
 			color: 'black',
 			size: 'm',
 		}
@@ -270,7 +292,7 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 	pointerAnchor(shape: CodeShape, key: string): PointerAnchor | undefined {
 		const line = lineOf(key)
 		const layout = layoutOf(this.shown(shape))
-		if (line === undefined || line >= layout.lines) return undefined
+		if (line === undefined || line >= layout.lines || layout.hidden(line)) return undefined
 		return { box: layout.rowBox(line), side: 'left' }
 	}
 
@@ -278,14 +300,19 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 		const layout = layoutOf(this.shown(shape))
 		const { box } = layout
 		if (point.y < box.y || point.y > box.y + box.h || point.x > box.x + box.w) return undefined
-		return lineKey(layout.caretAt(point).line)
+		const { line } = layout.caretAt(point)
+		return layout.hidden(line) ? undefined : lineKey(line)
 	}
 
 	pointerStep(shape: CodeShape, key: string, direction: PointerDirection): string | undefined {
 		const line = lineOf(key)
 		const by = { up: -1, down: 1, left: 0, right: 0 }[direction]
-		const next = line === undefined || !by ? undefined : lineKey(line + by)
-		return next && this.pointerAnchor(shape, next) ? next : undefined
+		if (line === undefined || !by) return undefined
+		// Over a fold to the line past it.
+		const layout = layoutOf(this.shown(shape))
+		let next = line + by
+		while (layout.hidden(next)) next += by
+		return this.pointerAnchor(shape, lineKey(next)) ? lineKey(next) : undefined
 	}
 
 	pointerNames() {
@@ -304,7 +331,9 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 	override markKeyAt(given: CodeShape, point: VecLike): string | undefined {
 		const shape = this.shown(given)
 		if (codeCells.cellAt(shape, point) === undefined) return undefined
-		return lineKey(layoutOf(shape).caretAt(point).line)
+		const layout = layoutOf(shape)
+		const { line } = layout.caretAt(point)
+		return layout.hidden(line) ? undefined : lineKey(line)
 	}
 
 	override menuName() {
@@ -314,7 +343,11 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 	override readonly menuId = 'code'
 
 	override shapeOperations(shape: CodeShape): NodeOperation[] {
-		const { lineNumbers, lineCounts, algorithm } = shape.props
+		const { lineNumbers, lineCounts, algorithm, fold } = shape.props
+		// Long code beside a structure folds; Show undoes it (or folds it again).
+		const shown = this.shown(shape)
+		const folds = foldsOf({ ...shown, props: { ...shown.props, fold: true } })
+		const hiding = folds.reduce((n, f) => n + f.to - f.from + 1, 0)
 		return [
 			// Its text as drawn (the code beside a structure, written out), to paste into an editor.
 			{
@@ -323,6 +356,19 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 				label: 'Copy the code',
 				run: () => void navigator.clipboard.writeText(this.shown(shape).props.code),
 			},
+			...(folds.length
+				? [
+						{
+							section: 'show' as const,
+							id: 'code-fold',
+							label: fold ? `All ${codeLines(shown.props.code).length} lines (${hiding} folded)` : `Fold it to ${FOLD_LINES} lines`,
+							run: () => {
+								this.editor.markHistoryStoppingPoint('fold')
+								this.editor.updateShape<CodeShape>({ id: shape.id, type: CODE_TYPE, props: { fold: !fold } })
+							},
+						},
+					]
+				: []),
 			{
 				section: 'show',
 				id: 'code-line-numbers',
@@ -358,10 +404,15 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 			'Right-click: Show > Line numbers',
 			'Beside a structure (the play bar\'s </> button), it shows the code of what plays, the line each step is on lit',
 			'Right-click it beside a structure: Show > Times each line runs, counted as the steps go',
+			`Beside a structure, code over ${FOLD_LINES} lines folds (a transcript to its first and latest lines); Show > All the lines unfolds it`,
 		]
 	}
 
 	override onEditStart(shape: CodeShape) {
+		// The editor lies over every line: a folded box (an algorithm's code) shows them all from now on.
+		if (layoutOf(shape).folds.length) {
+			this.editor.run(() => this.editor.updateShape<CodeShape>({ id: shape.id, type: CODE_TYPE, props: { fold: false } }), { history: 'ignore' })
+		}
 		const mark = createdFrom.get(shape.id)
 		createdFrom.delete(shape.id)
 		if (mark) beginCellEdit(this.editor, shape.id, CODE_KEY, mark)
@@ -576,7 +627,7 @@ export function CodeSvg({
 			/>
 			{lines.map((_, i) => {
 				const c = marks[lineKey(i)]
-				if (!c) return null
+				if (!c || layout.hidden(i)) return null
 				const row = layout.rowBox(i)
 				const inset = strokeWidth * 1.5
 				return (
@@ -602,7 +653,7 @@ export function CodeSvg({
 					</g>
 				)
 			})}
-			{step !== undefined && step < lines.length && (
+			{step !== undefined && step < lines.length && !layout.hidden(step) && (
 				<rect
 					data-step-line={step}
 					x={layout.rowBox(step).x + strokeWidth * 1.5}
@@ -616,7 +667,8 @@ export function CodeSvg({
 				/>
 			)}
 			{lineNumbers &&
-				lines.map((_, i) => (
+				lines.map((_, i) =>
+					layout.hidden(i) ? null : (
 					<text
 						key={`n${i}`}
 						x={layout.gutterRight}
@@ -629,8 +681,9 @@ export function CodeSvg({
 					>
 						{i + 1}
 					</text>
-				))}
-			{counts?.map(({ line, text }) => (
+					)
+				)}
+			{counts?.filter(({ line }) => !layout.hidden(line)).map(({ line, text }) => (
 				<text
 					key={`count-${line}`}
 					data-count-line={line}
@@ -646,7 +699,7 @@ export function CodeSvg({
 				</text>
 			))}
 			{test && <TestSvg test={test} layout={layout} metrics={metrics} colors={colors} />}
-			{values?.map(({ line, text }) => {
+			{values?.filter(({ line }) => !layout.hidden(line)).map(({ line, text }) => {
 				const end = layout.endOf(line)
 				return (
 					<text
@@ -664,6 +717,7 @@ export function CodeSvg({
 				)
 			})}
 			{lines.map((tokens, i) => {
+				if (layout.hidden(i)) return null
 				const at = layout.lineAt(i)
 				return (
 					<text key={i} data-code-line={i} x={at.x} y={at.y} fontSize={fontSize} dominantBaseline="central" fill={colors.text} style={{ whiteSpace: 'pre' }}>
@@ -680,6 +734,23 @@ export function CodeSvg({
 					</text>
 				)
 			})}
+			{layout.folds.map((f) => (
+				<text
+					key={`fold-${f.from}`}
+					data-testid="code-fold"
+					data-fold-lines={f.to - f.from + 1}
+					x={f.at.x}
+					y={f.at.y}
+					fontSize={fontSize}
+					dominantBaseline="central"
+					fill={colors.text}
+					opacity={0.5}
+					fontStyle="italic"
+					style={{ whiteSpace: 'pre' }}
+				>
+					{foldText(f)}
+				</text>
+			))}
 			{test && <SkippedSvg test={test} layout={layout} metrics={metrics} colors={colors} />}
 		</g>
 	)

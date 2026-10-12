@@ -49,3 +49,32 @@ test('a view switches between matrix and lists, and goes when its graph is delet
 	expect(await views(page)).toHaveLength(1)
 	expect(await shapesOfType(page, 'graph')).toHaveLength(1)
 })
+
+test("a view grown with its graph is found where it is drawn now (hit-testing measures it again)", async ({ page }) => {
+	await sketchGraph(page, [200, 200], 3, 3)
+	await showView(page, 'matrix')
+	const [view] = await views(page)
+	// Six more vertices: the matrix grows by six rows and columns, its record unchanged.
+	await page.evaluate(() => {
+		const editor = window.editor!
+		const g = editor.getCurrentPageShapes().find((s) => s.type === 'graph')!
+		const nodes = (g.props as { nodes: { id: string; value: string; x: number; y: number }[] }).nodes
+		const more = Array.from({ length: 6 }, (_, k) => ({ id: `w${k}`, value: String.fromCharCode(68 + k), x: nodes[0].x + k, y: nodes[0].y + 4 }))
+		editor.markHistoryStoppingPoint()
+		editor.updateShape({ id: g.id, type: 'graph', props: { nodes: [...nodes, ...more] } } as never)
+	})
+	const hit = await page.evaluate((id: string) => {
+		const editor = window.editor!
+		const b = editor.getShapePageBounds(id as never)!
+		return editor.getShapeAtPoint({ x: b.maxX - 10, y: b.maxY - 10 }, { hitInside: true })?.id
+	}, String(view.id))
+	expect(hit).toBe(view.id)
+	// One undo takes the vertices away and the view's size with them.
+	await page.keyboard.press('ControlOrMeta+z')
+	const back = await page.evaluate((id: string) => {
+		const editor = window.editor!
+		const b = editor.getShapePageBounds(id as never)!
+		return editor.getShapeAtPoint({ x: b.maxX - 10, y: b.maxY - 10 }, { hitInside: true })?.id
+	}, String(view.id))
+	expect(back).toBe(view.id)
+})

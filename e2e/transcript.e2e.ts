@@ -381,3 +381,68 @@ test('the code beside a stack or queue: lecture 6’s ArrayStack and ArrayQueue,
 	await done()
 	await expect.poll(async () => (await lines(page)).at(-1)).toMatch(/^a\.push\(\d+\);$/)
 })
+
+test('a long transcript folds to its first line and its latest, saying how many are folded; Copy the code has them all; Show unfolds it', async ({ page, context }) => {
+	await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+	await sketchArray(page, [200, 200], 4)
+	await menu(page, 'show', 'array-code-beside')
+	await expect.poll(() => lines(page)).toHaveLength(1)
+	// 99 values set, a move each: 100 lines.
+	await page.evaluate(() => {
+		const editor = window.editor!
+		const a = editor.getCurrentPageShapes().find((s) => s.type === 'array')!
+		for (let k = 0; k < 99; k++) {
+			const values = [...(editor.getShape(a.id)!.props as { values: string[] }).values]
+			values[k % 4] = String(100 + k)
+			editor.markHistoryStoppingPoint()
+			editor.updateShape({ id: a.id, type: 'array', props: { values } } as never)
+		}
+	})
+	const box = page.locator('[data-shape-type="code"]')
+	await expect(box.getByTestId('code-fold')).toHaveText('⋯ 85 lines')
+	const shown = await lines(page)
+	expect(shown).toHaveLength(15)
+	expect(shown[0]).toMatch(/^List<Integer> a = new ArrayList<>/)
+	expect(shown.slice(-2)).toEqual(['a.set(1, 197);', 'a.set(2, 198);'])
+	// 16 rows at size M (26 px a line) and its padding, at zoom 1.
+	expect(await page.evaluate(() => window.editor!.getZoomLevel())).toBe(1)
+	expect((await box.boundingBox())!.height).toBeLessThan(16 * 26 + 30)
+
+	// Copy the code: every line, folded or not.
+	const at = (await box.boundingBox())!
+	const middle: [number, number] = [at.x + at.width / 2, at.y + at.height / 2]
+	await rightClick(page, middle)
+	await page.getByTestId('context-menu-sub.drawds-code-actions-button').click()
+	await page.getByTestId('context-menu.code-copy').click()
+	await expect.poll(async () => (await page.evaluate(() => navigator.clipboard.readText())).split('\n')).toHaveLength(100)
+
+	// Show > All 100 lines unfolds it (one undo folds it again).
+	await rightClick(page, middle)
+	await page.getByTestId('context-menu-sub.drawds-code-show-button').click()
+	await expect(page.getByTestId('context-menu.code-fold')).toHaveText('All 100 lines (85 folded)')
+	await page.getByTestId('context-menu.code-fold').click()
+	await expect.poll(() => lines(page)).toHaveLength(100)
+	await expect(box.getByTestId('code-fold')).toHaveCount(0)
+	await page.keyboard.press('ControlOrMeta+z')
+	await expect.poll(() => lines(page)).toHaveLength(15)
+})
+
+test("an algorithm's long code beside a structure folds the lines its steps never reach: the stack's bracket check, its helper", async ({ page }) => {
+	await sketchArrayKind(page, 'stack', [300, 500], 2, 'up')
+	await rightClick(page, [300, 500])
+	await page.getByTestId('context-menu-sub.drawds-array-steps-button').click()
+	await page.getByTestId('context-menu.array-brackets').click()
+	await page.keyboard.press('Enter')
+	await page.getByTestId('play-code').click()
+	const box = page.locator('[data-shape-type="code"]')
+	await expect(box.getByTestId('code-fold')).toHaveText('⋯ 7 lines')
+	const shown = await lines(page)
+	expect(shown[0]).toBe('boolean isBalanced(String text) {')
+	expect(shown.at(-1)).toBe('    return s.isEmpty();')
+	expect(shown.join('\n')).not.toContain('boolean matches')
+	// Every step's line is there to light.
+	for (let k = 0; k < 13; k++) {
+		await page.keyboard.press('ArrowRight')
+		await expect(box.locator('[data-step-line]')).toHaveCount(1)
+	}
+})

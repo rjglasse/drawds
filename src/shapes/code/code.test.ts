@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { guessLanguage } from './convert'
 import { applyEdit, closeBraceEdit, indentEdit, newlineEdit } from './editing'
 import { highlightLines, tokenize, type CodeLanguage, type TokenKind } from './highlight'
-import { getCodeLayout, getCodeMetrics, offsetOf } from './layout'
+import { FOLD_LINES, foldText, foldsFor, getCodeLayout, getCodeMetrics, offsetOf } from './layout'
 
 /** The tokens of a kind, in order. */
 const of = (code: string, language: CodeLanguage, kind: TokenKind) =>
@@ -62,6 +62,43 @@ describe('highlighting', () => {
 
 describe('code box layout', () => {
 	const m = getCodeMetrics('m')
+
+	it('a long transcript folds to its first line and its latest, saying how many lines are folded', () => {
+		expect(foldsFor(FOLD_LINES)).toEqual([])
+		const folds = foldsFor(100)
+		expect(folds).toEqual([{ from: 1, to: 100 - (FOLD_LINES - 2) - 1 }])
+		expect(foldText(folds[0])).toBe('⋯ 85 lines')
+		const code = Array.from({ length: 100 }, (_, i) => `line ${i}`).join('\n')
+		const layout = getCodeLayout(code, m, { folds })
+		// First line, the fold's row, the latest 14: the set height.
+		expect(layout.box.h).toBeCloseTo(m.padY * 2 + FOLD_LINES * m.lineH)
+		expect([layout.hidden(0), layout.hidden(1), layout.hidden(85), layout.hidden(86), layout.hidden(99)]).toEqual([false, true, true, false, false])
+		expect(layout.lineAt(86).y).toBeCloseTo(m.padY + 2.5 * m.lineH)
+		expect(layout.lineAt(99).y).toBeCloseTo(m.padY + (FOLD_LINES - 0.5) * m.lineH)
+		expect(layout.folds[0].at.y).toBeCloseTo(layout.lineAt(1).y)
+		expect(layout.rowBox(86).y).toBeCloseTo(m.padY + 2 * m.lineH)
+		// The fold's row is its first line; the row under it is line 86.
+		expect(layout.caretAt({ x: layout.textX, y: m.padY + 1.5 * m.lineH }).line).toBe(1)
+		expect(layout.caretAt({ x: layout.textX, y: m.padY + 2.5 * m.lineH }).line).toBe(86)
+		// A long line folded away doesn't widen the box.
+		const wide = code.replace('line 5', 'x'.repeat(80))
+		expect(getCodeLayout(wide, m, { folds }).box.w).toBe(layout.box.w)
+	})
+
+	it("an algorithm's code folds the longest runs no step reaches, as many as it takes, and no more", () => {
+		// 24 lines; steps reach 0-12 and 22; runs 13-21 (9 lines) and 23 alone.
+		const reached = new Set([...Array.from({ length: 13 }, (_, i) => i), 22])
+		expect(foldsFor(24, 16, reached)).toEqual([{ from: 13, to: 21 }])
+		// Short enough already, or nothing long enough to fold: none.
+		expect(foldsFor(16, 16, new Set())).toEqual([])
+		expect(foldsFor(20, 16, new Set(Array.from({ length: 20 }, (_, i) => (i % 3 ? i : -1))))).toEqual([])
+		// Two runs needed: the longer first, then the next.
+		const gaps = new Set([0, 1, 2, 3, 10, 11, 12, 13, 14, 19])
+		expect(foldsFor(20, 13, gaps)).toEqual([
+			{ from: 4, to: 9 },
+			{ from: 15, to: 18 },
+		])
+	})
 
 	it('is sized to its longest line and its lines, never narrower than a short line', () => {
 		const layout = getCodeLayout('for (;;) {\n    x++;\n}', m)

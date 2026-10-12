@@ -31,7 +31,7 @@ import { MatrixShapeTool } from './shapes/matrix/MatrixShapeTool'
 import { MatrixShapeUtil } from './shapes/matrix/MatrixShapeUtil'
 import { TreeShapeTool } from './shapes/tree/TreeShapeTool'
 import { TreeShapeUtil } from './shapes/tree/TreeShapeUtil'
-import { deleteFollowersWithTheirStructure } from './cells/followers'
+import { deleteFollowersWithTheirStructure, keepFollowersMeasured } from './cells/followers'
 import { showBoardNameInTitle } from './files/board'
 import { BoardFileKeys } from './files/BoardFileKeys'
 import { clearStaleRooms } from './nodelink/playback'
@@ -85,6 +85,8 @@ function onMount(editor: Editor) {
 	}
 	const cleanups = [
 		deleteFollowersWithTheirStructure(editor),
+		// Followers drawn from their structure re-measured as it changes, for hit-testing and culling.
+		keepFollowersMeasured(editor),
 		showBoardNameInTitle(editor),
 		clearStaleRooms(editor),
 		startLessonLog(editor),

@@ -454,6 +454,16 @@ describe('list variants', () => {
 })
 
 describe('code box migrations', () => {
+	it('code boxes saved before folding fold their long code beside a structure', () => {
+		const [, , , addFold] = codeShapeMigrations.sequence
+		if (!('up' in addFold) || typeof addFold.down !== 'function') throw new Error('expected a props migration')
+		const props: Record<string, unknown> = { code: 'x = 1' }
+		addFold.up(props)
+		expect(props).toMatchObject({ fold: true })
+		addFold.down(props)
+		expect(props).not.toHaveProperty('fold')
+	})
+
 	it('code boxes saved before the code beside a structure are boxes of their own', () => {
 		const [, , addTranscript] = codeShapeMigrations.sequence
 		if (!('up' in addTranscript) || typeof addTranscript.down !== 'function') throw new Error('expected a props migration')

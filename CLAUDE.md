@@ -311,6 +311,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   a call from its algorithm's own signature in that language (a, n, lo, hi filled in), else its effect under a comment.
   The view is a code box with `transcript` on, following the structure: its text is worked out as it is drawn
   (`CodeShapeUtil.shown`), it can't be edited, and the play bar's algorithm box never takes it over (`codeBoxesOf`).
+  Long code beside a structure folds (dds-2tt.11, prop `fold`, on by default): past `FOLD_LINES` (16) rows a transcript
+  shows its first line (where the structure is made), a "⋯ n lines" row and its latest lines; an algorithm's code (as
+  drawds wrote it) folds the longest runs of lines no step reaches (no @ or $ tag: a helper like `matches` or `apply`),
+  so the lit line never hides and the box holds still (`foldsFor`, pure, in `layout.ts`; the layout maps lines to rows,
+  `hidden(i)`, `folds`). Code typed into a box of its own never folds; editing an algorithm's box unfolds it (out of
+  undo). Show > All n lines (k folded) / Fold it to 16 lines; Copy the code copies every line; export draws it as seen.
   Show > Code beside it (`toggleTranscript`). The Python of 200 random array logs, 400 list logs (many repeated values)
   300 tree logs, 300 graph logs, 300 heap logs, 400 hash table logs (against classes made of their own Python code;
   every scheme, deleted markers, keys typed anywhere), 300 matrix logs and 400 union-find logs (against the code's own
@@ -343,7 +349,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   at the zoom it is drawn at (`barSpots` / `barSpot`: under the structure, then under each follower in turn, as wide as
   the room before the next follower reaching lower, its caption wrapping under the buttons; `MIN_BAR_WIDTH`), so a tall
   code box doesn't push it off screen; they are deleted with it (`deleteFollowersWithTheirStructure`, an after-delete
-  side effect registered in App's onMount).
+  side effect registered in App's onMount). tldraw measures a shape for hit-testing and culling only when its own record
+  changes, and a follower drawn from its structure (a transcript, a graph's views, memory, a ring) grows while its record
+  stays the same: `keepFollowersMeasured` writes a follower's new size into its meta (`drawdsDrawn`) in the change that
+  made it, so it is found where it is drawn (one undo takes both back).
 - `src/shapes/recursion/` - recursion trees (dds-szw.13): a recursive operation's frames carry `calls` (`{ call:
   'sum(0, 3)' }` made by the call running, `{ returns: '9' }` by it), `calls.ts` (pure) replays them into a `CallRun`
   (each call's caller, result, the steps it opened and returned at), `callStates` per step (running red: the call

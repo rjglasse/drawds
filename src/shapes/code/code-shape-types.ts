@@ -46,6 +46,11 @@ export interface CodeShapeProps {
 	 * as it is drawn, so its own `code` is unused and it can't be edited.
 	 */
 	transcript: boolean
+	/**
+	 * Long code beside a structure folds to fit (`foldsOf`: a transcript to its first and latest lines,
+	 * an algorithm's to the lines its steps reach); off, every line shows.
+	 */
+	fold: boolean
 	color: TLDefaultColorStyle
 	size: TLDefaultSizeStyle
 }
@@ -68,6 +73,7 @@ export const codeShapeProps: RecordProps<CodeShape> = {
 	algorithm: T.string,
 	lineCounts: T.boolean,
 	transcript: T.boolean,
+	fold: T.boolean,
 	color: DefaultColorStyle,
 	size: DefaultSizeStyle,
 }
@@ -76,6 +82,7 @@ const versions = createShapePropsMigrationIds(CODE_TYPE, {
 	AddFollowing: 1,
 	AddLineCounts: 2,
 	AddTranscript: 3,
+	AddFold: 4,
 })
 
 /** Code boxes are persisted in the browser, so every props change needs a step here. */
@@ -108,6 +115,15 @@ export const codeShapeMigrations = createShapePropsMigrationSequence({
 			},
 			down(props) {
 				delete props.transcript
+			},
+		},
+		{
+			id: versions.AddFold,
+			up(props) {
+				props.fold = true
+			},
+			down(props) {
+				delete props.fold
 			},
 		},
 	],
