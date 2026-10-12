@@ -205,7 +205,11 @@ export async function insertKey(page: Page, key: string, keep = false) {
 }
 
 /** Screen position of a node's drag handle on the only selected shape. */
+/** The camera at rest: a pan to keep a new code box on screen moves every shape's screen position meanwhile. */
+export const cameraIdle = (page: Page) => page.waitForFunction(() => window.editor!.getCameraState() === 'idle')
+
 export async function handlePosition(page: Page, key: string): Promise<[number, number]> {
+	await cameraIdle(page)
 	const at = await page.evaluate((key) => {
 		const e = window.editor!
 		const shape = e.getOnlySelectedShape()
@@ -223,6 +227,7 @@ export async function handlePosition(page: Page, key: string): Promise<[number, 
  * several nodes (between two linked nodes, that is on the edge joining them).
  */
 export async function nodeScreenPosition(page: Page, ...keys: string[]): Promise<[number, number]> {
+	await cameraIdle(page)
 	const at = await page.evaluate(
 		(keys) => {
 			const e = window.editor!

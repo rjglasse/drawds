@@ -97,6 +97,24 @@ function valuesOf(shape: CodeShape): ShownValue[] {
 	return values
 }
 
+const stepLinesCache = new WeakMap<CodeShape['props'], Set<number>>()
+
+/**
+ * The lines a step can be on (its algorithm's tagged lines, found in code edited since): only those
+ * show a test, so only they keep room after them for it (a loop line no step stops on doesn't widen
+ * the box, which beside a list pushed the list off the screen).
+ */
+function stepLines(shape: CodeShape): Set<number> {
+	let lines = stepLinesCache.get(shape.props)
+	if (!lines) {
+		const { algorithm, code, language } = shape.props
+		const source = algorithm ? algorithmCode(algorithm, language) : undefined
+		const found = source ? Object.keys(source.lines).map((tag) => taggedLine(code, source, tag)) : []
+		stepLinesCache.set(shape.props, (lines = new Set(found.filter((l): l is number => l !== undefined))))
+	}
+	return lines
+}
+
 /** A value as the language prints it (Python's True), long ones cut short to fit the room kept for it. */
 function valueText(value: string, language: CodeLanguage) {
 	const printed = language === 'python' && (value === 'true' || value === 'false') ? value[0].toUpperCase() + value.slice(1) : value
@@ -119,8 +137,9 @@ function layoutOf(shape: CodeShape) {
 	for (const v of valuesOf(shape)) after[v.line] = (after[v.line] ?? 2) + Math.ceil((v.name.length + 3 + VALUE_CHARS + 2) * VALUE_SCALE)
 	// A loop's or an if's test, written out with its values while a step is on it (in place of the line's values).
 	if (algorithm) {
+		const steps = stepLines(shape)
 		codeLines(code).forEach((line, i) => {
-			const c = conditionOf(line, shape.props.language)
+			const c = steps.has(i) ? conditionOf(line, shape.props.language) : undefined
 			if (c) after[i] = Math.max(after[i] ?? 0, 2 + Math.ceil((testWidth(line.slice(c.from, c.to)) + TEST_MARK.length + 2) * VALUE_SCALE))
 		})
 	}

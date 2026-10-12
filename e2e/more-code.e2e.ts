@@ -62,7 +62,8 @@ test("a list's walks have their code too: the middle, and Floyd's cycle detectio
 		const list = editor.getCurrentPageShapes().find((s) => s.type === 'linked-list')!
 		editor.updateShape({ id: list.id, type: 'linked-list', props: { cycleTo: 'n1' } } as never)
 	})
-	await rightClick(page, await nodeScreenPosition(page, 'n0'))
+	// The code box beside it panned the camera: the list's last node is still on screen, its head maybe not.
+	await rightClick(page, await nodeScreenPosition(page, 'n4'))
 	await page.getByTestId('context-menu-sub.drawds-list-steps-button').click()
 	await page.getByTestId('context-menu.list-floyd').click()
 	await expect.poll(() => litLine(page)).toContain('Node slow = head, fast = head;')
