@@ -27,6 +27,8 @@ import {
 	removeNode,
 	type GraphModel,
 } from './model'
+import { reverseEdge, rewireEdge, transpose } from './model'
+import { edgeEndGrips, edgeOfRewireHandle, rewireHandleId } from './connect'
 
 /** Drive the sketch along a polyline, in small pointer moves like a real drag. */
 function sketch(path: Point[], step = 0.4): GraphSketch {
@@ -345,5 +347,53 @@ describe('graph migrations', () => {
 		expect(props).toEqual({ density: 'medium', parts: 'connected', order: 'any' })
 		step.down(props)
 		expect(props).toEqual({})
+	})
+})
+
+describe('reversing and re-wiring edges', () => {
+	// A→B (weight 4), B→C, C→A.
+	const tri: GraphModel = {
+		nodes: ['A', 'B', 'C'].map((value, i) => ({ id: `v${i}`, value, x: i, y: 0 })),
+		edges: [
+			{ id: 'e0', from: 'v0', to: 'v1', weight: '4' },
+			{ id: 'e1', from: 'v1', to: 'v2', weight: '1' },
+			{ id: 'e2', from: 'v2', to: 'v0', weight: '2' },
+		],
+	}
+
+	it('reverses a directed edge, keeping its id and weight; not onto an edge already there', () => {
+		expect(reverseEdge(tri, 'e0')?.edges[0]).toEqual({ id: 'e0', from: 'v1', to: 'v0', weight: '4' })
+		const twins = { ...tri, edges: [...tri.edges, { id: 'e3', from: 'v1', to: 'v0', weight: '7' }] }
+		expect(reverseEdge(twins, 'e0')).toBeUndefined()
+		expect(reverseEdge(tri, 'e9')).toBeUndefined()
+	})
+
+	it('transposes: every edge turned round, a pair u→v, v→u swapping over', () => {
+		expect(transpose(tri).edges.map((e) => [e.from, e.to])).toEqual([
+			['v1', 'v0'],
+			['v2', 'v1'],
+			['v0', 'v2'],
+		])
+		expect(transpose(transpose(tri))).toEqual(tri)
+	})
+
+	it('re-wires one end to another node; no self-loop, no duplicate, no change', () => {
+		expect(rewireEdge(tri, 'e0', 'to', 'v2', true)?.edges[0]).toEqual({ id: 'e0', from: 'v0', to: 'v2', weight: '4' })
+		expect(rewireEdge(tri, 'e0', 'from', 'v2', true)?.edges[0]).toEqual({ id: 'e0', from: 'v2', to: 'v1', weight: '4' })
+		expect(rewireEdge(tri, 'e0', 'to', 'v0', true)).toBeUndefined()
+		expect(rewireEdge(tri, 'e0', 'to', 'v1', true)).toBeUndefined()
+		// v1→v2 is there already; undirected, C–A is the same pair as A–C.
+		expect(rewireEdge(tri, 'e0', 'from', 'v1', true)).toBeUndefined()
+		expect(rewireEdge(tri, 'e0', 'to', 'v2', false)).toBeUndefined()
+	})
+
+	it("grips an edge's ends a little along it, the head's past its arrow; not a short edge", () => {
+		const grips = edgeEndGrips([{ x: 0, y: 0 }, { x: 100, y: 0 }], 15, 10)!
+		expect(grips).toEqual({ from: { x: 15, y: 0 }, to: { x: 75, y: 0 } })
+		// Along a bend: the distance is measured along the route.
+		expect(edgeEndGrips([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 100 }], 15)?.from).toEqual({ x: 10, y: 5 })
+		expect(edgeEndGrips([{ x: 0, y: 0 }, { x: 40, y: 0 }], 15, 10)).toBeUndefined()
+		expect(edgeOfRewireHandle(rewireHandleId('e12', 'to'))).toEqual({ edge: 'e12', end: 'to' })
+		expect(edgeOfRewireHandle('connect:v1')).toBeUndefined()
 	})
 })

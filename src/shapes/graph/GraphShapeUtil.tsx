@@ -13,7 +13,7 @@ import { pruneMarks, type Marks } from '../../cells/marks'
 import { GROW_HANDLE_ID } from '../../controls/grow'
 import { GrowGrip } from '../../controls/GrowGrip'
 import { showsStructureControls } from '../../controls/visibility'
-import { arrowHead, routeEdge } from '../../nodelink/geometry'
+import { arrowHead, routeEdge, routeScene } from '../../nodelink/geometry'
 import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { spatialNeighbor } from '../../nodelink/geometry'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
@@ -27,6 +27,9 @@ import {
 	connectHandleId,
 	connectState,
 	connectTarget,
+	edgeEndGrips,
+	edgeOfRewireHandle,
+	rewireHandleId,
 	nodeOfConnectHandle,
 	type ConnectDrag,
 	type ConnectTarget,
@@ -59,6 +62,9 @@ import {
 	relabel,
 	removeEdge,
 	removeNode,
+	reverseEdge,
+	rewireEdge,
+	transpose,
 	type GraphModel,
 } from './model'
 
@@ -171,20 +177,65 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 				type: 'create' as const,
 				label: `Drag to connect ${n.value} to another node`,
 			})),
+			...this.rewireGrips(shape),
 		]
 		const indices = getIndices(handles.length)
 		return handles.map((h, i) => ({ ...h, index: indices[i] }))
 	}
 
+	/**
+	 * Each edge's ends can be dragged to another node to re-wire it: a 'create' handle just along it from
+	 * either end (past a head's arrow), drawn only on hover as the connect grips are.
+	 */
+	private rewireGrips(shape: GraphShape): Omit<TLHandle, 'index'>[] {
+		const scene = this.getScene(shape)
+		const routes = routeScene(scene)
+		const { fontSize, strokeWidth } = scene.metrics
+		const directed = shape.props.direction === 'directed'
+		const name = (id: string) => shape.props.nodes.find((n) => n.id === id)?.value ?? id
+		return shape.props.edges.flatMap((edge) => {
+			const route = routes.get(edge.id)
+			const grips = route && edge.from !== edge.to ? edgeEndGrips(route.points, fontSize * 0.9, directed ? strokeWidth * 3 + 6 : 0) : undefined
+			if (!grips) return []
+			const pair = `${name(edge.from)}${directed ? '→' : '–'}${name(edge.to)}`
+			return (['from', 'to'] as const).map((end) => ({
+				...grips[end],
+				id: rewireHandleId(edge.id, end),
+				type: 'create' as const,
+				label: `Drag to move ${pair}'s ${directed ? (end === 'to' ? 'head' : 'tail') : `end at ${name(edge[end])}`} to another node`,
+			}))
+		})
+	}
+
+	/** Re-wiring: the edge and the end being moved, and the node that stays. */
+	private rewiring(shape: GraphShape, handleId: string) {
+		const grip = edgeOfRewireHandle(handleId)
+		const edge = grip && shape.props.edges.find((e) => e.id === grip.edge)
+		return grip && edge ? { ...grip, stays: grip.end === 'to' ? edge.from : edge.to } : undefined
+	}
+
 	override onHandleDragStart(shape: GraphShape, { handle }: TLHandleDragInfo<GraphShape>) {
+		const rewire = this.rewiring(shape, handle.id)
+		if (rewire) {
+			connectState(this.editor).set({ shapeId: shape.id, from: rewire.stays, rewire: { edge: rewire.edge, end: rewire.end }, at: handle, target: undefined })
+			return
+		}
 		const from = nodeOfConnectHandle(handle.id)
 		if (from !== undefined) connectState(this.editor).set({ shapeId: shape.id, from, at: handle, target: undefined })
 	}
 
 	override onHandleDrag(shape: GraphShape, info: TLHandleDragInfo<GraphShape>) {
+		const at = { x: info.handle.x, y: info.handle.y }
+		const rewire = this.rewiring(shape, info.handle.id)
+		if (rewire) {
+			// Only onto a node it can go to: no self-loop, no edge that is there already.
+			const target = connectTarget(this.getScene(shape), rewire.stays, at)
+			const fits = target?.kind === 'node' && rewireEdge(shape.props, rewire.edge, rewire.end, target.id, shape.props.direction === 'directed')
+			connectState(this.editor).set({ shapeId: shape.id, from: rewire.stays, rewire: { edge: rewire.edge, end: rewire.end }, at, target: fits ? target : undefined })
+			return undefined
+		}
 		const from = nodeOfConnectHandle(info.handle.id)
 		if (from === undefined) return super.onHandleDrag(shape, info)
-		const at = { x: info.handle.x, y: info.handle.y }
 		connectState(this.editor).set({ shapeId: shape.id, from, at, target: connectTarget(this.getScene(shape), from, at) })
 		return undefined
 	}
@@ -203,6 +254,11 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		const drag = state.get()
 		state.set(null)
 		if (!drag || drag.shapeId !== shape.id || !drag.target) return
+		// An edge's end dropped on another node: the edge goes there, its weight (and marks) with it.
+		if (drag.rewire) {
+			const model = drag.target.kind === 'node' ? rewireEdge(shape.props, drag.rewire.edge, drag.rewire.end, drag.target.id, shape.props.direction === 'directed') : undefined
+			return model && this.withModel(shape, model)
+		}
 		// The drop point is in shape space; the model wants layout coordinates.
 		const result = this.connect(shape, drag.from, drag.target, Vec.Sub(drag.at, this.layoutOffset(shape)))
 		if (!result) return
@@ -249,7 +305,19 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		if (edge) {
 			const name = (id: string) => shape.props.nodes.find((n) => n.id === id)?.value ?? id
 			const pair = `${name(edge.from)}${shape.props.direction === 'directed' ? '→' : '–'}${name(edge.to)}`
+			const reversed = shape.props.direction === 'directed' ? reverseEdge(shape.props, edge.id) : undefined
 			return [
+				// Instant: the arrow turned round, one undo step.
+				...(reversed
+					? [
+							{
+								section: 'actions' as const,
+								id: 'graph-reverse-edge',
+								label: `Reverse ${pair}: ${name(edge.to)}→${name(edge.from)}`,
+								run: () => this.change(shape.id, 'reverse edge', (s) => reverseEdge(s.props, edge.id)),
+							},
+						]
+					: []),
 				{
 					group: 'representations',
 					id: 'graph-remove-edge-costs',
@@ -336,7 +404,30 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 				run: () => toggleTranscript(this.editor, shape),
 			},
 		]
-		return [...views, ...this.algorithmOperations(shape)]
+		// The transpose, Gᵀ: every arrow turned round (what Kosaraju's second pass searches).
+		const turn: NodeOperation[] =
+			shape.props.direction === 'directed' && shape.props.edges.length
+				? [{ section: 'actions', id: 'graph-transpose', label: 'Reverse every edge (the transpose, Gᵀ)', run: () => this.change(shape.id, 'transpose', (s) => transpose(s.props)) }]
+				: []
+		return [...views, ...turn, ...this.algorithmOperations(shape)]
+	}
+
+	/** While an edge's end is dragged elsewhere, the edge isn't drawn where it was: the preview is where it goes. */
+	override displayScene(shape: GraphShape, frame?: Frame) {
+		const scene = super.displayScene(shape, frame)
+		const drag = frame ? undefined : connectState(this.editor).get()
+		if (!drag?.rewire || drag.shapeId !== shape.id) return scene
+		const moving = drag.rewire.edge
+		return { ...scene, edges: scene.edges.filter((e) => e.key !== moving) }
+	}
+
+	/** An instant change to the graph's edges, one undo step (nothing if `edit` can't make it). */
+	private change(id: GraphShape['id'], label: string, edit: (shape: GraphShape) => GraphModel | undefined) {
+		const shape = this.editor.getShape(id) as GraphShape | undefined
+		const model = shape && edit(shape)
+		if (!shape || !model) return
+		this.editor.markHistoryStoppingPoint(label)
+		this.editor.updateShape(this.withModel(shape, model))
 	}
 
 	/** Degrees as badges on the nodes (and neighbours lit on hover), or not: one undo step. */
@@ -416,6 +507,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		return [
 			'Double-click a node or a weight to type',
 			"Drag from the dot on a node's right edge to another node to join them, or into space for a new node",
+			'Drag either end of an edge (just off its node) to another node to re-wire it; right-click a directed edge to reverse it, or the graph to reverse every edge (the transpose)',
 			'Hover a node or an edge for x (remove); drag the dot under a node to move it',
 			"Right-click a node: Step by step has BFS, DFS, a path to another node (fewest edges), Dijkstra, Prim, Kruskal (with its union-find beside the graph), connected components and Is there a cycle?; Show puts its adjacency matrix, lists or union-find beside it",
 			'Show degrees and neighbours: each node its degree, and pointing at a node lights its neighbours (directed: out green, in orange)',
@@ -660,7 +752,8 @@ function ConnectPreview({
 	const target = to?.kind === 'node' ? scene.nodes.find((n) => n.key === to.id) : undefined
 	const ghost = to?.kind === 'new'
 	const end: SceneNode = target ?? { ...from, key: '#pointer', ...drag.at, w: ghost ? from.w : 0, h: ghost ? from.h : 0 }
-	const route = routeEdge(from, end)
+	// Moving an edge's tail: it runs from the pointer to the node that stays.
+	const route = drag.rewire?.end === 'from' ? routeEdge(end, from) : routeEdge(from, end)
 	const width = scene.metrics.strokeWidth
 	const stroke = colors.selectionStroke
 	const dash = `${6 / zoom} ${4 / zoom}`

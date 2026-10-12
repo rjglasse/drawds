@@ -7,6 +7,7 @@ import {
 	hoverNode,
 	nodeScreenPosition,
 	open,
+	rightClick,
 	shapesOfType,
 	sketchGraph,
 	withEditor,
@@ -222,4 +223,45 @@ test('sketch options rewire the selected graph: sparse is a spanning tree, a DAG
 	for (const e of p.edges) expect(index.get(e.from)!).toBeLessThan(index.get(e.to)!)
 	await page.keyboard.press('ControlOrMeta+z')
 	expect((await props()).order).toBe('any')
+})
+
+test('re-wire an edge by dragging its head or tail onto another node; reverse one edge, or every edge (the transpose)', async ({ page }) => {
+	await sketchGraph(page, [200, 250], 3, 3)
+	await page.evaluate(() => {
+		const editor = window.editor!
+		const g = editor.getCurrentPageShapes()[0]
+		const nodes = [
+			{ id: 'v0', value: 'A', x: 0, y: 0 },
+			{ id: 'v1', value: 'B', x: 3, y: 0 },
+			{ id: 'v2', value: 'C', x: 1.5, y: 2.5 },
+		]
+		editor.updateShape({ id: g.id, type: 'graph', props: { direction: 'directed', nodes, edges: [{ id: 'e0', from: 'v0', to: 'v1', weight: '4' }] } } as never)
+		editor.select(g.id)
+	})
+	const drag = async (handle: string, node: string) => {
+		const [from, to] = [await handlePosition(page, handle), await nodeScreenPosition(page, node)]
+		await page.mouse.move(...from)
+		await page.mouse.down()
+		await page.mouse.move(to[0], to[1], { steps: 12 })
+		await page.mouse.up()
+	}
+	// A→B's head onto C: A→C, its weight kept; then its tail onto B: B→C.
+	await drag('rewire:e0:to', 'v2')
+	expect((await graph(page)).edges).toEqual([{ id: 'e0', from: 'v0', to: 'v2', weight: '4' }])
+	await drag('rewire:e0:from', 'v1')
+	expect((await graph(page)).edges).toEqual([{ id: 'e0', from: 'v1', to: 'v2', weight: '4' }])
+	// Right-click the edge: Reverse B→C.
+	const [b, c] = [await nodeScreenPosition(page, 'v1'), await nodeScreenPosition(page, 'v2')]
+	await rightClick(page, [(b[0] + c[0]) / 2, (b[1] + c[1]) / 2])
+	await page.getByTestId('context-menu-sub.drawds-graph-actions-button').click()
+	await expect(page.getByTestId('context-menu.graph-reverse-edge')).toHaveText('Reverse B→C: C→B')
+	await page.getByTestId('context-menu.graph-reverse-edge').click()
+	expect((await graph(page)).edges).toEqual([{ id: 'e0', from: 'v2', to: 'v1', weight: '4' }])
+	// The whole graph turned round, one undo step.
+	await rightClick(page, await nodeScreenPosition(page, 'v0'))
+	await page.getByTestId('context-menu-sub.drawds-graph-actions-button').click()
+	await page.getByTestId('context-menu.graph-transpose').click()
+	expect((await graph(page)).edges).toEqual([{ id: 'e0', from: 'v1', to: 'v2', weight: '4' }])
+	await undo(page)
+	expect((await graph(page)).edges).toEqual([{ id: 'e0', from: 'v2', to: 'v1', weight: '4' }])
 })

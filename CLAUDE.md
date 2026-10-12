@@ -572,7 +572,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   (styles `drawds:graph-density` sparse = a tree / medium / dense, `-parts` one piece or runs of the drag, `-order`
   any or DAG along the drag) feed `generateGraph`, and `withSketchOptions` rewires a selected graph. `model.ts` pure edits;
   `connect.ts` the connect grip (a 'create' handle `connect:<id>` on each node's right rim; drag state in a
-  per-editor atom; drop on a node = edge, in empty space = new node + edge). `algorithms.ts`: Dijkstra (distance
+  per-editor atom; drop on a node = edge, in empty space = new node + edge), and re-wiring (dds-55z.19.7): each edge's
+  ends are 'create' handles `rewire:<edge>:from|to` a little along it (`edgeEndGrips`, the head's past its arrow,
+  none on an edge too short), dragged onto another node to move that end (`rewireEdge`: id and weight kept; no
+  self-loop, no edge already there), the edge hidden meanwhile and a dashed preview from the end that stays. A
+  directed edge's menu reverses it (`reverseEdge`, not onto its twin), the graph's reverses every edge
+  (`transpose`, Gᵀ); one undo step each. `algorithms.ts`: Dijkstra (distance
   badges, best edge green), Prim, Kruskal, topological sort (Kahn) as frames, reusing traverse.ts's `Recorder`
   (an edge only looked at flashes, then gets its colour back); unweighted graphs count every edge 1. `components`:
   connected components as lecture 9 counts them (a loop, pointer v, over the vertices: one visited already is skipped,

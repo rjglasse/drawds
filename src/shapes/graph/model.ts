@@ -77,6 +77,31 @@ export function removeEdge(model: GraphModel, id: string): GraphModel {
 	return { nodes: model.nodes, edges: model.edges.filter((e) => e.id !== id) }
 }
 
+/** A directed edge turned round (u→v becomes v→u, its weight and id kept); undefined if v→u is there already. */
+export function reverseEdge(model: GraphModel, id: string): GraphModel | undefined {
+	const edge = model.edges.find((e) => e.id === id)
+	if (!edge || edge.from === edge.to || findEdge(model.edges, edge.to, edge.from, true)) return undefined
+	return { nodes: model.nodes, edges: model.edges.map((e) => (e.id === id ? { ...e, from: e.to, to: e.from } : e)) }
+}
+
+/** Every edge turned round: the transpose, Gᵀ (a pair u→v, v→u swaps over). */
+export function transpose(model: GraphModel): GraphModel {
+	return { nodes: model.nodes, edges: model.edges.map((e) => ({ ...e, from: e.to, to: e.from })) }
+}
+
+/**
+ * One end of an edge moved to `node` (its id, weight and the other end kept); undefined for a
+ * self-loop, no change, or an edge that is there already (either way round when undirected).
+ */
+export function rewireEdge(model: GraphModel, id: string, end: 'from' | 'to', node: string, directed: boolean): GraphModel | undefined {
+	const edge = model.edges.find((e) => e.id === id)
+	if (!edge || !model.nodes.some((n) => n.id === node) || edge[end] === node) return undefined
+	const moved = { ...edge, [end]: node }
+	const others = model.edges.filter((e) => e.id !== id)
+	if (moved.from === moved.to || findEdge(others, moved.from, moved.to, directed)) return undefined
+	return { nodes: model.nodes, edges: model.edges.map((e) => (e.id === id ? moved : e)) }
+}
+
 /** For an undirected graph: one edge per pair of nodes (the first of u->v and v->u is kept). */
 export function mergeTwins(edges: readonly GraphEdge[]): GraphEdge[] {
 	const seen = new Set<string>()
