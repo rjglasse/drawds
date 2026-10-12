@@ -425,10 +425,13 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   written as its value, `9@2` (the node at 2) when another node holds the same, so Floyd's slow == fast is right with
   repeated values. A graph's vertices go by their labels, its strips' arrays by vertex (visited[w], T / F booleans,
   the strip as it stands at the step). A one-line test that also acts, one tag (`if (key < curr.key) curr = curr.left;`:
-  the step shows curr moved), reads the step before (`readsBefore`; not a return, a break or an exit); Python's two
-  lines tag the statement, not the if. The room kept after a test line is what it reads as written out (`testWidth`).
-  Hash tables show none yet (their steps don't name the chain node; Java's casts). The code's columns are the mono
-  font's 0.6 em, so boxes sit on their characters.
+  the step shows curr moved), reads the step before (`readsBefore`: only when what it assigns is a name the test reads,
+  so not `tomb = i` after `table[i] == DELETED`); Python's two lines tag the statement, not the if. The room kept after
+  a test line is what it reads as written out (`testWidth`). Hash tables (`hashTestValues`, dds-2tt.12): chaining's x
+  is the chain node a step compares (its `x` variable names it by key; x.key the key of a key:value entry), probing's
+  table[] the slots by key (null, DELETED), with m and the probe count k; Java's casts (`(int) table[i]`) and
+  `.equals(...)`, C's `strcmp(a, b)` are read; C's probing (`t->slots[i].state`) shows nothing. The code's columns are
+  the mono font's 0.6 em, so boxes sit on their characters.
   `algorithms.ts` (pure): each algorithm written per language with `@tag`s and `$tag`s at line ends,
   two spaces before (`parseCode`), `algorithmCode` (every algorithm in C, Java and Python; C as a slide would put it:
   arrays with their length, `swap(&a[i], &a[j])`, structs by pointer, `newNode`, `NULL`), `taggedLine` / `shownValues`

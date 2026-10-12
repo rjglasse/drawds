@@ -105,14 +105,12 @@ export function conditionOf(line: string, language: CodeLanguage): Found | undef
 	const open = line.indexOf('(', m[1].length)
 	const close = closing(line, open)
 	if (close < 0) return undefined
-	// A statement after it that changes something (not a return, a break or an exit): it acts on the same line.
-	const after = line
-		.slice(close + 1)
-		.replace(/\/\/.*$/, '')
-		.trim()
-		.replace(/^\{|\}$/g, '')
-		.trim()
-	const acts = after !== '' && !/^(return|break|continue|throw)\b/.test(after) && !/\bexit\(/.test(after)
+	// A statement after it assigning a name the test reads (curr = curr.left after key < curr.key; tail = prev
+	// after curr == tail): the step shows it done. Not tomb = i after table[i] == DELETED, nor a return.
+	const after = line.slice(close + 1).replace(/\/\/.*$/, '')
+	const read = new Set(line.slice(open + 1, close).match(/[A-Za-z_]\w*/g) ?? [])
+	const assigned = [...after.matchAll(/([A-Za-z_]\w*)(?:\s*(?:\.|->)\s*\w+|\s*\[[^\]]*\])*\s*(?:[-+*/%]?=)(?!=)/g)].map((m) => m[1])
+	const acts = assigned.some((name) => read.has(name))
 	if (m[2] !== 'for') {
 		const [from, to] = trim(open + 1, close)
 		return { from, to, kind: m[2] === 'while' ? 'loop' : 'if', acts }
@@ -162,7 +160,10 @@ function tokens(text: string): string[] | undefined {
 	return out
 }
 
-const KEYWORDS: Record<string, Value> = { null: null, None: null, NULL: null, true: true, false: false, True: true, False: false }
+const KEYWORDS: Record<string, Value> = { null: null, None: null, NULL: null, true: true, false: false, True: true, False: false, DELETED: 'DELETED' }
+
+/** Casts written in front of a value ((int) table[i]): read through. */
+const CASTS = new Set(['int', 'long', 'String', 'Integer', 'char'])
 
 function evaluateExpr(text: string, values: TestValues, language: CodeLanguage): Parsed {
 	const ts = tokens(text)
@@ -203,7 +204,7 @@ function evaluateExpr(text: string, values: TestValues, language: CodeLanguage):
 	// A node's fields in turn: .next.value, ->left.
 	const fields = (start: Value): Parsed | undefined => {
 		let v = start
-		while (peek() === '.' || peek() === '->') {
+		while ((peek() === '.' || peek() === '->') && !(ts[k + 1] === 'equals' && ts[k + 2] === '(')) {
 			take()
 			const name = take()
 			if (!isRef(v) || !name) return undefined
@@ -238,6 +239,10 @@ function evaluateExpr(text: string, values: TestValues, language: CodeLanguage):
 			take()
 			t = take()!
 		}
+		if (t === '(' && CASTS.has(peek() ?? '') && ts[k + 1] === ')') {
+			k += 2
+			return atom()
+		}
 		if (t === '(') {
 			const inner = comparison()
 			if (!inner || take() !== ')') return undefined
@@ -256,6 +261,15 @@ function evaluateExpr(text: string, values: TestValues, language: CodeLanguage):
 			const raw = values.vars[t]
 			const node = raw === 'null' || raw === 'None' ? null : values.resolve(raw)
 			return node === undefined ? undefined : fields(node === null ? null : { node })
+		}
+		// C's strcmp(a, b): below, at or above 0 as a comes before, with or after b.
+		if (t === 'strcmp' && peek() === '(') {
+			take()
+			const a = sum()
+			if (!a || take() !== ',') return undefined
+			const b = sum()
+			if (!b || take() !== ')' || a.value === undefined || b.value === undefined || isRef(a.value) || isRef(b.value)) return undefined
+			return { value: Math.sign(compareKeys(String(a.value), String(b.value))), shown: `strcmp(${a.shown}, ${b.shown})` }
 		}
 		// len(a)
 		if (t === 'len' && peek() === '(') {
@@ -291,6 +305,14 @@ function evaluateExpr(text: string, values: TestValues, language: CodeLanguage):
 		const v = t in values.vars ? asValue(values.vars[t]) : t === 'n' && values.arrays.a ? values.arrays.a.length : undefined
 		return v === undefined ? undefined : { value: v, shown: literal(v) }
 	}
+	// Java's a.equals(b): a value the same as b.
+	const equalsAfter = (a: Parsed | undefined): Parsed | undefined => {
+		if (!a || peek() !== '.' || ts[k + 1] !== 'equals' || ts[k + 2] !== '(') return a
+		k += 3
+		const b = sum()
+		if (!b || take() !== ')' || a.value === undefined || b.value === undefined) return undefined
+		return { value: same(a.value, b.value), shown: `${a.shown}.equals(${b.shown})` }
+	}
 	const unary = (): Parsed | undefined => {
 		if (peek() === '-') {
 			take()
@@ -302,7 +324,7 @@ function evaluateExpr(text: string, values: TestValues, language: CodeLanguage):
 			const a = unary()
 			return a && typeof a.value === 'boolean' ? { value: !a.value, shown: `${op === 'not' ? 'not ' : '!'}${a.shown}` } : undefined
 		}
-		return atom()
+		return equalsAfter(atom())
 	}
 	const term = (): Parsed | undefined => {
 		let a = unary()

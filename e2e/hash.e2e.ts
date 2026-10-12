@@ -165,3 +165,18 @@ test("the code beside: chaining's insert walks the chain under index(key); probi
 	await stepToEnd(page)
 	await expect.poll(litLine).toContain('return true;')
 })
+
+test('the code beside a hash table writes out its tests: x.key against the key along a chain', async ({ page }) => {
+	await sketchHashTable(page, [200, 150], 7)
+	await setBuckets(page, [[], ['8', '15'], [], [], [], [], []])
+	await page.getByTestId('insert-key').click()
+	await page.getByTestId('key-prompt').fill('22')
+	await page.keyboard.press('Enter')
+	await page.getByTestId('play-code').click()
+	const test = page.locator('[data-test-line]')
+	await page.keyboard.press('ArrowRight')
+	await expect(test).toContainText('8 == 22')
+	await expect(test).toHaveAttribute('data-test-result', 'false')
+	await page.keyboard.press('ArrowRight')
+	await expect(test).toContainText('15 == 22')
+})

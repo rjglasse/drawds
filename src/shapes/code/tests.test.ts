@@ -141,6 +141,10 @@ describe('a test that acts on its own line', () => {
 		expect(readsBefore('        if (slow == fast) {', 'java', 1)).toBe(false)
 		expect(readsBefore('    if (top < 1) { fprintf(stderr, "too few operands\\n"); exit(1); }', 'c', 1)).toBe(false)
 		expect(readsBefore('        if key < curr.key:', 'python', 1)).toBe(false)
+		// What it assigns, the test doesn't read: the step is the test's.
+		expect(readsBefore('        if (table[i] == DELETED) { if (tomb < 0) tomb = i; }', 'java', 1)).toBe(false)
+		expect(readsBefore('    if (curr == list->tail) list->tail = prev;', 'c', 1)).toBe(true)
+		expect(readsBefore('    if (prev == null) table[i] = node;', 'java', 1)).toBe(false)
 	})
 
 	it("a tree's steps name nodes by value: a value one node holds is that node", () => {

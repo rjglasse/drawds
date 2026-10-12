@@ -15,6 +15,7 @@ import { measureTree } from '../shapes/tree/measure'
 import { bstDeleteSteps, bstExtreme, bstInsertSteps, bstSearch } from '../shapes/tree/search'
 import { traverseTree } from '../shapes/tree/traverse'
 import { findSteps, unionSteps } from '../shapes/union-find/operations'
+import { buildTable, deleteKey, findKey, hashTestValues, insertEntry } from '../shapes/hash/hash'
 import { stateAt, type Frame } from './playback'
 import { graphTestValues, indexTestValues, sceneTestValues } from './scene-tests'
 
@@ -149,5 +150,37 @@ describe('tests beside lists, trees, graphs, heaps and union-find', () => {
 		expect(shown('heap insert', 'python')).toContain('0 > 0 and … → false')
 		expect(shown('heap build', 'python').at(-1)).toBe('-1 in range(6 // 2 - 1, -1, -1) → false')
 		expect(shown('find').length).toBeGreaterThan(0)
+	})
+})
+
+describe('tests beside a hash table', () => {
+	const run = (strategy: 'chaining' | 'probing', keys: string[], make: (table: string[][], scheme: { strategy: typeof strategy; code: 'sum'; compress: 'mod' }) => Op, language: (typeof LANGUAGES)[number] = 'java') => {
+		const scheme = { strategy, code: 'sum' as const, compress: 'mod' as const }
+		const table = buildTable(keys, 7, scheme)
+		const op = make(table, scheme)
+		return testsOf(op, (f) => hashTestValues(table, strategy, f)).map((s) => written(s[language]?.test))
+	}
+
+	it('chaining: x.key against the key, node by node along the chain, in each language', () => {
+		const ints = ['3', '10', '17']
+		expect(run('chaining', ints, (t, s) => insertEntry(t, s, '24'))).toEqual(['3 == 24 → false', '10 == 24 → false', '17 == 24 → false'])
+		expect(run('chaining', ints, (t, s) => insertEntry(t, s, '24'), 'c')).toEqual(['3 == 24 → false', '10 == 24 → false', '17 == 24 → false'])
+		const words = ['cat', 'act']
+		expect(run('chaining', words, (t, s) => insertEntry(t, s, 'tac'))).toEqual(['cat.equals(tac) → false', 'act.equals(tac) → false'])
+		expect(run('chaining', words, (t, s) => insertEntry(t, s, 'tac'), 'c')).toEqual(['strcmp(cat, tac) == 0 → false', 'strcmp(act, tac) == 0 → false'])
+		expect(run('chaining', words, (t, s) => insertEntry(t, s, 'tac'), 'python')).toEqual(['cat == tac → false', 'act == tac → false'])
+	})
+
+	it('probing: table[i] slot by slot, a deleted marker passed over, the empty slot that ends it', () => {
+		// 3, 10 and 17 all hash to 3: slots 3, 4, 5. Delete 10: slot 4 is DELETED; insert 24 passes it.
+		const scheme = { strategy: 'probing' as const, code: 'sum' as const, compress: 'mod' as const }
+		const table = deleteKey(buildTable(['3', '10', '17'], 7, scheme), scheme, '10').buckets!
+		const op = insertEntry(table, scheme, '24') as Op
+		const shownIn = (language: (typeof LANGUAGES)[number]) => testsOf(op, (f) => hashTestValues(table, 'probing', f)).map((s) => written(s[language]?.test))
+		expect(shownIn('java')).toEqual(['DELETED == DELETED → true', '3 < 7 && null != null → false', '4 >= 0 → true'])
+		// Python tests the other way round: is the slot empty? (Its deleted-marker step is an assignment.)
+		expect(shownIn('python')).toEqual([undefined, 'None is None → true', undefined])
+		const found = run('probing', ['3', '10', '17'], (t, s) => findKey(t, s, '17'))
+		expect(found[0]).toBe('17 != DELETED && 17 == 17 → true')
 	})
 })

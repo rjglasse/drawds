@@ -5,7 +5,8 @@ import type { Refillable } from '../../data/fill-style'
 import { newSeed } from '../../data/random'
 import { renameEditingCell } from '../../cells/editable-cells'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
-import { playOperation } from '../../nodelink/playback'
+import { playOperation, type Frame } from '../../nodelink/playback'
+import type { TestValues } from '../code/tests'
 import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
 import type { SceneNode } from '../../nodelink/scene'
 import type { PointerSide } from '../../pointers/layout'
@@ -16,6 +17,7 @@ import {
 	deleteKey,
 	entriesOf,
 	findKey,
+	hashTestValues,
 	insertEntry,
 	isTombstone,
 	keyOf,
@@ -193,6 +195,16 @@ export class HashShapeUtil extends NodeLinkShapeUtil<HashShape> implements Refil
 	}
 
 	override readonly menuId = 'hash'
+
+	/**
+	 * A test in the code beside it reads the table: probing, table[] by slot (null for a slot never
+	 * used, DELETED for a deleted key, else its key) and m; chaining, x is the chain node the step
+	 * compares (named by its key), with its key, value and next.
+	 */
+	override testValues(shape: HashShape, frame: Frame): TestValues {
+		const { buckets, strategy } = { ...shape.props, ...(frame.props as Partial<HashShape['props']> | undefined) }
+		return hashTestValues(buckets, strategy, frame)
+	}
 
 	override moves() {
 		return [

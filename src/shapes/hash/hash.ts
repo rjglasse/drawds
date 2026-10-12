@@ -1,3 +1,4 @@
+import type { TestValues } from '../code/tests'
 import type { MarkColor } from '../../cells/marks'
 import type { Frame, Strip } from '../../nodelink/playback'
 import type { Pointer } from '../../pointers/pointers'
@@ -258,7 +259,8 @@ function walk(buckets: string[][], scheme: SchemeLike, key: string, verb: string
 				counts: { compared: j + 1 },
 				caption: same ? `${keyOf(entry)} = ${key}: found it` : `${keyOf(entry)} ≠ ${key}${j + 1 < chain.length ? ': on along the chain' : ': the end of the chain'}`,
 				line: same ? 'found' : 'compare',
-				vars,
+				// x: the chain node compared, by its key (the code's test reads x.key).
+				vars: { ...vars, x: keyOf(entry) },
 			})
 			if (same) return { frames, b, found: j, compared: j + 1 }
 		}
@@ -298,7 +300,8 @@ function walk(buckets: string[][], scheme: SchemeLike, key: string, verb: string
 			caption: `${step}: ${what}`,
 			ask: k === 0 ? where : `Slot ${p.path[k - 1]} didn't settle it: which slot next?`,
 			line,
-			vars: { key, i: String(i) },
+			// k: the probes made before this one (the code's loop counter).
+			vars: { key, i: String(i), k: String(k) },
 		})
 		previous = slotKey(i)
 	}
@@ -347,7 +350,7 @@ export function insertEntry(buckets: string[][], scheme: SchemeLike, entry: stri
 		flash: { [slotKey(slot)]: FOUND },
 		caption: `${p.tomb !== undefined && p.end !== 'found' ? `${key} isn't further on, so reuse the deleted slot ${slot}` : `Put ${key} in slot ${slot}`}. ${loadLine(n + 1, after.length)}`,
 		line: p.tomb !== undefined ? 'reuse' : 'place',
-		vars: { key, i: String(slot) },
+		vars: { key, i: String(slot), ...(p.tomb !== undefined ? { tomb: String(p.tomb) } : {}) },
 	})
 	return { frames, buckets: after, finalFlash: { [slotKey(slot)]: FOUND }, code }
 }
@@ -444,4 +447,35 @@ export function rehash(buckets: string[][], scheme: SchemeLike): HashOperation {
 	}
 	frames.push({ props: { buckets: table }, strips: strips(), caption: `All ${entries.length} keys moved. ${loadLine(entries.length, m)}` })
 	return { frames, buckets: table, code: codeOf('rehash', scheme, entries.map(keyOf)) }
+}
+
+/**
+ * What a test in the code beside a hash table reads at a step: probing, table[] by slot (null for a
+ * slot never used, DELETED for a deleted key, else its key) and m; chaining, x is the chain node the
+ * step compares (named by its key), with its key, value and next.
+ */
+export function hashTestValues(buckets: string[][], strategy: 'chaining' | 'probing', frame: Frame): TestValues {
+	const vars = { ...frame.vars, m: String(buckets.length) }
+	if (strategy === 'probing') {
+		const table = buckets.map(([entry]) => (entry === undefined ? 'null' : isTombstone(entry) ? 'DELETED' : keyOf(entry)))
+		return { vars, arrays: { table } }
+	}
+	const keys = chainNodeKeys(buckets)
+	const nodes = new Map<string, { entry: string; next: string | null }>()
+	buckets.forEach((chain, b) => chain.forEach((entry, j) => nodes.set(keys[b][j], { entry, next: keys[b][j + 1] ?? null })))
+	const x = frame.vars?.x
+	const at = x === undefined ? undefined : [...nodes].find(([, n]) => keyOf(n.entry) === x)?.[0]
+	return {
+		vars,
+		arrays: {},
+		refs: at ? { x: at } : {},
+		field: (node, field) => {
+			const n = nodes.get(node)
+			if (!n) return undefined
+			if (field === 'key') return { value: keyOf(n.entry) }
+			if (field === 'value') return { value: n.entry.split(':').slice(1).join(':').trim() }
+			return field === 'next' ? { ref: n.next } : undefined
+		},
+		nodeName: (node) => keyOf(nodes.get(node)?.entry ?? node),
+	}
 }
