@@ -2,6 +2,7 @@
   "name": "drawds",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT",
   "type": "module",
   "description": "Sketch data structures (arrays, trees, graphs, maps) for teaching, on a tldraw canvas.",
   "scripts": {

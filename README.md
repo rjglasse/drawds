@@ -157,3 +157,13 @@ npm run build
 
 The README's images come from the app itself: `.claude/skills/run-drawds/driver.mjs` drives it headless, and its
 `shot` command (with `SCALE=2`) saves just the drawing.
+
+## Licence
+
+drawds' own code is under the [MIT licence](LICENSE): use it, change it and share it, keeping the copyright notice.
+
+drawds is built on the [tldraw SDK](https://tldraw.dev), which has [its own licence](https://github.com/tldraw/tldraw/blob/main/LICENSE.md)
+and is not open source. This repository doesn't include tldraw: `npm install` fetches it from npm, under that licence.
+tldraw's licence allows development use. Cloning drawds and running `npm run dev` on your own machine is local use of
+that kind. Running drawds for others (on a server, as a website, or wherever it provides its functionality to users or
+the public) is production use, and needs a tldraw licence key, which tldraw offers for commercial and non-commercial use.
