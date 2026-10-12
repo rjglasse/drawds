@@ -508,6 +508,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 			'Double-click a node or a weight to type',
 			"Drag from the dot on a node's right edge to another node to join them, or into space for a new node",
 			'Drag either end of an edge (just off its node) to another node to re-wire it; right-click a directed edge to reverse it, or the graph to reverse every edge (the transpose)',
+			'With the graph tool (Shift+G), press on a node of a graph and drag: the graph goes on from there',
 			'Hover a node or an edge for x (remove); drag the dot under a node to move it',
 			"Right-click a node: Step by step has BFS, DFS, a path to another node (fewest edges), Dijkstra, Prim, Kruskal (with its union-find beside the graph), connected components and Is there a cycle?; Show puts its adjacency matrix, lists or union-find beside it",
 			'Show degrees and neighbours: each node its degree, and pointing at a node lights its neighbours (directed: out green, in orange)',

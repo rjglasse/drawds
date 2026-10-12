@@ -1,7 +1,7 @@
 import { mulberry32 } from '../../data/random'
 import type { Point } from '../../nodelink/geometry'
 import type { GraphDensity, GraphEdge, GraphLabelsMode, GraphOrder, GraphParts } from './graph-shape-types'
-import { edgeWeight, nodeLabel, type GraphModel } from './model'
+import { edgeWeight, nextEdgeId, nextLabel, nextNodeId, nodeLabel, type GraphModel } from './model'
 
 // Sketch geometry, in cell units (a node is one cell across).
 
@@ -40,6 +40,20 @@ export const MAX_GRAPH_NODES = 40
 export interface GraphSketch {
 	points: Point[]
 	last: Point
+	/**
+	 * Continuing a graph from one of its nodes (pressed on it): the graph as it was, the node (the
+	 * sketch's first point), the other nodes relative to it (new ones keep clear of them) and how many
+	 * points the sketch may reach (the graph's nodes and the new ones at most MAX_GRAPH_NODES).
+	 */
+	extend?: { model: GraphModel; start: string; avoid: Point[]; max: number }
+}
+
+/** A sketch continuing `model` from node `start`. */
+export function extendingSketch(model: GraphModel, start: string): GraphSketch {
+	const from = model.nodes.find((n) => n.id === start)!
+	const avoid = model.nodes.filter((n) => n.id !== start).map((n) => ({ x: n.x - from.x, y: n.y - from.y }))
+	const origin = { x: 0, y: 0 }
+	return { points: [origin], last: origin, extend: { model, start, avoid, max: Math.max(1, MAX_GRAPH_NODES - model.nodes.length + 1) } }
 }
 
 export const INITIAL_GRAPH_SKETCH: GraphSketch = { points: [{ x: 0, y: 0 }], last: { x: 0, y: 0 } }
@@ -54,7 +68,8 @@ export function nextGraphSketch(prev: GraphSketch, at: Point): GraphSketch {
 	const points = [...prev.points]
 	const length = dist(prev.last, at)
 	const steps = Math.ceil(length / 0.05)
-	for (let i = 1; i <= steps && points.length < MAX_GRAPH_NODES; i++) {
+	const avoid = prev.extend?.avoid ?? []
+	for (let i = 1; i <= steps && points.length < (prev.extend?.max ?? MAX_GRAPH_NODES); i++) {
 		const t = i / steps
 		const p = { x: prev.last.x + (at.x - prev.last.x) * t, y: prev.last.y + (at.y - prev.last.y) * t }
 		const last = points[points.length - 1]
@@ -63,10 +78,10 @@ export function nextGraphSketch(prev: GraphSketch, at: Point): GraphSketch {
 		// Just past the spacing: pull back onto it exactly, so a straight drag spaces nodes evenly.
 		const k = d < GRAPH_SPACING + 0.1 ? GRAPH_SPACING / d : 1
 		const node = { x: last.x + (p.x - last.x) * k, y: last.y + (p.y - last.y) * k }
-		if (points.some((q) => dist(node, q) < GRAPH_MIN_GAP - 1e-9)) continue
+		if (points.some((q) => dist(node, q) < GRAPH_MIN_GAP - 1e-9) || avoid.some((q) => dist(node, q) < GRAPH_MIN_GAP - 1e-9)) continue
 		points.push(node)
 	}
-	return { points, last: at }
+	return { ...prev, points, last: at }
 }
 
 function cross(o: Point, a: Point, b: Point) {
@@ -198,6 +213,72 @@ function completeGraph(points: readonly Point[], seed: number, labels: GraphLabe
 			const id = `e${edges.length}`
 			const [from, to] = order === 'dag' || rng() < 0.5 ? [j, k] : [k, j]
 			edges.push({ id, from: `v${from}`, to: `v${to}`, weight: edgeWeight(seed, id) })
+		}
+	}
+	return { nodes, edges }
+}
+
+/**
+ * A graph continued from its node `start` along `points` (cell units from that node; points[0] is
+ * the node itself): each new node joins the nearest node it can reach cleanly, old or new, then maybe
+ * more nearby, by the same rules (and density, and order) as a sketch, the old nodes counting as
+ * earlier ones. Ids and labels carry on from the graph's; a new node's edges depend only on the
+ * seed, its id and the nodes before it, so a longer drag extends a shorter one.
+ */
+export function extendGraph(
+	model: GraphModel,
+	start: string,
+	points: readonly Point[],
+	seed: number,
+	labels: GraphLabelsMode,
+	{ density = 'medium', order = 'any' }: GraphSketchOptions = {}
+): GraphModel {
+	const from = model.nodes.find((n) => n.id === start)
+	if (!from || points.length < 2) return model
+	const { extras: most, chance, reach } = DENSITY[density === 'complete' ? 'dense' : density]
+	const nodes = [...model.nodes]
+	const edges = [...model.edges]
+	const at = new Map(nodes.map((n) => [n.id, { x: n.x, y: n.y }]))
+	const neighbours = new Map(nodes.map((n): [string, string[]] => [n.id, []]))
+	for (const e of edges) {
+		neighbours.get(e.from)?.push(e.to)
+		neighbours.get(e.to)?.push(e.from)
+	}
+	const clean = (a: string, b: string) => {
+		const [p, q] = [at.get(a)!, at.get(b)!]
+		if (edges.some((e) => e.from !== e.to && segmentsCross(p, q, at.get(e.from)!, at.get(e.to)!))) return false
+		if ([...at].some(([id, r]) => id !== a && id !== b && distanceToSegment(r, p, q) < CLEARANCE)) return false
+		return neighbours.get(a)!.every((n) => angleBetween(p, q, at.get(n)!) >= MIN_ANGLE) && neighbours.get(b)!.every((n) => angleBetween(q, p, at.get(n)!) >= MIN_ANGLE)
+	}
+	const connect = (k: string, j: string, rng: () => number) => {
+		const id = nextEdgeId(edges)
+		// A DAG: from the node that came first to the new one.
+		const [a, b] = order === 'dag' || rng() < 0.5 ? [j, k] : [k, j]
+		edges.push({ id, from: a, to: b, weight: edgeWeight(seed, id) })
+		neighbours.get(k)!.push(j)
+		neighbours.get(j)!.push(k)
+	}
+	for (const p of points.slice(1)) {
+		const id = nextNodeId(nodes)
+		const here = { x: from.x + p.x, y: from.y + p.y }
+		const rng = nodeRng(seed, Number(id.slice(1)) || 0)
+		const earlier = nodes.map((n) => n.id).sort((a, b) => dist(here, at.get(a)!) - dist(here, at.get(b)!))
+		nodes.push({ id, value: nextLabel(nodes, labels), ...here })
+		at.set(id, here)
+		neighbours.set(id, [])
+		// A complete graph stays complete: the new node joins every other.
+		if (density === 'complete') {
+			for (const j of earlier) connect(id, j, rng)
+			continue
+		}
+		const first = earlier.find((j) => clean(id, j)) ?? earlier[0]
+		connect(id, first, rng)
+		let extras = 0
+		for (const j of earlier) {
+			if (extras === most || dist(here, at.get(j)!) > reach) break
+			if (j === first) continue
+			extras++
+			if (rng() < chance && clean(id, j)) connect(id, j, rng)
 		}
 	}
 	return { nodes, edges }

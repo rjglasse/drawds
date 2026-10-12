@@ -577,7 +577,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   none on an edge too short), dragged onto another node to move that end (`rewireEdge`: id and weight kept; no
   self-loop, no edge already there), the edge hidden meanwhile and a dashed preview from the end that stays. A
   directed edge's menu reverses it (`reverseEdge`, not onto its twin), the graph's reverses every edge
-  (`transpose`, Gᵀ); one undo step each. `algorithms.ts`: Dijkstra (distance
+  (`transpose`, Gᵀ); one undo step each. The graph tool pressed on a graph's node continues that graph (dds-55z.19.9,
+  `createDragTool`'s `resume` hook: that shape and a gesture to go on from, one undo step, Esc takes it back):
+  `extendingSketch` keeps new nodes clear of the old and the total at MAX_GRAPH_NODES, `extendGraph` joins each new
+  node by the sketch's rules (nearest clean edge, extras by the graph's density, a DAG's order, complete stays
+  complete), old nodes counting as earlier ones, ids and labels carrying on; the graph's position stays put.
+  `algorithms.ts`: Dijkstra (distance
   badges, best edge green), Prim, Kruskal, topological sort (Kahn) as frames, reusing traverse.ts's `Recorder`
   (an edge only looked at flashes, then gets its colour back); unweighted graphs count every edge 1. `components`:
   connected components as lecture 9 counts them (a loop, pointer v, over the vertices: one visited already is skipped,

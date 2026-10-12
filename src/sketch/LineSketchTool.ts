@@ -27,6 +27,11 @@ export interface DragToolConfig<S extends TLShape, G> {
 	layout(shape: S, origin: VecLike, gesture: G): Pick<TLShapePartial<S>, 'x' | 'y' | 'props'>
 	/** Once drawn (the pointer up): anything to settle, in the same undo step (a tracer moved onto the screen). */
 	settle?(editor: Editor, id: TLShapeId): void
+	/**
+	 * Pressed on a shape the gesture can continue (a graph's node): that shape and the gesture to go
+	 * on from, instead of a new shape. `layout` then gets that shape, and its position stays put.
+	 */
+	resume?(editor: Editor, point: VecLike): { id: TLShapeId; gesture: G } | undefined
 }
 
 /**
@@ -61,6 +66,13 @@ export function createDragTool<S extends TLShape, G>(config: DragToolConfig<S, G
 		override onEnter() {
 			this.markId = this.editor.markHistoryStoppingPoint(`sketch ${config.type}`)
 			this.origin = maybeSnapToGrid(this.editor.inputs.getOriginPagePoint().clone(), this.editor)
+			// Pressed on a shape to continue (a graph's node): that one, else a new shape.
+			const resumed = config.resume?.(this.editor, this.origin)
+			if (resumed) {
+				this.shapeId = resumed.id
+				this.gesture = resumed.gesture
+				return
+			}
 			this.shapeId = createShapeId()
 			this.gesture = config.initial
 			// S is generic, so TS can't see that it has a `seed` prop or relate config.type to it.

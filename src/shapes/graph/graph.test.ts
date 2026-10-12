@@ -5,6 +5,9 @@ import {
 	GRAPH_MIN_GAP,
 	GRAPH_SPACING,
 	INITIAL_GRAPH_SKETCH,
+	MAX_GRAPH_NODES,
+	extendGraph,
+	extendingSketch,
 	generateGraph,
 	nextGraphSketch,
 	segmentsCross,
@@ -395,5 +398,48 @@ describe('reversing and re-wiring edges', () => {
 		expect(edgeEndGrips([{ x: 0, y: 0 }, { x: 40, y: 0 }], 15, 10)).toBeUndefined()
 		expect(edgeOfRewireHandle(rewireHandleId('e12', 'to'))).toEqual({ edge: 'e12', end: 'to' })
 		expect(edgeOfRewireHandle('connect:v1')).toBeUndefined()
+	})
+})
+
+describe('extending a graph from one of its nodes', () => {
+	const base: GraphModel = generateGraph(sketch([{ x: 0, y: 0 }, { x: 8, y: 0 }]).points, 7, 'letters')
+	const run = (from: string, path: Point[]) => {
+		let s = extendingSketch(base, from)
+		for (const p of path) s = nextGraphSketch(s, p)
+		return s
+	}
+
+	it('drops nodes along the drag from the node, keeping clear of the graph, and joins them to it', () => {
+		const start = base.nodes[base.nodes.length - 1]
+		const s = run(start.id, [{ x: 0, y: 3 }, { x: 0, y: 7 }])
+		expect(s.points[0]).toEqual({ x: 0, y: 0 })
+		expect(s.points.length).toBeGreaterThan(2)
+		const grown = extendGraph(base, start.id, s.points, 7, 'letters')
+		expect(grown.nodes.slice(0, base.nodes.length)).toEqual(base.nodes)
+		expect(grown.edges.slice(0, base.edges.length)).toEqual(base.edges)
+		// Ids and labels carry on; every new node is reached from the old graph.
+		const added = grown.nodes.slice(base.nodes.length)
+		expect(added.map((n) => n.id)).toEqual(added.map((_, i) => `v${base.nodes.length + i}`))
+		expect(added[0].value).toBe(String.fromCharCode(65 + base.nodes.length))
+		expect(isConnected(grown)).toBe(true)
+		// New nodes keep their distance from the old ones.
+		for (const n of added) for (const o of base.nodes) expect(Math.hypot(n.x - o.x, n.y - o.y)).toBeGreaterThanOrEqual(GRAPH_MIN_GAP - 1e-6)
+	})
+
+	it('a longer drag extends a shorter one; a DAG keeps pointing forward', () => {
+		const start = base.nodes[0].id
+		const short = run(start, [{ x: 0, y: 5 }])
+		const long = run(start, [{ x: 0, y: 5 }, { x: 0, y: 10 }])
+		const [a, b] = [extendGraph(base, start, short.points, 3, 'letters'), extendGraph(base, start, long.points, 3, 'letters')]
+		expect(b.nodes.slice(0, a.nodes.length)).toEqual(a.nodes)
+		expect(b.edges.slice(0, a.edges.length)).toEqual(a.edges)
+		const dag = extendGraph(base, start, long.points, 3, 'letters', { order: 'dag' })
+		const index = (id: string) => Number(id.slice(1))
+		for (const e of dag.edges.slice(base.edges.length)) expect(index(e.from)).toBeLessThan(index(e.to))
+	})
+
+	it('stops at MAX_GRAPH_NODES in all', () => {
+		const s = run(base.nodes[0].id, Array.from({ length: 200 }, (_, i) => ({ x: (i % 20) * 3, y: Math.floor(i / 20) * 3 + 4 })))
+		expect(base.nodes.length + s.points.length - 1).toBeLessThanOrEqual(MAX_GRAPH_NODES)
 	})
 })
