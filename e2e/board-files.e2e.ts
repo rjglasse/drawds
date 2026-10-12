@@ -267,3 +267,37 @@ test('Ctrl+O while typing in a cell ends the edit and opens a board', async ({ p
 	expect(await types(page)).toEqual(['binary-tree'])
 	expect(await page.evaluate(() => window.editor!.getEditingShapeId())).toBeNull()
 })
+
+test('a .tldr file dropped on the canvas opens as the board; an image dropped is still an image', async ({ page }) => {
+	await open(page)
+	await sketchArray(page, [200, 200], 4)
+	const before = await shapes(page)
+	// The board as a .tldr file, then cleared.
+	const json = await page.evaluate(() => {
+		const editor = window.editor!
+		const json = JSON.stringify({ tldrawFileFormatVersion: 1, schema: editor.store.schema.serialize(), records: editor.store.allRecords() })
+		editor.deleteShapes(editor.getCurrentPageShapes().map((s) => s.id))
+		return json
+	})
+	expect(await shapes(page)).toHaveLength(0)
+	const drop = (file: { name: string; type: string; text?: string; png?: boolean }) =>
+		page.evaluate(async ({ name, type, text, png }) => {
+			let blob: Blob
+			if (png) {
+				const canvas = document.createElement('canvas')
+				canvas.width = canvas.height = 8
+				blob = await new Promise<Blob>((done) => canvas.toBlob((b) => done(b!), 'image/png'))
+			} else blob = new Blob([text!], { type })
+			const transfer = new DataTransfer()
+			transfer.items.add(new File([blob], name, { type }))
+			const target = document.querySelector('.tl-canvas')!
+			const at = { clientX: 500, clientY: 400, bubbles: true, cancelable: true, dataTransfer: transfer }
+			target.dispatchEvent(new DragEvent('dragover', at))
+			target.dispatchEvent(new DragEvent('drop', at))
+		}, file)
+	await drop({ name: 'lesson.tldr', type: '', text: json })
+	await expect(page.getByText('Opened lesson.tldr')).toBeVisible()
+	await expect.poll(async () => (await shapes(page)).map((s) => s.id)).toEqual(before.map((s) => s.id))
+	await drop({ name: 'dot.png', type: 'image/png', png: true })
+	await expect.poll(async () => (await types(page)).includes('image')).toBe(true)
+})

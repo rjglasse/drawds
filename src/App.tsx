@@ -33,6 +33,7 @@ import { TreeShapeTool } from './shapes/tree/TreeShapeTool'
 import { TreeShapeUtil } from './shapes/tree/TreeShapeUtil'
 import { deleteFollowersWithTheirStructure, keepFollowersMeasured } from './cells/followers'
 import { showBoardNameInTitle } from './files/board'
+import { BoardFileDrop } from './files/BoardFileDrop'
 import { BoardFileKeys } from './files/BoardFileKeys'
 import { clearStaleRooms } from './nodelink/playback'
 import { startCodeLog } from './transcript/log'
@@ -113,6 +114,7 @@ export default function App() {
 				onMount={onMount}
 			>
 				<BoardFileKeys />
+				<BoardFileDrop />
 			</Tldraw>
 		</div>
 	)
