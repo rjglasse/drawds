@@ -22,6 +22,7 @@ import { allUnique, findMax, sentinelSearch } from '../array/scans'
 import { fisherYates, unfairShuffle } from '../array/shuffles'
 import { dequeue, enqueue, peekQueue, peekStack, pop, push } from '../array/stack-queue'
 import { checkBrackets, evaluatePostfix } from '../array/stack-uses'
+import { countingSort } from '../array/counting'
 import {
 	appendToList,
 	deleteFromList,
@@ -156,6 +157,7 @@ describe('algorithm code', () => {
 			quicksort(array(7, 2, 9, 1, 5, 3, 8), 'quicksort-cutoff', { cutoff: 3 }),
 			hoarePartition(array(5, 2, 9, 1, 7, 3)),
 			mergeSort(array(7, 2, 9, 1, 5, 3)),
+			countingSort(array(3, 0, 2, 3, 1, 0)),
 			mergeArrays(array(1, 4, 7), ['2', '3', '9'], 'shape:b', { drop: 0, gap: 0 }),
 			mergeArrays(array(5, 9), ['2'], 'shape:b', { drop: 0, gap: 0 }),
 			unfairShuffle(array(7, 2, 9, 1), mulberry32(3)),

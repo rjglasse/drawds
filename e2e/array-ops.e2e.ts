@@ -233,3 +233,21 @@ test('Hoare partition: i and j start just off either end and cross', async ({ pa
 	await stepToEnd(page)
 	await expect(caption(page)).toContainText('the pointers have crossed')
 })
+
+test('counting sort: count[] under the array, out filled from the right, no comparisons; big values say why', async ({ page }) => {
+	await sketchArray(page, [200, 200], 6)
+	await setValues(page, ['3', '0', '2', '3', '1', '0'])
+	await arrayOp(page, 0, 'array-steps', 'array-counting-sort')
+	await expect(caption(page)).toContainText('count = a new array of k + 1 = 4 zeros')
+	await expect(page.getByTestId('playback-strip').first()).toContainText('count[]')
+	await stepToEnd(page)
+	await expect(page.getByTestId('play-counts')).toHaveText('comparisons 0')
+	await page.keyboard.press('Enter')
+	expect(await values(page)).toEqual(['0', '0', '1', '2', '3', '3'])
+	// Values past what count[] can draw: one step saying so, nothing changes.
+	await setValues(page, ['3', '40', '2', '7', '1', '0'])
+	await arrayOp(page, 0, 'array-steps', 'array-counting-sort')
+	await expect(caption(page)).toContainText('these go up to 40')
+	await page.keyboard.press('Escape')
+	expect(await values(page)).toEqual(['3', '40', '2', '7', '1', '0'])
+})

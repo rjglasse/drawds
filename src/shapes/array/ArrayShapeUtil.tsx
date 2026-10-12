@@ -87,6 +87,7 @@ import { movesAnything, rearrange, reversedOrder, shuffledOrder, sortedOrder } f
 import { arrayMarkers, frontOf, isUsed, usedIndices } from './kinds'
 import { dequeue, enqueue, peekQueue, peekStack, pop, push } from './stack-queue'
 import { checkBrackets, evaluatePostfix } from './stack-uses'
+import { countingSort } from './counting'
 import type { TestValues } from '../code/tests'
 import { indexTestValues } from '../../nodelink/scene-tests'
 import { isCoarsePointer } from '../../nodelink/hover'
@@ -459,6 +460,8 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 						sort('array-selection-sort', 'Selection sort', selectionSort),
 						sort('array-bubble-sort', 'Bubble sort', bubbleSort),
 						sort('array-merge-sort', 'Merge sort', mergeSort),
+						// No comparisons: a count per value 0..k (small whole numbers only, else it says why).
+						sort('array-counting-sort', 'Counting sort (small whole numbers)', countingSort),
 						// Lectures 2 and 3: a pass at a time, each a row under the array, the costs summed.
 						sort('array-selection-passes', 'Selection sort, a row per pass', selectionPasses, passes),
 						sort('array-insertion-passes', 'Insertion sort, a row per pass', insertionPasses, passes),

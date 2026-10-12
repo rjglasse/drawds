@@ -159,6 +159,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `otherKey(b, j)` (the step's pointers anchor on its cells, `stepAnchor`; its values slide from there into c,
   `crossSlides`' `fromOther`). Nothing changes; the result is a new array where the row was (`onCommit`, one undo
   step), a and b as they were: arrays copy, lists re-point.
+- `src/shapes/array/counting.ts` - counting sort (dds-55z.20.8.6, Sorts > Counting sort, CLRS's, stable): count[] a strip
+  under the array (labelled 0..k), one pass counting, prefix sums (count[v] = how many are ≤ v), then from the right
+  each value to out[--count[v]] (the second row, `aux:<i>` moves), a = out; comparisons stay 0. Small whole numbers
+  only (0..`COUNT_MAX` = 15), else one step saying why. Its code (`counting-sort`) was run in Python, Java and C.
 - `src/shapes/outcomes/` - a shuffle's outcomes (dds-szw.16, lecture 2's "Draw: Unfair / FY Shuffle Permutations" and
   its demo "run a shuffle many times and show the distribution"), a `shuffle-outcomes` shape following the array
   (`structureId`; `kind` unfair / fisher-yates, `mode` tree / tally, the start `values`, a `seed`). `outcomes.ts` (pure):

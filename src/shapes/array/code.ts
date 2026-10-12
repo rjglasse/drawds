@@ -1053,6 +1053,49 @@ export const ARRAY_CODE: Record<string, CodeSource> = {
 			            return j                        @done
 			        a[i], a[j] = a[j], a[i]             @swap`,
 	},
+	// Counting sort (CLRS's, stable): count, prefix sums, place from the right, copy back. Values 0..k.
+	'counting-sort': {
+		c: String.raw`
+			void countingSort(int a[], int n, int k) {        $k
+			    int *count = calloc(k + 1, sizeof(int));      @alloc
+			    for (int i = 0; i < n; i++)                   $i
+			        count[a[i]]++;                            @count
+			    for (int v = 1; v <= k; v++)                  $v
+			        count[v] += count[v - 1];                 @prefix
+			    int *out = malloc(n * sizeof(int));           @out
+			    for (int i = n - 1; i >= 0; i--)
+			        out[--count[a[i]]] = a[i];                @place
+			    for (int i = 0; i < n; i++)
+			        a[i] = out[i];                            @copy
+			    free(count);
+			    free(out);
+			}`,
+		java: String.raw`
+			void countingSort(int[] a, int k) {              $k
+			    int[] count = new int[k + 1];                @alloc
+			    for (int i = 0; i < a.length; i++)           $i
+			        count[a[i]]++;                           @count
+			    for (int v = 1; v <= k; v++)                 $v
+			        count[v] += count[v - 1];                @prefix
+			    int[] out = new int[a.length];               @out
+			    for (int i = a.length - 1; i >= 0; i--)
+			        out[--count[a[i]]] = a[i];               @place
+			    for (int i = 0; i < a.length; i++)
+			        a[i] = out[i];                           @copy
+			}`,
+		python: String.raw`
+			def counting_sort(a, k):                    $k
+			    count = [0] * (k + 1)                   @alloc
+			    for i in range(len(a)):                 $i
+			        count[a[i]] += 1                    @count
+			    for v in range(1, k + 1):               $v
+			        count[v] += count[v - 1]            @prefix
+			    out = [None] * len(a)                   @out
+			    for i in range(len(a) - 1, -1, -1):
+			        count[a[i]] -= 1
+			        out[count[a[i]]] = a[i]             @place
+			    a[:] = out                              @copy`,
+	},
 	'merge-sort': {
 		c: String.raw`
 			void mergeSort(int a[], int lo, int hi) {          $lo $hi
