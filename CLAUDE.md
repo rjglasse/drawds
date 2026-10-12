@@ -582,6 +582,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `extendingSketch` keeps new nodes clear of the old and the total at MAX_GRAPH_NODES, `extendGraph` joins each new
   node by the sketch's rules (nearest clean edge, extras by the graph's density, a DAG's order, complete stays
   complete), old nodes counting as earlier ones, ids and labels carrying on; the graph's position stays put.
+  Re-layouts (dds-55z.19.2, `arrange.ts`, pure; Graph > Lay out round a circle / Tidy, one undo step each): round a
+  circle in label order, A at the top, neighbours a spacing apart; tidy by forces (Fruchterman-Reingold from where the
+  nodes are, each piece on its own, then scaled so edges average a spacing, nodes no nearer than a sketch's gap;
+  pieces in a row as they were left to right). Both centred where the graph was, the same graph landing the same way.
   `algorithms.ts`: Dijkstra (distance
   badges, best edge green), Prim, Kruskal, topological sort (Kahn) as frames, reusing traverse.ts's `Recorder`
   (an edge only looked at flashes, then gets its colour back); unweighted graphs count every edge 1. `components`:

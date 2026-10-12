@@ -47,6 +47,7 @@ import { showGraphView, viewsOf } from '../graph-view/GraphViewShapeUtil'
 import { generateGraph } from './generate'
 import { getGraphMetrics, graphCorner, graphScene, toUnits } from './layout'
 import { components, dijkstra, kruskal, prim, topologicalSort } from './algorithms'
+import { circleLayout, tidyLayout } from './arrange'
 import { bfs, dfs } from './traverse'
 import { findCycle, shortestPath } from './paths'
 import { addVertexCosts, hasEdgeCosts, removeEdgeCosts, removeVertexCosts, type CostRun } from '../graph-view/costs'
@@ -409,7 +410,15 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 			shape.props.direction === 'directed' && shape.props.edges.length
 				? [{ section: 'actions', id: 'graph-transpose', label: 'Reverse every edge (the transpose, Gᵀ)', run: () => this.change(shape.id, 'transpose', (s) => transpose(s.props)) }]
 				: []
-		return [...views, ...turn, ...this.algorithmOperations(shape)]
+		// Re-laid out (one undo step): round a circle, or tidied by forces from where the nodes are.
+		const arrange: NodeOperation[] =
+			shape.props.nodes.length > 2
+				? [
+						{ section: 'actions', group: 'layout', id: 'graph-layout-circle', label: 'Lay out round a circle', run: () => this.change(shape.id, 'round a circle', (s) => ({ nodes: circleLayout(s.props.nodes), edges: s.props.edges })) },
+						{ section: 'actions', group: 'layout', id: 'graph-layout-tidy', label: 'Tidy: edges even, nodes apart', run: () => this.change(shape.id, 'tidy', (s) => ({ nodes: tidyLayout(s.props), edges: s.props.edges })) },
+					]
+				: []
+		return [...views, ...turn, ...arrange, ...this.algorithmOperations(shape)]
 	}
 
 	/** While an edge's end is dragged elsewhere, the edge isn't drawn where it was: the preview is where it goes. */
@@ -509,6 +518,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 			"Drag from the dot on a node's right edge to another node to join them, or into space for a new node",
 			'Drag either end of an edge (just off its node) to another node to re-wire it; right-click a directed edge to reverse it, or the graph to reverse every edge (the transpose)',
 			'With the graph tool (Shift+G), press on a node of a graph and drag: the graph goes on from there',
+			'Right-click the graph: Graph > Lay out round a circle, or Tidy (edges even, nodes apart, from where they are)',
 			'Hover a node or an edge for x (remove); drag the dot under a node to move it',
 			"Right-click a node: Step by step has BFS, DFS, a path to another node (fewest edges), Dijkstra, Prim, Kruskal (with its union-find beside the graph), connected components and Is there a cycle?; Show puts its adjacency matrix, lists or union-find beside it",
 			'Show degrees and neighbours: each node its degree, and pointing at a node lights its neighbours (directed: out green, in orange)',

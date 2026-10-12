@@ -286,3 +286,28 @@ test("the graph tool pressed on a graph's node continues that graph; one undo ta
 	await undo(page)
 	expect((await graph(page)).nodes).toEqual(before.nodes)
 })
+
+test('re-lay out a graph round a circle, or tidy it; one undo step each', async ({ page }) => {
+	await sketchGraph(page, [200, 200], 8, 4)
+	const { nodes: before, edges } = await graph(page)
+	const relayout = async (item: string) => {
+		await rightClick(page, await nodeScreenPosition(page, 'v0'))
+		await page.getByTestId('context-menu-sub.drawds-graph-actions-button').click()
+		await page.getByTestId(`context-menu.${item}`).click()
+	}
+	await relayout('graph-layout-circle')
+	const circled = (await graph(page)).nodes
+	const c = { x: circled.reduce((s, n) => s + n.x, 0) / 8, y: circled.reduce((s, n) => s + n.y, 0) / 8 }
+	const radii = circled.map((n) => Math.hypot(n.x - c.x, n.y - c.y))
+	expect(Math.max(...radii) - Math.min(...radii)).toBeLessThan(0.05)
+	// A at the top.
+	expect(circled[0].y).toBeLessThan(c.y - radii[0] * 0.99)
+	await undo(page)
+	expect((await graph(page)).nodes).toEqual(before)
+	await relayout('graph-layout-tidy')
+	// The nodes move; the edges are the same.
+	expect((await graph(page)).nodes).not.toEqual(before)
+	expect((await graph(page)).edges).toEqual(edges)
+	await undo(page)
+	expect((await graph(page)).nodes).toEqual(before)
+})
