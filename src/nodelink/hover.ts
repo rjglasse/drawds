@@ -1,3 +1,4 @@
+import { computed, type Computed, type Editor } from 'tldraw'
 import { nodeBox, type EdgeRoute, type Point } from './geometry'
 import type { SceneNode } from './scene'
 
@@ -46,4 +47,16 @@ export function hoveredEdge(routes: ReadonlyMap<string, EdgeRoute>, keys: readon
 		}
 	}
 	return best
+}
+
+const coarse = new WeakMap<Editor, Computed<boolean>>()
+
+/**
+ * A touch screen (no hover: every control shows), read through a computed: the instance record it
+ * lives on changes with the cursor, and a shape reading the record redrew whenever the cursor did.
+ */
+export function isCoarsePointer(editor: Editor): boolean {
+	let c = coarse.get(editor)
+	if (!c) coarse.set(editor, (c = computed('coarse pointer', () => editor.getInstanceState().isCoarsePointer)))
+	return c.get()
 }

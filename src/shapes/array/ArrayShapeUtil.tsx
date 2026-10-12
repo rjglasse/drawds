@@ -89,6 +89,8 @@ import { dequeue, enqueue, peekQueue, peekStack, pop, push } from './stack-queue
 import { checkBrackets, evaluatePostfix } from './stack-uses'
 import type { TestValues } from '../code/tests'
 import { indexTestValues } from '../../nodelink/scene-tests'
+import { isCoarsePointer } from '../../nodelink/hover'
+import { Tracked } from '../../controls/Tracked'
 import {
 	arrayStepVector,
 	getArrayGrowPoint,
@@ -856,7 +858,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		const direction = metrics.axis
 		const layout = getArrayLayout(n, metrics)
 		const zoom = this.editor.getZoomLevel()
-		const coarse = this.editor.getInstanceState().isCoarsePointer
+		const coarse = isCoarsePointer(this.editor)
 		const point = this.editor.getPointInShapeSpace(shape, this.editor.inputs.getCurrentPagePoint())
 		const hovered = coarse ? undefined : hoveredCell(point, n, metrics, 16 / zoom)
 		if (!coarse && !hovered) return null
@@ -1311,10 +1313,15 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 				{showsStructureControls(this.editor, shape) &&
 					!isBusy(playing) &&
 					this.editor.isIn('select.idle') && (
-						<>
-							{this.renderCellButtons(shape, colors)}
-							{this.renderKindButtons(shape, colors)}
-						</>
+						// Apart from the array, so the pointer moving redraws only the buttons.
+						<Tracked
+							render={() => (
+								<>
+									{this.renderCellButtons(shape, colors)}
+									{this.renderKindButtons(shape, colors)}
+								</>
+							)}
+						/>
 					)}
 				{this.renderOperationPrompt(shape, colors)}
 				{this.renderPointerOverlays(shape, colors)}

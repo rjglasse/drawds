@@ -17,6 +17,7 @@ import { arrowHead, routeEdge } from '../../nodelink/geometry'
 import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { spatialNeighbor } from '../../nodelink/geometry'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
+import { Tracked } from '../../controls/Tracked'
 import { prunePointers } from '../../pointers/pointers'
 import { isBusy, playOperation, playbackFor, type Frame } from '../../nodelink/playback'
 import { edgeCellKey, type Scene, type SceneNode } from '../../nodelink/scene'
@@ -577,21 +578,25 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		const drag = connectState(this.editor).get()
 		const dragging = drag?.shapeId === shape.id ? drag : undefined
 		const scene = this.getScene(shape)
-		// Connect grips on the node under the pointer (all nodes on touch screens), as for its x.
-		let grips: SceneNode[] = []
+		// Connect grips on the node under the pointer (all nodes on touch screens), as for its x: drawn
+		// apart (`Tracked`), so hovering from node to node doesn't redraw the graph.
 		const busy = isBusy(playbackFor(this.editor, shape.id))
-		if (!dragging && !busy && showsStructureControls(this.editor, shape) && this.editor.isIn('select.idle')) {
-			const { showNode } = this.controlTargets(shape)
-			grips = scene.nodes.filter((n) => showNode(n.key))
-		}
+		const gripping = !dragging && !busy && showsStructureControls(this.editor, shape) && this.editor.isIn('select.idle')
 		const zoom = this.editor.getZoomLevel()
 		return (
 			<>
 				{super.component(shape)}
 				<SVGContainer>
-					{grips.map((n) => (
-						<GrowGrip key={n.key} at={connectGripAt(n)} zoom={zoom} colors={colors} />
-					))}
+					{gripping && (
+						<Tracked
+							render={() => {
+								const { showNode } = this.controlTargets(shape)
+								return scene.nodes
+									.filter((n) => showNode(n.key))
+									.map((n) => <GrowGrip key={n.key} at={connectGripAt(n)} zoom={zoom} colors={colors} />)
+							}}
+						/>
+					)}
 					{dragging && (
 						<ConnectPreview
 							scene={scene}

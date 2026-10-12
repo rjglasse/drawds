@@ -224,8 +224,19 @@ export function bendFor(edge: SceneEdge, edges: readonly SceneEdge[]): number {
 	return edges.some((e) => e.directed && e.from === edge.to && e.to === edge.from) ? 0.2 : 0
 }
 
-/** Routes for every edge whose endpoints exist, keyed by edge key. */
-export function routeScene(scene: Scene): Map<string, EdgeRoute> {
+const routed = new WeakMap<Scene, Map<string, EdgeRoute>>()
+
+/**
+ * Routes for every edge whose endpoints exist, keyed by edge key. Kept per scene (a shape's scene is
+ * kept per props), so drawing, hit-testing and hovering route a graph's edges once.
+ */
+export function routeScene(scene: Scene): ReadonlyMap<string, EdgeRoute> {
+	let routes = routed.get(scene)
+	if (!routes) routed.set(scene, (routes = routeAll(scene)))
+	return routes
+}
+
+function routeAll(scene: Scene): Map<string, EdgeRoute> {
 	const nodes = new Map(scene.nodes.map((n) => [n.key, n]))
 	const routes = new Map<string, EdgeRoute>()
 	for (const edge of scene.edges) {

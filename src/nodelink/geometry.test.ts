@@ -101,6 +101,13 @@ describe('bendFor / routeScene', () => {
 		const scene = { nodes: [node('a', 0, 0), node('b', 100, 0)], edges, metrics: { fontSize: 20, labelFontSize: 14, strokeWidth: 2 } }
 		expect([...routeScene(scene).keys()]).toEqual(['ab', 'ba'])
 	})
+
+	it('routes a scene once: drawing, hit-testing and hovering share its routes', () => {
+		const scene = { nodes: [node('a', 0, 0), node('b', 100, 0)], edges, metrics: { fontSize: 20, labelFontSize: 14, strokeWidth: 2 } }
+		expect(routeScene(scene)).toBe(routeScene(scene))
+		// Another scene (the shape changed): routed again.
+		expect(routeScene({ ...scene, nodes: [node('a', 0, 0), node('b', 200, 0)] }).get('ab')).not.toEqual(routeScene(scene).get('ab'))
+	})
 })
 
 describe('nodeContains', () => {

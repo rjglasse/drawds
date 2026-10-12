@@ -7,7 +7,9 @@ import {
 	Rectangle2d,
 	SVGContainer,
 	Vec,
+	computed,
 	getIndices,
+	type Computed,
 	type Geometry2d,
 	type SvgExportContext,
 	type TLDefaultColorStyle,
@@ -26,6 +28,7 @@ import type { EditableCells } from '../cells/editable-cells'
 import type { Marks } from '../cells/marks'
 import { growHandle, isGrowHandle } from '../controls/grow'
 import { GrowGrip } from '../controls/GrowGrip'
+import { Tracked } from '../controls/Tracked'
 import { ControlButton } from '../controls/ControlButton'
 import { KeyPrompt } from '../controls/KeyPrompt'
 import { closePrompt, isPromptOpen, openPrompt } from '../controls/prompt'
@@ -34,7 +37,7 @@ import { exportingStep } from '../export/exporting'
 import { StepExtrasSvg } from '../export/StepExtrasSvg'
 import { POINTER_FONT_SCALE, placePointers, type PlacedPointer, type PointerAnchor, type PointerSide } from '../pointers/layout'
 import { boxContains, labelBox, nodeBox, nodeContains, routeScene, spatialNeighbor, type EdgeRoute } from './geometry'
-import { hoveredEdge, hoveredNode } from './hover'
+import { hoveredEdge, hoveredNode, isCoarsePointer } from './hover'
 import { ROOM_KEY, animationMs, isBusy, isCovered, isLastFrame, playbackFor, roomOf, type Frame, type PlaybackView, type Room } from './playback'
 import { edgeCellKey, translateScene, type Scene, type SceneEdge, type SceneNode } from './scene'
 import { sceneCells } from './scene-cells'
@@ -280,10 +283,14 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 					{!this.framePointers(shape, playing?.frame, scene) && this.renderPointers(shape, colors)}
 				</SVGContainer>
 				{controls && !busy && !this.editor.isIn('select.dragging_handle') && (
-					<>
-						{this.renderNodeAndEdgeButtons(shape, colors)}
-						{this.renderStructureControls?.(shape, colors)}
-					</>
+					<Tracked
+						render={() => (
+							<>
+								{this.renderNodeAndEdgeButtons(shape, colors)}
+								{this.renderStructureControls?.(shape, colors)}
+							</>
+						)}
+					/>
 				)}
 				{controls && prompt && !promptOpen && !busy && (
 					<ControlButton
@@ -342,14 +349,59 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	}
 
 	private hoverHighlightsAtPointer(shape: S): Marks | undefined {
-		if (!this.hoverHighlights || this.editor.getInstanceState().isCoarsePointer) return undefined
-		const p = this.editor.getPointInShapeSpace(shape, this.editor.inputs.getCurrentPagePoint())
-		const key = hoveredNode(
-			this.getScene(shape).nodes.filter((n) => n.editable),
-			p,
-			0
-		)
-		return key === undefined ? undefined : this.hoverHighlights(shape, key)
+		if (!this.hoverHighlights || isCoarsePointer(this.editor)) return undefined
+		const under = this.hoverTarget(shape).under.get()
+		return under ? this.hoverHighlights(shape, under) : undefined
+	}
+
+	private hovering = new Map<string, { controls: Computed<string>; under: Computed<string> }>()
+
+	/**
+	 * What the pointer is over, in computeds per shape whose values change only when what is hovered
+	 * does: the node near it (within 16 screen px), else the edge near it that has buttons (`controls`),
+	 * and the node right under it, for hover highlights (`under`). Moving within a node or across empty
+	 * space redraws nothing, and a hover's buttons redraw without the structure (`Tracked`): a selected
+	 * 40-node graph redrew every node and routed every edge several times on each pointer move.
+	 */
+	private hoverTarget(shape: S) {
+		let hover = this.hovering.get(shape.id)
+		if (!hover) {
+			const where = () => {
+				const current = this.editor.getShape(shape.id) as S | undefined
+				return current && { shape: current, scene: this.getScene(current), p: this.editor.getPointInShapeSpace(current, this.editor.inputs.getCurrentPagePoint()) }
+			}
+			hover = {
+				controls: computed(`hover controls ${shape.id}`, () => {
+					const at = where()
+					if (!at) return ''
+					const reach = 16 / this.editor.getZoomLevel()
+					const node = hoveredNode(
+						at.scene.nodes.filter((n) => n.kind !== 'null' && n.kind !== 'label'),
+						at.p,
+						reach
+					)
+					if (node !== undefined) return `node:${node}`
+					const edge = hoveredEdge(routeScene(at.scene), this.buttonEdgeKeys(at.shape), at.p, reach)
+					return edge === undefined ? '' : `edge:${edge}`
+				}),
+				// Only a node that lights something (a tree's path with terms shown, a graph's neighbours with degrees).
+				under: computed(`hover under ${shape.id}`, () => {
+					const at = where()
+					const key = at && this.hoverHighlights && hoveredNode(at.scene.nodes.filter((n) => n.editable), at.p, 0)
+					return key && Object.keys(this.hoverHighlights?.(at.shape, key) ?? {}).length ? key : ''
+				}),
+			}
+			this.hovering.set(shape.id, hover)
+		}
+		return hover
+	}
+
+	/** The edges with buttons (+ to insert, x to remove): one shows them when the pointer is near it. */
+	private buttonEdgeKeys(shape: S): string[] {
+		const scene = this.getScene(shape)
+		const insertable = this.insertOnEdge ? scene.edges.filter((e) => this.canInsertOnEdge?.(shape, e) ?? true) : []
+		const removableEdges = this.removeEdge ? scene.edges.filter((e) => this.canRemoveEdge?.(shape, e) ?? true) : []
+		return [...insertable, ...removableEdges].map((e) => e.key)
 	}
 
 	/**
@@ -373,10 +425,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		const insertable = this.insertOnEdge ? scene.edges.filter((e) => this.canInsertOnEdge?.(shape, e) ?? true) : []
 		const removableEdges = this.removeEdge ? scene.edges.filter((e) => this.canRemoveEdge?.(shape, e) ?? true) : []
 
-		const { showNode, showEdge } = this.controlTargets(
-			shape,
-			[...insertable, ...removableEdges].map((e) => e.key)
-		)
+		const { showNode, showEdge } = this.controlTargets(shape)
 
 		const nudge = 5 / zoom
 		const slotNodes = this.getEmptySlots
@@ -483,20 +532,12 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	 * edge near it (out of `edgeKeys`): edges meet at nodes, so a hovered node wins. Touch screens
 	 * have no hover, so everything shows.
 	 */
-	protected controlTargets(shape: S, edgeKeys: readonly string[] = []) {
-		if (this.editor.getInstanceState().isCoarsePointer) {
+	protected controlTargets(shape: S) {
+		if (isCoarsePointer(this.editor)) {
 			return { showNode: (_key: string) => true, showEdge: (_key: string) => true }
 		}
-		const scene = this.getScene(shape)
-		const p = this.editor.getPointInShapeSpace(shape, this.editor.inputs.getCurrentPagePoint())
-		const reach = 16 / this.editor.getZoomLevel()
-		const node = hoveredNode(
-			scene.nodes.filter((n) => n.kind !== 'null' && n.kind !== 'label'),
-			p,
-			reach
-		)
-		const edge = node === undefined ? hoveredEdge(routeScene(scene), edgeKeys, p, reach) : undefined
-		return { showNode: (key: string) => key === node, showEdge: (key: string) => key === edge }
+		const target = this.hoverTarget(shape).controls.get()
+		return { showNode: (key: string) => target === `node:${key}`, showEdge: (key: string) => target === `edge:${key}` }
 	}
 
 	private pressAddChild(shape: S, key: string, slot: number) {
