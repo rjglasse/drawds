@@ -528,7 +528,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   by index; `inBothViews` lights tree and array); `steps.ts` (pure) the insert and remove steps, keyed by index too. Heap
   menu: build heap step by step, shuffle values. Code (`code.ts`, `heapCode(op, type)`): a min heap's and a max heap's,
   the same but for the comparison and the names: insert with its sift up inline, extractMin / Max and removeAt with
-  siftUp / siftDown beside them, buildHeap calling siftDown.
+  siftUp / siftDown beside them, buildHeap calling siftDown; the traversals (`heap-<order>`, `traverseTree`'s
+  `indexed`) are the tree's line for line over indexes (`2 * i + 1 < size`), a step naming i and the size.
 - `src/shapes/union-find/` - union-find (disjoint sets), node-link: `parent` (a root is its own parent), `sizes`,
   `ranks` (kept as the code keeps them, meaningful at roots), `labels`; styles `drawds:uf-union` size / rank / naive and
   `drawds:uf-compress` on / off (`src/ui/UnionFindPickers.tsx`). Drawn as a forest (`forestPositions`: n-ary tidy trees

@@ -75,6 +75,23 @@ test('pointing at an index highlights it, its parent and its children in both vi
 	await expect.poll(() => page.evaluate(() => document.querySelectorAll('.drawds-flash').length)).toBe(8)
 })
 
+test("a traversal's code walks the heap's indexes: </> shows it, i and the test read from the array", async ({ page }) => {
+	await sketchHeap(page, [600, 120], 6)
+	await rightClick(page, await nodeScreenPosition(page, '0'))
+	await page.getByTestId('context-menu-sub.drawds-heap-steps-button').click()
+	await page.getByTestId('context-menu.heap-in-order').click()
+	await page.getByTestId('play-code').click()
+	const box = (await shapesOfType<{ algorithm: string; code: string }>(page, 'code'))[0]
+	expect(box.props.algorithm).toBe('heap-in')
+	expect(box.props.code).toMatch(/^void inOrder\(int i\) \{/)
+	await expect(page.locator('[data-value-line]')).toHaveText(['i = 0'])
+	// Going left from the root: its child 2 * 0 + 1 is under the size.
+	await page.keyboard.press('ArrowRight')
+	const test = page.locator('[data-test-line]')
+	await expect(test).toContainText('2 * 0 + 1 < 6')
+	await expect(test).toHaveAttribute('data-test-result', 'true')
+})
+
 test('shuffle breaks the heap; build heap step by step restores it (Floyd), one undo', async ({ page }) => {
 	await sketchHeap(page, [600, 120], 7)
 	const heapMenu = async (item: string) => {

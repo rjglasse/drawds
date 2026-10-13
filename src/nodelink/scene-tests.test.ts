@@ -7,6 +7,7 @@ import { findCycle, shortestPath } from '../shapes/graph/paths'
 import { bfs, dfs } from '../shapes/graph/traverse'
 import { heapCode } from '../shapes/heap/code'
 import { buildHeapSteps } from '../shapes/heap/heap'
+import { heapTreeNodes } from '../shapes/heap/layout'
 import { insertSteps, removeSteps } from '../shapes/heap/steps'
 import { listScene } from '../shapes/list/layout'
 import { deleteFromList, detectCycle, findInList, findMiddle, insertIntoList, insertSorted } from '../shapes/list/operations'
@@ -107,6 +108,12 @@ const runs: [string, Op, Values][] = [
 	['heap insert, stays', insertSteps(['1', '10', '2', '11', '12', '3', '4'], '99', 'min') as Op, heapValues(['1', '10', '2', '11', '12', '3', '4'])],
 	['heap remove', removeSteps(['1', '10', '2', '11', '12', '3', '4'], 0, 'min') as Op, heapValues(['1', '10', '2', '11', '12', '3', '4'])],
 	['heap build', { ...buildHeapSteps(['5', '9', '1', '7', '3', '8'], 'max'), code: heapCode('build', 'max') } as Op, heapValues(['5', '9', '1', '7', '3', '8'])],
+	// A heap's in-order and post-order over its indexes: 1 (10 (11, 12), 2 (3)).
+	...(['in', 'post'] as const).map((order): [string, Op, Values] => [
+		`heap ${order}-order`,
+		traverseTree(heapTreeNodes(['1', '10', '2', '11', '12', '3']), '0', order, { indexed: true }) as Op,
+		heapValues(['1', '10', '2', '11', '12', '3']),
+	]),
 	['find', findSteps(ufProps, { ...forest, parent: [...forest.parent] }, 3) as Op, ufValues],
 	['union', unionSteps(ufProps, 4, 3) as Op, ufValues],
 	['union, one set', unionSteps(ufProps, 1, 3) as Op, ufValues],
@@ -150,6 +157,10 @@ describe('tests beside lists, trees, graphs, heaps and union-find', () => {
 			expect(shown(order)).toEqual(['B != null → true', 'D != null → true', 'C != null → true'])
 			expect(shown(order, 'python')).toEqual(['B is not None → true', 'D is not None → true', 'C is not None → true'])
 		}
+		// A heap's, over indexes: is the child's index under the size (C's h->size, Python's len(self.heap))?
+		const down = ['2 * 0 + 1 < 6 → true', '2 * 1 + 1 < 6 → true', '2 * 1 + 2 < 6 → true', '2 * 0 + 2 < 6 → true', '2 * 2 + 1 < 6 → true']
+		for (const language of LANGUAGES) expect(shown('heap in-order', language)).toEqual(down)
+		expect(shown('heap post-order', 'c')).toEqual(down)
 	})
 
 	it("a graph's searches: visited[w] by vertex, the path walked back, a heap's sift stopping, union-find's walk up", () => {

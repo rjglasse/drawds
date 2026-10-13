@@ -44,6 +44,7 @@ import { deleteKey, findKey, insertEntry, rehash, buildTable } from '../hash/has
 import { heapCode } from '../heap/code'
 import { connectedSteps, findSteps, unionSteps } from '../union-find/operations'
 import { buildHeapSteps } from '../heap/heap'
+import { heapTreeNodes } from '../heap/layout'
 import { insertSteps, removeSteps } from '../heap/steps'
 import { measureTree } from '../tree/measure'
 import { bstDeleteSteps, bstExtreme, bstInsertSteps, bstSearch } from '../tree/search'
@@ -282,6 +283,8 @@ describe('algorithm code', () => {
 					{ ...buildHeapSteps(['5', '9', '1', '7', '3', '8'], type), code: heapCode('build', type) },
 				]
 			}),
+			// A heap's traversals walk its array's indexes.
+			...(['pre', 'in', 'post', 'level'] as const).map((order) => traverseTree(heapTreeNodes(['1', '10', '2', '11', '12', '3']), '0', order, { indexed: true })),
 			// Lecture 9: the searches and components, on a graph in two pieces.
 			bfs(graph, 'a', false),
 			dfs(graph, 'a', false),

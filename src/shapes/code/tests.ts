@@ -226,7 +226,8 @@ function evaluateExpr(text: string, values: TestValues, language: CodeLanguage):
 	const atom = (): Parsed | undefined => {
 		let t = take()
 		if (t === undefined) return undefined
-		// An array or a node held in a field: self.heap[i], this.parent[i], C's h->a[i]; self.tail, list->head.
+		// An array, a node or a number held in a field: self.heap[i], this.parent[i], C's h->a[i]; self.tail,
+		// list->head; C's h->size.
 		const own = (record: object | undefined, name: string) => !!record && Object.hasOwn(record, name)
 		const next = ts[k + 1] ?? ''
 		if (
@@ -234,7 +235,7 @@ function evaluateExpr(text: string, values: TestValues, language: CodeLanguage):
 			!own(values.arrays, t) &&
 			!own(values.refs, t) &&
 			!own(values.vars, t) &&
-			(own(values.arrays, next) || own(values.refs, next))
+			(own(values.arrays, next) || own(values.refs, next) || own(values.vars, next))
 		) {
 			take()
 			t = take()!

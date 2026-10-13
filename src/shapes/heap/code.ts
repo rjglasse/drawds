@@ -192,4 +192,108 @@ function codeFor(type: HeapType) {
 	}
 }
 
-export const HEAP_CODE: Record<string, CodeSource> = { ...codeFor('min'), ...codeFor('max') }
+// The traversals of the tree the array stands for: the binary tree's (`src/shapes/tree/code.ts`), line
+// for line, over indexes: i's children 2i + 1 and 2i + 2 are there while they are under the size. The
+// same for a min and a max heap.
+const TRAVERSALS: Record<string, CodeSource> = {
+	'heap-pre': {
+		c: String.raw`
+			void preOrder(Heap *h, int i) {                             @call $i
+			    visit(h->a[i]);                                         @visit
+			    if (2 * i + 1 < h->size) preOrder(h, 2 * i + 1);        @left
+			    if (2 * i + 2 < h->size) preOrder(h, 2 * i + 2);        @right
+			}`,
+		java: String.raw`
+			void preOrder(int i) {                              @call $i
+			    visit(heap[i]);                                 @visit
+			    if (2 * i + 1 < size) preOrder(2 * i + 1);      @left
+			    if (2 * i + 2 < size) preOrder(2 * i + 2);      @right
+			}`,
+		python: String.raw`
+			def pre_order(self, i):                     @call $i
+			    visit(self.heap[i])                     @visit
+			    if 2 * i + 1 < len(self.heap):          @left
+			        self.pre_order(2 * i + 1)
+			    if 2 * i + 2 < len(self.heap):          @right
+			        self.pre_order(2 * i + 2)`,
+	},
+	'heap-in': {
+		c: String.raw`
+			void inOrder(Heap *h, int i) {                              @call $i
+			    if (2 * i + 1 < h->size) inOrder(h, 2 * i + 1);         @left
+			    visit(h->a[i]);                                         @visit
+			    if (2 * i + 2 < h->size) inOrder(h, 2 * i + 2);         @right
+			}`,
+		java: String.raw`
+			void inOrder(int i) {                               @call $i
+			    if (2 * i + 1 < size) inOrder(2 * i + 1);       @left
+			    visit(heap[i]);                                 @visit
+			    if (2 * i + 2 < size) inOrder(2 * i + 2);       @right
+			}`,
+		python: String.raw`
+			def in_order(self, i):                      @call $i
+			    if 2 * i + 1 < len(self.heap):          @left
+			        self.in_order(2 * i + 1)
+			    visit(self.heap[i])                     @visit
+			    if 2 * i + 2 < len(self.heap):          @right
+			        self.in_order(2 * i + 2)`,
+	},
+	'heap-post': {
+		c: String.raw`
+			void postOrder(Heap *h, int i) {                            @call $i
+			    if (2 * i + 1 < h->size) postOrder(h, 2 * i + 1);       @left
+			    if (2 * i + 2 < h->size) postOrder(h, 2 * i + 2);       @right
+			    visit(h->a[i]);                                         @visit
+			}`,
+		java: String.raw`
+			void postOrder(int i) {                             @call $i
+			    if (2 * i + 1 < size) postOrder(2 * i + 1);     @left
+			    if (2 * i + 2 < size) postOrder(2 * i + 2);     @right
+			    visit(heap[i]);                                 @visit
+			}`,
+		python: String.raw`
+			def post_order(self, i):                    @call $i
+			    if 2 * i + 1 < len(self.heap):          @left
+			        self.post_order(2 * i + 1)
+			    if 2 * i + 2 < len(self.heap):          @right
+			        self.post_order(2 * i + 2)
+			    visit(self.heap[i])                     @visit`,
+	},
+	'heap-level': {
+		c: String.raw`
+			void levelOrder(Heap *h, int root) {
+			    int queue[h->size];
+			    int front = 0, rear = 0;
+			    queue[rear++] = root;                                   @start
+			    while (front < rear) {
+			        int i = queue[front++];                             $i
+			        visit(h->a[i]);                                     @visit
+			        if (2 * i + 1 < h->size) queue[rear++] = 2 * i + 1;
+			        if (2 * i + 2 < h->size) queue[rear++] = 2 * i + 2;
+			    }
+			}`,
+		java: String.raw`
+			void levelOrder(int root) {
+			    Queue<Integer> queue = new ArrayDeque<>();
+			    queue.add(root);                                    @start
+			    while (!queue.isEmpty()) {
+			        int i = queue.remove();                         $i
+			        visit(heap[i]);                                 @visit
+			        if (2 * i + 1 < size) queue.add(2 * i + 1);
+			        if (2 * i + 2 < size) queue.add(2 * i + 2);
+			    }
+			}`,
+		python: String.raw`
+			def level_order(self, root):
+			    queue = deque([root])                   @start
+			    while queue:
+			        i = queue.popleft()                 $i
+			        visit(self.heap[i])                 @visit
+			        if 2 * i + 1 < len(self.heap):
+			            queue.append(2 * i + 1)
+			        if 2 * i + 2 < len(self.heap):
+			            queue.append(2 * i + 2)`,
+	},
+}
+
+export const HEAP_CODE: Record<string, CodeSource> = { ...codeFor('min'), ...codeFor('max'), ...TRAVERSALS }

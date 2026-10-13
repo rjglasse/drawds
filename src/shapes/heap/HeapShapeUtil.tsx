@@ -271,12 +271,14 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 		const shape = this.editor.getShape(id) as HeapShape | undefined
 		if (!shape) return
 		const note = order === 'level' && start === '0' ? "That is the heap's array, index by index" : undefined
-		const { frames } = traverseTree(heapTreeNodes(shape.props.values), start, order, { note })
+		// Its code walks the array's indexes (heap-<order>), as the heap's other code does.
+		const { frames, code } = traverseTree(heapTreeNodes(shape.props.values), start, order, { note, indexed: true })
 		playOperation(this.editor, {
 			shapeId: id,
 			label: `${ORDER_NAMES[order].toLowerCase()} traversal`,
 			// Tree node i stands for array cell i too: light and number both.
 			frames: frames.map(inBothViews),
+			code,
 			// Marks are kept per index.
 			withMarks: (_update, highlights) => {
 				const current = (this.editor.getShape(id) as HeapShape | undefined) ?? shape
