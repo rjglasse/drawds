@@ -1,4 +1,5 @@
 import type { CodeLanguage } from './highlight'
+import { LANGUAGES } from './languages'
 import { INDENT } from './layout'
 
 // What the code box's keys do to the text, as one range replaced (so the browser's own undo in the
@@ -48,9 +49,11 @@ export function newlineEdit(text: string, start: number, end: number, language: 
 	const from = lineStartOf(text, start)
 	const before = text.slice(from, start)
 	const indent = /^ */.exec(before)![0]
-	const opens = language === 'python' ? /:\s*(#.*)?$/.test(before) : /\{\s*$/.test(before)
+	// A block opens after `{`, or (Python) after `:` and maybe a comment.
+	const { braces, comment } = LANGUAGES[language]
+	const opens = braces ? /\{\s*$/.test(before) : before.replace(new RegExp(`\\s*${comment}.*$`), '').trimEnd().endsWith(':')
 	const inner = opens ? indent + INDENT : indent
-	const closes = opens && language !== 'python' && /^\s*\}/.test(text.slice(end, lineEndOf(text, end)))
+	const closes = opens && braces && /^\s*\}/.test(text.slice(end, lineEndOf(text, end)))
 	const insert = '\n' + inner + (closes ? '\n' + indent : '')
 	const caret = start + 1 + inner.length
 	return { from: start, to: end, insert, selStart: caret, selEnd: caret }

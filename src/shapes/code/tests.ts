@@ -1,5 +1,6 @@
 import { compareKeys } from '../../data/compare'
 import type { CodeLanguage } from './highlight'
+import { LANGUAGES } from './languages'
 
 // A loop's or an if's test, as it is tested: when a step is on a while, for or if line, the code box
 // boxes the condition (green if it holds, red if not) and writes it out again after the line with the
@@ -176,15 +177,11 @@ function evaluateExpr(text: string, values: TestValues, language: CodeLanguage):
 		v === undefined
 			? '?'
 			: v === null
-				? { python: 'None', c: 'NULL', java: 'null' }[language]
+				? LANGUAGES[language].none
 				: isRef(v)
 					? (values.nodeName?.(v.node) ?? v.node)
 					: typeof v === 'boolean'
-						? language === 'python'
-							? v
-								? 'True'
-								: 'False'
-							: String(v)
+						? LANGUAGES[language].bools[v ? 0 : 1]
 						: String(v)
 	// A variable that holds null (a list walk's curr off the end) is null, whichever way it is spelled;
 	// true and false (a visited[] strip's T and F) are booleans.
@@ -388,7 +385,7 @@ function evaluateExpr(text: string, values: TestValues, language: CodeLanguage):
 
 /** A condition's parts, split at its top-level && / || (and / or); mixed ones stay whole. */
 function split(cond: string, language: CodeLanguage): { parts: string[]; ops: string[] } {
-	const [and, or] = language === 'python' ? [' and ', ' or '] : ['&&', '||']
+	const { and, or } = LANGUAGES[language]
 	const top = (op: string) => {
 		const at: number[] = []
 		let depth = 0

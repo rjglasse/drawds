@@ -396,6 +396,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   (`branches`: fib); a chain is what the stack shows.
 - `src/shapes/code/` - code boxes (dds-9h0; Shift+C, a click places one and opens it for typing): an algorithm in
   C / Java / Python (style `drawds:code-language`), syntax highlighted as students see code everywhere else.
+  Languages (dds-c72.12): `languages.ts` is what each spells its own way (comment, statement end, none, booleans,
+  and / or, braces or a colon), and `highlight.ts`'s RULES its tokens, both records over every CodeLanguage, so a new
+  language doesn't compile until it says; transcripts are written in `TRANSCRIBED` (transcript.ts) and say so in any
+  other; an algorithm may lack a language while it is written (algorithms.test.ts's `WRITING`; Java shows meanwhile).
   `highlight.ts` is a pure tokenizer over the whole code (so a comment or string over several lines colours each);
   token kinds map to theme colours in `CodeSvg`, the one component for canvas and export. The editor is a see-through
   textarea laid exactly over the drawn text (same mono font, size and line height, `layout.ts`), so the code

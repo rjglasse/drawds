@@ -2,6 +2,7 @@ import type { Editor, TLShape, TLShapeId } from 'tldraw'
 import { putBeside } from '../cells/beside'
 import { followersOf } from '../cells/followers'
 import type { CodeLanguage } from '../shapes/code/highlight'
+import { LANGUAGES } from '../shapes/code/languages'
 import { CODE_TYPE, CodeLanguageStyle, type CodeShape } from '../shapes/code/code-shape-types'
 import { algorithmCode } from '../shapes/code/algorithms'
 import { playbackFor } from '../nodelink/playback'
@@ -28,8 +29,15 @@ export function transcriptOf(editor: Editor, structure: TLShape, language: CodeL
 	return renderLog(structure, logOrStart(editor, structure), language)
 }
 
+/**
+ * The languages `render.ts` writes a structure's moves in. One drawds adds later (its code, highlighting and
+ * tests first) says here that it isn't written yet, rather than coming out as C.
+ */
+export const TRANSCRIBED: readonly CodeLanguage[] = ['c', 'java', 'python']
+
 /** A structure's log written out in `language`, as its kind writes it (`hashClass`: a whole board's script names each scheme's class). */
 export function renderLog(structure: TLShape, log: readonly Move[], language: CodeLanguage, hashClass?: HashClassOf): string {
+	if (!TRANSCRIBED.includes(language)) return `${LANGUAGES[language].comment} The code beside it isn't written in ${LANGUAGES[language].name} yet`
 	if (structure.type === 'linked-list') return renderListLog(log as ListMove[], language)
 	// A BST's nodes hold keys, as its code calls them.
 	if (structure.type === 'binary-tree') return renderTreeLog(log as TreeMove[], language, (structure.props as { kind?: string }).kind === 'bst' ? 'key' : 'value')

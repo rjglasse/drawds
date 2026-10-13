@@ -27,6 +27,12 @@ interface LanguageRules {
 	block: boolean
 	/** Capitalised names are classes (Java: String, Node) or typedefs (C as drawds writes it: Node, List, Graph). */
 	capitalisedTypes: boolean
+	/** A line starting with # is the preprocessor's (C's #include <stdio.h>). */
+	preprocessor: boolean
+	/** @name is an annotation or a decorator (Java's @Override, Python's @staticmethod). */
+	annotations: boolean
+	/** Strings may have letter prefixes (f"...", r'...') and be triple-quoted over several lines (Python's). */
+	pythonStrings: boolean
 }
 
 const RULES: Record<CodeLanguage, LanguageRules> = {
@@ -39,6 +45,9 @@ const RULES: Record<CodeLanguage, LanguageRules> = {
 		line: '//',
 		block: true,
 		capitalisedTypes: true,
+		preprocessor: true,
+		annotations: false,
+		pythonStrings: false,
 	},
 	java: {
 		keywords: words(`abstract assert break case catch class continue default do else enum extends final finally for
@@ -49,6 +58,9 @@ const RULES: Record<CodeLanguage, LanguageRules> = {
 		line: '//',
 		block: true,
 		capitalisedTypes: true,
+		preprocessor: false,
+		annotations: true,
+		pythonStrings: false,
 	},
 	python: {
 		keywords: words(`and as assert async await break case class continue def del elif else except finally for from
@@ -59,6 +71,9 @@ const RULES: Record<CodeLanguage, LanguageRules> = {
 		line: '#',
 		block: false,
 		capitalisedTypes: false,
+		preprocessor: false,
+		annotations: true,
+		pythonStrings: true,
 	},
 }
 
@@ -95,7 +110,7 @@ export function tokenize(code: string, language: CodeLanguage): Token[] {
 			continue
 		}
 		// The C preprocessor: a line starting with #, its <header> or "header" a string.
-		if (language === 'c' && c === '#' && lineStart) {
+		if (rules.preprocessor && c === '#' && lineStart) {
 			const m = /#\s*[A-Za-z_]+/y
 			m.lastIndex = i
 			const found = m.exec(code)
@@ -115,7 +130,7 @@ export function tokenize(code: string, language: CodeLanguage): Token[] {
 			}
 		}
 		// Java annotations and Python decorators.
-		if (c === '@' && language !== 'c') {
+		if (c === '@' && rules.annotations) {
 			IDENT.lastIndex = i + 1
 			const m = IDENT.exec(code)
 			if (m) {
@@ -126,13 +141,13 @@ export function tokenize(code: string, language: CodeLanguage): Token[] {
 			}
 		}
 		// Strings: Python's triple-quoted ones (and f / r / b prefixes), then single-line ones.
-		const prefix = language === 'python' ? /[rRbBfFuU]{0,2}/y : /(?:)/y
+		const prefix = rules.pythonStrings ? /[rRbBfFuU]{0,2}/y : /(?:)/y
 		prefix.lastIndex = i
 		const pre = prefix.exec(code)?.[0] ?? ''
 		const q = code[i + pre.length]
 		if (q === '"' || q === "'") {
 			const start = i + pre.length
-			const triple = language === 'python' && code.slice(start, start + 3) === q.repeat(3)
+			const triple = rules.pythonStrings && code.slice(start, start + 3) === q.repeat(3)
 			let j = start + (triple ? 3 : 1)
 			while (j < code.length) {
 				if (code[j] === '\\') j += 2

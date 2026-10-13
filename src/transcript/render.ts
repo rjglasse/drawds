@@ -1,5 +1,6 @@
 import { algorithmCode } from '../shapes/code/algorithms'
 import type { CodeLanguage } from '../shapes/code/highlight'
+import { LANGUAGES } from '../shapes/code/languages'
 import type { ArrayMove, Fixed } from './array-moves'
 import type { ListKind, ListMove } from './list-moves'
 import type { TreeMove, TreeShape } from './tree-moves'
@@ -97,15 +98,15 @@ function call(
 			return more(param)
 		})
 	if (args.includes(undefined)) return undefined
-	return `${method ? `${name}.` : ''}${fn}(${args.join(', ')})${language === 'python' ? '' : ';'}`
+	return `${method ? `${name}.` : ''}${fn}(${args.join(', ')})${LANGUAGES[language].end}`
 }
 
 /** One move's lines. */
 function lines(move: ArrayMove, s: Spelling): string[] {
 	const { name: a, language } = s
 	const [py, java] = [language === 'python', language === 'java']
-	const end = py ? '' : ';'
-	const note = py ? '#' : '//'
+	const { end } = LANGUAGES[language]
+	const note = LANGUAGES[language].comment
 	const v = (x: string) => literal(x, s)
 	switch (move.op) {
 		case 'new':
@@ -159,7 +160,7 @@ function lines(move: ArrayMove, s: Spelling): string[] {
 function fixedLines(move: ArrayMove, s: Spelling, fixed: Fixed): string[] {
 	const { name: a, language } = s
 	const [py, java] = [language === 'python', language === 'java']
-	const end = py ? '' : ';'
+	const { end } = LANGUAGES[language]
 	const dot = py || java ? '.' : '->'
 	const v = (x: string) => literal(x, s)
 	const type = s.ints ? 'int' : java ? 'String' : 'const char *'
@@ -181,7 +182,7 @@ function fixedLines(move: ArrayMove, s: Spelling, fixed: Fixed): string[] {
 		const slots = Array.from({ length: f.capacity }, (_, i) => values[(i - f.front + f.capacity) % f.capacity]).map((x) => (x === undefined ? spare : v(x)))
 		const rear = (f.front + values.length) % f.capacity
 		return [
-			`${create}    ${py ? '#' : '//'} its front moved on: laid out as it is`,
+			`${create}    ${LANGUAGES[language].comment} its front moved on: laid out as it is`,
 			py ? `${a}.a = [${slots.join(', ')}]` : java ? `${a}.a = new ${type}[]{${slots.join(', ')}};` : `memcpy(${a}->a, (${type}[]){${slots.join(', ')}}, ${f.capacity} * sizeof(${type}));`,
 			py ? `${a}.front, ${a}.rear, ${a}.size = ${f.front}, ${rear}, ${values.length}` : `${a}${dot}front = ${f.front}; ${a}${dot}rear = ${rear}; ${a}${dot}size = ${values.length};`,
 		]
@@ -205,7 +206,7 @@ function fixedLines(move: ArrayMove, s: Spelling, fixed: Fixed): string[] {
 		case 'call':
 			return move.effect.flatMap((m) => fixedLines(m, s, fixed))
 		default:
-			return [`${py ? '#' : '//'} ${move.op}`]
+			return [`${LANGUAGES[language].comment} ${move.op}`]
 	}
 }
 
@@ -226,8 +227,8 @@ export function renderArrayLog(moves: readonly ArrayMove[], language: CodeLangua
 function listLines(move: ListMove, s: Spelling): string[] {
 	const { name: l, language } = s
 	const [py, java] = [language === 'python', language === 'java']
-	const end = py ? '' : ';'
-	const note = py ? '#' : '//'
+	const { end } = LANGUAGES[language]
+	const note = LANGUAGES[language].comment
 	const v = (x: string) => literal(x, s)
 	const node = (i: number) => (py ? `${l}.node_at(${i})` : java ? `${l}.nodeAt(${i})` : `nodeAt(${l}, ${i})`)
 	const made = (values: readonly string[]) =>
@@ -278,8 +279,8 @@ function listLines(move: ListMove, s: Spelling): string[] {
 function linkedLines(move: ListMove, s: Spelling, kind: 'stack' | 'queue'): string[] {
 	const { name: l, language } = s
 	const [py, java] = [language === 'python', language === 'java']
-	const end = py ? '' : ';'
-	const note = py ? '#' : '//'
+	const { end } = LANGUAGES[language]
+	const note = LANGUAGES[language].comment
 	const dot = py || java ? '.' : '->'
 	const v = (x: string) => literal(x, s)
 	const call = (fn: string, ...args: string[]) => (py || java ? `${l}.${fn}(${args.join(', ')})${end}` : `${fn}(${[l, ...args].join(', ')});`)
@@ -333,7 +334,7 @@ export function renderListLog(moves: readonly ListMove[], language: CodeLanguage
 function treeLines(move: TreeMove, s: Spelling, field: 'key' | 'value'): string[] {
 	const { name: t, language } = s
 	const [py, java] = [language === 'python', language === 'java']
-	const end = py ? '' : ';'
+	const { end } = LANGUAGES[language]
 	const nil = py ? 'None' : java ? 'null' : 'NULL'
 	const v = (x: string) => literal(x, s)
 	const at = (path: string) => [py || java ? `${t}.root` : `${t}->root`, ...[...path].map((d) => (d === 'L' ? 'left' : 'right'))].join(py || java ? '.' : '->')
@@ -356,7 +357,7 @@ function treeLines(move: TreeMove, s: Spelling, field: 'key' | 'value'): string[
 		case 'add':
 			return [`${at(move.path)} = ${node({ v: move.v, l: null, r: null })}${end}`]
 		case 'remove':
-			return [`${at(move.path)} = ${nil}${end}    ${py ? '#' : '//'} ${move.v} and everything under it`]
+			return [`${at(move.path)} = ${nil}${end}    ${LANGUAGES[language].comment} ${move.v} and everything under it`]
 		case 'swap':
 			return [py ? `swap_children(${at(move.path)})` : `swapChildren(${at(move.path)});`]
 		case 'mirror':
@@ -367,7 +368,7 @@ function treeLines(move: TreeMove, s: Spelling, field: 'key' | 'value'): string[
 				(param === 'key' || param === 'value') && args?.key !== undefined ? v(args.key) : param === 'node' && args?.node !== undefined ? at(args.node) : undefined
 			const written = call(move.algorithm, s, 'tree', more)
 			if (written) return [written]
-			return [`${py ? '#' : '//'} ${move.label}, step by step:`, ...move.effect.flatMap((m) => treeLines(m, s, field))]
+			return [`${LANGUAGES[language].comment} ${move.label}, step by step:`, ...move.effect.flatMap((m) => treeLines(m, s, field))]
 		}
 	}
 }
@@ -390,8 +391,8 @@ const generalValues = (t: GeneralTree): string[] => [t.v, ...t.c.flatMap(general
 function generalTreeLines(move: GeneralTreeMove, s: Spelling): string[] {
 	const { name: t, language } = s
 	const [py, java] = [language === 'python', language === 'java']
-	const end = py ? '' : ';'
-	const note = py ? '#' : '//'
+	const { end } = LANGUAGES[language]
+	const note = LANGUAGES[language].comment
 	const v = (x: string) => literal(x, s)
 	const at = (path: string) => indexesOf(path).reduce((n, i) => (py ? `${n}.children[${i}]` : java ? `${n}.children.get(${i})` : `${n}->children[${i}]`), t)
 	const field = py || java ? '.' : '->'
@@ -459,7 +460,7 @@ function trieLines(move: TrieMove, s: Spelling): string[] {
 			const { args } = move
 			const written = call(move.algorithm, s, 'trie', (param) => (param === 'word' && args?.word !== undefined ? w(args.word) : undefined))
 			if (written) return [written]
-			return [`${py ? '#' : '//'} ${move.label}, step by step:`, ...move.effect.flatMap((m) => trieLines(m, s))]
+			return [`${LANGUAGES[language].comment} ${move.label}, step by step:`, ...move.effect.flatMap((m) => trieLines(m, s))]
 		}
 	}
 }
@@ -479,8 +480,8 @@ export function renderTrieLog(moves: readonly TrieMove[], language: CodeLanguage
 function heapLines(move: HeapMove, s: Spelling): string[] {
 	const { name: h, language } = s
 	const [py, java] = [language === 'python', language === 'java']
-	const end = py ? '' : ';'
-	const note = py ? '#' : '//'
+	const { end } = LANGUAGES[language]
+	const note = LANGUAGES[language].comment
 	const made = (type: HeapType, values: readonly string[]) => {
 		const cls = type === 'min' ? 'MinHeap' : 'MaxHeap'
 		const items = list(values, s)
@@ -542,8 +543,8 @@ function indexNote(t: HashTable): string | undefined {
 function hashLines(move: HashMove, s: Spelling, probing: boolean, classOf: HashClassOf): string[] {
 	const { name: t, language } = s
 	const [py, java] = [language === 'python', language === 'java']
-	const end = py ? '' : ';'
-	const note = py ? '#' : '//'
+	const { end } = LANGUAGES[language]
+	const note = LANGUAGES[language].comment
 	const nil = py ? 'None' : java ? 'null' : 'NULL'
 	// Python takes each key as it is (an integer is its own hash code); Java and C, a table of one type.
 	const key = (k: string) => (isTombstone(k) ? 'DELETED' : (py ? integer(k) : s.ints) ? String(Number(k)) : JSON.stringify(k))
@@ -686,8 +687,8 @@ export function renderMatrixLog(moves: readonly MatrixMove[], language: CodeLang
 function unionFindLines(move: UnionFindMove, s: Spelling, stale = false): string[] {
 	const { name: u, language } = s
 	const [py, java] = [language === 'python', language === 'java']
-	const end = py ? '' : ';'
-	const note = py ? '#' : '//'
+	const { end } = LANGUAGES[language]
+	const note = LANGUAGES[language].comment
 	const dot = py || java ? '.' : '->'
 	const by = (b: UnionBy) => (py ? `'${b}'` : java ? `By.${b.toUpperCase()}` : `BY_${b.toUpperCase()}`)
 	const off = (on: boolean) => `${u}${dot}compress = ${py ? (on ? 'True' : 'False') : on ? 'true' : 'false'}${end}`

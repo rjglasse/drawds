@@ -58,6 +58,15 @@ import { traverseTree } from '../tree/traverse'
 import * as trie from '../trie/trie'
 import { mulberry32 } from '../../data/random'
 import { ALGORITHMS, algorithmCode, parseCode, shownValues, taggedLine } from './algorithms'
+import { CODE_LANGUAGES, type CodeLanguage } from './highlight'
+
+/**
+ * Code still being written in a language, by algorithm (`algorithmCode` shows its Java meanwhile): a new
+ * language can come an algorithm at a time. None now.
+ */
+const WRITING: Record<string, readonly CodeLanguage[]> = {}
+/** The languages an algorithm is written in. */
+const written = (id: string) => CODE_LANGUAGES.filter((language) => !WRITING[id]?.includes(language))
 import { codeShapeMigrations } from './code-shape-types'
 
 const array = (...values: (string | number)[]): ArrayState => ({ values: values.map(String), marks: {} })
@@ -106,14 +115,16 @@ describe('algorithm code', () => {
 
 	it('leaves no tag in the code (a tag needs two spaces before it)', () => {
 		for (const id of Object.keys(ALGORITHMS)) {
-			for (const language of ['c', 'java', 'python'] as const) {
+			for (const language of written(id)) {
 				expect(algorithmCode(id, language)!.text, `${id} ${language}`).not.toMatch(/\s[@$][\w=-]+\s*$/m)
 			}
 		}
 	})
 
-	it('every algorithm is written in C, Java and Python; an algorithm without code has none', () => {
-		for (const id of Object.keys(ALGORITHMS)) for (const language of ['c', 'java', 'python'] as const) expect(ALGORITHMS[id][language], `${id} ${language}`).toBeTruthy()
+	it('every algorithm is written in every language (but what is being written); an algorithm without code has none', () => {
+		for (const id of Object.keys(ALGORITHMS)) for (const language of written(id)) expect(ALGORITHMS[id][language], `${id} ${language}`).toBeTruthy()
+		// Code being written is listed only while it is: once written, it comes off the list.
+		for (const [id, languages] of Object.entries(WRITING)) for (const language of languages) expect(ALGORITHMS[id]?.[language], `${id} ${language} is written`).toBeUndefined()
 		expect(algorithmCode('bubble-sort', 'c')?.text).toMatch(/^void bubbleSort\(int a\[\], int n\) \{/)
 		expect(algorithmCode('bubble-sort', 'python')?.text).toMatch(/^def bubble_sort\(a\):/)
 		expect(algorithmCode('no-such-sort', 'java')).toBeUndefined()
@@ -333,7 +344,7 @@ describe('algorithm code', () => {
 			expect(op.code && ALGORITHMS[op.code], `${op.frames[0]?.caption}`).toBeTruthy()
 			const lines = op.frames.flatMap((f) => (f.line ? [f.line] : []))
 			expect(lines.length).toBeGreaterThan(0)
-			for (const language of ['c', 'java', 'python'] as const) {
+			for (const language of written(op.code!)) {
 				const code = algorithmCode(op.code!, language)!
 				expect(code.language).toBe(language)
 				for (const line of lines) expect(code.lines, `${op.code} ${language} @${line}`).toHaveProperty(line)
@@ -398,7 +409,7 @@ describe('hash tables', () => {
 			expect(ALGORITHMS[op.code], op.code).toBeTruthy()
 			const lines = op.frames.flatMap((f) => (f.line ? [f.line] : []))
 			expect(lines.length, op.code).toBeGreaterThan(0)
-			for (const language of ['c', 'java', 'python'] as const) {
+			for (const language of written(op.code)) {
 				const code = algorithmCode(op.code, language)!
 				for (const line of lines) expect(code.lines, `${op.code} ${language} @${line}`).toHaveProperty(line)
 				for (const v of code.values) expect(given.get(op.code), `${op.code} ${language} $${v.name}`).toContain(v.key)
@@ -440,7 +451,7 @@ describe('union-find', () => {
 		for (const op of ops) {
 			const lines = op.frames.flatMap((fr) => (fr.line ? [fr.line] : []))
 			expect(lines.length, op.code).toBeGreaterThan(0)
-			for (const language of ['c', 'java', 'python'] as const) {
+			for (const language of written(op.code)) {
 				const code = algorithmCode(op.code, language)!
 				for (const line of lines) expect(code.lines, `${op.code} ${language} @${line}`).toHaveProperty(line)
 				for (const v of code.values) expect(given.get(op.code), `${op.code} ${language} $${v.name}`).toContain(v.key)
@@ -492,7 +503,7 @@ describe('list variants', () => {
 		for (const op of ops) {
 			const lines = op.frames.flatMap((f) => (f.line ? [f.line] : []))
 			expect(lines.length, op.code).toBeGreaterThan(0)
-			for (const language of ['c', 'java', 'python'] as const) {
+			for (const language of written(op.code!)) {
 				const code = algorithmCode(op.code!, language)!
 				expect(code.language).toBe(language)
 				for (const line of lines) expect(code.lines, `${op.code} ${language} @${line}`).toHaveProperty(line)

@@ -26,6 +26,7 @@ import { CODE_TYPE, codeShapeMigrations, codeShapeProps, type CodeShape } from '
 import { transcriptOf } from '../../transcript/transcript'
 import { applyEdit, closeBraceEdit, indentEdit, newlineEdit, type CodeEdit } from './editing'
 import { highlightLines, type CodeLanguage, type TokenKind } from './highlight'
+import { LANGUAGES } from './languages'
 import { FOLD_LINES, INDENT, codeLines, foldText, foldsFor, getCodeLayout, getCodeMetrics, offsetOf, type CodeLayout, type CodeMetrics, type Fold } from './layout'
 
 /** The one editable "cell": the whole code. */
@@ -117,7 +118,7 @@ function stepLines(shape: CodeShape): Set<number> {
 
 /** A value as the language prints it (Python's True), long ones cut short to fit the room kept for it. */
 function valueText(value: string, language: CodeLanguage) {
-	const printed = language === 'python' && (value === 'true' || value === 'false') ? value[0].toUpperCase() + value.slice(1) : value
+	const printed = value === 'true' || value === 'false' ? LANGUAGES[language].bools[value === 'true' ? 0 : 1] : value
 	return printed.length > VALUE_CHARS ? `${printed.slice(0, VALUE_CHARS - 1)}…` : printed
 }
 
@@ -874,7 +875,7 @@ function CodeEditor({
 		}
 		if (e.key === 'Tab') edit = indentEdit(value, start, end, e.shiftKey)
 		else if (e.key === 'Enter') edit = newlineEdit(value, start, end, language)
-		else if (e.key === '}' && language !== 'python') edit = closeBraceEdit(value, start, end)
+		else if (e.key === '}' && LANGUAGES[language].braces) edit = closeBraceEdit(value, start, end)
 		if (!edit) return
 		e.preventDefault()
 		apply(area, edit)
