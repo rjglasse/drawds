@@ -43,7 +43,7 @@ import {
 	type GraphShape,
 } from './graph-shape-types'
 import type { GraphViewShape } from '../graph-view/graph-view-shape-types'
-import { showGraphView, viewsOf } from '../graph-view/GraphViewShapeUtil'
+import { VIEW_NAMES, showGraphView, toggleGraphView, viewsOf } from '../graph-view/GraphViewShapeUtil'
 import { generateGraph } from './generate'
 import { getGraphMetrics, graphCorner, graphScene, toUnits } from './layout'
 import { components, dijkstra, kruskal, prim, topologicalSort } from './algorithms'
@@ -389,14 +389,20 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 	override shapeOperations(shape: GraphShape): NodeOperation[] {
 		// Views beside the graph that follow it as it changes.
 		const show = { section: 'show' } as const
+		// Each view toggles, as every view beside a structure does: shown, its item hides it.
+		const shown = new Set(viewsOf(this.editor, shape).map((v) => v.props.view))
+		const view = (kind: GraphViewShape['props']['view'], label: string): NodeOperation => ({
+			...show,
+			id: `graph-show-${kind}`,
+			label: shown.has(kind) ? `Hide the ${VIEW_NAMES[kind]}` : label,
+			run: () => this.toggleView(shape.id, kind),
+		})
 		const views: NodeOperation[] = [
-			{ ...show, id: 'graph-show-matrix', label: 'Adjacency matrix beside it', run: () => this.showView(shape.id, 'matrix') },
-			{ ...show, id: 'graph-show-lists', label: 'Adjacency lists beside it', run: () => this.showView(shape.id, 'lists') },
+			view('matrix', 'Adjacency matrix beside it'),
+			view('lists', 'Adjacency lists beside it'),
 			// Kruskal's sets: spanning trees are about undirected graphs.
-			...(shape.props.direction === 'directed'
-				? []
-				: [{ ...show, id: 'graph-show-union-find', label: "Union-find beside it (Kruskal's sets)", run: () => this.showView(shape.id, 'union-find') }]),
-			{ ...show, id: 'graph-show-edges', label: 'Edge list beside it', run: () => this.showView(shape.id, 'edges') },
+			...(shape.props.direction === 'directed' ? [] : [view('union-find', "Union-find beside it (Kruskal's sets)")]),
+			view('edges', 'Edge list beside it'),
 			{
 				...show,
 				id: 'graph-degrees',
@@ -462,9 +468,9 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		return shape.props.degrees ? neighbourMarks(shape.props, key, shape.props.direction === 'directed') : {}
 	}
 
-	private showView(id: GraphShape['id'], view: GraphViewShape['props']['view']) {
+	private toggleView(id: GraphShape['id'], view: GraphViewShape['props']['view']) {
 		const shape = this.editor.getShape(id) as GraphShape | undefined
-		if (shape) showGraphView(this.editor, shape, view)
+		if (shape) toggleGraphView(this.editor, shape, view)
 	}
 
 	private algorithmOperations(shape: GraphShape): NodeOperation[] {

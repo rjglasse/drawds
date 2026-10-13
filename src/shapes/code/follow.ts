@@ -54,8 +54,9 @@ function createCodeBox(editor: Editor, structure: TLShape, algorithm: string) {
 		props: { structureId: structure.id, algorithm, code: code.text, language: code.language, ...(size ? { size } : {}) },
 	})
 	// Past whatever is in the way it can run off the screen (under the style panel): the camera pans to
-	// it, never zooming out (code is read from the back of the room).
-	if (id) keepOnScreen(editor, [id], { zoom: false })
+	// it, never zooming out (code is read from the back of the room), keeping the structure (and its play
+	// bar) on screen too when both fit.
+	if (id) keepOnScreen(editor, [id], { zoom: false, also: [structure.id] })
 }
 
 /** The code boxes following a structure go, as one undo step. */

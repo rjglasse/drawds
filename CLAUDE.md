@@ -225,7 +225,8 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   one if the graph has none (`playOperation`'s `onCancel` takes it back on Esc). A graph's strips and play bar go under
   any view beside it (`bottomBeside`). The graph's marks and an operation's highlights map onto it
   (`viewHighlights`: a node to its row / column headers or list head, `edge:<id>` to its cells or list entries).
-  Created from the graph's menu (`showGraphView`, to its right). The matrix reuses `MatrixSvg` with `rowLabels` /
+  Toggled from the graph's Show menu (`toggleGraphView`; shown, its item reads Hide the ...), placed by `putBeside` as
+  every view beside a structure is (`showGraphView`). The matrix reuses `MatrixSvg` with `rowLabels` /
   `colLabels` and `row:<r>` / `col:<c>` header tints. Lecture 9a: an edge-list view (`edges`: `edgeList`, a row per
   edge, sorted, the earlier label first when undirected; a node lights every cell naming it), and each view but the
   union-find under a heading of what it costs (`viewTitle`: V × V cells and how many are filled, V + 2E (directed V + E)

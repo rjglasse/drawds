@@ -41,17 +41,22 @@ export function cameraToShow(camera: Camera, room: Rect, box: Rect, { zoom = tru
 /** Room kept around what is shown (screen px): the menus at the top, the toolbar and the play bar below, a margin. */
 const MARGIN = { left: 16, top: 56, right: 16, bottom: 190 }
 
-/** Move the camera, if need be, so these shapes are all on screen, clear of the style panel (`zoom: false`: only pan). */
-export function keepOnScreen(editor: Editor, ids: readonly TLShapeId[], options: { zoom?: boolean } = {}) {
+/**
+ * Move the camera, if need be, so these shapes are all on screen, clear of the style panel (`zoom: false`:
+ * only pan). `also`: shapes kept on screen with them when they all fit at this zoom (else just `ids`).
+ */
+export function keepOnScreen(editor: Editor, ids: readonly TLShapeId[], { zoom, also = [] }: { zoom?: boolean; also?: readonly TLShapeId[] } = {}) {
 	const boxes = ids.flatMap((id) => editor.getShapePageBounds(id) ?? [])
 	if (!boxes.length) return
-	const box = Box.Common(boxes)
 	const screen = editor.getViewportScreenBounds()
 	// The style panel (shown while something is selected) covers the window's top right.
 	const panel = editor.getContainer().querySelector('.tlui-style-panel')?.getBoundingClientRect()
 	const container = editor.getContainer().getBoundingClientRect()
 	const right = panel ? Math.max(MARGIN.right, container.right - panel.left + MARGIN.right) : MARGIN.right
 	const room = { x: MARGIN.left, y: MARGIN.top, w: screen.w - MARGIN.left - right, h: screen.h - MARGIN.top - MARGIN.bottom }
-	const camera = cameraToShow(editor.getCamera(), room, { x: box.x, y: box.y, w: box.w, h: box.h }, options)
+	const all = Box.Common([...boxes, ...also.flatMap((id) => editor.getShapePageBounds(id) ?? [])])
+	const z = editor.getCamera().z
+	const box = all.w * z <= room.w && all.h * z <= room.h ? all : Box.Common(boxes)
+	const camera = cameraToShow(editor.getCamera(), room, { x: box.x, y: box.y, w: box.w, h: box.h }, { zoom })
 	if (camera) editor.setCamera(camera, { animation: { duration: 320 } })
 }

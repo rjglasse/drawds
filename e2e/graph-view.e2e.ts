@@ -78,3 +78,26 @@ test("a view grown with its graph is found where it is drawn now (hit-testing me
 	}, String(view.id))
 	expect(back).toBe(view.id)
 })
+
+test('Show toggles each view: shown, its item hides it; a view goes past the code beside the graph', async ({ page }) => {
+	await sketchGraph(page, [200, 200], 4, 4)
+	// The code beside it first: the matrix goes past it, not over it.
+	await rightClick(page, await nodeScreenPosition(page, 'v0'))
+	await page.getByTestId('context-menu-sub.drawds-graph-show-button').click()
+	await page.getByTestId('context-menu.graph-code-beside').click()
+	await showView(page, 'matrix')
+	const [code] = await shapesOfType(page, 'code')
+	const [matrix] = await views(page)
+	const right = await page.evaluate((id: string) => window.editor!.getShapePageBounds(id as never)!.maxX, String(code.id))
+	expect(matrix.x).toBeGreaterThan(right)
+
+	await rightClick(page, await nodeScreenPosition(page, 'v0'))
+	await page.getByTestId('context-menu-sub.drawds-graph-show-button').click()
+	await expect(page.getByTestId('context-menu.graph-show-matrix')).toHaveText('Hide the adjacency matrix')
+	await expect(page.getByTestId('context-menu.graph-show-lists')).toHaveText('Adjacency lists beside it')
+	await page.getByTestId('context-menu.graph-show-matrix').click()
+	expect(await views(page)).toHaveLength(0)
+	// One undo brings it back.
+	await page.keyboard.press('ControlOrMeta+z')
+	expect(await views(page)).toHaveLength(1)
+})

@@ -8,6 +8,7 @@ import {
 	type TLShapeId,
 	type TLThemeColors,
 } from 'tldraw'
+import { putBeside } from '../../cells/beside'
 import { showsColourCues } from '../../cells/cues'
 import { exportingStep } from '../../export/exporting'
 import type { Marks } from '../../cells/marks'
@@ -201,17 +202,31 @@ export class GraphViewShapeUtil extends ShapeUtil<GraphViewShape> {
 export const viewsOf = (editor: Editor, graph: GraphShape) =>
 	editor.getCurrentPageShapes().filter((s): s is GraphViewShape => s.type === GRAPH_VIEW_TYPE && (s as GraphViewShape).props.graphId === graph.id)
 
-/** Put a view of `graph` to its right (past any views it has already), one undo step. Returns its history mark. */
+/** What each view is called in the menus and the undo history. */
+export const VIEW_NAMES: Record<GraphViewShape['props']['view'], string> = {
+	matrix: 'adjacency matrix',
+	lists: 'adjacency lists',
+	edges: 'edge list',
+	'union-find': 'union-find',
+}
+
+/**
+ * Put a view of `graph` beside it, as every view beside a structure goes (`putBeside`: to its right past
+ * its grips and whatever follows it already, its code box too, else further right or under it), one
+ * undo step. Returns its history mark.
+ */
 export function showGraphView(editor: Editor, graph: GraphShape, view: GraphViewShape['props']['view']) {
-	const bounds = editor.getShapePageBounds(graph)
-	if (!bounds) return undefined
-	const right = Math.max(bounds.maxX, ...viewsOf(editor, graph).map((v) => editor.getShapePageBounds(v)?.maxX ?? -Infinity))
-	const mark = editor.markHistoryStoppingPoint(`show ${{ 'union-find': 'union-find', edges: 'edge list', matrix: 'adjacency matrix', lists: 'adjacency lists' }[view]}`)
-	editor.createShape<GraphViewShape>({
-		type: GRAPH_VIEW_TYPE,
-		x: right + 60,
-		y: bounds.minY,
-		props: { graphId: graph.id, view, color: graph.props.color, size: graph.props.size, font: graph.props.font },
-	})
+	if (!editor.getShapePageBounds(graph)) return undefined
+	const mark = editor.markHistoryStoppingPoint(`show the ${VIEW_NAMES[view]}`)
+	const { color, size, font } = graph.props
+	putBeside<GraphViewShape>(editor, graph, { type: GRAPH_VIEW_TYPE, props: { graphId: graph.id, view, color, size, font } })
 	return mark
+}
+
+/** Show a view of `graph`, or take away the ones it has of that kind: one undo step either way. */
+export function toggleGraphView(editor: Editor, graph: GraphShape, view: GraphViewShape['props']['view']) {
+	const shown = viewsOf(editor, graph).filter((v) => v.props.view === view)
+	if (!shown.length) return void showGraphView(editor, graph, view)
+	editor.markHistoryStoppingPoint(`hide the ${VIEW_NAMES[view]}`)
+	editor.deleteShapes(shown.map((v) => v.id))
 }
