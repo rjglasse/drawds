@@ -1,207 +1,15 @@
 import { atom, react, type Atom, type Editor, type TLBinding, type TLBindingId, type TLShape, type TLShapeId, type TLShapePartial } from 'tldraw'
-import type { MarkColor, Marks } from '../cells/marks'
-import type { Pointer } from '../pointers/pointers'
-import type { Scene } from './scene'
+import type { Marks } from '../cells/marks'
 import { isTyping, swallowKeyUp } from '../controls/keys'
-import { showCodeOf } from '../shapes/code/follow'
-import { withMoves } from '../transcript/log'
+import { DEFAULT_QUESTION, shownFrame, stateAt, stepFrom, type Frame, type Position, type StepState } from './frame'
+import { autoplay, predict, speed, SPEEDS } from './prefs'
+import { fitRoom, roomOf } from './room'
 
-/** A row of values shown under the structure while an operation runs (a queue, a stack, an output). */
-export interface Strip {
-	title: string
-	items: string[]
-	/** A label under each item (an array's indexes: visited[] under each vertex's name). */
-	labels?: string[]
-	/** A colour for some items, by position (a sort's pass row: its sorted part green). */
-	marks?: Record<number, MarkColor>
-}
-
-/** One step of an animated operation. */
-export interface Frame {
-	/** Props to show instead of the shape's own: the state at this step. */
-	props?: Record<string, unknown>
-	/**
-	 * A whole scene to show instead (layout coordinates, as `buildScene` makes), for states the
-	 * props can't express: a node not linked in yet, an arrow re-pointed or curving back.
-	 */
-	scene?: Scene
-	/** Pointers to show at this step instead of the shape's own (e.g. curr, prev, next walking). */
-	pointers?: Pointer[]
-	/** Node keys whose values just swapped: their values arc between the two nodes. */
-	swaps?: [string, string][]
-	/** Values just copied from one element to another (`[from, to]`): the value at `to` slides in from `from`. */
-	moves?: [string, string][]
-	/** Elements out of play from this step on, drawn faded (replacing earlier ones): a discarded half. */
-	dim?: string[]
-	/** Running totals shown in the play bar from this step on (replacing earlier ones): comparisons, swaps. */
-	counts?: Record<string, number>
-	/**
-	 * Highlights to set at this step, on nodes or edges (`edge:<key>`). They accumulate across
-	 * steps; null clears one again.
-	 */
-	flash?: Record<string, MarkColor | null>
-	/** Small labels beside nodes, such as discovery order. They accumulate. */
-	badges?: Record<string, string>
-	/** Queues, stacks or output sequences shown from this step on (replacing earlier ones). */
-	strips?: Strip[]
-	/** One line saying what this step does, shown in the play bar. */
-	caption?: string
-	/**
-	 * In predict mode, the question put to the class before this step is shown, worded so it doesn't
-	 * give the answer away (default: DEFAULT_QUESTION). False: nothing to guess (it carries out what
-	 * the step before announced, or sums up), so it shows straight away.
-	 */
-	ask?: string | false
-	/** Elements the question is about (nodes, `edge:<key>`), pulsing while it is asked. */
-	askFocus?: string[]
-	/** Disjoint sets at this step (a graph's Kruskal), for the union-find drawn beside the structure. */
-	sets?: FrameSets
-	/**
-	 * Recursive calls made and returned at this step, in order, for the recursion tree drawn beside
-	 * the structure (see `src/shapes/recursion/`).
-	 */
-	calls?: CallEvent[]
-	/**
-	 * The line of the operation's code this step is on (a tag in its code, see
-	 * `src/shapes/code/algorithms.ts`), lit in a code box following the structure.
-	 */
-	line?: string
-	/**
-	 * The code's variables at this step beside its pointers (i, j, lo...: a pointer is a variable of its
-	 * name, at its element): maxval, swapped, key... Shown after their lines in the code box.
-	 */
-	vars?: Record<string, string>
-	/**
-	 * How many times each line of the code has run so far, by tag (loop headers once per test, so one
-	 * more than their body when the loop runs out), for the code box's times column.
-	 */
-	runs?: Record<string, number>
-	/** How much of a shuffle's outcomes the view beside the array shows (`src/shapes/outcomes/`). */
-	outcomes?: FrameOutcomes
-	/**
-	 * Highlights on the views beside a graph at this step only, by view and its own keys (matrix cells
-	 * `r,c`, list heads and entries, edge-list rows): what a representation touches (`src/shapes/graph-view/costs.ts`).
-	 */
-	views?: Partial<Record<'matrix' | 'lists' | 'edges', Marks>>
-	/** How many rows of a sort's counts table beside the array show (`src/shapes/growth/`). */
-	growth?: { sort: string; rows: number }
-	/**
-	 * A labelled bracket along cells `from`..`to` of an array: what holds over them at this step (a
-	 * loop invariant over the part done so far).
-	 */
-	band?: { from: number; to: number; label: string }
-	/**
-	 * Highlights on other shapes' cells at this step, by shape id (an array being merged in: the cell
-	 * j is on), drawn by those shapes (`otherMarks`); a pointer at one is at `otherKey(id, cell)`.
-	 */
-	others?: Record<string, Marks>
-}
-
-/** A step's pointer at another shape's cell (an array being merged in): `at` for it. */
-export const otherKey = (id: string, cell: string) => `${id}#${cell}`
-
-/** The shape and cell an `otherKey` names, if it names one. */
-export function parseOtherKey(key: string): { id: TLShapeId; cell: string } | undefined {
-	const at = key.lastIndexOf('#')
-	return at > 0 ? { id: key.slice(0, at) as TLShapeId, cell: key.slice(at + 1) } : undefined
-}
-
-/** Shapes an operation's steps light besides its own (exported with it). */
-export const othersOf = (frames: readonly Frame[]): TLShapeId[] => [...new Set(frames.flatMap((f) => Object.keys(f.others ?? {})))] as TLShapeId[]
-
-/**
- * A shuffle's outcomes at a step: every run as a tree, revealed down to pick `level` (past the last
- * pick, the leaves coloured by order and their tally too), or the first `runs` of many runs tallied.
- */
-export interface FrameOutcomes {
-	kind: 'unfair' | 'fisher-yates'
-	mode: 'tree' | 'tally'
-	level?: number
-	runs?: number
-}
-
-/**
- * A recursive call being made (`call`: what it is called with, e.g. "sum(0, 3)"; it is made by the
- * call running then), or the running call returning (`returns`: its value, '' for nothing). `id`
- * tells calls apart when their text could match (a sort's calls show the values they get: two
- * calls on [4] aren't the same call); `size`: how many values the call works on, added up per level
- * beside the recursion tree.
- */
-export type CallEvent = { call: string; id?: string; size?: number } | { returns: string }
-
-/**
- * Disjoint sets as a step leaves them: each node's parent and each node's set size (meaningful at
- * roots), keyed by node, and what to light on the union-find (nodes, `edge:<node>` for a node's
- * parent pointer) at this step.
- */
-export interface FrameSets {
-	parent: Record<string, string>
-	sizes: Record<string, number>
-	flash?: Record<string, MarkColor>
-}
-
-/** What predict mode asks before a step that has no question of its own. */
-export const DEFAULT_QUESTION = 'What happens next?'
-
-/**
- * Where an operation stands: on step `step` (from 0), or, in predict mode, asking the class about
- * it first, with the step before it still on screen.
- */
-export interface Position {
-	step: number
-	asking: boolean
-}
-
-/** The frame on screen at a position: while asking about a step, the one before it (-1: none yet). */
-export const shownFrame = (at: Position) => (at.asking ? at.step - 1 : at.step)
-
-/**
- * Where one press forward (`dir` 1) or back (-1) goes. With `asks` (predict mode, stepping by hand,
- * result not in yet) every step takes two presses forward, the question then the reveal, and back
- * undoes them one at a time. Undefined: past the last step (forward: the result) or at the start.
- */
-export function stepFrom(
-	at: Position,
-	dir: 1 | -1,
-	{ steps, asks }: { steps: number; asks: boolean | ((step: number) => boolean) }
-): Position | undefined {
-	// Steps with nothing to guess take one press either way.
-	const asksAt = (step: number) => (typeof asks === 'function' ? asks(step) : asks)
-	if (dir > 0) {
-		if (at.asking) return { step: at.step, asking: false }
-		return at.step < steps - 1 ? { step: at.step + 1, asking: asksAt(at.step + 1) } : undefined
-	}
-	if (!at.asking && asksAt(at.step)) return { step: at.step, asking: true }
-	return at.step > 0 ? { step: at.step - 1, asking: false } : undefined
-}
-
-/** What step `step` shows once the steps before it have had their say. */
-export interface StepState {
-	flash: Marks
-	badges: Record<string, string>
-	strips?: Strip[]
-	dim?: string[]
-	counts?: Record<string, number>
-}
-
-export function stateAt(frames: readonly Frame[], step: number): StepState {
-	const flash: Marks = {}
-	const badges: Record<string, string> = {}
-	let strips: Strip[] | undefined
-	let dim: string[] | undefined
-	let counts: Record<string, number> | undefined
-	for (const frame of frames.slice(0, step + 1)) {
-		for (const [key, color] of Object.entries(frame.flash ?? {})) {
-			if (color === null) delete flash[key]
-			else flash[key] = color
-		}
-		Object.assign(badges, frame.badges)
-		if (frame.strips) strips = frame.strips
-		if (frame.dim) dim = frame.dim
-		if (frame.counts) counts = frame.counts
-	}
-	return { flash, badges, strips, dim, counts }
-}
+// Operations played step by step: the controller (open, step, commit, close) and the play bar's state.
+// An operation's frames and the pure stepping are in frame.ts, the room its steps need in room.ts, the
+// bar's settings in prefs.ts; all of it is imported from here.
+export * from './frame'
+export * from './room'
 
 /** What the shape should draw right now. */
 export interface PlaybackView extends StepState {
@@ -238,40 +46,6 @@ export interface PlaybackView extends StepState {
 }
 
 /**
- * Room an open operation's steps need, in the shape's layout coordinates, kept in its meta: shapes
- * whose steps draw more (or elsewhere) than the shape itself count it in their layout, so their box
- * holds every step, and `CellShapeUtil.onBeforeUpdate` moves the shape so nothing shifts on the page.
- * Set when an operation opens and cleared when it closes, never in the undo history.
- */
-export const ROOM_KEY = 'drawdsRoom'
-
-export interface Room {
-	minX: number
-	minY: number
-	maxX: number
-	maxY: number
-}
-
-export function roomOf(shape: TLShape): Room | undefined {
-	// Null once taken away (meta updates merge, so a key can't be dropped).
-	const room = shape.meta[ROOM_KEY] as Partial<Room> | null | undefined
-	return room && [room.minX, room.minY, room.maxX, room.maxY].every((v) => typeof v === 'number') ? (room as Room) : undefined
-}
-
-/** Shapes that need room for their steps work it out (see `NodeLinkShapeUtil.withPlaybackRoom`). */
-interface RoomMaker {
-	withPlaybackRoom?(shape: TLShape, frames: readonly Frame[] | undefined): TLShapePartial | undefined
-}
-
-/** Make room for an operation's `frames` on its shape, or (none) take it away again. */
-function fitRoom(editor: Editor, shapeId: TLShapeId, frames?: readonly Frame[]) {
-	const shape = editor.getShape(shapeId)
-	if (!shape) return
-	const update = (editor.getShapeUtil(shape) as RoomMaker).withPlaybackRoom?.(shape, frames)
-	if (update) editor.run(() => editor.updateShape(update), { history: 'ignore', ignoreShapeLock: true })
-}
-
-/**
  * Take away room no open operation needs: left by a reload mid-operation, or brought back by undoing
  * a change made while an operation was open. Returns the cleanup.
  */
@@ -282,6 +56,7 @@ export function clearStaleRooms(editor: Editor) {
 		if (stale(next)) editor.timers.setTimeout(() => editor.getShape(next.id) && stale(editor.getShape(next.id)!) && fitRoom(editor, next.id), 0)
 	})
 }
+
 
 /** Time per frame when playing, and how long highlights take to fade after an operation. */
 export const STEP_MS = 650
@@ -356,6 +131,29 @@ export type OperationRecorder = (record: OperationRecord) => ((end: OperationEnd
 const recorders = new WeakMap<Editor, OperationRecorder>()
 
 /** Record every operation played from now on (the lesson log). Returns the cleanup. */
+/**
+ * What other parts of drawds do as an operation opens and as its result goes in, without the controller
+ * knowing them (registered as the app mounts, `addPlaybackHooks`): a code box following the structure
+ * shows the operation's code (`code/follow.ts`; what it returns puts the old code back if it is
+ * cancelled); the code beside the structure logs the result as a call of its algorithm (`transcript/log.ts`).
+ */
+export interface PlaybackHooks {
+	opened?(editor: Editor, shapeId: TLShapeId, code: string): (() => void) | undefined
+	committing?(editor: Editor, op: { shapeId: TLShapeId; code: string; label: string; args?: Record<string, string> }, apply: () => void): void
+}
+
+const hooks = new WeakMap<Editor, PlaybackHooks>()
+
+/** Add hooks (one of each kind per editor). Returns what takes them away. */
+export function addPlaybackHooks(editor: Editor, add: PlaybackHooks) {
+	hooks.set(editor, { ...hooks.get(editor), ...add })
+	return () => {
+		const now = { ...hooks.get(editor) }
+		for (const key of Object.keys(add) as (keyof PlaybackHooks)[]) delete now[key]
+		hooks.set(editor, now)
+	}
+}
+
 export function recordOperations(editor: Editor, recorder: OperationRecorder) {
 	recorders.set(editor, recorder)
 	return () => void recorders.delete(editor)
@@ -371,66 +169,14 @@ function player(editor: Editor): Player {
 	return p
 }
 
-// Operations open paused on their first step, so the teacher sets the pace: step with the arrows,
-// or press play. Autoplay (a per-browser preference) plays them straight away instead.
-
-const AUTOPLAY_KEY = 'drawds:autoplay'
-
-function readAutoplay() {
-	try {
-		return typeof window !== 'undefined' && window.localStorage.getItem(AUTOPLAY_KEY) === 'on'
-	} catch {
-		return false
-	}
-}
-
-const autoplayAtom = atom('autoplay', readAutoplay())
-
 /** Whether operations play as soon as they start. Reactive. */
-export const isAutoplay = () => autoplayAtom.get()
-
-// Playing speed, a per-browser preference like autoplay: long operations (bubble sort) at 2x or 4x,
-// or slower to talk over each step.
-
-export const SPEEDS = [0.5, 1, 2, 4] as const
-const SPEED_KEY = 'drawds:speed'
-
-function readSpeed() {
-	try {
-		const v = Number(typeof window !== 'undefined' ? window.localStorage.getItem(SPEED_KEY) : NaN)
-		return (SPEEDS as readonly number[]).includes(v) ? v : 1
-	} catch {
-		return 1
-	}
-}
-
-const speedAtom = atom('playback speed', readSpeed())
-
-// Predict mode, a per-browser preference too: before each step, the bar asks the class what it will
-// do, and only the next press shows it. Playing (Space, autoplay) goes straight through.
-
-const PREDICT_KEY = 'drawds:predict'
-
-function readPredict() {
-	try {
-		return typeof window !== 'undefined' && window.localStorage.getItem(PREDICT_KEY) === 'on'
-	} catch {
-		return false
-	}
-}
-
-const predictAtom = atom('predict', readPredict())
+export const isAutoplay = () => autoplay.get()
 
 /** Whether steps are asked about before they are shown. Reactive. */
-export const isPredicting = () => predictAtom.get()
+export const isPredicting = () => predict.get()
 
 export function setPredict(editor: Editor, on: boolean) {
-	predictAtom.set(on)
-	try {
-		window.localStorage.setItem(PREDICT_KEY, on ? 'on' : 'off')
-	} catch {
-		// Storage can be unavailable (private windows); the setting then lasts for this page.
-	}
+	predict.set(on)
 	// Switched off mid-question: show the answer. Switched on: the next step asks.
 	const p = player(editor)
 	if (p.op?.asking && !on) go(editor, { step: p.op.step, asking: false })
@@ -440,20 +186,16 @@ export function setPredict(editor: Editor, on: boolean) {
  * Whether step `step` is asked about first: predict mode, stepping by hand, the result not in yet,
  * and something to guess.
  */
-const asks = (op: Operation) => (step: number) => predictAtom.get() && op.paused && !op.done && op.frames[step]?.ask !== false
+const asks = (op: Operation) => (step: number) => predict.get() && op.paused && !op.done && op.frames[step]?.ask !== false
 
 /** The playing speed (1 = STEP_MS a step). Reactive. */
-export const playbackSpeed = () => speedAtom.get()
+export const playbackSpeed = () => speed.get()
+
+export { SPEEDS }
 
 /** The next speed up, wrapping round to the slowest. */
 export function cycleSpeed() {
-	const next = SPEEDS[(SPEEDS.indexOf(speedAtom.get() as (typeof SPEEDS)[number]) + 1) % SPEEDS.length]
-	speedAtom.set(next)
-	try {
-		window.localStorage.setItem(SPEED_KEY, String(next))
-	} catch {
-		// Storage can be unavailable (private windows); the setting then lasts for this page.
-	}
+	speed.set(SPEEDS[(SPEEDS.indexOf(speed.get() as (typeof SPEEDS)[number]) + 1) % SPEEDS.length])
 }
 
 /**
@@ -461,16 +203,11 @@ export function cycleSpeed() {
  * by hand, but no longer than most of a step while playing fast. Reactive.
  */
 export function animationMs(ms: number, view: PlaybackView | null | undefined) {
-	return view && !view.paused && !view.fading ? Math.min(ms, (STEP_MS / speedAtom.get()) * 0.85) : ms
+	return view && !view.paused && !view.fading ? Math.min(ms, (STEP_MS / speed.get()) * 0.85) : ms
 }
 
 export function setAutoplay(editor: Editor, on: boolean) {
-	autoplayAtom.set(on)
-	try {
-		window.localStorage.setItem(AUTOPLAY_KEY, on ? 'on' : 'off')
-	} catch {
-		// Storage can be unavailable (private windows); the setting then lasts for this page.
-	}
+	autoplay.set(on)
 	const op = player(editor).op
 	if (op && !op.done && op.paused === on) togglePlayback(editor)
 }
@@ -567,10 +304,10 @@ export function playOperation(
 	const p = player(editor)
 	if (p.op) finishPlayback(editor)
 	clearTimeout(p.timer)
-	const paused = !autoplayAtom.get()
+	const paused = !autoplay.get()
 	// A code box following the structure shows this algorithm's code (Esc puts back what it showed),
 	// as the record of it keeps it.
-	const takeBack = code && !replay && frames.length ? showCodeOf(editor, shapeId, code, { open: false }) : undefined
+	const takeBack = code && !replay && frames.length ? hooks.get(editor)?.opened?.(editor, shapeId, code) : undefined
 	const ended = replay || !frames.length ? undefined : recorders.get(editor)?.({ shapeId, label, frames, final, finalFlash, code })
 	p.op = {
 		shapeId,
@@ -596,7 +333,7 @@ export function playOperation(
 		shown: [],
 		ended: ended || undefined,
 		step: 0,
-		asking: paused && predictAtom.get() && frames[0]?.ask !== false,
+		asking: paused && predict.get() && frames[0]?.ask !== false,
 		paused,
 		done: false,
 	}
@@ -671,7 +408,7 @@ function go(editor: Editor, to: Position) {
 function schedule(editor: Editor) {
 	const p = player(editor)
 	clearTimeout(p.timer)
-	if (p.op && !p.op.paused) p.timer = setTimeout(() => stepForward(editor), STEP_MS / speedAtom.get())
+	if (p.op && !p.op.paused) p.timer = setTimeout(() => stepForward(editor), STEP_MS / speed.get())
 }
 
 /**
@@ -840,7 +577,8 @@ function commit(editor: Editor, keepNow: boolean) {
 		else {
 			editor.markHistoryStoppingPoint(op.label)
 			// The code beside it logs the algorithm (bubble_sort(a)), not what a diff would guess (a.sort()).
-			if (op.code) withMoves(editor, op.shapeId, { call: op.code, label: op.label, args: op.args }, () => editor.updateShape(update))
+			const committing = hooks.get(editor)?.committing
+			if (op.code && committing) committing(editor, { shapeId: op.shapeId, code: op.code, label: op.label, args: op.args }, () => editor.updateShape(update))
 			else editor.updateShape(update)
 			const made = op.onCommit?.()
 			if (made?.length) op.made = made

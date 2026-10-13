@@ -22,6 +22,7 @@ import { diffGrid, sameGrid, type MatrixMove } from './matrix-moves'
 import type { Grid } from '../shapes/matrix/model'
 import type { UnionFindShapeProps } from '../shapes/union-find/union-find-shape-types'
 import { diffUnionFind, sameUnionFind, unionFindState, type UnionFindMove, type UnionFindState } from './union-find-moves'
+import { addPlaybackHooks } from '../nodelink/playback'
 
 // The code log: every move on a structure, kept in its meta (`drawdsCode`) by a store side effect
 // that runs inside the same change, so the move and its line are one undo step, redo brings the
@@ -443,9 +444,14 @@ export function startCodeLog(editor: Editor) {
 		map?.forEach((run, id) => run.kind !== 'typing' && map.delete(id))
 	}
 	editor.on('event', ended)
+	// An operation's result, logged as a call of its algorithm (bubble_sort(a)), not as what a diff would guess (a.sort()).
+	const committing = addPlaybackHooks(editor, {
+		committing: (e, op, apply) => withMoves(e, op.shapeId, { call: op.code, label: op.label, args: op.args }, apply),
+	})
 	return () => {
 		create()
 		change()
 		editor.off('event', ended)
+		committing()
 	}
 }

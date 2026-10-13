@@ -1,4 +1,4 @@
-import { atom } from 'tldraw'
+import { persistedFlag } from '../data/persisted'
 import type { MarkColor } from './marks'
 
 /**
@@ -20,29 +20,12 @@ export type CueShape = (typeof CUE_SHAPES)[MarkColor]
 /** The same shapes as text, for menus (a legend beside each colour). */
 export const CUE_GLYPHS: Record<MarkColor, string> = { red: '▲', orange: '◆', green: '■', blue: '●' }
 
-const CUES_KEY = 'drawds:colour-cues'
-
-function readCues() {
-	try {
-		return typeof window !== 'undefined' && window.localStorage.getItem(CUES_KEY) === 'on'
-	} catch {
-		return false
-	}
-}
-
-const cuesAtom = atom('colour cues', readCues())
+const cues = persistedFlag('colour cues', 'drawds:colour-cues')
 
 /** Whether marks and highlights carry shapes as well as colours. Reactive. */
-export const showsColourCues = () => cuesAtom.get()
+export const showsColourCues = () => cues.get()
 
-export function setColourCues(on: boolean) {
-	cuesAtom.set(on)
-	try {
-		window.localStorage.setItem(CUES_KEY, on ? 'on' : 'off')
-	} catch {
-		// Storage can be unavailable (private windows); the setting then lasts for this page.
-	}
-}
+export const setColourCues = (on: boolean) => cues.set(on)
 
 /**
  * The line pattern of a marked or highlighted edge drawn `width` wide, with round caps: green

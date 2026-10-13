@@ -41,6 +41,7 @@ import { BoardFileDrop } from './files/BoardFileDrop'
 import { BoardFileKeys } from './files/BoardFileKeys'
 import { clearStaleRooms } from './nodelink/playback'
 import { startCodeLog } from './transcript/log'
+import { startCodeBeside } from './shapes/code/follow'
 import { startTrackingWithCode } from './transcript/transcript'
 import { startSounds } from './sound/listen'
 import { components, uiOverrides } from './ui/overrides'
@@ -97,6 +98,8 @@ function onMount(editor: Editor) {
 		startLessonLog(editor),
 		// Every move on a structure kept as code, for the code beside it.
 		startCodeLog(editor),
+		// An operation's code shown in a code box following its structure.
+		startCodeBeside(editor),
 		// Tracking with code, a new structure gets the code beside it.
 		startTrackingWithCode(editor),
 		// The sounds bogosort turns on.

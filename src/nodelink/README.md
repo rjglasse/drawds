@@ -3,6 +3,12 @@
 How this part of drawds works, for whoever changes it. CLAUDE.md keeps a line on it in its map; the detail is
 here, next to the code: keep it up to date with the code (dds-c72.20 moved it here from CLAUDE.md).
 
+Playback's files: `frame.ts` an operation's frames and the pure stepping (`stateAt`, `stepFrom`, `shownFrame`), `room.ts`
+the room its steps need, `prefs.ts` the bar's settings (autoplay, speed, predict mode: `persistedAtom` in
+`src/data/persisted.ts`), `playback.ts` the controller (open, step, commit, close, keys), which re-exports the rest.
+What other parts do as an operation opens or commits is a hook they add (`addPlaybackHooks`: the code box showing the
+operation's code, `code/follow.ts`; the code beside a structure logging it, `transcript/log.ts`), so playback imports neither.
+
 - `src/nodelink/` - node-link structures (lists, trees, heaps, graphs). Decision (dds-55z.15.1): ONE
   shape per structure, props hold the model. A subclass of `NodeLinkShapeUtil` turns props into a `Scene`
   (positioned nodes + edges, shape space) and applies model edits; the base does geometry, `SceneSvg`

@@ -5,6 +5,7 @@ import { followersOf } from '../../cells/followers'
 import { algorithmCode } from './algorithms'
 import { CODE_TYPE, type CodeShape } from './code-shape-types'
 import { codeLanguage } from '../../transcript/mode'
+import { addPlaybackHooks } from '../../nodelink/playback'
 
 // A code box can follow a structure (`structureId`), like a graph's views: while an operation with
 // code plays on it (`playOperation`'s `code`), the box shows that algorithm's code, the line each
@@ -66,3 +67,7 @@ export function hideCodeOf(editor: Editor, structureId: TLShapeId) {
 	editor.markHistoryStoppingPoint('hide the code')
 	editor.deleteShapes(boxes.map((b) => b.id))
 }
+
+/** As an operation with code opens, a code box following its structure shows that code (`showCodeOf`). Returns the cleanup. */
+export const startCodeBeside = (editor: Editor) =>
+	addPlaybackHooks(editor, { opened: (e, shapeId, code) => showCodeOf(e, shapeId, code, { open: false }) })
