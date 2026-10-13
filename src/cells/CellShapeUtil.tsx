@@ -114,6 +114,11 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 		return { id: shape.id, type: shape.type, props: { marks } } as unknown as TLShapePartial<S>
 	}
 
+	/** A clean copy's props (`src/cells/clean-copy.ts`): the same, without the marks and pointers a lesson put on it. */
+	cleanProps(shape: S): S['props'] {
+		return { ...shape.props, marks: {}, pointers: [] }
+	}
+
 	// Named pointers (i, curr, root...): stored as `props.pointers`. A shape offers them by saying
 	// where a pointer at each element is drawn (`pointerAnchor`) and how arrow keys step one.
 

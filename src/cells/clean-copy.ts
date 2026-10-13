@@ -35,11 +35,9 @@ export function cleanCopy(editor: Editor, shape: TLShape) {
 			return b ? [{ x: b.x, y: b.y, w: b.w, h: b.h }] : []
 		})
 	const dy = freeTopBelow({ x: box.x, y: box.y, w: box.w, h: box.h }, others) - box.y
-	const props: Record<string, unknown> = { ...shape.props }
-	if ('marks' in props) props.marks = {}
-	if ('pointers' in props) props.pointers = []
-	// Room the original's pointers took moves its drawing off its origin; the copy has none.
 	const util = editor.getShapeUtil(shape)
+	const props = util instanceof CellShapeUtil ? util.cleanProps(shape) : shape.props
+	// Room the original's pointers took moves its drawing off its origin; the copy has none.
 	const before = util instanceof CellShapeUtil ? util.layoutOffset(shape) : { x: 0, y: 0 }
 	const after = util instanceof CellShapeUtil ? util.layoutOffset({ ...shape, props } as TLShape) : before
 	const origin = editor.getShapePageTransform(shape).applyToPoint({ x: before.x - after.x, y: before.y - after.y })

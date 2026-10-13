@@ -378,6 +378,14 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 
 	override readonly menuId = 'code'
 
+	/**
+	 * A clean copy of the code beside a structure (its moves, or what plays on it) is that code as it
+	 * shows now, in a box of its own: a second box following the structure would be the structure's too.
+	 */
+	override cleanProps(shape: CodeShape): CodeShape['props'] {
+		return { ...super.cleanProps(this.shown(shape)), structureId: '', algorithm: '', transcript: false, lineCounts: false }
+	}
+
 	override shapeOperations(shape: CodeShape): NodeOperation[] {
 		const { lineNumbers, lineCounts, algorithm, fold } = shape.props
 		// Long code beside a structure folds; Show undoes it (or folds it again).

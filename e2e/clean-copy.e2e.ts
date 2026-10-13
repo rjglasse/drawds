@@ -63,3 +63,36 @@ test('clean copy of a tree: the same nodes, no marks; past a shape in the way', 
 	expect(bounds[copy.id].y).toBeGreaterThan(bounds[array.id].y + bounds[array.id].h)
 	expect(await nodeScreenPosition(page, 'n')).toBeTruthy()
 })
+
+test('clean copy of the code beside a structure: that code as it shows now, in a box of its own', async ({ page }) => {
+	type Code = { code: string; structureId: string; transcript: boolean }
+	await sketchArray(page, [300, 200], 4)
+	await rightClick(page, cellAt(1))
+	await page.getByTestId('context-menu-sub.drawds-array-show-button').click()
+	await page.getByTestId('context-menu.array-code-beside').click()
+	const [array] = await shapesOfType<ArrayShapeProps>(page, 'array')
+	const [beside] = await shapesOfType<Code>(page, 'code')
+	expect(beside.props).toMatchObject({ structureId: array.id, transcript: true })
+	const at = await page.evaluate((id) => {
+		const e = window.editor!
+		const box = e.getShapePageBounds(id as never)!
+		const p = e.pageToScreen({ x: box.x + 30, y: box.y + box.h / 2 })
+		return [p.x, p.y] as [number, number]
+	}, String(beside.id))
+	await rightClick(page, at)
+	await page.getByTestId('context-menu-sub.drawds-code-actions-button').click()
+	await page.getByTestId('context-menu.clean-copy').click()
+	const copy = (await shapesOfType<Code>(page, 'code')).find((s) => s.id !== beside.id)!
+	expect(copy.props).toMatchObject({ structureId: '', transcript: false, code: `List<Integer> a = new ArrayList<>(List.of(${array.props.values.join(', ')}));` })
+
+	// The array changes: only the code beside it follows.
+	const grown: [string, string[]] = [array.id, [...array.props.values, '7']]
+	await page.evaluate(([id, values]) => {
+		window.editor!.updateShape({ id, type: 'array', props: { values } } as never)
+	}, grown)
+	expect((await shapesOfType<Code>(page, 'code')).find((s) => s.id === copy.id)!.props.code).toBe(copy.props.code)
+	await rightClick(page, cellAt(1))
+	await page.getByTestId('context-menu-sub.drawds-array-show-button').click()
+	await page.getByTestId('context-menu.array-code-beside').click()
+	expect((await shapesOfType<Code>(page, 'code')).map((s) => s.id)).toEqual([copy.id])
+})
