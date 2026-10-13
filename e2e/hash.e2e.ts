@@ -79,6 +79,34 @@ test('typing over a chained key: every character lands, though the key is named 
 	expect((await table(page)).buckets[1]).toEqual(['8', '29'])
 })
 
+test('a pointer on a deleted key goes with it; one on a key typed over follows it', async ({ page }) => {
+	await sketchHashTable(page, [200, 150], 7)
+	await setBuckets(page, [[], ['8', '15', '22'], [], [], [], [], []])
+	await page.evaluate(() => {
+		const editor = window.editor!
+		const shape = editor.getCurrentPageShapes().find((s) => s.type === 'hash-table')!
+		const pointers = [
+			{ id: 'p1', name: 'x', at: 'k:15' },
+			{ id: 'p2', name: 'y', at: 'k:22' },
+		]
+		editor.updateShape({ id: shape.id, type: 'hash-table', props: { pointers, marks: { 'k:15': 'red', 'k:22': 'green' } } } as never)
+	})
+	await hoverNode(page, 'k:15')
+	await page.getByTestId('remove-node-k:15').click()
+	await stepToEnd(page)
+	await page.keyboard.press('Enter')
+	expect(await keys(page)).toEqual(['22', '8'])
+	expect((await table(page)).pointers).toEqual([{ id: 'p2', name: 'y', at: 'k:22' }])
+	expect((await table(page)).marks).toEqual({ 'k:22': 'green' })
+
+	await page.mouse.dblclick(...(await nodeScreenPosition(page, 'k:22')))
+	await expect.poll(() => focusedLabel(page)).toBe('Cell k:22')
+	await page.keyboard.type('29')
+	await page.keyboard.press('Enter')
+	expect((await table(page)).pointers).toEqual([{ id: 'p2', name: 'y', at: 'k:29' }])
+	expect((await table(page)).marks).toEqual({ 'k:29': 'green' })
+})
+
 test('grow and rehash: every key moves to its place in a bigger table', async ({ page }) => {
 	await sketchHashTable(page, [200, 150], 5)
 	await setBuckets(page, [['10', '5'], ['6'], [], [], []])

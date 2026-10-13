@@ -1,5 +1,6 @@
 import type { TLShapePartial, VecLike } from 'tldraw'
-import { pruneMarks } from '../../cells/marks'
+import { pruneMarks, swapMarks } from '../../cells/marks'
+import { prunePointers } from '../../pointers/pointers'
 import { fillValues } from '../../data/fill'
 import type { Refillable } from '../../data/fill-style'
 import { newSeed } from '../../data/random'
@@ -94,9 +95,17 @@ export class HashShapeUtil extends NodeLinkShapeUtil<HashShape> implements Refil
 			if (!chained) return value.trim() ? [value] : []
 			return value.trim() ? bucket.map((e, j) => (j === at.index ? value : e)) : bucket.filter((_, j) => j !== at.index)
 		})
-		// A chained key is named by its value: the edit follows it as it is typed (15, then 2, then 29).
-		if (chained && value.trim()) renameEditingCell(this.editor, shape.id, key, chainNodeKeys(buckets)[at.bucket][at.index])
-		return this.update(shape, { buckets })
+		if (!chained || !value.trim()) return this.update(shape, { buckets })
+		// A chained key is named by its value: the edit, and a mark or pointer on it, follow it as it is
+		// typed (15, then 2, then 29).
+		const to = chainNodeKeys(buckets)[at.bucket][at.index]
+		renameEditingCell(this.editor, shape.id, key, to)
+		const { marks, pointers } = shape.props
+		return this.update(shape, {
+			buckets,
+			marks: swapMarks(marks, key, to),
+			pointers: pointers.map((p) => (p.at === key ? { ...p, at: to } : p)),
+		})
 	}
 
 	// Keys sit where the table puts them: nothing to drag.
@@ -240,9 +249,7 @@ export class HashShapeUtil extends NodeLinkShapeUtil<HashShape> implements Refil
 	}
 
 	private play(shape: HashShape, label: string, { frames, buckets, finalFlash, code }: HashOperation, keep: boolean) {
-		const after = buckets ?? shape.props.buckets
-		const keys = hashScene({ ...shape.props, buckets: after }).nodes.map((n) => n.key)
-		const final = buckets && this.update(shape, { buckets, marks: pruneMarks(shape.props.marks, keys) })
+		const final = buckets && this.update(shape, { buckets })
 		playOperation(this.editor, {
 			shapeId: shape.id,
 			label,
@@ -253,7 +260,7 @@ export class HashShapeUtil extends NodeLinkShapeUtil<HashShape> implements Refil
 			code,
 			// Shift: the highlights become marks, on what is still there.
 			withMarks: (_update, highlights) =>
-				this.update(shape, { ...(buckets ? { buckets } : {}), marks: pruneMarks({ ...shape.props.marks, ...highlights }, keys) }),
+				this.update(shape, { ...(buckets ? { buckets } : {}), marks: { ...shape.props.marks, ...highlights } }),
 		})
 	}
 
@@ -266,7 +273,15 @@ export class HashShapeUtil extends NodeLinkShapeUtil<HashShape> implements Refil
 		this.editor.updateShape(this.update(shape, { ...refilled.props, seed }))
 	}
 
+	/**
+	 * A props change; when it changes the keys (or the marks), marks and pointers on keys, buckets or
+	 * slots that are gone go with them.
+	 */
 	private update(shape: HashShape, props: Partial<HashShape['props']>): TLShapePartial<HashShape> {
-		return { id: shape.id, type: HASH_SHAPE_TYPE, props }
+		if (props.buckets === undefined && props.marks === undefined) return { id: shape.id, type: HASH_SHAPE_TYPE, props }
+		const keys = hashScene({ ...shape.props, ...props }).nodes.map((n) => n.key)
+		const marks = pruneMarks(props.marks ?? shape.props.marks, keys)
+		const pointers = prunePointers(props.pointers ?? shape.props.pointers, keys)
+		return { id: shape.id, type: HASH_SHAPE_TYPE, props: { ...props, marks, pointers } }
 	}
 }
