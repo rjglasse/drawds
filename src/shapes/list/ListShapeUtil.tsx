@@ -332,7 +332,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 			{
 				section: 'show',
 				id: 'list-size-field',
-				label: showSize ? 'Hide the size field' : 'Show the size field',
+				label: showSize ? 'Hide the size field' : 'The size field: read in O(1)',
 				run: () => this.toggleSize(id),
 			},
 			// Every move made on it, as code (a linked stack's or queue's as a LinkedStack or LinkedQueue).

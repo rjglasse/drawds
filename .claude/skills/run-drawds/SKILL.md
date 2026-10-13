@@ -68,7 +68,7 @@ EOF
 ```
 
 Linked lists: sketch, edit a node, drag a node by its handle, then Re-layout
-from the context menu, and switch the selected list's Fill to ascending:
+from the list's own submenu in the context menu, and switch the selected list's Fill to ascending:
 
 ```bash
 node .claude/skills/run-drawds/driver.mjs <<'EOF'
@@ -80,7 +80,8 @@ key Enter
 dragnode n1 30 140
 screenshot dragged
 rclick 200 150
-clicksel [data-testid="context-menu.drawds.relayout"]
+clicksel [data-testid="context-menu-sub.drawds-list-actions-button"]
+clicksel [data-testid="context-menu.relayout"]
 clicksel [data-testid="style.fill-mode"]
 clicksel [data-testid="style.fill-mode.ascending"]
 shapes

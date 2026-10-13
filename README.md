@@ -144,7 +144,7 @@ the one you're on. Each edit is one undo step.
 ### Moving nodes
 
 Select a linked list and drag the small handle under a node to move just that node; the arrows follow. Right-click
-and choose **Re-layout** to put every node back in line. Graph nodes are dragged the same way.
+it and choose **Re-layout** in its own menu (List, Tree...) to put every dragged node back in place. Graph nodes are dragged the same way.
 
 ## Development
 

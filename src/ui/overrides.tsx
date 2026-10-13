@@ -17,13 +17,11 @@ import {
 	TldrawUiMenuGroup,
 	TldrawUiMenuItem,
 	TldrawUiMenuSubmenu,
-	useActions,
 	useEditor,
 	useIsToolSelected,
 	useTools,
 	useValue,
 	ViewSubmenu,
-	type Editor,
 	type TLComponents,
 	type TLTextShape,
 	type TLUiOverrides,
@@ -81,8 +79,6 @@ import { StructureHint } from './StructureHint'
 /** Our structure tools, in toolbar order. */
 const STRUCTURE_TOOLS = ['array', 'matrix', 'linked-list', 'binary-tree', 'general-tree', 'trie', 'heap', 'union-find', 'hash-table', 'graph', 'recursion-tracer', 'code'] as const
 
-const RELAYOUT = 'drawds.relayout'
-
 /** Board files, first in the main menu. */
 const BOARD_ACTIONS = ['drawds.open-board', 'drawds.save-board', 'drawds.save-board-as'] as const
 
@@ -90,14 +86,6 @@ const BOARD_ACTIONS = ['drawds.open-board', 'drawds.save-board', 'drawds.save-bo
 const LESSON_ACTION = 'drawds.lesson-log'
 
 const markLabel = (color: MarkColor) => `${color[0].toUpperCase()}${color.slice(1)} (${MARK_MEANINGS[color]})`
-
-/** Selected node-link shapes that have nodes dragged away from their automatic layout. */
-function relayoutTargets(editor: Editor) {
-	return editor.getSelectedShapes().flatMap((shape) => {
-		const util = editor.getShapeUtil(shape)
-		return util instanceof NodeLinkShapeUtil && util.hasManualLayout(shape) ? [{ shape, util }] : []
-	})
-}
 
 export const uiOverrides: TLUiOverrides = {
 	tools(editor, tools) {
@@ -219,16 +207,6 @@ export const uiOverrides: TLUiOverrides = {
 			label: 'Lesson log…',
 			onSelect: () => void helpers.addDialog({ component: LessonDialog }),
 		}
-		actions[RELAYOUT] = {
-			id: RELAYOUT,
-			label: 'Re-layout',
-			onSelect: () => {
-				const targets = relayoutTargets(editor)
-				if (!targets.length) return
-				editor.markHistoryStoppingPoint('re-layout')
-				editor.updateShapes(targets.map(({ shape, util }) => util.resetLayout(shape)))
-			},
-		}
 		// Point at a cell or node and press 1-4 to mark it (again to clear), 0 to clear. Shortcuts are
 		// off while typing in a cell, so digits typed as values never mark anything.
 		MARK_COLORS.forEach((color, i) => {
@@ -317,9 +295,10 @@ function CodeMenuGroup() {
 function MarkMenu() {
 	const editor = useEditor()
 	const [target] = useState(() => markTargetUnderPointer(editor))
-	if (!target) return null
-	const hasMarks = Object.keys(target.util.getMarks(target.shape)).length > 0
 	const cues = useValue('colour cues', showsColourCues, [])
+	const hasMarks = !!target && Object.keys(target.util.getMarks(target.shape)).length > 0
+	// Nothing here to mark and nothing to clear (a recursion tracer): no menu at all.
+	if (!target || (target.key === undefined && !hasMarks)) return null
 	return (
 		<TldrawUiMenuGroup id="drawds-mark">
 			<TldrawUiMenuSubmenu id="drawds-mark" label="Mark">
@@ -365,6 +344,24 @@ function NodeOperationsMenu() {
 	const [operations] = useState(() => {
 		if (!target) return []
 		const { util, shape, key } = target
+		// Nodes dragged away from where the structure puts them: back in place, one undo step.
+		const relayout: NodeOperation[] =
+			util instanceof NodeLinkShapeUtil && util.hasManualLayout(shape)
+				? [
+						{
+							section: 'actions',
+							group: 'layout',
+							id: 'relayout',
+							label: 'Re-layout: dragged nodes back in place',
+							run: () => {
+								const current = editor.getShape(shape.id)
+								if (!current) return
+								editor.markHistoryStoppingPoint('re-layout')
+								editor.updateShape(util.resetLayout(current))
+							},
+						},
+					]
+				: []
 		// Every structure's own submenu ends with a clean copy: the same one again, fresh.
 		const copy: NodeOperation = {
 			section: 'actions',
@@ -376,7 +373,7 @@ function NodeOperationsMenu() {
 				if (current) cleanCopy(editor, current)
 			},
 		}
-		return [...(key !== undefined ? (util.nodeOperations?.(shape, key) ?? []) : []), ...(util.shapeOperations?.(shape) ?? []), copy]
+		return [...(key !== undefined ? (util.nodeOperations?.(shape, key) ?? []) : []), ...(util.shapeOperations?.(shape) ?? []), ...relayout, copy]
 	})
 	if (!target || !operations.length) return null
 	const { util, shape } = target
@@ -517,19 +514,6 @@ function MakeCodeBoxMenuItem() {
 	)
 }
 
-function RelayoutMenuItem() {
-	const editor = useEditor()
-	const actions = useActions()
-	const show = useValue('can re-layout', () => relayoutTargets(editor).length > 0, [editor])
-	if (!show) return null
-	const { id, label, onSelect } = actions[RELAYOUT]
-	return (
-		<TldrawUiMenuGroup id="drawds">
-			<TldrawUiMenuItem id={id} label={label} onSelect={onSelect} />
-		</TldrawUiMenuGroup>
-	)
-}
-
 export const components: TLComponents = {
 	// Repainted whole as the camera moves: Chrome's ghosts of a fast zoom go (CanvasRepaint.tsx).
 	Background: RepaintingBackground,
@@ -610,7 +594,6 @@ export const components: TLComponents = {
 			<NodeOperationsMenu />
 			<MarkMenu />
 			<PointerMenu />
-			<RelayoutMenuItem />
 			<MakeCodeBoxMenuItem />
 			<DefaultContextMenuContent />
 		</DefaultContextMenu>

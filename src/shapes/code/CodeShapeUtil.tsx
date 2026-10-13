@@ -416,7 +416,7 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 			{
 				section: 'show',
 				id: 'code-line-numbers',
-				label: lineNumbers ? 'Hide line numbers' : 'Line numbers',
+				label: lineNumbers ? 'Hide the line numbers' : 'Line numbers',
 				run: () => {
 					this.editor.markHistoryStoppingPoint('line numbers')
 					this.editor.updateShape<CodeShape>({ id: shape.id, type: CODE_TYPE, props: { lineNumbers: !lineNumbers } })

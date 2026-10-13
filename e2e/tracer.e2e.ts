@@ -152,3 +152,10 @@ test('a tracer clicked near the top of the window moves down so its call stack s
 	await page.keyboard.press('ControlOrMeta+z')
 	await expect.poll(async () => (await shapesOfType(page, 'recursion-tracer')).length).toBe(0)
 })
+
+test('its menu has no Mark submenu: nothing in a tracer is marked', async ({ page }) => {
+	await place(page)
+	await rightClick(page, [MAIN[0] + 30, MAIN[1]])
+	await expect(page.getByTestId('context-menu-sub.drawds-tracer-steps-button')).toBeVisible()
+	await expect(page.getByTestId('context-menu-sub.drawds-mark-button')).toHaveCount(0)
+})

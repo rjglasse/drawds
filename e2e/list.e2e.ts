@@ -49,7 +49,8 @@ test('drags nodes by their handles; undo and Re-layout restore the layout', asyn
 	expect(await moved(page)).toEqual(['n1'])
 
 	await rightClick(page, [200, 150])
-	await page.getByTestId('context-menu.drawds.relayout').click()
+	await page.getByTestId('context-menu-sub.drawds-list-actions-button').click()
+	await page.getByTestId('context-menu.relayout').click()
 	expect(await moved(page)).toEqual([])
 })
 

@@ -211,12 +211,12 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 			...(shape.props.kind === 'bst'
 				? [
 						...(node.value.trim()
-							? [{ ...search, id: 'bst-search', label: `Search for ${node.value}`, run: () => this.search(shape.id, node.value) }]
+							? [{ ...search, id: 'bst-search', label: `Find ${node.value}`, run: () => this.search(shape.id, node.value) }]
 							: []),
 						{
 							...search,
 							id: 'bst-search-value',
-							label: 'Search for a key',
+							label: 'Find a key',
 							prompt: 'Key to find',
 							run: (value?: string) => value !== undefined && this.search(shape.id, value),
 						},

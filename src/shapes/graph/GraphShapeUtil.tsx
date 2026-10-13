@@ -406,7 +406,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 			{
 				...show,
 				id: 'graph-degrees',
-				label: `${shape.props.degrees ? 'Hide' : 'Show'} degrees${shape.props.direction === 'directed' ? ' (in/out)' : ''} and neighbours`,
+				label: shape.props.degrees ? 'Hide the degrees' : `Degrees${shape.props.direction === 'directed' ? ' (in/out)' : ''} and neighbours`,
 				run: () => this.toggleDegrees(shape.id),
 			},
 			// Every move made on it, as code.

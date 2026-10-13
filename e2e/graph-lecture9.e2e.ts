@@ -98,7 +98,7 @@ test('degrees and neighbours: pointing at a node lights it, its neighbours and t
 	await expect(flashes).toHaveCount(0)
 	await rightClick(page, v3)
 	await page.getByTestId('context-menu-sub.drawds-graph-show-button').click()
-	await expect(page.getByTestId('context-menu.graph-degrees')).toHaveText('Show degrees and neighbours')
+	await expect(page.getByTestId('context-menu.graph-degrees')).toHaveText('Degrees and neighbours')
 	await page.getByTestId('context-menu.graph-degrees').click()
 	// The degree badges, drawn as highlights are; pointing at 3 adds 3 itself, its neighbours in lecture
 	// 9's graph (1, 2, 4 and 5) and the four edges to them.

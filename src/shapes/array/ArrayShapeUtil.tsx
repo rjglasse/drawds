@@ -622,7 +622,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		return {
 			section: 'show',
 			id: 'array-indices',
-			label: shape.props.showIndices ? 'Hide indices' : 'Show indices',
+			label: shape.props.showIndices ? 'Hide the indices' : 'Indices',
 			run: () => this.update(shape.id, 'toggle indices', (s) => ({ showIndices: !s.props.showIndices })),
 		}
 	}
