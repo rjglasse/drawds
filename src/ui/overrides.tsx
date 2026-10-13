@@ -35,6 +35,7 @@ import { CUE_GLYPHS, setColourCues, showsColourCues } from '../cells/cues'
 import { MARK_COLORS, MARK_MEANINGS, type MarkColor } from '../cells/marks'
 import { PlaybackOverlay } from '../controls/PlaybackOverlay'
 import { ControlsLayer } from '../controls/InFront'
+import { RepaintingBackground } from '../controls/CanvasRepaint'
 import { openBoard, saveBoard } from '../files/board'
 import { LessonDialog } from '../lesson/LessonDialog'
 import type { CodeLanguage } from '../shapes/code/highlight'
@@ -530,6 +531,8 @@ function RelayoutMenuItem() {
 }
 
 export const components: TLComponents = {
+	// Repainted whole as the camera moves: Chrome's ghosts of a fast zoom go (CanvasRepaint.tsx).
+	Background: RepaintingBackground,
 	// The structures' controls (drawn apart from their shapes), then an operation's bar and strips over them.
 	InFrontOfTheCanvas: () => (
 		<>

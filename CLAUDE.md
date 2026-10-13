@@ -699,7 +699,11 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   wrap them in `<InFront id={shape.id}>` (`svg` for SVG children; `src/controls/InFront.tsx`), which portals them into a
   layer that follows the camera as tldraw's shape layer does, in the shape's own space, so they are written as before
   (dds-55z.37). Badges count in the box (`sceneBadges`) and in an operation's room (each step's badges); node-link
-  glides only while an operation is open. `e2e/bounds.e2e.ts` measures what reaches past each box.
+  glides only while an operation is open. `e2e/bounds.e2e.ts` measures what reaches past each box. Chrome on the
+  teacher's Mac still left copies of a shape's last text behind during a fast zoom (not reproducible in automated
+  Chrome), so tldraw's `Background` is `RepaintingBackground` (`src/controls/CanvasRepaint.tsx`): a practically
+  invisible fill flips at most once a frame while the camera moves and when it stops, repainting the whole canvas
+  (localStorage `drawds:repaint` = 'off' disables it, to compare).
   Node-link scenes are moved there automatically (`getScene` is the moved layout; models and `getGrowGrips` use
   layout coordinates; handles convert with `layoutOffset(initial)`); arrays make room in `getArrayMetrics().origin`.
   When the offset changes, `CellShapeUtil.onBeforeUpdate` moves the shape so nothing shifts on the page. While an
