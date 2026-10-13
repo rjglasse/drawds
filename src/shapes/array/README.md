@@ -3,6 +3,12 @@
 How this part of drawds works, for whoever changes it. CLAUDE.md keeps a line on it in its map; the detail is
 here, next to the code: keep it up to date with the code (dds-c72.20 moved it here from CLAUDE.md).
 
+Files: `operations.ts` re-exports the operations' core (`record.ts`: an operation's types, the recorder) and their
+families (`searches.ts`, `sorts.ts`, `sums.ts`, `shifting.ts`; quicksorts, scans, passes, shuffles, merge, counting
+sort and stack uses have files of their own); `code.ts` assembles `ARRAY_CODE` from `code/` (searches, scans, sorts,
+shuffles, stacks and queues, shifting); `ArraySvg.tsx` draws an array, on the canvas and in exports;
+`ArrayShapeUtil.tsx` is the util (its menus, buttons, step layout).
+
 - `src/shapes/array/swap.ts` - drag a cell's handle onto another cell to swap (drag state in a per-editor atom,
   ghost + target highlight while dragging). Values that move are `Slides` (new index -> old index: a swap, an
   instant sort/shuffle via `orderSlides`, a step's `swaps`/`moves` via `frameSlides`), drawn with the CSS
