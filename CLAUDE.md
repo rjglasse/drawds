@@ -72,7 +72,8 @@ them, so no "Beads: sync" commits. The issue database itself goes to GitHub unde
 npm install
 npm run dev        # Vite dev server; window.editor is exposed in dev for poking/driving
 npm test           # vitest (pure layout/data logic), src/**/*.test.ts
-npm run test:e2e   # Playwright against the dev server, installed Chrome, e2e/*.e2e.ts
+npm run test:e2e   # Playwright against the dev server, installed Chrome, e2e/*.e2e.ts (smoke.e2e.ts plays every
+                   # menu operation on every structure, ~360, and fails on any page or console error)
 npm run typecheck  # tsc -b
 npm run build      # typecheck + production bundle
 ```
