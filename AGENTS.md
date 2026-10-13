@@ -1,5 +1,8 @@
 # Agent Instructions
 
+drawds itself (build, test, the architecture's map and the conventions) is in CLAUDE.md; each folder's README.md
+(src/shapes/array/README.md, src/nodelink/README.md...) has the detail for working there: read it first.
+
 This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
 
 > **Architecture in one line:** Issues live in a local Dolt database
