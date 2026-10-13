@@ -1,6 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
 import { nodeScreenPosition, open, rightClick, sketchArray, sketchGraph, sketchHeap, sketchList, sketchTree, withEditor } from './helpers'
 
+/**
+ * A toast by its title or description. Radix also puts a toast's text in a hidden live region for screen
+ * readers for a moment, so a plain getByText can find it twice.
+ */
+const toast = (page: Page, title: string) => page.locator('.tlui-toast__title, .tlui-toast__description').filter({ hasText: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) })
+
 const CELL = 48
 
 /** Every shape on the page, as stored, in id order. */
@@ -103,7 +109,7 @@ test('a board with every structure saved and opened in a fresh browser comes bac
 	expect(download.suggestedFilename()).toBe('board.tldr')
 	const path = test.info().outputPath('board.tldr')
 	await download.saveAs(path)
-	await expect(page.getByText('Saved board.tldr', { exact: true })).toBeVisible()
+	await expect(toast(page, 'Saved board.tldr')).toBeVisible()
 
 	// A fresh profile: nothing in IndexedDB, so the board can only come from the file.
 	const context = await browser.newContext(test.info().project.use)
@@ -116,7 +122,7 @@ test('a board with every structure saved and opened in a fresh browser comes bac
 	const choosing = fresh.waitForEvent('filechooser')
 	await fresh.getByTestId('main-menu.drawds.open-board').click()
 	await (await choosing).setFiles(path)
-	await expect(fresh.getByText('Opened board.tldr', { exact: true })).toBeVisible()
+	await expect(toast(fresh, 'Opened board.tldr')).toBeVisible()
 	expect(await shapes(fresh)).toEqual(before)
 	await expect(fresh).toHaveTitle('board · drawds')
 	await context.close()
@@ -128,7 +134,7 @@ test('Save asks where once, then writes back to that file; Save as asks again', 
 	await sketchArray(page, [300, 200], 3)
 	await pick(page, 'arrays.tldr')
 	await page.keyboard.press('ControlOrMeta+s')
-	await expect(page.getByText('Saved arrays.tldr', { exact: true })).toBeVisible()
+	await expect(toast(page, 'Saved arrays.tldr')).toBeVisible()
 	expect(await pickers(page)).toEqual([['save', 'board.tldr']])
 	expect(typesIn((await files(page))['arrays.tldr'])).toEqual(['array'])
 	await expect(page).toHaveTitle('arrays · drawds')
@@ -140,7 +146,7 @@ test('Save asks where once, then writes back to that file; Save as asks again', 
 
 	await pick(page, 'copy.tldr')
 	await page.keyboard.press('ControlOrMeta+Shift+s')
-	await expect(page.getByText('Saved copy.tldr', { exact: true })).toBeVisible()
+	await expect(toast(page, 'Saved copy.tldr')).toBeVisible()
 	expect(await pickers(page)).toEqual([
 		['save', 'board.tldr'],
 		['save', 'arrays.tldr'],
@@ -155,7 +161,7 @@ test('opening a board is one undo step: undo brings back the board you had, stil
 	await sketchArray(page, [300, 200], 3)
 	await pick(page, 'arrays.tldr')
 	await page.keyboard.press('ControlOrMeta+s')
-	await expect(page.getByText('Saved arrays.tldr', { exact: true })).toBeVisible()
+	await expect(toast(page, 'Saved arrays.tldr')).toBeVisible()
 	const arrays = (await files(page))['arrays.tldr']
 
 	// Another board, saved to its own file.
@@ -163,13 +169,13 @@ test('opening a board is one undo step: undo brings back the board you had, stil
 	await sketchTree(page, [600, 150], 2, 1)
 	await pick(page, 'trees.tldr')
 	await page.keyboard.press('ControlOrMeta+Shift+s')
-	await expect(page.getByText('Saved trees.tldr', { exact: true })).toBeVisible()
+	await expect(toast(page, 'Saved trees.tldr')).toBeVisible()
 	const tree = await shapes(page)
 
 	await pick(page, 'arrays.tldr')
 	await page.keyboard.press('ControlOrMeta+o')
-	await expect(page.getByText('Opened arrays.tldr', { exact: true })).toBeVisible()
-	await expect(page.getByText('The board you had is one undo away.', { exact: true })).toBeVisible()
+	await expect(toast(page, 'Opened arrays.tldr')).toBeVisible()
+	await expect(toast(page, 'The board you had is one undo away.')).toBeVisible()
 	expect(await types(page)).toEqual(['array'])
 	await expect(page).toHaveTitle('arrays · drawds')
 
@@ -193,7 +199,7 @@ test('a board saved by an older drawds opens with its shapes migrated', async ({
 	await sketchArray(page, [300, 200], 3)
 	await pick(page, 'old.tldr')
 	await page.keyboard.press('ControlOrMeta+s')
-	await expect(page.getByText('Saved old.tldr', { exact: true })).toBeVisible()
+	await expect(toast(page, 'Saved old.tldr')).toBeVisible()
 	// Rewrite the file as the first release saved arrays: version 0, no fill or seed.
 	const file = JSON.parse((await files(page))['old.tldr'])
 	file.schema.sequences['com.tldraw.shape.array'] = 0
@@ -207,7 +213,7 @@ test('a board saved by an older drawds opens with its shapes migrated', async ({
 	await withEditor(page, (editor) => void editor.deleteShapes([...editor.getCurrentPageShapeIds()]))
 
 	await page.keyboard.press('ControlOrMeta+o')
-	await expect(page.getByText('Opened old.tldr', { exact: true })).toBeVisible()
+	await expect(toast(page, 'Opened old.tldr')).toBeVisible()
 	expect((await shapes(page)).map((s) => s.props)).toEqual([expect.objectContaining({ values: ['3', '1', '4'], fill: 'random', seed: 0 })])
 })
 
@@ -219,8 +225,8 @@ test('a file that is not a board leaves the board alone and says why', async ({ 
 	await page.evaluate(() => ((window as unknown as { __files: Record<string, string> }).__files['notes.tldr'] = 'just some notes'))
 	await pick(page, 'notes.tldr')
 	await page.keyboard.press('ControlOrMeta+o')
-	await expect(page.getByText('Could not open notes.tldr', { exact: true })).toBeVisible()
-	await expect(page.getByText('It isn’t a drawds board (.tldr).', { exact: true })).toBeVisible()
+	await expect(toast(page, 'Could not open notes.tldr')).toBeVisible()
+	await expect(toast(page, 'It isn’t a drawds board (.tldr).')).toBeVisible()
 	expect(await shapes(page)).toEqual(before)
 })
 
@@ -242,7 +248,7 @@ test('Ctrl+S while typing in a cell saves the board, value and all, and the typi
 	await page.keyboard.type('42')
 	await pick(page, 'typed.tldr')
 	await page.keyboard.press('ControlOrMeta+s')
-	await expect(page.getByText('Saved typed.tldr', { exact: true })).toBeVisible()
+	await expect(toast(page, 'Saved typed.tldr')).toBeVisible()
 	const saved = JSON.parse((await files(page))['typed.tldr']).records.find((r: { type?: string }) => r.type === 'array')
 	expect(saved.props.values[0]).toBe('42')
 	// Still in the cell: Tab moves on to the next one.
@@ -257,13 +263,13 @@ test('Ctrl+O while typing in a cell ends the edit and opens a board', async ({ p
 	await sketchTree(page, [600, 150], 2, 1)
 	await pick(page, 'trees.tldr')
 	await page.keyboard.press('ControlOrMeta+s')
-	await expect(page.getByText('Saved trees.tldr', { exact: true })).toBeVisible()
+	await expect(toast(page, 'Saved trees.tldr')).toBeVisible()
 	await withEditor(page, (editor) => void editor.deleteShapes([...editor.getCurrentPageShapeIds()]))
 	await sketchArray(page, [300, 200], 3)
 	await page.mouse.dblclick(300, 200)
 	await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('aria-label'))).toBe('Cell 0')
 	await page.keyboard.press('ControlOrMeta+o')
-	await expect(page.getByText('Opened trees.tldr', { exact: true })).toBeVisible()
+	await expect(toast(page, 'Opened trees.tldr')).toBeVisible()
 	expect(await types(page)).toEqual(['binary-tree'])
 	expect(await page.evaluate(() => window.editor!.getEditingShapeId())).toBeNull()
 })
@@ -296,7 +302,7 @@ test('a .tldr file dropped on the canvas opens as the board; an image dropped is
 			target.dispatchEvent(new DragEvent('drop', at))
 		}, file)
 	await drop({ name: 'lesson.tldr', type: '', text: json })
-	await expect(page.getByText('Opened lesson.tldr')).toBeVisible()
+	await expect(toast(page, 'Opened lesson.tldr')).toBeVisible()
 	await expect.poll(async () => (await shapes(page)).map((s) => s.id)).toEqual(before.map((s) => s.id))
 	await drop({ name: 'dot.png', type: 'image/png', png: true })
 	await expect.poll(async () => (await types(page)).includes('image')).toBe(true)
