@@ -213,3 +213,47 @@ test('hash rehash: the bigger table stays inside the box, the first bucket where
 	await page.getByTestId('context-menu.hash-rehash').click()
 	await checkEveryStep(page, 'b0')
 })
+
+/**
+ * How far anything drawn inside each shape's element reaches past its box (screen px), counting half
+ * of each stroke: the controls a selected structure shows are drawn in front of the canvas instead
+ * (`InFront`), and badges count in the box (or the room an operation keeps).
+ */
+const overhang = (page: Page) =>
+	page.evaluate(() => {
+		let worst = 0
+		let what = ''
+		for (const el of document.querySelectorAll('.tl-shape')) {
+			const box = el.getBoundingClientRect()
+			for (const child of el.querySelectorAll('*')) {
+				const r = child.getBoundingClientRect()
+				if (!r.width && !r.height) continue
+				const by = Math.max(box.left - r.left, r.right - box.right, box.top - r.top, r.bottom - box.bottom)
+				if (by > worst) [worst, what] = [by, `${el.getAttribute('data-shape-type')} ${child.tagName} ${child.getAttribute('data-testid') ?? ''}`]
+			}
+		}
+		return { worst: Math.round(worst * 10) / 10, what }
+	})
+
+test('a selected structure\'s controls (x, +, grips, insert a key) are drawn in front, not outside its box', async ({ page }) => {
+	await sketchHeap(page, [300, 200], 6)
+	await hoverNode(page, '2')
+	await expect(page.getByTestId('remove-node-2')).toBeVisible()
+	await expect(page.getByTestId('insert-key')).toBeVisible()
+	expect((await overhang(page)).worst).toBeLessThan(1)
+	await sketchArray(page, [300, 600], 5)
+	await page.mouse.move(330, 600)
+	await expect(page.getByTestId('remove-cell-0').or(page.getByTestId('remove-cell-1'))).toBeVisible()
+	expect((await overhang(page)).worst).toBeLessThan(1)
+})
+
+test('BFS order badges stay inside the box while the steps play', async ({ page }) => {
+	await sketchGraph(page, [300, 250], 6)
+	await rightClick(page, await nodeScreenPosition(page, 'v0'))
+	await page.getByTestId('context-menu-sub.drawds-graph-steps-button').click()
+	await page.getByTestId('context-menu.graph-bfs').click()
+	for (let i = 0; i < 30 && !(await page.getByTestId('play-done').isVisible()); i++) {
+		await page.keyboard.press('ArrowRight')
+		expect((await overhang(page)).worst).toBeLessThan(1)
+	}
+})

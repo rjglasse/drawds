@@ -330,6 +330,28 @@ const BADGE_DIRECTIONS = [
 ].map(([x, y]) => ({ x: x / Math.hypot(x, y), y: y / Math.hypot(x, y) }))
 
 /** Which way from a node to put its badge, so it stays clear of the node's edges and their arrowheads. */
+/**
+ * A badge beside a node (an order, a distance, a height): its centre and radius, just outside the node
+ * in `direction` (`badgeDirection`), its size from its text. Shared by the drawing and the box.
+ */
+export function badgeCircle(node: SceneNode, direction: Point, text: string, labelFontSize: number): Point & { r: number } {
+	const r = labelFontSize * 0.78 * Math.max(1, text.length * 0.6)
+	const edge = boundaryPoint(node, { x: node.x + direction.x * node.w, y: node.y + direction.y * node.h })
+	return { x: edge.x + direction.x * r * 0.75, y: edge.y + direction.y * r * 0.75, r }
+}
+
+/** The boxes of the badges a scene shows (`badges` by node key), their outlines included. */
+export function badgeBoxes(scene: Scene, badges: Readonly<Record<string, string>> | undefined): Box[] {
+	if (!badges) return []
+	const pad = scene.metrics.strokeWidth
+	return scene.nodes.flatMap((n) => {
+		const text = badges[n.key]
+		if (!text) return []
+		const c = badgeCircle(n, badgeDirection(n, scene), text, scene.metrics.labelFontSize)
+		return [{ x: c.x - c.r - pad, y: c.y - c.r - pad, w: 2 * (c.r + pad), h: 2 * (c.r + pad) }]
+	})
+}
+
 export function badgeDirection(node: SceneNode, scene: Scene): Point {
 	const byKey = new Map(scene.nodes.map((n) => [n.key, n]))
 	const angles = scene.edges.flatMap((e) => {

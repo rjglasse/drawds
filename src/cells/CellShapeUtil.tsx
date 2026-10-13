@@ -32,6 +32,7 @@ import {
 	type EditableCells,
 } from './editable-cells'
 import type { Marks } from './marks'
+import { InFront } from '../controls/InFront'
 
 export interface CellFont {
 	fontFamily: string
@@ -152,19 +153,21 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 		const box = this.cells.cellBox(shape, asked.at)
 		const close = () => operationPrompt(this.editor).set(null)
 		return (
-			<KeyPrompt
-				editor={this.editor}
-				at={{ x: box.x + box.w / 2, y: box.y - 24 }}
-				label={asked.label}
-				initial={asked.value}
-				width={asked.width}
-				colors={colors}
-				onCancel={close}
-				onSubmit={(value) => {
-					close()
-					asked.run(value)
-				}}
-			/>
+			<InFront id={shape.id}>
+				<KeyPrompt
+					editor={this.editor}
+					at={{ x: box.x + box.w / 2, y: box.y - 24 }}
+					label={asked.label}
+					initial={asked.value}
+					width={asked.width}
+					colors={colors}
+					onCancel={close}
+					onSubmit={(value) => {
+						close()
+						asked.run(value)
+					}}
+				/>
+			</InFront>
 		)
 	}
 

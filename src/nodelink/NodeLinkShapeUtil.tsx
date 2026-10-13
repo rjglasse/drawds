@@ -29,6 +29,7 @@ import type { Marks } from '../cells/marks'
 import { growHandle, isGrowHandle } from '../controls/grow'
 import { GrowGrip } from '../controls/GrowGrip'
 import { Tracked } from '../controls/Tracked'
+import { InFront } from '../controls/InFront'
 import { ControlButton } from '../controls/ControlButton'
 import { KeyPrompt } from '../controls/KeyPrompt'
 import { closePrompt, isPromptOpen, openPrompt } from '../controls/prompt'
@@ -36,7 +37,7 @@ import { showsStructureControls } from '../controls/visibility'
 import { exportingStep } from '../export/exporting'
 import { StepExtrasSvg } from '../export/StepExtrasSvg'
 import { POINTER_FONT_SCALE, placePointers, type PlacedPointer, type PointerAnchor, type PointerSide } from '../pointers/layout'
-import { boxContains, labelBox, nodeBox, nodeContains, roundEnds, routeScene, spatialNeighbor, type EdgeRoute } from './geometry'
+import { badgeBoxes, boxContains, labelBox, nodeBox, nodeContains, roundEnds, routeScene, spatialNeighbor, type EdgeRoute } from './geometry'
 import { hoveredEdge, hoveredNode, isCoarsePointer } from './hover'
 import { ROOM_KEY, animationMs, isBusy, isCovered, isLastFrame, playbackFor, roomOf, type Frame, type PlaybackView, type Room } from './playback'
 import { edgeCellKey, translateScene, type Scene, type SceneEdge, type SceneNode } from './scene'
@@ -148,7 +149,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	private normalise(shape: S, raw: Scene, room: Room | undefined) {
 		const fontSize = raw.metrics.fontSize * POINTER_FONT_SCALE
 		const labels = placePointers(this.getPointers(shape), (key) => this.pointerAnchorIn(shape, raw, key), fontSize)
-		const box = unionRoom(sceneRoom(raw), ...labels.map(({ label }) => roomOfBox(label)), room)
+		const box = unionRoom(sceneRoom(raw, this.sceneBadges?.(shape)), ...labels.map(({ label }) => roomOfBox(label)), room)
 		const offset = { x: box ? -box.minX : 0, y: box ? -box.minY : 0 }
 		return { scene: translateScene(raw, offset), offset }
 	}
@@ -160,8 +161,15 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	 */
 	withPlaybackRoom(shape: S, frames: readonly Frame[] | undefined): TLShapePartial<S> | undefined {
 		const offset = this.layoutOffset(shape)
-		const steps = (frames ?? []).filter((f) => f.scene || f.props).map((f) => translateScene(this.displayScene(shape, f), Vec.Neg(offset)))
-		const room = unionRoom(...steps.map(sceneRoom))
+		// Every step's drawing with the badges shown by then (they add up, step by step: BFS's order,
+		// Dijkstra's distances), so the box holds them too.
+		const badges: Record<string, string> = {}
+		const steps = (frames ?? []).map((f) => {
+			Object.assign(badges, f.badges)
+			const scene = f.scene || f.props ? this.displayScene(shape, f) : this.getScene(shape)
+			return sceneRoom(translateScene(scene, Vec.Neg(offset)), badges)
+		})
+		const room = unionRoom(...steps)
 		const current = roomOf(shape)
 		if (room ? current && sameRoom(room, current) : !current) return undefined
 		// Meta updates merge key by key: null takes the room away.
@@ -246,7 +254,11 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 					(p) => new Point2d({ point: Vec.Add(p, offset), margin: 0, isInternal: true })
 				)
 			: []
-		const children = [...nodes, ...edges, ...labels, ...this.pointerGeometry(shape), ...corners]
+		// Badges beside nodes (a graph's degrees, a tree's heights): drawn, so in the box, but not clicked.
+		const badges = badgeBoxes(scene, this.sceneBadges?.(shape)).flatMap((b) =>
+			[new Vec(b.x, b.y), new Vec(b.x + b.w, b.y + b.h)].map((point) => new Point2d({ point, margin: 0, isInternal: true }))
+		)
+		const children = [...nodes, ...edges, ...labels, ...this.pointerGeometry(shape), ...corners, ...badges]
 		return children.length ? new Group2d({ children }) : new Rectangle2d({ width: 1, height: 1, isFilled: false })
 	}
 
@@ -280,50 +292,55 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 				<SVGContainer>
 					{this.sceneSvg(shape, colors, playing, { scene, hover, animate: true })}
 
-					{controls &&
-						!busy &&
-						this.growGrips(shape).map((grip) => (
-							<GrowGrip key={grip.id} at={grip.at} zoom={zoom} colors={colors} />
-						))}
+					{controls && !busy && (
+						<InFront id={shape.id} svg>
+							{this.growGrips(shape).map((grip) => (
+								<GrowGrip key={grip.id} at={grip.at} zoom={zoom} colors={colors} />
+							))}
+						</InFront>
+					)}
 					{/* A step's own pointers (or the shape's on a step's scene) are drawn by the play overlay. */}
 					{!this.framePointers(shape, playing?.frame, scene) && this.renderPointers(shape, colors)}
 				</SVGContainer>
-				{controls && !busy && !this.editor.isIn('select.dragging_handle') && (
-					<Tracked
-						render={() => (
-							<>
-								{this.renderNodeAndEdgeButtons(shape, colors)}
-								{this.renderStructureControls?.(shape, colors)}
-							</>
-						)}
-					/>
-				)}
-				{controls && prompt && !promptOpen && !busy && (
-					<ControlButton
-						editor={this.editor}
-						kind="insert"
-						at={prompt.at}
-						label={prompt.label}
-						testId="insert-key"
-						colors={colors}
-						onPress={() => openPrompt(this.editor, shape.id)}
-					/>
-				)}
+				{/* Controls reach outside the shape's box: drawn in front of the canvas (`InFront`), not in it. */}
+				<InFront id={shape.id}>
+					{controls && !busy && !this.editor.isIn('select.dragging_handle') && (
+						<Tracked
+							render={() => (
+								<>
+									{this.renderNodeAndEdgeButtons(shape, colors)}
+									{this.renderStructureControls?.(shape, colors)}
+								</>
+							)}
+						/>
+					)}
+					{controls && prompt && !promptOpen && !busy && (
+						<ControlButton
+							editor={this.editor}
+							kind="insert"
+							at={prompt.at}
+							label={prompt.label}
+							testId="insert-key"
+							colors={colors}
+							onPress={() => openPrompt(this.editor, shape.id)}
+						/>
+					)}
+					{prompt && promptOpen && (
+						<KeyPrompt
+							editor={this.editor}
+							at={prompt.at}
+							label={prompt.label}
+							colors={colors}
+							onCancel={() => closePrompt(this.editor)}
+							onSubmit={(value, keep) => {
+								closePrompt(this.editor)
+								const current = this.editor.getShape(shape.id) as S | undefined
+								if (current) this.insertKey?.(current, value, keep)
+							}}
+						/>
+					)}
+				</InFront>
 				{this.renderOperationPrompt(shape, colors)}
-				{prompt && promptOpen && (
-					<KeyPrompt
-						editor={this.editor}
-						at={prompt.at}
-						label={prompt.label}
-						colors={colors}
-						onCancel={() => closePrompt(this.editor)}
-						onSubmit={(value, keep) => {
-							closePrompt(this.editor)
-							const current = this.editor.getShape(shape.id) as S | undefined
-							if (current) this.insertKey?.(current, value, keep)
-						}}
-					/>
-				)}
 				{this.renderPointerOverlays(shape, colors)}
 				{this.renderCellEditor(shape)}
 			</>
@@ -597,8 +614,9 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		playing: PlaybackView | undefined,
 		{ scene = this.displayScene(shape), hover, animate = false }: { scene?: Scene; hover?: Marks; animate?: boolean } = {}
 	) {
-		// Gliding, the scene is drawn in layout coordinates at the layout offset, which jumps.
-		const origin = animate && this.glides ? this.layoutOffset(shape) : undefined
+		// Gliding, the scene is drawn in layout coordinates at the layout offset, which jumps. Only while
+		// an operation is open: its room holds every step, so nodes glide inside the shape's box.
+		const origin = animate && this.glides && playing ? this.layoutOffset(shape) : undefined
 		return (
 			<SceneSvg
 				scene={origin ? translateScene(scene, Vec.Neg(origin)) : scene}
@@ -769,8 +787,9 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 /** How long a node takes to glide to its new place (shapes with `glides`), at 1x. */
 const GLIDE_MS = 450
 
-function sceneRoom(scene: Scene): Room | undefined {
+function sceneRoom(scene: Scene, badges?: Readonly<Record<string, string>>): Room | undefined {
 	const boxes: Room[] = scene.nodes.map((n) => ({ minX: n.x - n.w / 2, minY: n.y - n.h / 2, maxX: n.x + n.w / 2, maxY: n.y + n.h / 2 }))
+	boxes.push(...badgeBoxes(scene, badges).map(roomOfBox))
 	for (const [key, route] of routeScene(scene)) {
 		for (const p of route.points) boxes.push({ minX: p.x, minY: p.y, maxX: p.x, maxY: p.y })
 		const label = scene.edges.find((e) => e.key === key)?.label

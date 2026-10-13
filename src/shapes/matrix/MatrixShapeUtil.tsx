@@ -47,6 +47,7 @@ import {
 	type Grid,
 } from './model'
 import { colKey, isSortedMatrix, rowKey, staircaseSearch, transposeSteps, traverse, type MatrixOperation } from './operations'
+import { InFront } from '../../controls/InFront'
 
 const GROW_COLS = 'grow-cols'
 const GROW_ROWS = 'grow-rows'
@@ -372,10 +373,10 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 						cues={showsColourCues()}
 					/>
 					{controls && (
-						<>
+						<InFront id={shape.id} svg>
 							<GrowGrip at={layout.growCols} zoom={zoom} colors={colors} />
 							<GrowGrip at={layout.growRows} zoom={zoom} colors={colors} />
-						</>
+						</InFront>
 					)}
 				</SVGContainer>
 				{this.renderOperationPrompt(shape, colors)}

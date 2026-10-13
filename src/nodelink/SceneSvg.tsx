@@ -3,7 +3,7 @@ import { getColorValue, type TLDefaultColorStyle, type TLThemeColors } from 'tld
 import { CueBadge } from '../cells/CueBadge'
 import { cueBadgeAt, cueDash } from '../cells/cues'
 import type { MarkColor, Marks } from '../cells/marks'
-import { arrowHead, badgeDirection, boundaryPoint, labelBox, routeScene, valueBox } from './geometry'
+import { arrowHead, badgeCircle, badgeDirection, labelBox, routeScene, valueBox } from './geometry'
 import type { Strip } from './playback'
 import { edgeCellKey, type Scene, type SceneMetrics, type SceneNode } from './scene'
 
@@ -369,10 +369,7 @@ function NodeBadge({
 	paint: Paint
 	fading: boolean
 }) {
-	const r = paint.labelFontSize * 0.78 * Math.max(1, text.length * 0.6)
-	const edge = boundaryPoint(node, { x: node.x + direction.x * node.w, y: node.y + direction.y * node.h })
-	const x = edge.x + direction.x * r * 0.75
-	const y = edge.y + direction.y * r * 0.75
+	const { x, y, r } = badgeCircle(node, direction, text, paint.labelFontSize)
 	return (
 		<g className={fading ? 'drawds-flash drawds-flash-fade' : 'drawds-flash'}>
 			<circle cx={x} cy={y} r={r} fill={paint.background} stroke={paint.text} strokeWidth={paint.strokeWidth * 0.8} />

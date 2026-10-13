@@ -68,6 +68,7 @@ import {
 	transpose,
 	type GraphModel,
 } from './model'
+import { InFront } from '../../controls/InFront'
 
 /**
  * A graph: nodes where the teacher put them, edges between them. Live moves on the selected graph:
@@ -690,27 +691,29 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 			<>
 				{super.component(shape)}
 				<SVGContainer>
-					{gripping && (
-						<Tracked
-							render={() => {
-								const { showNode } = this.controlTargets(shape)
-								return scene.nodes
-									.filter((n) => showNode(n.key))
-									.map((n) => <GrowGrip key={n.key} at={connectGripAt(n)} zoom={zoom} colors={colors} />)
-							}}
-						/>
-					)}
-					{dragging && (
-						<ConnectPreview
-							scene={scene}
-							drag={dragging}
-							directed={shape.props.direction === 'directed'}
-							nextLabel={nextLabel(shape.props.nodes, shape.props.labels)}
-							fontFamily={this.getFontFamily(shape)}
-							zoom={zoom}
-							colors={colors}
-						/>
-					)}
+					<InFront id={shape.id} svg>
+						{gripping && (
+							<Tracked
+								render={() => {
+									const { showNode } = this.controlTargets(shape)
+									return scene.nodes
+										.filter((n) => showNode(n.key))
+										.map((n) => <GrowGrip key={n.key} at={connectGripAt(n)} zoom={zoom} colors={colors} />)
+								}}
+							/>
+						)}
+						{dragging && (
+							<ConnectPreview
+								scene={scene}
+								drag={dragging}
+								directed={shape.props.direction === 'directed'}
+								nextLabel={nextLabel(shape.props.nodes, shape.props.labels)}
+								fontFamily={this.getFontFamily(shape)}
+								zoom={zoom}
+								colors={colors}
+							/>
+						)}
+					</InFront>
 				</SVGContainer>
 			</>
 		)

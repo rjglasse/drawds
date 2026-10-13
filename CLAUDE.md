@@ -695,6 +695,11 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
 - Render shapes as SVG via one component shared by `component()` and `toSvg()` so export matches the canvas.
 - Everything a shape draws must start at its origin and lie inside its geometry bounds: tldraw places the shape's
   box at the origin, sized to the bounds, and content outside it leaves ghosts when the camera moves (dds-55z.29).
+  Controls that reach outside (x / + buttons, grips, insert-a-key, prompts, a drag's preview) go in front of the canvas:
+  wrap them in `<InFront id={shape.id}>` (`svg` for SVG children; `src/controls/InFront.tsx`), which portals them into a
+  layer that follows the camera as tldraw's shape layer does, in the shape's own space, so they are written as before
+  (dds-55z.37). Badges count in the box (`sceneBadges`) and in an operation's room (each step's badges); node-link
+  glides only while an operation is open. `e2e/bounds.e2e.ts` measures what reaches past each box.
   Node-link scenes are moved there automatically (`getScene` is the moved layout; models and `getGrowGrips` use
   layout coordinates; handles convert with `layoutOffset(initial)`); arrays make room in `getArrayMetrics().origin`.
   When the offset changes, `CellShapeUtil.onBeforeUpdate` moves the shape so nothing shifts on the page. While an

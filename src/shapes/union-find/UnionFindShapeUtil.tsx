@@ -18,6 +18,7 @@ import { isBusy, playbackFor } from '../../nodelink/playback'
 import { showsStructureControls } from '../../controls/visibility'
 import { canSetParent, findPath, randomUnions, recount, singletons, type Forest } from './union-find'
 import { UNION_FIND_SHAPE_TYPE, unionFindShapeMigrations, unionFindShapeProps, type UnionFindShape } from './union-find-shape-types'
+import { InFront } from '../../controls/InFront'
 
 /**
  * Union-find (disjoint sets): a forest of parent pointers, drawn as trees whose arrows point up to
@@ -220,7 +221,9 @@ export class UnionFindShapeUtil extends NodeLinkShapeUtil<UnionFindShape> {
 				{super.component(shape)}
 				{drag?.shapeId === shape.id && showsStructureControls(this.editor, shape) && (
 					<SVGContainer>
-						<UnionPreview shape={shape} drag={drag} scene={this.getScene(shape)} zoom={this.editor.getZoomLevel()} colors={colors} fontFamily={this.getFontFamily(shape)} />
+						<InFront id={shape.id} svg>
+							<UnionPreview shape={shape} drag={drag} scene={this.getScene(shape)} zoom={this.editor.getZoomLevel()} colors={colors} fontFamily={this.getFontFamily(shape)} />
+						</InFront>
 					</SVGContainer>
 				)}
 			</>

@@ -177,19 +177,18 @@ test("drag an element's grip onto another to union them, step by step; Same set 
 	await expect(caption(page)).toHaveText('ra == rb: both roots are 0, so 6 and 1 are in the same set (true)')
 })
 
-test('as trees merge, nodes glide to their new places (graphs, whose nodes follow the pointer, don\'t)', async ({ page }) => {
+test('as a union plays, nodes glide to their new places (only while it is open; graphs never)', async ({ page }) => {
 	await sketchUnionFind(page, [300, 300], 4)
 	const glides = page.locator('[data-shape-type="union-find"] g.drawds-glide')
+	// At rest nothing glides: an instant change (a parent typed) jumps.
+	expect(await glides.count()).toBe(0)
+	await ufOp(page, 0, 'uf-union', '1')
+	await expect(page.getByTestId('play-bar')).toBeVisible()
 	await expect.poll(() => glides.count()).toBeGreaterThan(0)
 	expect(await glides.first().evaluate((el) => getComputedStyle(el).transitionProperty)).toContain('transform')
-	const node1 = () => page.evaluate(() => document.querySelectorAll('[data-shape-type="union-find"] g.drawds-glide')[1]?.getAttribute('style'))
-	const before = await node1()
-	await page.evaluate(() => {
-		const e = window.editor!
-		const s = e.getOnlySelectedShape()!
-		void e.updateShape({ id: s.id, type: 'union-find', props: { parent: [0, 0, 2, 3], sizes: [2, 1, 1, 1] } })
-	})
-	await expect.poll(node1).not.toBe(before)
+	await page.keyboard.press('Enter')
+	await expect(page.getByTestId('play-bar')).toBeHidden()
+	await expect.poll(() => glides.count()).toBe(0)
 	await sketchGraph(page, [300, 650], 3)
 	expect(await page.locator('[data-shape-type="graph"] .drawds-glide').count()).toBe(0)
 })

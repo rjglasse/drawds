@@ -105,6 +105,7 @@ import {
 } from './layout'
 import { bandReach, type Band } from '../../controls/BandSvg'
 import { cellHandleId, cellOfHandle, crossSlides, frameSlides, orderSlides, swapCells, swapState, type Slides, type SwapDrag } from './swap'
+import { InFront } from '../../controls/InFront'
 
 /** How long values take to arc into their new cells (a swap, a sort, a shift). */
 export const SLIDE_MS = 450
@@ -1326,21 +1327,25 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 					/>
 					{!framePointers && this.renderPointers(shape, colors)}
 					{showsStructureControls(this.editor, shape) && !isBusy(playing) && (
-						<GrowGrip at={this.growPoint(shape)} zoom={this.editor.getZoomLevel()} colors={colors} />
+						<InFront id={shape.id} svg>
+							<GrowGrip at={this.growPoint(shape)} zoom={this.editor.getZoomLevel()} colors={colors} />
+						</InFront>
 					)}
 				</SVGContainer>
 				{showsStructureControls(this.editor, shape) &&
 					!isBusy(playing) &&
 					this.editor.isIn('select.idle') && (
-						// Apart from the array, so the pointer moving redraws only the buttons.
-						<Tracked
-							render={() => (
-								<>
-									{this.renderCellButtons(shape, colors)}
-									{this.renderKindButtons(shape, colors)}
-								</>
-							)}
-						/>
+						// Apart from the array, so the pointer moving redraws only the buttons; in front of the canvas.
+						<InFront id={shape.id}>
+							<Tracked
+								render={() => (
+									<>
+										{this.renderCellButtons(shape, colors)}
+										{this.renderKindButtons(shape, colors)}
+									</>
+								)}
+							/>
+						</InFront>
 					)}
 				{this.renderOperationPrompt(shape, colors)}
 				{this.renderPointerOverlays(shape, colors)}

@@ -34,6 +34,7 @@ import { cleanCopy } from '../cells/clean-copy'
 import { CUE_GLYPHS, setColourCues, showsColourCues } from '../cells/cues'
 import { MARK_COLORS, MARK_MEANINGS, type MarkColor } from '../cells/marks'
 import { PlaybackOverlay } from '../controls/PlaybackOverlay'
+import { ControlsLayer } from '../controls/InFront'
 import { openBoard, saveBoard } from '../files/board'
 import { LessonDialog } from '../lesson/LessonDialog'
 import type { CodeLanguage } from '../shapes/code/highlight'
@@ -529,7 +530,13 @@ function RelayoutMenuItem() {
 }
 
 export const components: TLComponents = {
-	InFrontOfTheCanvas: PlaybackOverlay,
+	// The structures' controls (drawn apart from their shapes), then an operation's bar and strips over them.
+	InFrontOfTheCanvas: () => (
+		<>
+			<ControlsLayer />
+			<PlaybackOverlay />
+		</>
+	),
 	TopPanel: SoundButton,
 	MainMenu: (props) => (
 		<DefaultMainMenu {...props}>
