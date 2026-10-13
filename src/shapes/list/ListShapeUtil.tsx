@@ -1,7 +1,7 @@
 import { Vec, type TLShapePartial, type VecLike } from 'tldraw'
 import { pruneMarks } from '../../cells/marks'
 import { fillValues } from '../../data/fill'
-import type { Refillable } from '../../data/fill-style'
+import { rerollShape, type Refillable } from '../../data/fill-style'
 import { GROW_HANDLE_ID, GROW_START_HANDLE_ID, grownCount } from '../../controls/grow'
 import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { ControlButton } from '../../controls/ControlButton'
@@ -289,7 +289,10 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 	// as the + and x beside the top, or the rear and front (renderStructureControls).
 
 	override shapeOperations(shape: ListShape): NodeOperation[] {
-		return [...this.kindOperations(shape), ...this.sizeOperations(shape)]
+		const reroll: NodeOperation[] = shape.props.nodes.length
+			? [{ section: 'actions', id: 'list-reroll', label: 'New values', run: () => rerollShape(this.editor, shape.id) }]
+			: []
+		return [...this.kindOperations(shape), ...this.sizeOperations(shape), ...reroll]
 	}
 
 	/**

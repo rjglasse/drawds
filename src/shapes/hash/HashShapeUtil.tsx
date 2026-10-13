@@ -2,8 +2,7 @@ import type { TLShapePartial, VecLike } from 'tldraw'
 import { pruneMarks, swapMarks } from '../../cells/marks'
 import { prunePointers } from '../../pointers/pointers'
 import { fillValues } from '../../data/fill'
-import type { Refillable } from '../../data/fill-style'
-import { newSeed } from '../../data/random'
+import { rerollShape, type Refillable } from '../../data/fill-style'
 import { renameEditingCell } from '../../cells/editable-cells'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import { playOperation, type Frame } from '../../nodelink/playback'
@@ -127,6 +126,11 @@ export class HashShapeUtil extends NodeLinkShapeUtil<HashShape> implements Refil
 		return invariant === 'check' ? misplaced(buckets, shape.props) : []
 	}
 
+	/** The names its code uses: the bucket or slot i, and chaining's x (the chain node) or probing's tomb (a deleted slot). */
+	pointerNames(shape: HashShape) {
+		return shape.props.strategy === 'chaining' ? ['i', 'x'] : ['i', 'tomb']
+	}
+
 	/** A probing step's i points at its slot from the right (the indices are on the left). */
 	override pointerSide(_shape: HashShape, _node: SceneNode): PointerSide {
 		return 'right'
@@ -188,7 +192,7 @@ export class HashShapeUtil extends NodeLinkShapeUtil<HashShape> implements Refil
 			...(shape.props.buckets.length < MAX_BUCKETS && shape.props.code !== 'direct'
 				? [{ ...table, id: 'hash-rehash', label: 'Grow and rehash', run: () => this.run(id, 'rehash', (s) => rehash(s.props.buckets, s.props)) }]
 				: []),
-			{ section: 'actions', id: 'hash-reroll', label: 'New keys', run: () => this.reroll(id) },
+			{ section: 'actions', id: 'hash-reroll', label: 'New keys', run: () => rerollShape(this.editor, id, 'new keys') },
 			// Every move made on it, as code.
 			{
 				section: 'show',
@@ -262,15 +266,6 @@ export class HashShapeUtil extends NodeLinkShapeUtil<HashShape> implements Refil
 			withMarks: (_update, highlights) =>
 				this.update(shape, { ...(buckets ? { buckets } : {}), marks: { ...shape.props.marks, ...highlights } }),
 		})
-	}
-
-	private reroll(id: HashShape['id']) {
-		const shape = this.editor.getShape(id) as HashShape | undefined
-		if (!shape) return
-		const seed = newSeed()
-		const refilled = this.refill({ ...shape, props: { ...shape.props, seed } })
-		this.editor.markHistoryStoppingPoint('new keys')
-		this.editor.updateShape(this.update(shape, { ...refilled.props, seed }))
 	}
 
 	/**

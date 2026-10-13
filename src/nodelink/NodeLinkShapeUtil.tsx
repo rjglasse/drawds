@@ -407,10 +407,11 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 					const edge = hoveredEdge(routeScene(at.scene), this.buttonEdgeKeys(at.shape), at.p, reach)
 					return edge === undefined ? '' : `edge:${edge}`
 				}),
-				// Only a node that lights something (a tree's path with terms shown, a graph's neighbours with degrees).
+				// Only a node that lights something (a tree's path with terms shown, a graph's neighbours with degrees,
+				// a trie's prefix: its nodes aren't typed into, so any element, not only an editable one).
 				under: computed(`hover under ${shape.id}`, () => {
 					const at = where()
-					const key = at && this.hoverHighlights && hoveredNode(at.scene.nodes.filter((n) => n.editable), at.p, 0)
+					const key = at && this.hoverHighlights && hoveredNode(at.scene.nodes.filter((n) => n.kind !== 'null' && n.kind !== 'label'), at.p, 0)
 					return key && Object.keys(this.hoverHighlights?.(at.shape, key) ?? {}).length ? key : ''
 				}),
 			}

@@ -2,7 +2,7 @@ import type { TLShapePartial } from 'tldraw'
 import { pruneMarks, swapMarks, type MarkColor, type Marks } from '../../cells/marks'
 import { fillValues } from '../../data/fill'
 import { mulberry32, newSeed } from '../../data/random'
-import type { Refillable } from '../../data/fill-style'
+import { rerollShape, type Refillable } from '../../data/fill-style'
 import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import type { Scene, SceneNode } from '../../nodelink/scene'
@@ -206,6 +206,8 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 	override shapeOperations(shape: HeapShape): NodeOperation[] {
 		return [
 			{ group: 'build', id: 'heap-build', label: 'Build the heap (Floyd)', run: () => this.buildHeap(shape.id) },
+			// New values, built into a heap; or these shuffled, no heap any more.
+			{ section: 'actions', id: 'heap-reroll', label: 'New values', run: () => rerollShape(this.editor, shape.id) },
 			{ section: 'actions', id: 'heap-shuffle', label: 'Shuffle values (not a heap any more)', run: () => this.shuffle(shape.id) },
 			{
 				section: 'show',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { trieScene } from './layout'
-import { deleteSteps, deleteWord, hasWord, insertSteps, insertWord, prefixSteps, searchSteps, sketchWords, trieOf, trieWord, wordsOf } from './trie'
+import { deleteSteps, deleteWord, hasWord, insertSteps, insertWord, prefixPath, prefixSteps, searchSteps, sketchWords, trieOf, trieWord, wordsOf } from './trie'
 
 const trie = trieOf(['tea', 'ten', 'to', 'inn', 'in', 'ted'])
 const ids = (nodes: { id: string }[]) => nodes.map((n) => n.id).sort()
@@ -86,5 +86,13 @@ describe('step by step', () => {
 		const gone = deleteSteps(trieOf(['to', 'tea']), 'tea')
 		expect(gone.frames.map((f) => f.line)).toEqual(['down', 'down', 'down', 'unmark', 'prune', 'prune', 'keep'])
 		expect(deleteSteps(trie, 'te').frames.at(-1)!.caption).toBe('"te" isn\'t in the trie: nothing to delete')
+	})
+})
+
+describe('pointing at a node', () => {
+	it('lights the prefix it stands for: the path down from the root, the node itself blue', () => {
+		expect(prefixPath('^te')).toEqual({ '^': 'orange', 'edge:^->^t': 'orange', '^t': 'orange', 'edge:^t->^te': 'orange', '^te': 'blue' })
+		expect(prefixPath('^')).toEqual({ '^': 'blue' })
+		expect(prefixPath('#null')).toEqual({})
 	})
 })

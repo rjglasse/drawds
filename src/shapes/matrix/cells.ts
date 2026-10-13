@@ -1,13 +1,25 @@
 import type { CellDirection, EditableCells } from '../../cells/editable-cells'
+import { POINTER_FONT_SCALE, pointerReach, pointerReachSideways } from '../../pointers/layout'
 import { cellKey, colKey, getMatrixLayout, getMatrixMetrics, parseCellKey, parseHeaderKey, rowKey } from './layout'
 import { MATRIX_SHAPE_TYPE, type MatrixShape } from './matrix-shape-types'
 import { colsOf, rowsOf } from './model'
 
 export const layoutOf = (shape: MatrixShape) =>
-	getMatrixLayout(rowsOf(shape.props.values), colsOf(shape.props.values), getMatrixMetrics(shape.props.size), {
-		rows: shape.props.rowLabels,
-		cols: shape.props.colLabels,
-	})
+	getMatrixLayout(rowsOf(shape.props.values), colsOf(shape.props.values), getMatrixMetrics(shape.props.size), headersOf(shape))
+
+/** A matrix's headers as its layout takes them: their labels, and room for its pointers. */
+export const headersOf = (shape: MatrixShape) => ({ rows: shape.props.rowLabels, cols: shape.props.colLabels, room: pointerRoom(shape) })
+
+/**
+ * Room for the matrix's own pointers: a row's (i) left of its header, stacked, as wide as the widest
+ * label and its arrow; a column's (j) above its header, one row of labels.
+ */
+export function pointerRoom(shape: MatrixShape) {
+	const fontSize = getMatrixMetrics(shape.props.size).fontSize * POINTER_FONT_SCALE
+	const on = (kind: 'row' | 'col') => shape.props.pointers.filter((p) => parseHeaderKey(p.at)?.[0] === kind).map((p) => p.name)
+	const cols = on('col')
+	return { left: pointerReachSideways(on('row'), fontSize), top: cols.length ? pointerReach(fontSize) : 0 }
+}
 
 /** `labels` with label `i` set, as long as the rows (or columns) it labels. */
 export function setLabel(labels: readonly string[], count: number, i: number, value: string): string[] {

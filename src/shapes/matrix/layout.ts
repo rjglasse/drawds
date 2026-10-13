@@ -27,6 +27,8 @@ export type MatrixMetrics = ReturnType<typeof getMatrixMetrics>
 export interface MatrixHeaders {
 	rows?: readonly string[]
 	cols?: readonly string[]
+	/** Room for the matrix's own pointers: their labels and arrows left of the row headers, above the column headers. */
+	room?: { left: number; top: number }
 }
 
 /** What a row's or column's header says: its label (typed or continued), else its index (smaller, fainter). */
@@ -85,10 +87,13 @@ export function getMatrixLayout(rows: number, cols: number, metrics: MatrixMetri
 	// The strip left of the rows: room for the widest header, as much either side of it as an index has.
 	const gap = (metrics.origin.x - indexW) / 2
 	const widest = Math.max(indexW, ...Array.from({ length: rows }, (_, r) => textW(rowHeader(r))))
-	const origin = { x: Math.max(metrics.origin.x, widest + 2 * gap), y: metrics.origin.y }
+	const strip = Math.max(metrics.origin.x, widest + 2 * gap)
+	// Pointers' room, left of the strip and above the column headers.
+	const room = headers.room ?? { left: 0, top: 0 }
+	const origin = { x: room.left + strip, y: room.top + metrics.origin.y }
 	const cells = { x: origin.x, y: origin.y, w: cols * cell, h: rows * cell }
-	const rowIndexAt = (r: number) => ({ x: origin.x / 2, y: origin.y + (r + 0.5) * cell })
-	const colIndexAt = (c: number) => ({ x: origin.x + (c + 0.5) * cell, y: origin.y / 2 })
+	const rowIndexAt = (r: number) => ({ x: room.left + strip / 2, y: origin.y + (r + 0.5) * cell })
+	const colIndexAt = (c: number) => ({ x: origin.x + (c + 0.5) * cell, y: room.top + metrics.origin.y / 2 })
 	const around = (at: VecLike, w: number) => ({ x: at.x - w / 2, y: at.y - indexFontSize * 0.7, w, h: indexFontSize * 1.4 })
 	return {
 		rows,
@@ -110,8 +115,8 @@ export function getMatrixLayout(rows: number, cols: number, metrics: MatrixMetri
 		headerAt(point) {
 			const c = Math.floor((point.x - origin.x) / cell)
 			const r = Math.floor((point.y - origin.y) / cell)
-			if (point.x >= 0 && point.x < origin.x && r >= 0 && r < rows) return rowKey(r)
-			if (point.y >= 0 && point.y < origin.y && c >= 0 && c < cols) return colKey(c)
+			if (point.x >= room.left && point.x < origin.x && r >= 0 && r < rows) return rowKey(r)
+			if (point.y >= room.top && point.y < origin.y && c >= 0 && c < cols) return colKey(c)
 			return undefined
 		},
 		growCols: { x: cells.x + cells.w + cell * 0.45, y: cells.y + cells.h / 2 },

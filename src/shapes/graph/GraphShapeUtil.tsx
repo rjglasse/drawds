@@ -55,6 +55,7 @@ import {
 	addEdge,
 	addNode,
 	degrees,
+	edgeWeight,
 	markKeys,
 	mergeTwins,
 	neighbourMarks,
@@ -69,6 +70,7 @@ import {
 	type GraphModel,
 } from './model'
 import { InFront } from '../../controls/InFront'
+import { rerollShape, type Redrawable } from '../../data/fill-style'
 
 /**
  * A graph: nodes where the teacher put them, edges between them. Live moves on the selected graph:
@@ -76,7 +78,7 @@ import { InFront } from '../../controls/InFront'
  * drag the + grip to place a lone node, x on a node or an edge to delete it, double-click a label
  * or weight to change it, and 1-4 on nodes and edges to mark them.
  */
-export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
+export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> implements Redrawable {
 	static override type = GRAPH_SHAPE_TYPE
 
 	/** A test reads vertices by their labels, and the strips' arrays by vertex (visited[w]). */
@@ -430,7 +432,18 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 						{ section: 'actions', group: 'layout', id: 'graph-layout-tidy', label: 'Tidy: edges even, nodes apart', run: () => this.change(shape.id, 'tidy', (s) => ({ nodes: tidyLayout(s.props), edges: s.props.edges })) },
 					]
 				: []
-		return [...views, ...turn, ...arrange, ...this.algorithmOperations(shape)]
+		// New weights on the same edges (shown weights only: Dijkstra, Prim and Kruskal run on them).
+		const reweigh: NodeOperation[] =
+			shape.props.weights === 'weighted' && shape.props.edges.length
+				? [{ section: 'actions', id: 'graph-reweigh', label: 'New weights', run: () => rerollShape(this.editor, shape.id, 'new weights') }]
+				: []
+		return [...views, ...turn, ...arrange, ...reweigh, ...this.algorithmOperations(shape)]
+	}
+
+	/** Its edges' weights drawn again from its seed (New weights): the same graph, other weights. */
+	redraw(shape: GraphShape): TLShapePartial<GraphShape> {
+		const { nodes, edges, seed } = shape.props
+		return this.withModel(shape, { nodes, edges: edges.map((e) => ({ ...e, weight: edgeWeight(seed, e.id) })) })
 	}
 
 	/** While an edge's end is dragged elsewhere, the edge isn't drawn where it was: the preview is where it goes. */

@@ -13,6 +13,18 @@ export const ROOT = '^'
 export const trieId = (prefix: string) => ROOT + prefix
 export const prefixOf = (id: string) => id.slice(ROOT.length)
 
+/** The prefix a node stands for, as pointing at it lights it: the path down from the root orange, the node blue. */
+export function prefixPath(id: string): Record<string, MarkColor> {
+	if (!id.startsWith(ROOT)) return {}
+	const prefix = prefixOf(id)
+	const marks: Record<string, MarkColor> = { [id]: 'blue' }
+	for (let i = 0; i < prefix.length; i++) {
+		marks[trieId(prefix.slice(0, i))] = 'orange'
+		marks[edgeCellKey(`${trieId(prefix.slice(0, i))}->${trieId(prefix.slice(0, i + 1))}`)] = 'orange'
+	}
+	return marks
+}
+
 const CURRENT: MarkColor = 'orange'
 const ADDED: MarkColor = 'green'
 const MISSING: MarkColor = 'red'

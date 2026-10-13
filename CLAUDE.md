@@ -216,7 +216,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   counts on; names move with their rows and columns, but when every header is numbered they number the places
   (`shiftLabels`), so an insert or delete keeps the addresses in order. `operations.ts`: row- vs column-major
   traversal with a "place in memory" strip, transpose (swaps across the diagonal), staircase search (sorted
-  matrices); step pointers i / j sit at `row:<r>` / `col:<c>` (the index labels).
+  matrices); step pointers i / j sit at `row:<r>` / `col:<c>` (the index labels), and so do the teacher's (names i, j,
+  k; drawn left of a row's index and above a column's, room kept by `pointerRoom` in `cells.ts`; arrows step a row's
+  pointer up and down, a column's along). Pointers on cells: not yet (a label inside the grid covers a neighbour).
 - `src/shapes/graph-view/` - a graph's adjacency matrix, adjacency lists or Kruskal's union-find as a separate shape
   (`graphId`, style `drawds:graph-view`), redrawn from the graph as it renders (`model.ts` is pure; rows, columns and
   lists in label order, as BFS / DFS visit neighbours). The union-find view draws `Frame.sets` (Kruskal's frames carry
@@ -755,6 +757,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   ArraySvg and MatrixSvg; a new renderer of marks or highlights must draw them too. The Mark menu shows the glyphs.
 - Random fills are distinct (`random`, `letters`; sorted modes strictly monotone) until the pool runs out;
   growth and insertion skip values already present. `repeats` keeps duplicates.
+- New values: every structure with random contents has one in its own menu (`rerollShape` in `fill-style.ts`: a new
+  seed, then the util's `refill`, or `redraw` for content that isn't a fill, a trie's words, a graph's weights, so a
+  fill picked for other shapes selected with it leaves them alone), one undo step; a BST stays in order, a heap a heap.
+- Hover highlights (`hoverHighlights`): always on where they are how the structure is read (a heap's index
+  arithmetic, union-find's way up, a trie's prefix path); with their Show toggle where they teach a concept (a tree's
+  path and subtree with Tree terms, a graph's neighbours with Degrees).
 - Child slots: implement `getEmptySlots` + `addChildAt`; the base draws a + on the hovered node's lower-left /
   lower-right corner per empty slot and opens the new child for editing.
 - Animated operations: implement `removeNodeAnimated` and/or `getInsertPrompt` + `insertKey`, build frames and

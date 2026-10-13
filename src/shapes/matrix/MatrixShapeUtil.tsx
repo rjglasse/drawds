@@ -13,7 +13,7 @@ import {
 	type TLThemeColors,
 	type VecLike,
 } from 'tldraw'
-import { CellShapeUtil, type NodeOperation, type PlaybackLayout } from '../../cells/CellShapeUtil'
+import { CellShapeUtil, type NodeOperation, type PlaybackLayout, type PointerDirection } from '../../cells/CellShapeUtil'
 import { CueBadge } from '../../cells/CueBadge'
 import { exportingStep } from '../../export/exporting'
 import { StepExtrasSvg } from '../../export/StepExtrasSvg'
@@ -27,7 +27,7 @@ import { newSeed } from '../../data/random'
 import { animationMs, isBusy, playOperation, playbackFor, type Frame } from '../../nodelink/playback'
 import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
 import { placePointers, type PointerAnchor } from '../../pointers/layout'
-import { layoutOf, matrixCells } from './cells'
+import { headersOf, layoutOf, matrixCells, pointerRoom } from './cells'
 import { cellKey, getMatrixLayout, getMatrixMetrics, parseCellKey, parseHeaderKey, type MatrixHeaders, type MatrixMetrics } from './layout'
 import { MATRIX_SHAPE_TYPE, MAX_MATRIX, matrixShapeMigrations, matrixShapeProps, type MatrixShape } from './matrix-shape-types'
 import {
@@ -91,9 +91,14 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 		return getMatrixLayout(rowsOf(values), colsOf(values), getMatrixMetrics(shape.props.size), headersOf(shape))
 	}
 
-	/** Labelled rows widen the strip on their left; the cells stay put on the page (see `onBeforeUpdate`). */
+	/**
+	 * Labelled rows widen the strip on their left, and its pointers take room left of the rows and above
+	 * the columns; the cells stay put on the page (see `onBeforeUpdate`).
+	 */
 	override layoutOffset(shape: MatrixShape): VecLike {
-		return { x: layoutOf(shape).cells.x - getMatrixMetrics(shape.props.size).origin.x, y: 0 }
+		const { cells } = layoutOf(shape)
+		const { origin } = getMatrixMetrics(shape.props.size)
+		return { x: cells.x - origin.x, y: cells.y - origin.y }
 	}
 
 	getGeometry(shape: MatrixShape) {
@@ -323,6 +328,22 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 		return undefined
 	}
 
+	/** A row's pointer (i) steps up and down the rows, a column's (j) along the columns. */
+	pointerStep(shape: MatrixShape, key: string, direction: PointerDirection): string | undefined {
+		const header = parseHeaderKey(key)
+		if (!header) return undefined
+		const [kind, i] = header
+		const step = kind === 'row' ? { up: -1, down: 1, left: 0, right: 0 }[direction] : { left: -1, right: 1, up: 0, down: 0 }[direction]
+		const count = kind === 'row' ? rowsOf(shape.props.values) : colsOf(shape.props.values)
+		const next = i + step
+		return step && next >= 0 && next < count ? `${kind}:${next}` : undefined
+	}
+
+	/** A row's index i, a column's j (as the loops name them). */
+	pointerNames() {
+		return ['i', 'j', 'k']
+	}
+
 	/** The values being shown: while an operation plays, its step's. */
 	displayValues(shape: MatrixShape, frame: Frame | undefined = playbackFor(this.editor, shape.id)?.frame): Grid {
 		return (frame?.props as { values?: Grid } | undefined)?.values ?? shape.props.values
@@ -373,6 +394,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 						swaps={frame?.swaps?.length && playing ? { pairs: frame.swaps, id: playing.id, ms: animationMs(SWAP_MS, playing) } : undefined}
 						cues={showsColourCues()}
 					/>
+					{!frame?.pointers && this.renderPointers(shape, colors)}
 					{controls && (
 						<InFront id={shape.id} svg>
 							<GrowGrip at={layout.growCols} zoom={zoom} colors={colors} />
@@ -381,6 +403,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 					)}
 				</SVGContainer>
 				{this.renderOperationPrompt(shape, colors)}
+				{this.renderPointerOverlays(shape, colors)}
 				{this.renderCellEditor(shape)}
 			</>
 		)
@@ -405,21 +428,25 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 						dim={step.dim ?? []}
 						cues={showsColourCues()}
 					/>
+					{!step.frame?.pointers && this.renderPointers(shape, colors, { exporting: true })}
 					<StepExtrasSvg util={this as unknown as CellShapeUtil<TLShape>} shape={shape} view={step} colors={colors} />
 				</>
 			)
 		}
 		return (
-			<MatrixSvg
-				values={shape.props.values}
-				{...labelsOf(shape)}
-				marks={shape.props.marks}
-				color={shape.props.color}
-				metrics={getMatrixMetrics(shape.props.size)}
-				colors={colors}
-				fontFamily={this.getFontFamily(shape)}
-				cues={showsColourCues()}
-			/>
+			<>
+				<MatrixSvg
+					values={shape.props.values}
+					{...labelsOf(shape)}
+					marks={shape.props.marks}
+					color={shape.props.color}
+					metrics={getMatrixMetrics(shape.props.size)}
+					colors={colors}
+					fontFamily={this.getFontFamily(shape)}
+					cues={showsColourCues()}
+				/>
+				{this.renderPointers(shape, colors, { exporting: true })}
+			</>
 		)
 	}
 
@@ -445,8 +472,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 	}
 }
 
-const headersOf = (shape: MatrixShape): MatrixHeaders => ({ rows: shape.props.rowLabels, cols: shape.props.colLabels })
-const labelsOf = (shape: MatrixShape) => ({ rowLabels: shape.props.rowLabels, colLabels: shape.props.colLabels })
+const labelsOf = (shape: MatrixShape) => ({ rowLabels: shape.props.rowLabels, colLabels: shape.props.colLabels, room: pointerRoom(shape) })
 
 /**
  * The grid: cells, marks and a step's highlights, faded cells, values (swapping ones arc), and the
@@ -467,6 +493,7 @@ export function MatrixSvg({
 	swaps,
 	rowLabels,
 	colLabels,
+	room,
 	cues,
 }: {
 	values: Grid
@@ -484,11 +511,13 @@ export function MatrixSvg({
 	/** Headers in place of the indices ('' keeps the index). */
 	rowLabels?: readonly string[]
 	colLabels?: readonly string[]
+	/** Room for the matrix's own pointers (`pointerRoom`), left of the rows and above the columns. */
+	room?: MatrixHeaders['room']
 	/** Colour-blind cues: marked and highlighted cells and headers get a shape badge (`cues.ts`). */
 	cues?: boolean
 }) {
 	const [rows, cols] = [rowsOf(values), colsOf(values)]
-	const layout = getMatrixLayout(rows, cols, metrics, { rows: rowLabels, cols: colLabels })
+	const layout = getMatrixLayout(rows, cols, metrics, { rows: rowLabels, cols: colLabels, room })
 	const { cells } = layout
 	const { cell, strokeWidth } = metrics
 	const stroke = getColorValue(colors, color, 'solid')

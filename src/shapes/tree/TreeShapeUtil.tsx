@@ -3,7 +3,7 @@ import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
 import { pruneMarks, type Marks } from '../../cells/marks'
 import { compareKeys } from '../../data/compare'
 import { fillValues, insertValue } from '../../data/fill'
-import type { Refillable } from '../../data/fill-style'
+import { rerollShape, type Refillable } from '../../data/fill-style'
 import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import { prunePointers } from '../../pointers/pointers'
@@ -271,7 +271,9 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 			label: transcriptsOf(this.editor, shape.id).length ? 'Hide the code beside it' : 'Code beside it: every move as code',
 			run: () => toggleTranscript(this.editor, shape),
 		}
-		if (shape.props.kind !== 'bst' || shape.props.nodes.length < 2) return [terms, code]
+		// New values, a BST's in order.
+		const reroll: NodeOperation = { section: 'actions', id: 'tree-reroll', label: 'New values', run: () => rerollShape(this.editor, shape.id) }
+		if (shape.props.kind !== 'bst' || shape.props.nodes.length < 2) return [terms, code, reroll]
 		const build = { group: 'build' }
 		return [
 			...(['sorted', 'shuffled'] as const).map((order) => ({
@@ -282,6 +284,7 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 			})),
 			terms,
 			code,
+			reroll,
 		]
 	}
 

@@ -1,5 +1,6 @@
 import type { TLShapePartial, VecLike } from 'tldraw'
 import { pruneMarks, type Marks } from '../../cells/marks'
+import { rerollShape, type Redrawable } from '../../data/fill-style'
 import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
 import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
@@ -10,7 +11,7 @@ import { generalTreeMarkKeys } from '../general-tree/layout'
 import { parentOf } from '../tree/model'
 import type { TreeNode } from '../tree/tree-shape-types'
 import { trieBasePosition, trieScene } from './layout'
-import { deleteSteps, insertSteps, prefixOf, prefixSteps, ROOT, searchSteps, trieId, trieWord } from './trie'
+import { deleteSteps, insertSteps, MAX_SKETCH_WORDS, prefixOf, prefixPath, prefixSteps, ROOT, searchSteps, sketchWords, trieId, trieOf, trieWord, wordsOf } from './trie'
 import { TRIE_SHAPE_TYPE, trieShapeMigrations, trieShapeProps, type TrieShape } from './trie-shape-types'
 
 /**
@@ -18,7 +19,7 @@ import { TRIE_SHAPE_TYPE, trieShapeMigrations, trieShapeProps, type TrieShape } 
  * word ends shows it. Words go in and out step by step, with their code: insert, contains, the words
  * starting with a prefix (in alphabetical order, as a pre-order walk finds them), delete.
  */
-export class TrieShapeUtil extends NodeLinkShapeUtil<TrieShape> {
+export class TrieShapeUtil extends NodeLinkShapeUtil<TrieShape> implements Redrawable {
 	static override type = TRIE_SHAPE_TYPE
 	static override props = trieShapeProps
 	static override migrations = trieShapeMigrations
@@ -131,6 +132,7 @@ export class TrieShapeUtil extends NodeLinkShapeUtil<TrieShape> {
 			{ ...at, id: 'trie-search', label: 'Is a word in it? (contains)', group: 'search', prompt: 'Word to look for', run: (w?: string) => w !== undefined && this.search(shape.id, w) },
 			{ ...at, id: 'trie-prefix', label: 'Words starting with a prefix', group: 'search', prompt: 'Prefix', run: (w?: string) => w !== undefined && this.prefix(shape.id, w) },
 			{ id: 'trie-all-words', label: 'All its words, in order', group: 'search', run: () => this.prefix(shape.id, '') },
+			{ section: 'actions', id: 'trie-reroll', label: 'New words', run: () => rerollShape(this.editor, shape.id, 'new words') },
 			// Every word put in or taken out, as code.
 			{
 				section: 'show',
@@ -143,6 +145,20 @@ export class TrieShapeUtil extends NodeLinkShapeUtil<TrieShape> {
 
 	override menuName() {
 		return 'Trie'
+	}
+
+	/** As many words again (a sketch's, from the seed's place in the word list): New words. */
+	redraw(shape: TrieShape): TLShapePartial<TrieShape> {
+		const count = Math.min(MAX_SKETCH_WORDS, Math.max(1, wordsOf(shape.props.nodes).length))
+		return this.withNodes(shape, trieOf(sketchWords(shape.props.seed, count)))
+	}
+
+	/**
+	 * Pointing at a node lights the prefix it stands for, as a trie is read: the path down to it from the
+	 * root orange, the node blue (always, as a heap lights its index arithmetic).
+	 */
+	hoverHighlights(_shape: TrieShape, key: string): Marks {
+		return prefixPath(key)
 	}
 
 	override readonly menuId = 'trie'

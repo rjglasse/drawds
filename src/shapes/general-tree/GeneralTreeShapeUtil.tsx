@@ -3,7 +3,7 @@ import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
 import { pruneMarks, type Marks } from '../../cells/marks'
 import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { fillValues, insertValue } from '../../data/fill'
-import type { Refillable } from '../../data/fill-style'
+import { rerollShape, type Refillable } from '../../data/fill-style'
 import { NodeLinkShapeUtil, nodeCorner, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import { playbackFor, playOperation } from '../../nodelink/playback'
 import type { SceneNode } from '../../nodelink/scene'
@@ -258,6 +258,7 @@ export class GeneralTreeShapeUtil extends NodeLinkShapeUtil<GeneralTreeShape> im
 				label: transcriptsOf(this.editor, shape.id).length ? 'Hide the code beside it' : 'Code beside it: every move as code',
 				run: () => toggleTranscript(this.editor, shape),
 			},
+			{ section: 'actions', id: 'general-tree-reroll', label: 'New values', run: () => rerollShape(this.editor, shape.id) },
 		]
 	}
 

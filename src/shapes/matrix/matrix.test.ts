@@ -67,7 +67,7 @@ describe('matrix layout', () => {
 describe('matrix labels', () => {
 	const m = getMatrixMetrics('m')
 	const shape = (props: Partial<MatrixShape['props']> = {}) =>
-		({ id: 'shape:m', type: 'matrix', props: { values: grid(3, 2), size: 'm', rowLabels: [], colLabels: [], ...props } }) as unknown as MatrixShape
+		({ id: 'shape:m', type: 'matrix', props: { values: grid(3, 2), size: 'm', rowLabels: [], colLabels: [], pointers: [], ...props } }) as unknown as MatrixShape
 
 	it('edits a header like a cell: the index until a label is typed, blank brings the index back', () => {
 		expect(matrixCells.getValue(shape(), 'row:1')).toBe('1')

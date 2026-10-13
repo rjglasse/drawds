@@ -164,3 +164,28 @@ test('label the rows (addresses) and columns in place of the indices; numbers ca
 	expect(await cellAt(page, 0, 0)).toEqual([200, 200])
 	expect(await rowTexts()).toEqual(['0', '1', '2', '3'])
 })
+
+test('pointers on the headers: i on a row, j on a column, drawn beside them; the cells stay put; arrows step them', async ({ page }) => {
+	await sketchMatrix(page, [300, 200], 3, 3)
+	const cell = await cellAt(page, 1, 1)
+	await rightClick(page, await centreOf(page, 'row:1'))
+	await page.getByTestId('context-menu-sub.drawds-pointer-button').click()
+	await page.getByTestId('context-menu.pointer-i').click()
+	await rightClick(page, await centreOf(page, 'col:0'))
+	await page.getByTestId('context-menu-sub.drawds-pointer-button').click()
+	await page.getByTestId('context-menu.pointer-j').click()
+	expect((await matrix(page)).pointers.map((p) => `${p.name}@${p.at}`)).toEqual(['i@row:1', 'j@col:0'])
+	await expect(page.getByTestId('pointer-i')).toBeVisible()
+	await expect(page.getByTestId('pointer-j')).toBeVisible()
+	// Room for them came on the left and above: the cells didn't move.
+	expect(await cellAt(page, 1, 1)).toEqual(cell)
+
+	// i steps down the rows (not past the last), j along the columns.
+	await page.getByTestId('pointer-i').click()
+	for (let k = 0; k < 3; k++) await page.keyboard.press('ArrowDown')
+	await page.keyboard.press('Escape')
+	await page.getByTestId('pointer-j').click()
+	await page.keyboard.press('ArrowRight')
+	await page.keyboard.press('ArrowUp')
+	expect((await matrix(page)).pointers.map((p) => `${p.name}@${p.at}`)).toEqual(['i@row:2', 'j@col:1'])
+})
