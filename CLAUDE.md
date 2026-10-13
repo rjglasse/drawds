@@ -595,6 +595,16 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   last child: append / add / addChild), remove (`del t.children[1]`), swap (a node moved among its siblings), else
   the tree assigned anew (sketched again); in the board script a class of its own, TreeNode beside other nodes; 60
   random edit sequences run in python3 rebuild the tree drawn (`script.test.ts`).
+- `src/shapes/trie/` - tries (dds-55z.17.10, Shift+W): a general tree of letters, drawn by the general tree's layout
+  (`trieScene`: each edge labelled with its letter, nodes not typed into; `markKeyAt` finds any node for marks and
+  menus). Nodes are `TreeNode`s, id `^` + the prefix they stand for (root `^`), value the word ending there ('' if
+  none: a word node shows its word, a stadium when long), children in letter order. `trie.ts` pure: insertWord /
+  deleteWord (prunes back up), wordsOf (pre-order: alphabetical), `sketchWords` (a seeded start in a list of words
+  sharing beginnings; the tool adds one per cell dragged right), and the steps with code (`code.ts`, C / Java an array
+  of 26, Python a dict): insert (down, nodes added, end marked; the + above the root), contains (found, only a prefix,
+  a letter missing), startsWith (down, then collect: a pre-order walk, the open path lit, words green, a `words`
+  strip; from a node's menu, or all words), delete (recursive: down, unmark, prune on the way back while a node is no
+  word's end and childless; x on a word's node). Not yet tracked as code (dds-55z.17.11).
 - `src/shapes/graph/` - graphs: nodes at free positions in cell units (so the size style scales the drawing), edges
   `{from, to, weight}` (weights always stored; shown when the `drawds:graph-weights` style says so; direction and
   A/0 labels are styles too, see `src/ui/GraphPickers.tsx`). `generate.ts` is the sketch: a node drops every

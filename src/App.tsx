@@ -33,6 +33,8 @@ import { TreeShapeTool } from './shapes/tree/TreeShapeTool'
 import { TreeShapeUtil } from './shapes/tree/TreeShapeUtil'
 import { GeneralTreeShapeTool } from './shapes/general-tree/GeneralTreeShapeTool'
 import { GeneralTreeShapeUtil } from './shapes/general-tree/GeneralTreeShapeUtil'
+import { TrieShapeTool } from './shapes/trie/TrieShapeTool'
+import { TrieShapeUtil } from './shapes/trie/TrieShapeUtil'
 import { deleteFollowersWithTheirStructure, keepFollowersMeasured } from './cells/followers'
 import { showBoardNameInTitle } from './files/board'
 import { BoardFileDrop } from './files/BoardFileDrop'
@@ -44,8 +46,8 @@ import { startSounds } from './sound/listen'
 import { components, uiOverrides } from './ui/overrides'
 
 // Defined at module level so they aren't recreated on every render.
-const shapeUtils = [ArrayShapeUtil, MatrixShapeUtil, ListShapeUtil, TreeShapeUtil, GeneralTreeShapeUtil, HeapShapeUtil, UnionFindShapeUtil, HashShapeUtil, GraphShapeUtil, GraphViewShapeUtil, MemoryShapeUtil, RingShapeUtil, RecursionTreeShapeUtil, OutcomesShapeUtil, GrowthShapeUtil, TracerShapeUtil, CodeShapeUtil]
-const tools = [ArrayShapeTool, MatrixShapeTool, ListShapeTool, TreeShapeTool, GeneralTreeShapeTool, HeapShapeTool, UnionFindShapeTool, HashShapeTool, GraphShapeTool, TracerShapeTool, CodeShapeTool]
+const shapeUtils = [ArrayShapeUtil, MatrixShapeUtil, ListShapeUtil, TreeShapeUtil, GeneralTreeShapeUtil, TrieShapeUtil, HeapShapeUtil, UnionFindShapeUtil, HashShapeUtil, GraphShapeUtil, GraphViewShapeUtil, MemoryShapeUtil, RingShapeUtil, RecursionTreeShapeUtil, OutcomesShapeUtil, GrowthShapeUtil, TracerShapeUtil, CodeShapeUtil]
+const tools = [ArrayShapeTool, MatrixShapeTool, ListShapeTool, TreeShapeTool, GeneralTreeShapeTool, TrieShapeTool, HeapShapeTool, UnionFindShapeTool, HashShapeTool, GraphShapeTool, TracerShapeTool, CodeShapeTool]
 // Digits mark the element under the pointer (1-4, 0 clears), so tldraw's "press n for the nth
 // toolbar tool" shortcuts are off; every tool still has its letter shortcut.
 const options = { enableToolbarKeyboardShortcuts: false }

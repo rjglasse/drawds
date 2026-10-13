@@ -51,6 +51,7 @@ import { bfs, dfs } from '../graph/traverse'
 import { components } from '../graph/algorithms'
 import { findCycle, shortestPath } from '../graph/paths'
 import { traverseTree } from '../tree/traverse'
+import * as trie from '../trie/trie'
 import { mulberry32 } from '../../data/random'
 import { ALGORITHMS, algorithmCode, parseCode, shownValues, taggedLine } from './algorithms'
 import { codeShapeMigrations } from './code-shape-types'
@@ -242,6 +243,20 @@ describe('algorithm code', () => {
 			// A general tree's, each call from a loop over the children.
 			...(['pre', 'post', 'level'] as const).map((order) => traverseTree(tree, 'a', order, { general: true })),
 			...(['height', 'height-levels', 'leaves', 'size'] as const).map((m) => measureTree(tree, 'a', m, { general: true })),
+			// A trie's insert, contains, startsWith and delete, every way each can go.
+			...(() => {
+				const t = trie.trieOf(['tea', 'ten', 'in', 'inn'])
+				return [
+					{ ...trie.insertSteps(t, 'tent'), code: 'trie-insert' },
+					{ ...trie.insertSteps(t, 'ten'), code: 'trie-insert' },
+					{ ...trie.searchSteps(t, 'ten'), code: 'trie-contains' },
+					{ ...trie.searchSteps(t, 'tx'), code: 'trie-contains' },
+					{ ...trie.prefixSteps(t, 'te'), code: 'trie-prefix' },
+					{ ...trie.prefixSteps(t, 'x'), code: 'trie-prefix' },
+					{ ...trie.deleteSteps(t, 'inn'), code: 'trie-delete' },
+					{ ...trie.deleteSteps(t, 'in'), code: 'trie-delete' },
+				]
+			})(),
 			...(['height', 'height-levels', 'leaves', 'size'] as const).flatMap((m) => [measureTree(tree, 'a', m), measureTree(tree, 'a', m, { nulls: true })]),
 			{ ...bstExtreme(tree, 'a', 'min'), code: 'bst-min' },
 			// Lecture 8b's BST: search, insert, delete (every case).

@@ -229,6 +229,11 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   Menus `context-menu-sub.drawds-general-tree-steps-button` (`general-tree-pre-order`, `-post-order`, `-level-order`),
   `-actions-` (`general-tree-move-left|right`), `-show-` (`general-tree-terms`). Values longer than 3 characters
   widen their node into a pill.
+- **Trie**: `key Shift+W` then `drag x y x+(n-1)*48 y` (a word per cell, root under the press). Node ids `^` + prefix
+  (`^`, `^c`, `^ca`...), a word's node holds it. Insert: `clicksel [data-testid="insert-key"]`, `type cart`, `key Enter`;
+  delete: `hover ^cart`, `clicksel [data-testid="remove-node-^cart"]`. Menus `context-menu-sub.drawds-trie-steps-button`
+  (`trie-insert`, `trie-delete`, `trie-search`, `trie-prefix`: prompts; `trie-all-words`; on a node `trie-prefix-this`,
+  `trie-search-this`, `trie-delete-this`). `shot` deselects it: reselect before clicking its +.
 - **Matrix**: `key Shift+M` then `drag x1 y1 x2 y2` (a row / column per 48 px); cell keys `r,c`
   (`dblclick` a cell to edit). Grips: `dragnode grow-cols dx 0`, `dragnode grow-rows 0 dy`. A cell's
   menu: `context-menu-sub.drawds-matrix-steps-button` (`matrix-row-major`, `matrix-col-major`,

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="black" stroke-width="2" stroke-linecap="round">
+  <circle cx="15" cy="5" r="3" />
+  <circle cx="9" cy="24" r="3" />
+  <circle cx="21" cy="24" r="3" />
+  <path d="M13.8 7.8L10.2 21.2M16.2 7.8L19.8 21.2" />
+  <text x="2.5" y="17" font-family="sans-serif" font-size="9" font-weight="bold" fill="black" stroke="none">a</text>
+  <text x="22" y="17" font-family="sans-serif" font-size="9" font-weight="bold" fill="black" stroke="none">b</text>
+</svg>

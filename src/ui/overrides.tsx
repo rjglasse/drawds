@@ -59,6 +59,7 @@ import treeIconUrl from './icons/tree.svg'
 import { HeapPickers, heapPickerTranslations } from './HeapPickers'
 import heapIconUrl from './icons/heap.svg'
 import generalTreeIconUrl from './icons/general-tree.svg'
+import trieIconUrl from './icons/trie.svg'
 import unionFindIconUrl from './icons/union-find.svg'
 import recursionIconUrl from './icons/recursion.svg'
 import matrixIconUrl from './icons/matrix.svg'
@@ -76,7 +77,7 @@ import { makeCodeBox } from '../shapes/code/convert'
 import { StructureHint } from './StructureHint'
 
 /** Our structure tools, in toolbar order. */
-const STRUCTURE_TOOLS = ['array', 'matrix', 'linked-list', 'binary-tree', 'general-tree', 'heap', 'union-find', 'hash-table', 'graph', 'recursion-tracer', 'code'] as const
+const STRUCTURE_TOOLS = ['array', 'matrix', 'linked-list', 'binary-tree', 'general-tree', 'trie', 'heap', 'union-find', 'hash-table', 'graph', 'recursion-tracer', 'code'] as const
 
 const RELAYOUT = 'drawds.relayout'
 
@@ -135,6 +136,14 @@ export const uiOverrides: TLUiOverrides = {
 			// "k" for k children a node; shift+g is the graph tool.
 			kbd: 'shift+k',
 			onSelect: () => editor.setCurrentTool('general-tree'),
+		}
+		tools.trie = {
+			id: 'trie',
+			icon: maskIcon(trieIconUrl),
+			label: 'Trie (words, a letter an edge)',
+			// "w" for words.
+			kbd: 'shift+w',
+			onSelect: () => editor.setCurrentTool('trie'),
 		}
 		tools.heap = {
 			id: 'heap',
