@@ -369,7 +369,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 				...algorithm,
 				id: 'graph-dijkstra',
 				label: `Shortest paths from ${node.value} (Dijkstra)`,
-				run: () => this.runAlgorithm(shape.id, 'shortest paths', (s) => dijkstra(s.props, key, this.algorithmOptions(s)).frames),
+				run: () => this.runAlgorithm(shape.id, 'shortest paths', (s) => dijkstra(s.props, key, this.algorithmOptions(s)).frames, undefined, 'graph-dijkstra'),
 			},
 			// A spanning tree is about undirected graphs.
 			...(directed
@@ -379,7 +379,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 							...algorithm,
 							id: 'graph-prim',
 							label: `Minimum spanning tree from ${node.value} (Prim)`,
-							run: () => this.runAlgorithm(shape.id, 'minimum spanning tree', (s) => prim(s.props, key, this.algorithmOptions(s)).frames),
+							run: () => this.runAlgorithm(shape.id, 'minimum spanning tree', (s) => prim(s.props, key, this.algorithmOptions(s)).frames, undefined, 'graph-prim'),
 						},
 					]),
 		]
@@ -499,7 +499,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 						...algorithms,
 						id: 'graph-topological-sort',
 						label: 'Topological sort',
-						run: () => this.runAlgorithm(shape.id, 'topological sort', (s) => topologicalSort(s.props).frames),
+						run: () => this.runAlgorithm(shape.id, 'topological sort', (s) => topologicalSort(s.props).frames, undefined, 'graph-topological-sort'),
 					},
 				]
 			: [
@@ -596,7 +596,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 		const shown = viewsOf(this.editor, shape).some((v) => v.props.view === 'union-find')
 		const mark = shown ? undefined : showGraphView(this.editor, shape, 'union-find')
 		const takeBack = mark === undefined ? undefined : () => void this.editor.bailToMark(mark)
-		this.runAlgorithm(id, 'minimum spanning tree', (s) => kruskal(s.props, this.algorithmOptions(s)).frames, takeBack)
+		this.runAlgorithm(id, 'minimum spanning tree', (s) => kruskal(s.props, this.algorithmOptions(s)).frames, takeBack, 'graph-kruskal')
 	}
 
 	/** Play an algorithm's steps on the graph as it is now; nothing changes (Shift at the end keeps the highlights as marks). */

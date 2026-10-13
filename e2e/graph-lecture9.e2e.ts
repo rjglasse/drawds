@@ -158,3 +158,16 @@ test("a graph's last vertex isn't offered for removal step by step, as its x isn
 	await expect(page.getByTestId('context-menu.graph-add-vertex-costs')).toBeVisible()
 	await expect(page.getByTestId('context-menu.graph-remove-vertex-costs')).toHaveCount(0)
 })
+
+test("Dijkstra's code beside the graph: each step lights its line, u and v written out", async ({ page }) => {
+	await lectureGraph(page)
+	await steps(page, 'v0', 'graph-dijkstra')
+	await page.getByTestId('play-code').click()
+	const [box] = await shapesOfType<{ algorithm: string }>(page, 'code')
+	expect(box.props.algorithm).toBe('graph-dijkstra')
+	// Taking 0, then its first edge: 0–1 lowers dist(1) from ∞.
+	await page.keyboard.press('ArrowRight')
+	await page.keyboard.press('ArrowRight')
+	await expect(caption(page)).toHaveText('0–1: 0 + 1 = 1 < ∞, so dist(1) = 1, via 0')
+	await expect(page.locator('[data-value-line]')).toHaveText(['s = 0', 'u = 0', 'v = 1'])
+})

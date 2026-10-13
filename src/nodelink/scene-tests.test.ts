@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { algorithmCode } from '../shapes/code/algorithms'
 import { conditionOf, readsBefore, shownTest, type ShownTest, type TestValues } from '../shapes/code/tests'
-import { components } from '../shapes/graph/algorithms'
+import { components, dijkstra, kruskal, prim, topologicalSort } from '../shapes/graph/algorithms'
 import { graphScene } from '../shapes/graph/layout'
 import { findCycle, shortestPath } from '../shapes/graph/paths'
 import { bfs, dfs } from '../shapes/graph/traverse'
@@ -104,6 +104,10 @@ const runs: [string, Op, Values][] = [
 	['cycle', findCycle(graph as never, false) as Op, graphValues],
 	['cycle, directed', findCycle(graph as never, true) as Op, graphValues],
 	['components', components(graph as never, { directed: false, weighted: false }) as Op, graphValues],
+	['dijkstra', dijkstra(graph as never, 'a', { directed: false, weighted: false }) as Op, graphValues],
+	['prim', prim(graph as never, 'a', { directed: false, weighted: false }) as Op, graphValues],
+	['kruskal', kruskal(graph as never, { directed: false, weighted: false }) as Op, graphValues],
+	['topological sort', topologicalSort({ ...graph, edges: [...graph.edges, { id: 'e9', from: 'c', to: 'd', weight: '1' }] } as never) as Op, graphValues],
 	['heap insert', insertSteps(['1', '10', '2', '11', '12', '3', '4'], '0', 'min') as Op, heapValues(['1', '10', '2', '11', '12', '3', '4'])],
 	['heap insert, stays', insertSteps(['1', '10', '2', '11', '12', '3', '4'], '99', 'min') as Op, heapValues(['1', '10', '2', '11', '12', '3', '4'])],
 	['heap remove', removeSteps(['1', '10', '2', '11', '12', '3', '4'], 0, 'min') as Op, heapValues(['1', '10', '2', '11', '12', '3', '4'])],
@@ -171,6 +175,11 @@ describe('tests beside lists, trees, graphs, heaps and union-find', () => {
 		expect(shown('heap insert', 'python')).toContain('0 > 0 and … → false')
 		expect(shown('heap build', 'python').at(-1)).toBe('-1 in range(6 // 2 - 1, -1, -1) → false')
 		expect(shown('find').length).toBeGreaterThan(0)
+		// Kruskal's skip reads the roots find gave: A–C after A–B (A under B, a tie) and B–C closes a cycle.
+		for (const language of LANGUAGES) expect(shown('kruskal', language)).toEqual(['B == B → true'])
+		// Dijkstra's and Kahn's tests read arrays the steps don't show as strips (dist[], indegree[]): nothing.
+		expect(shown('dijkstra').filter(Boolean)).toEqual([])
+		expect(shown('topological sort', 'c').filter(Boolean)).toEqual([])
 	})
 })
 

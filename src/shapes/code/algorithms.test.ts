@@ -49,7 +49,7 @@ import { insertSteps, removeSteps } from '../heap/steps'
 import { measureTree } from '../tree/measure'
 import { bstDeleteSteps, bstExtreme, bstInsertSteps, bstSearch } from '../tree/search'
 import { bfs, dfs } from '../graph/traverse'
-import { components } from '../graph/algorithms'
+import { components, dijkstra, kruskal, prim, topologicalSort } from '../graph/algorithms'
 import { findCycle, shortestPath } from '../graph/paths'
 import { traverseTree } from '../tree/traverse'
 import * as trie from '../trie/trie'
@@ -297,6 +297,20 @@ describe('algorithm code', () => {
 			findCycle({ ...graph, edges: graph.edges.slice(0, 1) }, false),
 			findCycle(graph, true),
 			findCycle({ ...graph, edges: graph.edges.slice(0, 1) }, true),
+			// Weighted graphs and DAGs: every way a step goes (a shorter distance or not, a finished end; a
+			// skipped edge; an in-degree reaching 0 or not, and a cycle).
+			...(() => {
+				const weighted = { ...graph, edges: graph.edges.map((e, i) => ({ ...e, weight: String([4, 1, 2, 3][i]) })) }
+				const options = { directed: false, weighted: true }
+				const dag = { ...graph, edges: [...graph.edges, { id: 'e9', from: 'c', to: 'd', weight: '1' }] }
+				return [
+					dijkstra(weighted, 'a', options),
+					prim(weighted, 'a', options),
+					kruskal(weighted, options),
+					topologicalSort(dag),
+					topologicalSort({ ...dag, edges: [...dag.edges, { id: 'e8', from: 'c', to: 'a', weight: '1' }] }),
+				]
+			})(),
 		]
 		// What the steps give values for (their pointers and variables), by code: some runs never reach a
 		// variable (a pop that underflows has no v), so all the runs of a code together.
