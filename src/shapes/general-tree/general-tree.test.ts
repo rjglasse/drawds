@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getTreeMetrics } from '../tree/layout'
+import { measureTree } from '../tree/measure'
 import { traverseTree } from '../tree/traverse'
 import type { TreeNode } from '../tree/tree-shape-types'
 import { generateGeneralTree, levelIndex, maxDepth, randomGeneralTreePaths, withArity } from './generate'
@@ -211,5 +212,33 @@ describe('traversals', () => {
 		expect(arrive.vars).toEqual({ node: 'b', child: 'b' })
 		expect(run.frames.some((f) => f.caption?.includes('its children are done: visit'))).toBe(true)
 		expect(traverseTree(sample, 'a', 'level', { general: true }).frames[1].caption).toBe('Dequeue a: visit it (1), queue b, c, d and e')
+	})
+})
+
+describe('height, size and leaves', () => {
+	const run = (measure: 'height' | 'height-levels' | 'leaves' | 'size', start = 'a') => measureTree(sample, start, measure, { general: true })
+
+	it('work over every child, one call per node (no calls on null)', () => {
+		expect(run('height').result).toBe(2)
+		expect(run('height-levels').result).toBe(3)
+		expect(run('leaves').result).toBe(5)
+		expect(run('size').result).toBe(8)
+		expect(run('size', 'b').result).toBe(3)
+		expect(run('size').frames.at(-1)!.counts).toEqual({ calls: 8 })
+		expect(run('size').code).toBe('general-tree-size')
+	})
+
+	it('a leaf returns at once, its loop never running; a parent combines all its children', () => {
+		const height = run('height')
+		expect(height.frames.find((f) => f.caption?.startsWith('height(c)'))!.caption).toBe(
+			'height(c): c has no children, so the loop never runs: return 1 + (-1) = 0'
+		)
+		expect(height.frames.find((f) => f.caption?.startsWith('height(a) ='))!.caption).toBe(
+			'height(a) = 1 + max(1, 0, 0, 1) = 2 (height(b) = 1, height(c) = 0, height(d) = 0, height(e) = 1)'
+		)
+		const size = run('size')
+		expect(size.frames.find((f) => f.caption?.startsWith('size(e) ='))!.caption).toBe('size(e) = 1 + 1 = 2 (size(h) = 1)')
+		expect(size.frames.find((f) => f.caption?.startsWith('size(e) ='))!.vars).toEqual({ node: 'e', child: 'e', s: '2' })
+		expect(run('leaves').frames.find((f) => f.caption?.startsWith('leaves(e) ='))!.caption).toBe('leaves(e) = 1 (leaves(h) = 1)')
 	})
 })

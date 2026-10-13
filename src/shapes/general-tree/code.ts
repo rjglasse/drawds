@@ -77,4 +77,84 @@ export const GENERAL_TREE_CODE: Record<string, CodeSource> = {
 			        for child in node.children:
 			            queue.append(child)`,
 	},
+	// Lecture 8a's recursion that returns values, over any number of children: a leaf's loop never runs,
+	// so h starts where a leaf ends up (-1 for a leaf 0, 0 for a leaf 1) and s at the node itself.
+	'general-tree-height': heightCode(-1),
+	'general-tree-height-levels': heightCode(0),
+	'general-tree-size': {
+		c: String.raw`
+			int size(Node *node) {                              @call $node
+			    int s = 1;
+			    for (int i = 0; i < node->count; i++)
+			        s += size(node->children[i]);               $s
+			    return s;                                       @return
+			}`,
+		java: String.raw`
+			int size(Node node) {                       @call $node
+			    int s = 1;
+			    for (Node child : node.children)        $child
+			        s += size(child);                   $s
+			    return s;                               @return
+			}`,
+		python: String.raw`
+			def size(node):                     @call $node
+			    s = 1
+			    for child in node.children:     $child
+			        s += size(child)            $s
+			    return s                        @return`,
+	},
+	'general-tree-leaves': {
+		c: String.raw`
+			int leaves(Node *node) {                            @call $node
+			    if (node->count == 0) return 1;                 @leaf
+			    int n = 0;
+			    for (int i = 0; i < node->count; i++)
+			        n += leaves(node->children[i]);             $n
+			    return n;                                       @return
+			}`,
+		java: String.raw`
+			int leaves(Node node) {                         @call $node
+			    if (node.children.isEmpty()) return 1;      @leaf
+			    int n = 0;
+			    for (Node child : node.children)            $child
+			        n += leaves(child);                     $n
+			    return n;                                   @return
+			}`,
+		python: String.raw`
+			def leaves(node):                   @call $node
+			    if not node.children:
+			        return 1                    @leaf
+			    n = 0
+			    for child in node.children:     $child
+			        n += leaves(child)          $n
+			    return n                        @return`,
+	},
+}
+
+/** Height over any number of children, `h` starting at `start`: -1 makes a leaf 0 (edges), 0 makes it 1 (levels). */
+function heightCode(start: number): CodeSource {
+	return {
+		c: String.raw`
+			int height(Node *node) {                            @call $node
+			    int h = ${start};
+			    for (int i = 0; i < node->count; i++) {
+			        int below = height(node->children[i]);
+			        if (below > h) h = below;                   $h
+			    }
+			    return 1 + h;                                   @return
+			}`,
+		java: String.raw`
+			int height(Node node) {                     @call $node
+			    int h = ${start};
+			    for (Node child : node.children)        $child
+			        h = Math.max(h, height(child));     $h
+			    return 1 + h;                           @return
+			}`,
+		python: String.raw`
+			def height(node):                   @call $node
+			    h = ${start}
+			    for child in node.children:     $child
+			        h = max(h, height(child))   $h
+			    return 1 + h                    @return`,
+	}
 }

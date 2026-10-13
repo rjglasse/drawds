@@ -10,6 +10,7 @@ import { prunePointers } from '../../pointers/pointers'
 import { legendMarks } from '../tree/layout'
 import { levelOrder, parentOf } from '../tree/model'
 import { pathAndSubtree, termMarks, treeTerms } from '../tree/terms'
+import { measureTree, type TreeMeasure } from '../tree/measure'
 import { ORDER_NAMES, traverseTree, type TreeOrder } from '../tree/traverse'
 import type { TreeNode } from '../tree/tree-shape-types'
 import { withArity } from './generate'
@@ -201,7 +202,29 @@ export class GeneralTreeShapeUtil extends NodeLinkShapeUtil<GeneralTreeShape> im
 				group: 'traverse',
 				run: () => this.traverse(shape.id, key, order),
 			})),
+			// Lecture 8a's recursion that returns values, a loop over the children in each call.
+			...(
+				[
+					['height', `Height of ${node.value || 'this subtree'} (a leaf is 0)`],
+					['height-levels', `Height of ${node.value || 'this subtree'} (a leaf is 1)`],
+					['leaves', `Count the leaves under ${node.value || 'here'}`],
+					['size', `Size of ${node.value ? `${node.value}'s` : 'this'} subtree`],
+				] as const
+			).map(([measure, label]) => ({
+				id: `general-tree-${measure}`,
+				label,
+				group: 'measure',
+				run: () => this.measure(shape.id, key, measure),
+			})),
 		]
+	}
+
+	/** Height, leaves or size of the subtree at `start`, worked out recursively, step by step. */
+	private measure(id: GeneralTreeShape['id'], start: string, measure: TreeMeasure) {
+		const shape = this.editor.getShape(id) as GeneralTreeShape | undefined
+		if (!shape) return
+		const { frames, code } = measureTree(shape.props.nodes, start, measure, { general: true })
+		playOperation(this.editor, { shapeId: id, label: measure.startsWith('height') ? 'height' : measure, frames, code })
 	}
 
 	override shapeOperations(shape: GeneralTreeShape): NodeOperation[] {

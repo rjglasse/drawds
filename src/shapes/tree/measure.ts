@@ -33,8 +33,20 @@ export interface TreeMeasureRun {
 	code: string
 }
 
-/** Work `measure` out for the subtree at `start`, step by step. With `nulls`, empty children show as base-case calls. */
-export function measureTree(nodes: readonly TreeNode[], start: string, measure: TreeMeasure, { nulls = false } = {}): TreeMeasureRun {
+/** What a general tree's code adds its children's answers into: h (the tallest so far), s, n. */
+const ACCUMULATOR: Record<TreeMeasure, string> = { height: 'h', 'height-levels': 'h', size: 's', leaves: 'n' }
+
+/**
+ * Work `measure` out for the subtree at `start`, step by step. With `nulls`, empty children show as
+ * base-case calls. `general`: a general tree's, any number of children, their answers added up (or
+ * the tallest taken) in a loop over them, so a leaf's loop never runs (code `general-tree-<measure>`).
+ */
+export function measureTree(
+	nodes: readonly TreeNode[],
+	start: string,
+	measure: TreeMeasure,
+	{ nulls = false, general = false } = {}
+): TreeMeasureRun {
 	const byId = new Map(nodes.map((n) => [n.id, n]))
 	const value = (id: string) => byId.get(id)?.value || id
 	const name = fn(measure)
@@ -51,13 +63,22 @@ export function measureTree(nodes: readonly TreeNode[], start: string, measure: 
 		pending = {}
 	}
 
+	const acc = ACCUMULATOR[measure]
 	const run = (id: string, from?: { parent: string; slot: number }): number => {
 		calls++
 		stack.push(id)
 		const node = byId.get(id)!
-		const kids = [0, 1].map((slot) => (node.children[slot] && byId.has(node.children[slot]!) ? node.children[slot]! : undefined))
+		const kids = general
+			? node.children.filter((c): c is string => !!c && byId.has(c))
+			: [0, 1].map((slot) => (node.children[slot] && byId.has(node.children[slot]!) ? node.children[slot]! : undefined))
 		const leaf = !kids.some(Boolean)
 		const flash = { [id]: CURRENT, ...(from ? { [from.parent]: WAITING, [edgeKey(from.parent, id)]: WAITING } : {}) }
+		// A general tree's loop is on this child too.
+		const vars = (more: Record<string, string> = {}): Record<string, string> => ({
+			node: value(id),
+			...(general && from ? { child: value(id) } : {}),
+			...more,
+		})
 		if (measure === 'leaves' && leaf) {
 			frame({
 				flash,
@@ -65,17 +86,51 @@ export function measureTree(nodes: readonly TreeNode[], start: string, measure: 
 				caption: `${call(id)}: ${value(id)} is a leaf, so return 1`,
 				ask: `${call(id)}: what does it return?`,
 				line: 'leaf',
-				vars: { node: value(id) },
+				vars: vars(),
 			})
 			return finish(id, 1)
 		}
+		if (general && leaf) {
+			// No children: the loop never runs, so h stays at its start (a leaf 0, or 1) and s at 1.
+			const result = measure === 'size' ? 1 : 1 + empty
+			const how = measure === 'size' ? '1' : `1 + ${empty < 0 ? `(${empty})` : empty} = ${result}`
+			frame({
+				flash,
+				badges: { [id]: String(result) },
+				caption: `${call(id)}: ${value(id)} has no children, so the loop never runs: return ${how}`,
+				ask: `${call(id)}: what does it return?`,
+				line: 'return',
+				vars: vars({ [acc]: String(measure === 'size' ? 1 : empty) }),
+			})
+			return finish(id, result)
+		}
 		frame({
 			flash,
-			caption: `${call(id)}: ${leaf && measure !== 'size' ? `${value(id)} is a leaf, but the code doesn't ask: its subtrees first` : 'first its subtrees'}`,
+			caption: `${call(id)}: ${general ? 'first its children' : leaf && measure !== 'size' ? `${value(id)} is a leaf, but the code doesn't ask: its subtrees first` : 'first its subtrees'}`,
 			ask: from ? 'Which call comes next?' : `${call(id)}: where does it start?`,
 			line: 'call',
-			vars: { node: value(id) },
+			vars: vars(),
 		})
+		if (general) {
+			const answers = kids.map((kid, slot) => run(kid!, { parent: id, slot }))
+			const sum = answers.reduce((a, b) => a + b, 0)
+			const tallest = Math.max(...answers)
+			const result = measure === 'leaves' ? sum : measure === 'size' ? 1 + sum : 1 + tallest
+			const terms = answers.join(' + ')
+			const formula =
+				measure === 'leaves' ? terms : measure === 'size' ? `1 + ${terms}` : `1 + ${answers.length > 1 ? `max(${answers.join(', ')})` : tallest}`
+			const parts = kids.map((kid, slot) => `${call(kid)} = ${answers[slot]}`)
+			frame({
+				flash: { [id]: CURRENT },
+				badges: { [id]: String(result) },
+				caption: `${call(id)} = ${formula === String(result) ? result : `${formula} = ${result}`} (${parts.join(', ')})`,
+				ask: `${call(id)}: its children are done. What does it return?`,
+				askFocus: [id],
+				line: 'return',
+				vars: vars({ [acc]: String(measure === 'height' || measure === 'height-levels' ? tallest : result) }),
+			})
+			return finish(id, result)
+		}
 		const answers = kids.map((kid, slot) => {
 			if (kid) return run(kid, { parent: id, slot })
 			calls++
@@ -127,10 +182,10 @@ export function measureTree(nodes: readonly TreeNode[], start: string, measure: 
 	const result = run(start)
 	const end =
 		measure === 'size'
-			? `${call(start)} = ${result}: one call for every node and every empty subtree, ${calls} in all: linear. Keeping a size field (+1 on insert, −1 on delete) makes it constant`
+			? `${call(start)} = ${result}: one call for every node${general ? '' : ' and every empty subtree'}, ${calls} in all: linear. Keeping a size field (+1 on insert, −1 on delete) makes it constant`
 			: measure === 'leaves'
 				? `${call(start)} = ${result}: ${result === 1 ? 'one leaf' : `${result} leaves`}, each a base case returning 1, added up on the way back`
-				: `${call(start)} = ${result}: the longest way down from ${value(start)}, counted in ${measure === 'height' ? 'edges (a leaf is 0, an empty tree -1)' : 'levels (a leaf is 1, an empty tree 0)'}`
+				: `${call(start)} = ${result}: the longest way down from ${value(start)}, counted in ${measure === 'height' ? `edges (a leaf is 0${general ? '' : ', an empty tree -1'})` : `levels (a leaf is 1${general ? '' : ', an empty tree 0'})`}`
 	frame({ caption: end, ask: false })
-	return { frames, result, code: `tree-${measure}` }
+	return { frames, result, code: `${general ? 'general-tree' : 'tree'}-${measure}` }
 }

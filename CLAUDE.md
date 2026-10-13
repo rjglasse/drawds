@@ -577,7 +577,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   it selected sketches it again (`withArity`: sketched nodes keep their values, hand-added ones go). A + on a node's
   lower right adds a last child (`slotButton`, overriding the binary corners), x removes a subtree, the node menu
   moves a node left / right among its siblings; pre-, post- and level order (`traverseTree`'s `general`: each call
-  from a loop over the children, code `general-tree-<order>`, `child` named); Show > Tree terms. `layout.ts`: contour
+  from a loop over the children, code `general-tree-<order>`, `child` named) and height / leaves / size
+  (`measureTree`'s `general`: a leaf's loop never runs, so h starts at -1 or 0 and s at 1; a parent's return
+  combines all its children, `1 + max(1, 0, 2)`; code `general-tree-<measure>`); Show > Tree terms. `layout.ts`: contour
   tidy layout for any number of children, siblings packed from the left and from the right and averaged (a small
   subtree between big ones sits midway), a lone child right under its parent. A value longer than 3 characters
   widens its node into a stadium (still kind `circle`, w > h: `roundEnds` in geometry.ts; drawn, hit, clipped,
