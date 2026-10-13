@@ -133,3 +133,34 @@ test('the code beside it: the tree a Node with its children; a child added and n
 	// Text now, so every value is quoted; the + and the name typed into it are one line.
 	await expect.poll(lines).toEqual([expect.stringMatching(/^a = Node\("\d+"\)$/), 'a.children.append(Node("home"))'])
 })
+
+test('as a binary tree, left child, right sibling: step by step, then the binary tree beside it (one undo)', async ({ page }) => {
+	await sketchGeneralTree(page, [300, 150], 1)
+	await withEditor(page, (editor) => {
+		const s = editor.getOnlySelectedShape()!
+		const N = (id: string, value: string, children: string[] = []) => ({ id, value, children, dx: 0, dy: 0 })
+		void editor.updateShape({
+			id: s.id,
+			type: 'general-tree',
+			props: { nodes: [N('n', 'A', ['n0', 'n1', 'n2']), N('n0', 'B', ['n00']), N('n1', 'C'), N('n2', 'D'), N('n00', 'E')] },
+		})
+	})
+	await rightClick(page, await nodeScreenPosition(page, 'n'))
+	await page.getByTestId('context-menu-sub.drawds-general-tree-steps-button').click()
+	await page.getByTestId('context-menu.general-tree-lcrs').click()
+	await expect(page.getByTestId('play-bar')).toBeVisible()
+	await page.keyboard.press('ArrowRight')
+	await expect(page.getByTestId('play-caption')).toHaveText("A: B, its first child, is its left; C is B's right, D is C's right (the next sibling)")
+	for (let i = 0; i < 10 && !(await page.getByTestId('play-done').isVisible()); i++) await page.keyboard.press('ArrowRight')
+	const binary = async () => (await shapesOfType<{ nodes: { id: string; value: string; children: (string | null)[] }[] }>(page, 'binary-tree'))[0]?.props.nodes
+	await expect.poll(async () => (await binary())?.map((n) => `${n.value}:${n.children.map((c) => c ?? '-').join(',')}`)).toEqual([
+		'A:nL,-',
+		'B:nLL,nLR',
+		'E:-,-',
+		'C:-,nLRR',
+		'D:-,-',
+	])
+	await page.keyboard.press('Enter')
+	await page.keyboard.press('ControlOrMeta+z')
+	await expect.poll(binary).toBeUndefined()
+})

@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { getTreeMetrics } from '../tree/layout'
+import { getTreeMetrics, nodeSize } from '../tree/layout'
 import { measureTree } from '../tree/measure'
 import { traverseTree } from '../tree/traverse'
 import type { TreeNode } from '../tree/tree-shape-types'
 import { generateGeneralTree, levelIndex, maxDepth, randomGeneralTreePaths, withArity } from './generate'
-import { generalTreeBasePosition, generalTreeMarkKeys, generalTreeRootCentre, generalTreeScene, nodeSize } from './layout'
+import { generalTreeBasePosition, generalTreeMarkKeys, generalTreeRootCentre, generalTreeScene } from './layout'
 import { appendChild, moveAmongSiblings, removeGeneralSubtree, siblingPlace } from './model'
+import { lcrsSteps, leftChildRightSibling, siblingEdgeKey } from './lcrs'
 
 const M = getTreeMetrics('m')
 const node = (id: string, children: string[] = [], value = id): TreeNode => ({ id, value, children, dx: 0, dy: 0 })
@@ -240,5 +241,42 @@ describe('height, size and leaves', () => {
 		expect(size.frames.find((f) => f.caption?.startsWith('size(e) ='))!.caption).toBe('size(e) = 1 + 1 = 2 (size(h) = 1)')
 		expect(size.frames.find((f) => f.caption?.startsWith('size(e) ='))!.vars).toEqual({ node: 'e', child: 'e', s: '2' })
 		expect(run('leaves').frames.find((f) => f.caption?.startsWith('leaves(e) ='))!.caption).toBe('leaves(e) = 1 (leaves(h) = 1)')
+	})
+})
+
+describe('left child, right sibling', () => {
+	it('makes a binary tree: a node\'s left its first child, its right its next sibling', () => {
+		const binary = leftChildRightSibling(sample)
+		const by = new Map(binary.map((n) => [n.value, n]))
+		const valueOf = (id: string | null) => (id ? binary.find((n) => n.id === id)!.value : null)
+		expect(binary[0].id).toBe('n')
+		expect(binary).toHaveLength(sample.length)
+		// a's first child b; b's sibling c, c's d, d's e; b's first child f, f's sibling g; e's child h.
+		expect(by.get('a')!.children.map(valueOf)).toEqual(['b', null])
+		expect(by.get('b')!.children.map(valueOf)).toEqual(['f', 'c'])
+		expect(by.get('d')!.children.map(valueOf)).toEqual([null, 'e'])
+		expect(by.get('e')!.children.map(valueOf)).toEqual(['h', null])
+		expect(by.get('f')!.children.map(valueOf)).toEqual([null, 'g'])
+	})
+
+	it('pre-order visits it as the general tree, and in-order as post-order does', () => {
+		const binary = leftChildRightSibling(sample)
+		const values = (nodes: TreeNode[], visited: string[]) => visited.map((id) => nodes.find((n) => n.id === id)!.value).join('')
+		const general = (order: 'pre' | 'post') => values(sample, traverseTree(sample, 'a', order, { general: true }).visited)
+		expect(values(binary, traverseTree(binary, 'n', 'pre').visited)).toBe(general('pre'))
+		expect(values(binary, traverseTree(binary, 'n', 'in').visited)).toBe(general('post'))
+	})
+
+	it('step by step on the tree as drawn: each parent keeps its first edge, its children linked across', () => {
+		const scene = generalTreeScene(props(sample))
+		const frames = lcrsSteps(sample, scene)
+		// The opening, a step for each node with children (a, b, e), the summing-up.
+		expect(frames).toHaveLength(5)
+		const atB = frames[2]
+		expect(atB.caption).toBe("b: f, its first child, is its left; g is f's right (the next sibling)")
+		expect(atB.dim).toEqual(['edge:b->g'])
+		expect(atB.scene!.edges.map((e) => e.key)).toContain(siblingEdgeKey('f', 'g'))
+		const last = frames.at(-1)!.scene!.edges.map((e) => e.key).sort()
+		expect(last).toEqual(['a->b', 'b->f', 'e->h', siblingEdgeKey('b', 'c'), siblingEdgeKey('c', 'd'), siblingEdgeKey('d', 'e'), siblingEdgeKey('f', 'g')].sort())
 	})
 })

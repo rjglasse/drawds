@@ -228,6 +228,8 @@ export interface PlaybackView extends StepState {
 	code?: string
 	/** Other shapes its steps draw, hidden meanwhile (`isCovered`). */
 	covers?: TLShapeId[]
+	/** Shapes its result made (a general tree's binary tree beside it): the bar keeps clear of them too. */
+	made?: TLShapeId[]
 	/**
 	 * The shape just before and after the result went in. Steps shown afterwards undo the move it
 	 * made (a list's new head moves the shape's origin back), so they stay where they were.
@@ -651,6 +653,7 @@ function show(p: Player, { back = false, still = false } = {}) {
 		code: op.code,
 		// What the result made shows at its last step, not before.
 		covers: [...(op.covers ?? []), ...(last ? [] : (op.made ?? []))],
+		made: op.made,
 	})
 }
 

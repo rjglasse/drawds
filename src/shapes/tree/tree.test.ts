@@ -179,3 +179,15 @@ describe('what can carry a mark', () => {
 		expect(treeMarkKeys(nodes).filter((k) => k.startsWith('edge:')).every((k) => drawn.includes(k))).toBe(true)
 	})
 })
+
+describe('long values', () => {
+	it('widen their node into a stadium as tall as a circle, its children kept apart', () => {
+		const scene = treeScene(props([node('n', ['nL', 'nR'], 'home'), node('nL', [null, null], 'alice'), node('nR', [null, null], 'bob')]))
+		const [root, left, right] = ['n', 'nL', 'nR'].map((k) => at(scene, k))
+		expect(root.w).toBeGreaterThan(M.diameter)
+		expect(root.h).toBe(M.diameter)
+		expect(root.fontScale).toBeCloseTo(2.5 / 3)
+		expect(right.w).toBe(M.diameter)
+		expect(right.x - right.w / 2 - (left.x + left.w / 2)).toBeGreaterThanOrEqual(M.gap - 1e-6)
+	})
+})

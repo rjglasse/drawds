@@ -83,7 +83,8 @@ export function placementFor(util: CellShapeUtil<TLShape>, shape: TLShape, view:
 		}
 		gap = layout.metrics.fontSize
 	}
-	const beside = besideBoxes(util.editor, shape)
+	// What the result made beside it too (a general tree's binary tree), once it is in.
+	const beside = besideBoxes(util.editor, shape, view.made)
 	const under = Math.max(bottom, ...beside.map((b) => b.y + b.h))
 	const top = bottom + gap
 	const inTheWay = beside.some((b) => b.x < left + widest && b.x + b.w > left && b.y < top + tallest && b.y + b.h > top)

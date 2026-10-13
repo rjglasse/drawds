@@ -1,25 +1,11 @@
 import type { Point } from '../../nodelink/geometry'
 import { edgeCellKey, type Scene, type SceneEdge, type SceneNode } from '../../nodelink/scene'
-import { getTreeMetrics, termAnnotations, type TreeMetrics } from '../tree/layout'
+import { getTreeMetrics, nodeSize, termAnnotations, type TreeMetrics } from '../tree/layout'
 import { byId } from '../tree/model'
 import type { TreeNode } from '../tree/tree-shape-types'
 import type { GeneralTreeShapeProps } from './general-tree-shape-types'
 
 type LayoutProps = Pick<GeneralTreeShapeProps, 'nodes' | 'size'> & Partial<Pick<GeneralTreeShapeProps, 'terms'>>
-
-/** Values up to this long fit a circle a cell across (from 3 on a little smaller, as on every node). */
-const FITS = 3
-/** A longer value is drawn as large as a 3-character one, its node widened to hold it. */
-const LONG_SCALE = 2.5 / FITS
-
-/**
- * A node's size: a circle a cell across, or for a long value (a directory's or a person's name) a
- * stadium as wide as it needs, round at the ends.
- */
-export function nodeSize(value: string, m: TreeMetrics): { w: number; h: number; fontScale?: number } {
-	if (value.length <= FITS) return { w: m.diameter, h: m.diameter }
-	return { w: value.length * m.fontSize * LONG_SCALE * 0.6 + m.diameter * 0.5, h: m.diameter, fontScale: LONG_SCALE }
-}
 
 /** What can carry a mark: each node, and each edge down to a child (`edge:<parent>-><child>`). */
 export function generalTreeMarkKeys(nodes: readonly TreeNode[]): string[] {

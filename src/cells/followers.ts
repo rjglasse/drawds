@@ -46,13 +46,15 @@ export function keepFollowersMeasured(editor: Editor) {
 
 /**
  * The followers beside the structure (overlapping its height: a union-find, a tall matrix, a
- * recursion tree, a code box), as boxes in the structure's shape space. An operation's strips and
- * play bar keep clear of them, so they never cover one while it follows the steps.
+ * recursion tree, a code box), and `more` (what an operation's result made beside it), as boxes in the
+ * structure's shape space. An operation's strips and play bar keep clear of them, so they never cover
+ * one while it follows the steps.
  */
-export function besideBoxes(editor: Editor, shape: TLShape): { x: number; y: number; w: number; h: number }[] {
+export function besideBoxes(editor: Editor, shape: TLShape, more: readonly TLShapeId[] = []): { x: number; y: number; w: number; h: number }[] {
 	const own = editor.getShapePageBounds(shape)
 	if (!own) return []
-	return followersOf(editor, shape.id).flatMap((f) => {
+	const others = more.flatMap((id) => editor.getShape(id) ?? [])
+	return [...followersOf(editor, shape.id), ...others].flatMap((f) => {
 		const b = editor.getShapePageBounds(f)
 		if (!b || b.minY >= own.maxY || b.maxY <= own.minY) return []
 		const at = editor.getPointInShapeSpace(shape, { x: b.minX, y: b.minY })

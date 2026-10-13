@@ -13,8 +13,11 @@ import { levelOrder, parentOf } from '../tree/model'
 import { pathAndSubtree, termMarks, treeTerms } from '../tree/terms'
 import { measureTree, type TreeMeasure } from '../tree/measure'
 import { ORDER_NAMES, traverseTree, type TreeOrder } from '../tree/traverse'
-import type { TreeNode } from '../tree/tree-shape-types'
 import { withArity } from './generate'
+import { lcrsSteps, leftChildRightSibling } from './lcrs'
+import { putBeside } from '../../cells/beside'
+import { MIN_BAR_WIDTH } from '../../controls/placement'
+import { TREE_SHAPE_TYPE, type TreeNode, type TreeShape } from '../tree/tree-shape-types'
 import {
 	GENERAL_TREE_SHAPE_TYPE,
 	generalTreeShapeMigrations,
@@ -230,6 +233,17 @@ export class GeneralTreeShapeUtil extends NodeLinkShapeUtil<GeneralTreeShape> im
 
 	override shapeOperations(shape: GeneralTreeShape): NodeOperation[] {
 		return [
+			// Knuth's: any tree is a binary tree, a node's left its first child, its right its next sibling.
+			...(shape.props.nodes.length > 1
+				? [
+						{
+							id: 'general-tree-lcrs',
+							label: 'As a binary tree: left child, right sibling',
+							group: 'convert',
+							run: () => this.asBinaryTree(shape.id),
+						},
+					]
+				: []),
 			// Lecture 8a's terms, as on binary trees.
 			{
 				section: 'show',
@@ -261,6 +275,34 @@ export class GeneralTreeShapeUtil extends NodeLinkShapeUtil<GeneralTreeShape> im
 			'Drag the dot under a node to move it',
 			'Style panel: Children per node, how many a node may get when it is sketched (with the tree selected, it is sketched again)',
 		]
+	}
+
+	/**
+	 * Left child, right sibling, step by step on the tree as drawn; at the end the binary tree it
+	 * becomes beside it, a binary tree of its own (in the result's undo step).
+	 */
+	private asBinaryTree(id: GeneralTreeShape['id']) {
+		const shape = this.editor.getShape(id) as GeneralTreeShape | undefined
+		if (!shape) return
+		const { nodes, fill, range, seed, size, font, color } = shape.props
+		playOperation(this.editor, {
+			shapeId: id,
+			label: 'left child, right sibling',
+			frames: lcrsSteps(nodes, this.buildScene(shape)),
+			// Nothing in it changes, but the result goes in: the binary tree.
+			final: { id, type: GENERAL_TREE_SHAPE_TYPE },
+			onCommit: () => {
+				const current = this.editor.getShape(id)
+				const props = { nodes: leftChildRightSibling(nodes), fill, range, seed, size, font, color }
+				const made = current && putBeside<TreeShape>(this.editor, current, { type: TREE_SHAPE_TYPE, props })
+				if (!made || !current) return []
+				// Far enough right that the play bar, under the tree, keeps its place beside it.
+				const [own, box] = [this.editor.getShapePageBounds(current), this.editor.getShapePageBounds(made)]
+				const clear = own && box ? own.minX + (MIN_BAR_WIDTH + 24) / this.editor.getZoomLevel() - box.minX : 0
+				if (clear > 0) this.editor.updateShape<TreeShape>({ id: made, type: TREE_SHAPE_TYPE, x: this.editor.getShape(made)!.x + clear })
+				return [made]
+			},
+		})
 	}
 
 	/** The terms beside the tree, or not: one undo step. */

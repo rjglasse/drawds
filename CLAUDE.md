@@ -579,7 +579,13 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   moves a node left / right among its siblings; pre-, post- and level order (`traverseTree`'s `general`: each call
   from a loop over the children, code `general-tree-<order>`, `child` named) and height / leaves / size
   (`measureTree`'s `general`: a leaf's loop never runs, so h starts at -1 or 0 and s at 1; a parent's return
-  combines all its children, `1 + max(1, 0, 2)`; code `general-tree-<measure>`); Show > Tree terms. `layout.ts`: contour
+  combines all its children, `1 + max(1, 0, 2)`; code `general-tree-<measure>`); Show > Tree terms. Step by step >
+  As a binary tree (`lcrs.ts`, Knuth's left child, right sibling): node by node in level order, the first child's
+  edge kept green (its left), the others' fading out and an orange arrow from each child to the next (its right,
+  scene edges `sib:<a>-><b>`), then `leftChildRightSibling` (pure, binary path ids) as a binary tree beside it
+  (`onCommit`, the result's undo step; placed past `MIN_BAR_WIDTH` so the bar keeps its place; the bar keeps clear
+  of what a result made, `PlaybackView.made` in `besideBoxes`). Its pre-order is the general tree's, its in-order
+  the general tree's post-order (tested). Binary trees and heaps widen long values into stadiums too (`nodeSize`). `layout.ts`: contour
   tidy layout for any number of children, siblings packed from the left and from the right and averaged (a small
   subtree between big ones sits midway), a lone child right under its parent. A value longer than 3 characters
   widens its node into a stadium (still kind `circle`, w > h: `roundEnds` in geometry.ts; drawn, hit, clipped,

@@ -35,6 +35,20 @@ export function getTreeMetrics(size: TLDefaultSizeStyle) {
 export type TreeMetrics = ReturnType<typeof getTreeMetrics>
 type LayoutProps = Pick<TreeShapeProps, 'nodes' | 'nulls' | 'size'> & Partial<Pick<TreeShapeProps, 'terms'>>
 
+/** Values up to this long fit a circle a cell across (from 3 on a little smaller, as on every node). */
+const FITS = 3
+/** A longer value is drawn as large as a 3-character one, its node widened to hold it. */
+const LONG_SCALE = 2.5 / FITS
+
+/**
+ * A node's size: a circle a cell across, or for a long value (a directory's or a person's name, in a general tree) a
+ * stadium as wide as it needs, round at the ends.
+ */
+export function nodeSize(value: string, m: TreeMetrics): { w: number; h: number; fontScale?: number } {
+	if (value.length <= FITS) return { w: m.diameter, h: m.diameter }
+	return { w: value.length * m.fontSize * LONG_SCALE * 0.6 + m.diameter * 0.5, h: m.diameter, fontScale: LONG_SCALE }
+}
+
 /** Keys of the terms' annotations: a level's depth, the legend (a dot and a word per term), the summary. */
 export const depthKey = (depth: number) => `#depth:${depth}`
 export const legendKey = (term: NodeTerm) => `#legend:${term}`
@@ -54,6 +68,8 @@ interface Item {
 	w: number
 	h: number
 	value: string
+	/** A long value's size (its node widened to hold it). */
+	fontScale?: number
 	children: (Item | null)[]
 }
 
@@ -75,7 +91,7 @@ function buildItems({ nodes, nulls }: LayoutProps, m: TreeMetrics): Item | null 
 			if (nulls !== 'show') return null
 			return { key: nullKey(id, slot), parent: id, kind: 'null', w: m.nullW, h: m.nullH, value: 'null', children: [] }
 		})
-		return { key: id, kind: 'circle', w: m.diameter, h: m.diameter, value: node.value, children }
+		return { key: id, kind: 'circle', ...nodeSize(node.value, m), value: node.value, children }
 	}
 	return nodes.length ? visit(nodes[0].id) : null
 }
@@ -142,6 +158,7 @@ function baseScene(props: LayoutProps): Scene {
 			value: item.value,
 			editable: item.kind === 'circle',
 			draggable: item.kind === 'circle',
+			...(item.fontScale ? { fontScale: item.fontScale } : {}),
 		})
 		if (item.parent) edges.push({ key: `${item.parent}->${item.key}`, from: item.parent, to: item.key, directed: false })
 		for (const child of item.children) if (child) visit(child, x + offsets.get(child)!, level + 1)
