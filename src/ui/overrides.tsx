@@ -58,6 +58,7 @@ import listIconUrl from './icons/list.svg'
 import treeIconUrl from './icons/tree.svg'
 import { HeapPickers, heapPickerTranslations } from './HeapPickers'
 import heapIconUrl from './icons/heap.svg'
+import generalTreeIconUrl from './icons/general-tree.svg'
 import unionFindIconUrl from './icons/union-find.svg'
 import recursionIconUrl from './icons/recursion.svg'
 import matrixIconUrl from './icons/matrix.svg'
@@ -65,6 +66,7 @@ import hashIconUrl from './icons/hash.svg'
 import codeIconUrl from './icons/code.svg'
 import { HashPickers, hashPickerTranslations } from './HashPickers'
 import { TreePickers, treePickerTranslations } from './TreePickers'
+import { GeneralTreePickers, generalTreePickerTranslations } from './GeneralTreePickers'
 import { UnionFindPickers, unionFindPickerTranslations } from './UnionFindPickers'
 import { TracerPickers, tracerPickerTranslations } from './TracerPickers'
 import { CodePickers, codePickerTranslations } from './CodePickers'
@@ -74,7 +76,7 @@ import { makeCodeBox } from '../shapes/code/convert'
 import { StructureHint } from './StructureHint'
 
 /** Our structure tools, in toolbar order. */
-const STRUCTURE_TOOLS = ['array', 'matrix', 'linked-list', 'binary-tree', 'heap', 'union-find', 'hash-table', 'graph', 'recursion-tracer', 'code'] as const
+const STRUCTURE_TOOLS = ['array', 'matrix', 'linked-list', 'binary-tree', 'general-tree', 'heap', 'union-find', 'hash-table', 'graph', 'recursion-tracer', 'code'] as const
 
 const RELAYOUT = 'drawds.relayout'
 
@@ -125,6 +127,14 @@ export const uiOverrides: TLUiOverrides = {
 			label: 'Binary tree',
 			kbd: 'shift+t',
 			onSelect: () => editor.setCurrentTool('binary-tree'),
+		}
+		tools['general-tree'] = {
+			id: 'general-tree',
+			icon: maskIcon(generalTreeIconUrl),
+			label: 'General tree (any number of children)',
+			// "k" for k children a node; shift+g is the graph tool.
+			kbd: 'shift+k',
+			onSelect: () => editor.setCurrentTool('general-tree'),
 		}
 		tools.heap = {
 			id: 'heap',
@@ -233,6 +243,7 @@ export const uiOverrides: TLUiOverrides = {
 			...listPickerTranslations,
 			...hashPickerTranslations,
 			...treePickerTranslations,
+			...generalTreePickerTranslations,
 			...heapPickerTranslations,
 			...unionFindPickerTranslations,
 			...tracerPickerTranslations,
@@ -563,6 +574,7 @@ export const components: TLComponents = {
 			<ArrayPickers />
 			<ListPickers />
 			<TreePickers />
+			<GeneralTreePickers />
 			<HeapPickers />
 			<UnionFindPickers />
 			<TracerPickers />

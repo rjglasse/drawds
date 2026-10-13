@@ -38,8 +38,20 @@ export function pointerAnchor(node: SceneNode, prev = false): Point {
 	return { x, y: node.y }
 }
 
+/**
+ * A round node's ends: a circle, or one wider than it is tall (a long value) a stadium, two half
+ * circles of radius `r` centred `half` either side of its centre, joined by straight sides (a circle's `half` is 0).
+ */
+export function roundEnds(node: SceneNode): { r: number; half: number } {
+	const r = Math.min(node.w, node.h) / 2
+	return { r, half: node.w / 2 - r }
+}
+
 export function nodeContains(node: SceneNode, p: Point): boolean {
-	if (node.kind === 'circle') return Math.hypot(p.x - node.x, p.y - node.y) <= node.w / 2
+	if (node.kind === 'circle') {
+		const { r, half } = roundEnds(node)
+		return Math.hypot(p.x - Math.min(Math.max(p.x, node.x - half), node.x + half), p.y - node.y) <= r
+	}
 	return boxContains(nodeBox(node), p)
 }
 
@@ -54,8 +66,19 @@ export function boundaryPoint(node: SceneNode, toward: Point): Point {
 	const len = Math.hypot(dx, dy)
 	if (len === 0) return { x: node.x, y: node.y }
 	if (node.kind === 'circle') {
-		const r = node.w / 2
-		return { x: node.x + (dx / len) * r, y: node.y + (dy / len) * r }
+		const { r, half } = roundEnds(node)
+		const [ux, uy] = [dx / len, dy / len]
+		// A circle, or a stadium's straight side; else round its end, centred `half` to that side.
+		let t = r
+		if (half > 0) {
+			const side = uy === 0 ? Infinity : r / Math.abs(uy)
+			if (Math.abs(ux) * side <= half) t = side
+			else {
+				const along = Math.sign(ux) * half * ux
+				t = along + Math.sqrt(along * along - (half * half - r * r))
+			}
+		}
+		return { x: node.x + ux * t, y: node.y + uy * t }
 	}
 	const t = Math.min(
 		dx === 0 ? Infinity : node.w / 2 / Math.abs(dx),

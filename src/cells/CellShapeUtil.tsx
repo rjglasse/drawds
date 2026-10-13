@@ -495,7 +495,8 @@ function CellInput<S extends TLShape>({
 					border: 'none',
 					outline: `2px solid ${outlineColor}`,
 					outlineOffset: -1,
-					borderRadius: box.round ? '50%' : 0,
+					// A circle, or a stadium (a round node widened for a long value).
+					borderRadius: box.round ? Math.min(box.w, box.h) / 2 : 0,
 					background: 'transparent',
 					color: textColor,
 					fontFamily,

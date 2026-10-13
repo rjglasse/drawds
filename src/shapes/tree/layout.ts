@@ -32,7 +32,7 @@ export function getTreeMetrics(size: TLDefaultSizeStyle) {
 	}
 }
 
-type Metrics = ReturnType<typeof getTreeMetrics>
+export type TreeMetrics = ReturnType<typeof getTreeMetrics>
 type LayoutProps = Pick<TreeShapeProps, 'nodes' | 'nulls' | 'size'> & Partial<Pick<TreeShapeProps, 'terms'>>
 
 /** Keys of the terms' annotations: a level's depth, the legend (a dot and a word per term), the summary. */
@@ -63,7 +63,7 @@ interface Contour {
 	right: number[]
 }
 
-function buildItems({ nodes, nulls }: LayoutProps, m: Metrics): Item | null {
+function buildItems({ nodes, nulls }: LayoutProps, m: TreeMetrics): Item | null {
 	const index = byId(nodes)
 	const seen = new Set<string>()
 	const visit = (id: string): Item => {
@@ -86,7 +86,7 @@ function buildItems({ nodes, nulls }: LayoutProps, m: Metrics): Item | null {
  * a little to its own side (`lone`), so left and right children stay distinguishable.
  * Records each child's horizontal offset from its parent in `offsets`.
  */
-function place(item: Item, offsets: Map<Item, number>, m: Metrics): Contour {
+function place(item: Item, offsets: Map<Item, number>, m: TreeMetrics): Contour {
 	const [left, right] = [item.children[0] ?? null, item.children[1] ?? null]
 	const cl = left && place(left, offsets, m)
 	const cr = right && place(right, offsets, m)
@@ -159,7 +159,7 @@ function baseScene(props: LayoutProps): Scene {
  * leaf in their colours; the badges are heights) and a summary below. The tints and badges are the
  * shape's own (TreeShapeUtil), shown while no operation is open.
  */
-function termAnnotations(props: LayoutProps, nodes: SceneNode[], m: Metrics): SceneNode[] {
+export function termAnnotations(props: Pick<TreeShapeProps, 'nodes'>, nodes: SceneNode[], m: TreeMetrics): SceneNode[] {
 	const terms = treeTerms(props.nodes)
 	const text = (value: string) => ({ w: value.length * m.labelFontSize * 0.62 + m.labelFontSize, h: m.labelFontSize * 1.6, value })
 	const label = (key: string, x: number, y: number, value: string): SceneNode => ({ key, kind: 'label', x, y, ...text(value), editable: false, draggable: false })

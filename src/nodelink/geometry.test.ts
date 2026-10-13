@@ -36,6 +36,17 @@ describe('boundaryPoint', () => {
 		expect(Math.hypot(diag.x, diag.y)).toBeCloseTo(20)
 	})
 
+	it('clips to a stadium: a round node widened for a long value, round at the ends', () => {
+		const wide = node('a', 0, 0, 'circle', 100, 40)
+		// Its straight sides, then its round ends (radius 20 round x = ±30).
+		close(boundaryPoint(wide, { x: 0, y: 100 }), { x: 0, y: 20 })
+		close(boundaryPoint(wide, { x: 10, y: -100 }), { x: 2, y: -20 })
+		close(boundaryPoint(wide, { x: 100, y: 0 }), { x: 50, y: 0 })
+		const end = boundaryPoint(wide, { x: 100, y: 50 })
+		expect(Math.hypot(end.x - 30, end.y)).toBeCloseTo(20)
+		expect(end.y / end.x).toBeCloseTo(0.5)
+	})
+
 	it('clips to a box', () => {
 		close(boundaryPoint(node('a', 0, 0), { x: 100, y: 0 }), { x: 20, y: 0 })
 		close(boundaryPoint(node('a', 0, 0), { x: 100, y: 100 }), { x: 20, y: 20 })
@@ -114,6 +125,11 @@ describe('nodeContains', () => {
 	it('uses the outline shape', () => {
 		expect(nodeContains(node('a', 0, 0, 'circle'), { x: 15, y: 15 })).toBe(false)
 		expect(nodeContains(node('a', 0, 0), { x: 15, y: 15 })).toBe(true)
+		// A stadium: its middle reaches its sides, its ends are round.
+		const wide = node('a', 0, 0, 'circle', 100, 40)
+		expect(nodeContains(wide, { x: 25, y: 19 })).toBe(true)
+		expect(nodeContains(wide, { x: 48, y: 0 })).toBe(true)
+		expect(nodeContains(wide, { x: 48, y: 15 })).toBe(false)
 	})
 })
 

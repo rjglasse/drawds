@@ -239,6 +239,8 @@ describe('algorithm code', () => {
 			findInList({ nodes: ['7', '3'].map((value, i) => ({ id: `n${i}`, value, dx: 0, dy: 0 })), direction: 'right', size: 'm' }, '9'),
 			// Lecture 8: traversals (with and without null markers) and the recursion that returns values.
 			...(['pre', 'in', 'post', 'level'] as const).flatMap((order) => [traverseTree(tree, 'a', order), traverseTree(tree, 'a', order, { nulls: true })]),
+			// A general tree's, each call from a loop over the children.
+			...(['pre', 'post', 'level'] as const).map((order) => traverseTree(tree, 'a', order, { general: true })),
 			...(['height', 'height-levels', 'leaves', 'size'] as const).flatMap((m) => [measureTree(tree, 'a', m), measureTree(tree, 'a', m, { nulls: true })]),
 			{ ...bstExtreme(tree, 'a', 'min'), code: 'bst-min' },
 			// Lecture 8b's BST: search, insert, delete (every case).

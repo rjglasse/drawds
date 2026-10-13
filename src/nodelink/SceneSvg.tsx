@@ -285,7 +285,7 @@ export function SceneSvg({
 
 /** A ring round a node (round or boxed, as the node is), `pad` off its outline: outside, or (negative) inside. */
 function NodeRing({ node, pad, ...rest }: { node: SceneNode; pad: number } & SVGProps<SVGCircleElement & SVGRectElement>) {
-	return node.kind === 'circle' ? (
+	return node.kind === 'circle' && node.w <= node.h ? (
 		<circle cx={node.x} cy={node.y} r={node.w / 2 + pad} fill="none" {...rest} />
 	) : (
 		<rect
@@ -293,7 +293,8 @@ function NodeRing({ node, pad, ...rest }: { node: SceneNode; pad: number } & SVG
 			y={node.y - node.h / 2 - pad}
 			width={node.w + 2 * pad}
 			height={node.h + 2 * pad}
-			rx={pad}
+			// A long value's round node is a stadium: round ends.
+			rx={node.kind === 'circle' ? node.h / 2 + pad : pad}
 			fill="none"
 			{...rest}
 		/>
@@ -354,7 +355,7 @@ function NodeShapeSvg({
 	// A sentinel (dummy) node is dashed and unfilled: it holds no value.
 	const dash = node.ghost ? `${paint.strokeWidth * 3} ${paint.strokeWidth * 2.5}` : undefined
 	const outline = (p: Paint, className?: string) =>
-		node.kind === 'circle' ? (
+		node.kind === 'circle' && node.w <= node.h ? (
 			<circle className={className} cx={node.x} cy={node.y} r={node.w / 2} fill={p.fill} stroke={p.stroke} strokeWidth={p.strokeWidth} />
 		) : (
 			<rect
@@ -363,6 +364,7 @@ function NodeShapeSvg({
 				y={node.y - node.h / 2}
 				width={node.w}
 				height={node.h}
+				rx={node.kind === 'circle' ? node.h / 2 : undefined}
 				fill={node.ghost ? 'none' : p.fill}
 				stroke={p.stroke}
 				strokeWidth={p.strokeWidth}
@@ -425,7 +427,7 @@ function NodeValueSvg({
 		<text
 			x={box.x + box.w / 2}
 			y={box.y + box.h / 2}
-			fontSize={paint.fontSize * Math.min(1, 2.5 / Math.max(1, node.value.length))}
+			fontSize={paint.fontSize * (node.fontScale ?? Math.min(1, 2.5 / Math.max(1, node.value.length)))}
 			fill={paint.text}
 			style={swapStyle}
 		>

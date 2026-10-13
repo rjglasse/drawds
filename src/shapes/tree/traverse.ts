@@ -26,19 +26,25 @@ export interface TreeTraversal {
 const SIDES = ['left', 'right'] as const
 const edgeKey = (parent: string, child: string) => edgeCellKey(`${parent}->${child}`)
 const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+/** "A", "A and B", "A, B and C". */
+const andList = (items: readonly string[]) => (items.length < 3 ? items.join(' and ') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`)
 
 /**
  * Traverse the subtree at `start`, step by step. Pre-, in- and post-order recurse: go left, back
  * up, go right, visiting each node before, between or after its subtrees, with the call stack
  * and the output so far as strips. Level order takes nodes from a queue. With `nulls`, empty
  * children (drawn as null markers) show up as base cases. `note` ends the last caption.
+ *
+ * `general`: a general tree's, any number of children, in order (no in-order: there is no middle),
+ * each call made from a loop over them (its code `general-tree-<order>`).
  */
 export function traverseTree(
 	nodes: readonly TreeNode[],
 	start: string,
 	order: TreeOrder,
-	{ nulls = false, note }: { nulls?: boolean; note?: string } = {}
+	{ nulls = false, note, general = false }: { nulls?: boolean; note?: string; general?: boolean } = {}
 ): TreeTraversal {
+	const code = `${general ? 'general-tree' : 'tree'}-${order}`
 	const byId = new Map(nodes.map((n) => [n.id, n]))
 	const value = (id: string) => byId.get(id)?.value ?? id
 	const frames: Frame[] = []
@@ -60,14 +66,14 @@ export function traverseTree(
 				flash: { [id]: CURRENT, ...(previous ? { [previous]: VISITED } : {}), ...Object.fromEntries(kids.map((k) => [k, WAITING])) },
 				badges: { [id]: String(visited.length) },
 				strips: strips(),
-				caption: `Dequeue ${value(id)}: visit it (${visited.length})${kids.length ? `, queue ${kids.map(value).join(' and ')}` : ''}`,
+				caption: `Dequeue ${value(id)}: visit it (${visited.length})${kids.length ? `, queue ${andList(kids.map(value))}` : ''}`,
 				line: 'visit',
 				vars: { node: value(id) },
 			})
 			previous = id
 		}
 		frames.push({ flash: previous ? { [previous]: VISITED } : {}, strips: strips(), caption: done() })
-		return { frames, visited, code: 'tree-level' }
+		return { frames, visited, code }
 	}
 
 	const stack: string[] = []
@@ -98,18 +104,27 @@ export function traverseTree(
 		stack.push(id)
 		const node = byId.get(id)!
 		const v = value(id)
-		const arrive = from ? `go ${SIDES[from.slot]} to ${v}` : `start at ${v}`
+		const arrive = from ? (general ? `go down to ${v}` : `go ${SIDES[from.slot]} to ${v}`) : `start at ${v}`
 		const flash = {
 			[id]: CURRENT,
 			...(from ? { [from.parent]: isVisited.has(from.parent) ? VISITED : WAITING, [edgeKey(from.parent, id)]: WAITING } : {}),
 		}
-		const kids = SIDES.map((_, slot) => node.children[slot]).map((c) => (c && byId.has(c) ? c : undefined))
-		// The line: the call that got here (the parent's left or right one), or the first call.
-		const called = { line: from ? SIDES[from.slot] : 'call', vars: { node: v } }
+		const kids = general
+			? node.children.filter((c): c is string => !!c && byId.has(c))
+			: SIDES.map((_, slot) => node.children[slot]).map((c) => (c && byId.has(c) ? c : undefined))
+		// The line: the call that got here (the parent's left or right one, or its loop over its
+		// children), or the first call.
+		const called: { line: string; vars: Record<string, string> } = from
+			? general
+				? { line: 'child', vars: { node: v, child: v } }
+				: { line: SIDES[from.slot], vars: { node: v } }
+			: { line: 'call', vars: { node: v } }
 		if (order === 'pre') {
-			frame({ flash, badges: visit(id), caption: `${say(arrive)}: visit it (${visited.length})`, line: 'visit', vars: { node: v } })
+			// A general tree's loop is on that child too.
+			const vars: Record<string, string> = general && from ? { node: v, child: v } : { node: v }
+			frame({ flash, badges: visit(id), caption: `${say(arrive)}: visit it (${visited.length})`, line: 'visit', vars })
 		} else {
-			const first = order === 'in' ? 'its left subtree first' : 'its left and right subtrees first'
+			const first = order === 'in' ? 'its left subtree first' : general ? 'its children first' : 'its left and right subtrees first'
 			frame({ flash, caption: `${say(arrive)}${kids.some(Boolean) ? `: ${first}` : ''}`, ...called })
 		}
 
@@ -127,8 +142,9 @@ export function traverseTree(
 			pending[marker] = null
 		}
 
-		child(0)
-		if (order === 'in') {
+		if (general) kids.forEach((_, slot) => child(slot))
+		else child(0)
+		if (order === 'in' && !general) {
 			const then = kids[1] ? ', then its right subtree' : ''
 			frame({
 				flash: { [id]: CURRENT },
@@ -138,13 +154,14 @@ export function traverseTree(
 				vars: { node: v },
 			})
 		}
-		child(1)
+		if (!general) child(1)
 		if (order === 'post') {
 			const leaf = !kids.some(Boolean)
+			const done = general ? 'its children are done' : 'its subtrees are done'
 			frame({
 				flash: { [id]: CURRENT },
 				badges: visit(id),
-				caption: `${say(leaf ? `${v} is a leaf: visit it` : `its subtrees are done: visit ${backAt === id ? 'it' : v}`)} (${visited.length})`,
+				caption: `${say(leaf ? `${v} is a leaf: visit it` : `${done}: visit ${backAt === id ? 'it' : v}`)} (${visited.length})`,
 				line: 'visit',
 				vars: { node: v },
 			})
@@ -163,5 +180,5 @@ export function traverseTree(
 	walk(start)
 	backAt = undefined
 	frame({ caption: done() })
-	return { frames, visited, code: `tree-${order}` }
+	return { frames, visited, code }
 }

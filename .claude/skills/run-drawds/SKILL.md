@@ -223,6 +223,12 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   (`[data-warning]` in the DOM); `style.invariant.off` / `.check` toggles it. Tree terms (root / internal / leaf
   tinted, depths, heights as badges, a summary): `context-menu-sub.drawds-tree-show-button` > `context-menu.tree-terms`
   (heaps: `drawds-heap-show`, `heap-terms`); prop `terms`; hover a node for its path from the root and its subtree.
+- **General tree**: `key Shift+K` then `drag x y x+lean*96 y+(depth-1)*76.8+10` (as `tree`, which is Shift+T only);
+  `style.tree-arity.3|4|5|6` (with a tree selected it is sketched again, values kept). `hover <id>` then
+  `[data-testid="add-child-<id>"]` (a last child, opens for typing) or `remove-node-<id>`; node ids `n`, `n0`, `n01`...
+  Menus `context-menu-sub.drawds-general-tree-steps-button` (`general-tree-pre-order`, `-post-order`, `-level-order`),
+  `-actions-` (`general-tree-move-left|right`), `-show-` (`general-tree-terms`). Values longer than 3 characters
+  widen their node into a pill.
 - **Matrix**: `key Shift+M` then `drag x1 y1 x2 y2` (a row / column per 48 px); cell keys `r,c`
   (`dblclick` a cell to edit). Grips: `dragnode grow-cols dx 0`, `dragnode grow-rows 0 dy`. A cell's
   menu: `context-menu-sub.drawds-matrix-steps-button` (`matrix-row-major`, `matrix-col-major`,

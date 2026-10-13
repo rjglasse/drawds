@@ -34,6 +34,11 @@ export interface SceneNode {
 	draggable: boolean
 	/** Drawn dashed and unfilled: a list's sentinel (dummy) node. */
 	ghost?: boolean
+	/**
+	 * The value's size, a fraction of the scene's font size: for a node made wide enough for its value.
+	 * By default a value shrinks with its length to fit a node a cell wide.
+	 */
+	fontScale?: number
 }
 
 export interface SceneEdge {

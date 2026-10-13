@@ -244,9 +244,10 @@ test('the code beside a matrix: an int[][] (Python a list of rows); grips, inser
 	await page.mouse.dblclick(...cell(1, 1))
 	await expect.poll(() => focusedLabel(page)).toBe('Cell 1,1')
 	await page.keyboard.press('ControlOrMeta+a')
-	await page.keyboard.type('42')
+	// Out of the fill's range (0-99), so the cell can't already hold it.
+	await page.keyboard.type('420')
 	await page.keyboard.press('Enter')
-	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a[1][1] = 42;')
+	await expect.poll(async () => (await lines(page)).at(-1)).toBe('a[1][1] = 420;')
 
 	// The column grip dragged two cells right: two columns, a line each.
 	const [x, y] = await handlePosition(page, 'grow-cols')
@@ -273,7 +274,7 @@ test('the code beside a matrix: an int[][] (Python a list of rows); grips, inser
 		void editor.select(editor.getCurrentPageShapes().find((s) => s.type === 'code')!.id)
 	})
 	await page.getByTestId('style.code-language.python').click()
-	await expect.poll(async () => (await lines(page)).slice(1, 3)).toEqual(['a[1][1] = 42', expect.stringMatching(/^for row, v in zip\(a, \[\d+, \d+\]\): row\.append\(v\)$/)])
+	await expect.poll(async () => (await lines(page)).slice(1, 3)).toEqual(['a[1][1] = 420', expect.stringMatching(/^for row, v in zip\(a, \[\d+, \d+\]\): row\.append\(v\)$/)])
 })
 
 test('the code beside union-find: union and find called by index (names in a comment), how they work as fields', async ({ page }) => {

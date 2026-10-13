@@ -568,6 +568,21 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   summary below (`termAnnotations` in the tree layout, keys `#depth:<d>`, `#legend:<term>`, `#terms-summary`, the
   root's place unchanged); pointing at a node lights its path from the root orange and its subtree's edges green
   (`pathAndSubtree`, via `hoverHighlights`). Tints and badges hide while an operation is open.
+- `src/shapes/general-tree/` - general trees (dds-55z.17.4; lecture 8a's "any number of children, like a file system";
+  Shift+K): a binary tree's `TreeNode`s, children in order with no empty slots, so `levelOrder`, `subtreeIds`,
+  `parentOf`, `treeTerms` and the terms' annotations work on them as they are. The binary tree's gesture (down for
+  levels, lean for fullness) with style `drawds:tree-arity` 3-6, the most children a node gets when sketched
+  (`generate.ts`: slots per node, the seeded spine in slots 0-2 so a higher arity only adds children; `maxDepth`
+  keeps a perfect tree to 64 leaves); the shape keeps the drag (`depth`, `fullness`), so picking another arity with
+  it selected sketches it again (`withArity`: sketched nodes keep their values, hand-added ones go). A + on a node's
+  lower right adds a last child (`slotButton`, overriding the binary corners), x removes a subtree, the node menu
+  moves a node left / right among its siblings; pre-, post- and level order (`traverseTree`'s `general`: each call
+  from a loop over the children, code `general-tree-<order>`, `child` named); Show > Tree terms. `layout.ts`: contour
+  tidy layout for any number of children, siblings packed from the left and from the right and averaged (a small
+  subtree between big ones sits midway), a lone child right under its parent. A value longer than 3 characters
+  widens its node into a stadium (still kind `circle`, w > h: `roundEnds` in geometry.ts; drawn, hit, clipped,
+  outlined and edited round at the ends), its text at `fontScale` (a 3-character value's size). Not yet tracked as
+  code (no transcript).
 - `src/shapes/graph/` - graphs: nodes at free positions in cell units (so the size style scales the drawing), edges
   `{from, to, weight}` (weights always stored; shown when the `drawds:graph-weights` style says so; direction and
   A/0 labels are styles too, see `src/ui/GraphPickers.tsx`). `generate.ts` is the sketch: a node drops every

@@ -36,7 +36,7 @@ import { showsStructureControls } from '../controls/visibility'
 import { exportingStep } from '../export/exporting'
 import { StepExtrasSvg } from '../export/StepExtrasSvg'
 import { POINTER_FONT_SCALE, placePointers, type PlacedPointer, type PointerAnchor, type PointerSide } from '../pointers/layout'
-import { boxContains, labelBox, nodeBox, nodeContains, routeScene, spatialNeighbor, type EdgeRoute } from './geometry'
+import { boxContains, labelBox, nodeBox, nodeContains, roundEnds, routeScene, spatialNeighbor, type EdgeRoute } from './geometry'
 import { hoveredEdge, hoveredNode, isCoarsePointer } from './hover'
 import { ROOM_KEY, animationMs, isBusy, isCovered, isLastFrame, playbackFor, roomOf, type Frame, type PlaybackView, type Room } from './playback'
 import { edgeCellKey, translateScene, type Scene, type SceneEdge, type SceneNode } from './scene'
@@ -219,7 +219,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	getGeometry(shape: S): Geometry2d {
 		const scene = this.getScene(shape)
 		const nodes = scene.nodes.map((n) =>
-			n.kind === 'circle'
+			n.kind === 'circle' && n.w <= n.h
 				? new Circle2d({ x: n.x - n.w / 2, y: n.y - n.h / 2, radius: n.w / 2, isFilled: true })
 				: new Rectangle2d({ x: n.x - n.w / 2, y: n.y - n.h / 2, width: n.w, height: n.h, isFilled: true })
 		)
@@ -435,20 +435,15 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 			<>
 				{slotNodes.flatMap((n) =>
 					(this.getEmptySlots?.(shape, n.key) ?? []).map((slot) => {
-						const side = slot === 0 ? -1 : 1
-						// Lower corner on the slot's side, where that child's edge would leave the node.
-						const corner =
-							n.kind === 'circle'
-								? { x: n.x + side * ((n.w / 2) * Math.SQRT1_2 + nudge), y: n.y + (n.h / 2) * Math.SQRT1_2 + nudge }
-								: { x: n.x + side * (n.w / 2 + nudge), y: n.y + n.h / 2 + nudge }
+						const { at, label, testId } = this.slotButton(n, slot, nudge)
 						return (
 							<ControlButton
 								key={`slot-${n.key}-${slot}`}
 								editor={this.editor}
 								kind="insert"
-								at={corner}
-								label={`Add a ${slot === 0 ? 'left' : 'right'} child to ${n.value}`}
-								testId={`add-child-${n.key}-${slot === 0 ? 'left' : 'right'}`}
+								at={at}
+								label={label}
+								testId={testId}
 								colors={colors}
 								onPress={() => this.pressAddChild(shape, n.key, slot)}
 							/>
@@ -463,11 +458,7 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 							editor={this.editor}
 							kind="remove"
 							// The top-right corner, nudged off it so the selection outline only touches the button.
-							at={
-								n.kind === 'circle'
-									? { x: n.x + (n.w / 2) * Math.SQRT1_2 + nudge, y: n.y - (n.h / 2) * Math.SQRT1_2 - nudge }
-									: { x: n.x + n.w / 2 + nudge, y: n.y - n.h / 2 - nudge }
-							}
+							at={nodeCorner(n, 1, -1, nudge)}
 							label={`Remove node ${n.value}`}
 							testId={`remove-node-${n.key}`}
 							colors={colors}
@@ -504,6 +495,19 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 					))}
 			</>
 		)
+	}
+
+	/**
+	 * The + for an empty child slot: a binary node's left (0) or right (1) child, on that lower
+	 * corner, where the child's edge would leave the node.
+	 */
+	protected slotButton(n: SceneNode, slot: number, nudge: number): { at: VecLike; label: string; testId: string } {
+		const side = slot === 0 ? 'left' : 'right'
+		return {
+			at: nodeCorner(n, slot === 0 ? -1 : 1, 1, nudge),
+			label: `Add a ${side} child to ${n.value}`,
+			testId: `add-child-${n.key}-${side}`,
+		}
 	}
 
 	/**
@@ -689,9 +693,11 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		const path = new Path2D()
 		for (const n of this.displayScene(current).nodes) {
 			if (n.kind === 'null' || n.kind === 'label') continue
-			if (n.kind === 'circle') {
+			if (n.kind === 'circle' && n.w <= n.h) {
 				path.moveTo(n.x + n.w / 2, n.y)
 				path.arc(n.x, n.y, n.w / 2, 0, Math.PI * 2)
+			} else if (n.kind === 'circle') {
+				path.roundRect(n.x - n.w / 2, n.y - n.h / 2, n.w, n.h, n.h / 2)
 			} else {
 				path.rect(n.x - n.w / 2, n.y - n.h / 2, n.w, n.h)
 			}
@@ -778,3 +784,13 @@ function unionRoom(...rooms: (Room | undefined)[]): Room | undefined {
 
 const sameRoom = (a: Room, b: Room) =>
 	Math.abs(a.minX - b.minX) < 1e-6 && Math.abs(a.minY - b.minY) < 1e-6 && Math.abs(a.maxX - b.maxX) < 1e-6 && Math.abs(a.maxY - b.maxY) < 1e-6
+
+/**
+ * A node's corner, `nudge` off its outline, for a button: `side` -1 left / 1 right, `vertical` -1
+ * top / 1 bottom. On a round node it is on the rim at 45° (of a stadium's end, for a long value).
+ */
+export function nodeCorner(n: SceneNode, side: number, vertical: number, nudge: number): VecLike {
+	if (n.kind !== 'circle') return { x: n.x + side * (n.w / 2 + nudge), y: n.y + vertical * (n.h / 2 + nudge) }
+	const { r, half } = roundEnds(n)
+	return { x: n.x + side * (half + r * Math.SQRT1_2 + nudge), y: n.y + vertical * (r * Math.SQRT1_2 + nudge) }
+}

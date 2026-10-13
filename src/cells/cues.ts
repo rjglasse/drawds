@@ -76,9 +76,10 @@ export interface CueBadgeAt {
 export function cueBadgeAt(node: { x: number; y: number; w: number; h: number }, round: boolean, inset: number, right = false): CueBadgeAt {
 	const side = right ? 1 : -1
 	if (round) {
-		const R = node.w / 2
+		// On the rim of a circle, or of a stadium's end (a long value).
+		const R = Math.min(node.w, node.h) / 2
 		const rim = R * Math.SQRT1_2
-		return { x: node.x + side * rim, y: node.y - rim, r: R * 0.28 }
+		return { x: node.x + side * (node.w / 2 - R + rim), y: node.y - rim, r: R * 0.28 }
 	}
 	const r = Math.min(node.w, node.h) * 0.14
 	return { x: node.x + side * (node.w / 2 - inset - r), y: node.y - node.h / 2 + inset + r, r }
