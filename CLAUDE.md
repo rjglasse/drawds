@@ -762,7 +762,9 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   mode's default question is weak, give a frame an `ask` worded so it doesn't give the answer away: the same question
   whichever way the step goes (BFS / DFS "A–B: is B new?", BST "30 vs 21: which way?", hashing "which bucket does
   h(22) give?", binary search "found it, or which half?", sorts "swap them or not?", recursion "which call comes
-  next?", list code "which line comes next?"); array operations pass `ask` / `askFocus` to the recorder's `step`.
+  next?", list code "which line comes next?", tree traversals "where does the walk go next?", Dijkstra "A–B (3): does
+  dist(B) go down?"); the first frame is asked too, as the operation opens (what it does first, where it starts);
+  array operations pass `ask` / `askFocus` to the recorder's `step`.
   An operation with code names its algorithm (`playOperation`'s `code`; arrays return it as `ArrayOperation.code`) and
   each frame the line it shows (`Frame.line`, a tag in that algorithm's code in every language; a frame without one
   lights nothing). Write the code as the steps run it, so the lit line reads as what the step shows; the unit test in

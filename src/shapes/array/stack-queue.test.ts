@@ -85,3 +85,38 @@ describe('queues', () => {
 		expect(peekQueue(ring(['', 'a', 'b'], 2, 1)).frames[0].caption).toBe('Peek: a[front] = a, still first in line')
 	})
 })
+
+describe("predict mode's questions", () => {
+	const stack = (values: string[], used: number, fixed = true) => ({ values, marks: {}, used, fixed })
+	const ring = (values: string[], used: number, front: number, fixed = true) => ({ values, marks: {}, used, front, fixed })
+	const asks = (op: ArrayOperation) => op.frames.map((f) => f.ask)
+
+	it('every step asks its own question, the same whether it overflows, wraps or shifts', () => {
+		const ops = [
+			push(stack(['1', '2', '', ''], 2), '9'),
+			push(stack(['1', '2'], 2), '9'),
+			push(stack(['1', '2'], 2, false), '9'),
+			pop(stack(['1', '2', ''], 2)),
+			pop(stack(['', ''], 0)),
+			peekStack(stack(['1'], 1)),
+			enqueue(ring(['', 'a', 'b'], 2, 1), 'c'),
+			enqueue(ring(['a', 'b'], 2, 0), 'c'),
+			dequeue(ring(['', 'a', 'b'], 2, 1)),
+			dequeue(ring(['a', 'b', 'c'], 3, 0, false)),
+			peekQueue(ring(['', 'a', 'b'], 2, 1)),
+		]
+		for (const op of ops) for (const f of op.frames) expect(f.ask, f.caption).toBeDefined()
+		// Pushing onto a full stack asks what pushing onto any stack asks.
+		expect(asks(push(stack(['1', '2'], 2), '9'))[0]).toBe(asks(push(stack(['1', '2', '', ''], 2), '9'))[0])
+		// Lecture 6: what a pop leaves in the slot; where rear goes round the buffer.
+		expect(asks(pop(stack(['1', '2', ''], 2)))).toEqual(['Which value comes off?', 'top = top - 1: what happens to the 2 in a[1]?'])
+		expect(asks(enqueue(ring(['', 'a', ''], 1, 1), 'c'))[1]).toBe('rear = (rear + 1) % 3: where does rear go?')
+	})
+
+	it('dequeue asks what happens to the rest: nothing moves round a buffer, a list shifts (asked once)', () => {
+		const rest = 'a is taken: what happens to the values still in the queue?'
+		expect(asks(dequeue(ring(['a', 'b', 'c'], 3, 0)))).toEqual(['Which value comes off?', rest])
+		expect(asks(dequeue(ring(['a', 'b', 'c'], 3, 0, false)))).toEqual(['Which value comes off?', rest, false, false])
+		expect(asks(dequeue(ring(['a'], 1, 0, false)))).toEqual(['Which value comes off?', rest])
+	})
+})

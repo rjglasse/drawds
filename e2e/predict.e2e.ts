@@ -116,6 +116,38 @@ test('BFS asks which node leaves the queue and, edge by edge, whether the far en
 	await expect(caption(page)).toHaveText(/^A–(\w): \1 is new: mark it visited \(2\) and queue it$/)
 })
 
+test("a tree's in-order asks what it does first, then where the walk goes; Dijkstra, edge by edge, whether a distance goes down", async ({ page }) => {
+	await predicting(page)
+	await open(page)
+	const { nodes } = await sketchBst(page)
+	const value = (id: string) => nodes.find((n) => n.id === id)!.value
+	await rightClick(page, await nodeScreenPosition(page, 'n'))
+	await page.getByTestId('context-menu-sub.drawds-tree-steps-button').click()
+	await page.getByTestId('context-menu.tree-in-order').click()
+	await expect(asking(page)).toHaveText(`In-order from ${value('n')}: what does it do first?`)
+	await page.keyboard.press('ArrowRight')
+	await expect(caption(page)).toHaveText(`Start at ${value('n')}: its left subtree first`)
+	await page.keyboard.press('ArrowRight')
+	await expect(asking(page)).toHaveText('Where does the walk go next?')
+	await page.keyboard.press('ArrowRight')
+	await expect(caption(page)).toHaveText(`Go left to ${value('nL')}: its left subtree first`)
+	await page.keyboard.press('Escape')
+
+	await sketchGraph(page, [300, 500], 5)
+	await rightClick(page, await nodeScreenPosition(page, 'v0'))
+	await page.getByTestId('context-menu-sub.drawds-graph-steps-button').click()
+	await page.getByTestId('context-menu.graph-dijkstra').click()
+	await expect(asking(page)).toHaveText("Shortest paths from A: what is each node's distance to begin with?")
+	await page.keyboard.press('ArrowRight')
+	await page.keyboard.press('ArrowRight')
+	await expect(asking(page)).toHaveText('Which node is taken next?')
+	await page.keyboard.press('ArrowRight')
+	await expect(caption(page)).toHaveText('Take the closest unfinished node, A (0): its distance is final')
+	await page.keyboard.press('ArrowRight')
+	await expect(asking(page)).toHaveText(/^A–(\w): does dist\(\1\) go down\?$/)
+	await expect(pulsing(page)).toHaveAttribute('data-pulse', /^edge:/)
+})
+
 test('hash insert asks which bucket the key hashes to', async ({ page }) => {
 	await predicting(page)
 	await open(page)

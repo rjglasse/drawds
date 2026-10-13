@@ -174,7 +174,7 @@ export interface ListOperation {
 // Predict mode: before each step the class guesses what the code does next. Walks ask whether curr
 // has found it or where it goes; the assignments ask which line comes next (the order is the lesson).
 
-const NEXT_LINE = 'Which line comes next?'
+export const NEXT_LINE = 'Which line comes next?'
 
 /** What forgetting the tail does (lecture 5's two named bugs): the steps as written, the list left broken. */
 export const forgotTail = {

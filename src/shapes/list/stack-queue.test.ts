@@ -35,7 +35,7 @@ describe('linked stack', () => {
 		const last = popFrom({ ...stack, nodes: nodes('3') })
 		expect(captions(last)[1]).toBe('top = top.next: null, so the stack is empty now')
 		expect(last.nodes).toEqual([])
-		expect(popFrom({ ...stack, nodes: [] })).toEqual({ frames: [{ caption: 'Pop: top is null, the stack is empty. Stack underflow', line: 'empty' }], code: 'linked-pop' })
+		expect(popFrom({ ...stack, nodes: [] })).toEqual({ frames: [{ caption: 'Pop: top is null, the stack is empty. Stack underflow', ask: 'Which value comes off?', line: 'empty' }], code: 'linked-pop' })
 	})
 
 	it('a doubly linked stack keeps its prev links', () => {
@@ -81,5 +81,20 @@ describe('linked queue', () => {
 
 	it('peek looks at the front', () => {
 		expect(peekAt({ ...queue, nodes: nodes('7', '3') }).frames[0].caption).toBe('Peek: front.value = 7, still first in line')
+	})
+})
+
+describe("predict mode's questions", () => {
+	const stack = { ...base, kind: 'stack' as const }
+	const queue = { ...base, kind: 'queue' as const }
+	const asks = (op: { frames: { ask?: string | false }[] }) => op.frames.map((f) => f.ask)
+
+	it('which value comes off, then which line comes next (the order of the assignments is the lesson)', () => {
+		expect(asks(pushOnto({ ...stack, nodes: nodes('7') }, 'n9', '5')).every((a) => a === 'Which line comes next?')).toBe(true)
+		expect(asks(enqueueOnto({ ...queue, nodes: [] }, 'n9', '5')).every((a) => a === 'Which line comes next?')).toBe(true)
+		expect(asks(popFrom({ ...stack, nodes: nodes('7', '3') }))).toEqual(['Which value comes off?', 'Which line comes next?', 'What happens to 7 now?'])
+		expect(asks(dequeueFrom({ ...queue, nodes: nodes('7') }))).toEqual(['Which value comes off?', 'Which line comes next?', 'Which line comes next?', 'What happens to 7 now?'])
+		expect(asks(popFrom({ ...stack, nodes: [] }))).toEqual(['Which value comes off?'])
+		expect(asks(peekAt({ ...queue, nodes: [] }))).toEqual(['Peek: which value is at the front?'])
 	})
 })

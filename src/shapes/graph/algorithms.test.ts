@@ -150,3 +150,37 @@ describe('topological sort', () => {
 		expect(last(run.frames)).toMatch(/^The queue is empty, but A, B, C, D, E still have incoming edges/)
 	})
 })
+
+describe("predict mode's questions", () => {
+	const dag: GraphModel = { nodes: graph.nodes, edges: graph.edges.map((e) => ({ ...e })) }
+	const runs = {
+		dijkstra: dijkstra(graph, 'a', weighted),
+		prim: prim(graph, 'a', weighted),
+		'topological sort': topologicalSort({ ...dag, edges: [...dag.edges] }),
+		'topological sort, a cycle': topologicalSort({ ...dag, edges: [...dag.edges, edge('ea', 'e', 'a', 1)] }),
+	}
+
+	it('every step asks its own question (none falls back to "What happens next?")', () => {
+		for (const [name, run] of Object.entries(runs)) {
+			for (const f of run.frames) expect(f.ask, `${name}: ${f.caption}`).toBeDefined()
+		}
+	})
+
+	it('the same question whichever way the step goes: does the distance go down, does the node join the queue', () => {
+		const { frames } = runs.dijkstra
+		// A–B (4) lowers B's distance; later C–B (2) lowers it again, and B–A (4) can't: one question.
+		const atB = frames.filter((f) => /^[ABC]–[ABC] \(\d\): /.test(f.caption ?? ''))
+		expect(new Set(atB.map((f) => f.ask)).size).toBeGreaterThan(1)
+		for (const f of atB) expect(f.ask).toMatch(/^[ABC]–[ABC] \(\d\): does dist\([ABC]\) go down\?$/)
+		expect(frames.filter((f) => f.caption?.startsWith('Take ')).every((f) => f.ask === 'Which node is taken next?')).toBe(true)
+		expect(frames.at(-1)!.ask).toBe('Which node is taken next?')
+		// Prim names the cheapest edge, then adds it: nothing to guess the second time.
+		expect(runs.prim.frames.filter((f) => f.caption?.startsWith('Add ')).every((f) => f.ask === false)).toBe(true)
+		const topo = runs['topological sort'].frames
+		// Remove C→B leaves B one incoming edge, remove C→D frees D: one question.
+		const removals = topo.filter((f) => f.caption?.startsWith('Remove '))
+		expect(removals.some((f) => f.caption!.endsWith('so queue it')) && removals.some((f) => f.caption!.includes('still has'))).toBe(true)
+		for (const f of removals) expect(f.ask).toMatch(/^Remove .→.: does . join the queue\?$/)
+		expect(runs['topological sort, a cycle'].frames.at(-1)!.ask).toBe('Which node comes off the queue next?')
+	})
+})

@@ -98,3 +98,20 @@ describe('traverseTree', () => {
 		expect(stateAt(frames, nullStep + 1).flash['#null:nL:0']).toBeUndefined()
 	})
 })
+
+describe("predict mode's questions", () => {
+	it('first what the order does first, then one question for every step, whichever way it goes', () => {
+		for (const tree of trees) {
+			for (const order of orders) {
+				for (const options of [{}, { nulls: true }, { general: true }]) {
+					if (order === 'in' && 'general' in options) continue
+					const [first, ...rest] = traverseTree(tree, tree[0].id, order, options).frames
+					expect(first.ask).toBe(`${{ pre: 'Pre-order', in: 'In-order', post: 'Post-order', level: 'Level order' }[order]} from ${tree[0].value}: what does it do first?`)
+					// Down to a child, back up to visit, a null child, done: the same question.
+					const again = order === 'level' ? 'Which node comes off the queue next?' : 'Where does the walk go next?'
+					expect(new Set(rest.map((f) => f.ask))).toEqual(new Set([again]))
+				}
+			}
+		}
+	})
+})

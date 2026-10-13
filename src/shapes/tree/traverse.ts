@@ -29,6 +29,12 @@ const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 /** "A", "A and B", "A, B and C". */
 const andList = (items: readonly string[]) => (items.length < 3 ? items.join(' and ') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`)
 
+// Predict mode's questions, the same whichever way the step goes: level order, which node leaves the
+// queue (as BFS asks); the recursive orders, where the walk goes (down to a child, back up to visit,
+// a null child, or done: the caption says which, and whether it visits).
+const OFF_THE_QUEUE = 'Which node comes off the queue next?'
+const WHERE_NEXT = 'Where does the walk go next?'
+
 /**
  * Traverse the subtree at `start`, step by step. Pre-, in- and post-order recurse: go left, back
  * up, go right, visiting each node before, between or after its subtrees, with the call stack
@@ -57,11 +63,12 @@ export function traverseTree(
 	const visited: string[] = []
 	const done = () => `Done: ${ORDER_NAMES[order].toLowerCase()} visits ${visited.map(value).join(', ')}${note ? `. ${note}` : ''}`
 	const output = (): Strip => ({ title: `${ORDER_NAMES[order].toLowerCase()} output`, items: visited.map(value) })
+	const first = `${ORDER_NAMES[order]} from ${value(start)}: what does it do first?`
 
 	if (order === 'level') {
 		const queue = [start]
 		const strips = () => [{ title: 'queue (front on the left)', items: queue.map(value) }, output()]
-		frames.push({ flash: { [start]: WAITING }, strips: strips(), caption: `Start: queue ${value(start)}`, line: 'start' })
+		frames.push({ flash: { [start]: WAITING }, strips: strips(), caption: `Start: queue ${value(start)}`, ask: first, line: 'start' })
 		let previous: string | undefined
 		while (queue.length) {
 			const id = queue.shift()!
@@ -73,12 +80,13 @@ export function traverseTree(
 				badges: { [id]: String(visited.length) },
 				strips: strips(),
 				caption: `Dequeue ${value(id)}: visit it (${visited.length})${kids.length ? `, queue ${andList(kids.map(value))}` : ''}`,
+				ask: OFF_THE_QUEUE,
 				line: 'visit',
 				vars: named(id),
 			})
 			previous = id
 		}
-		frames.push({ flash: previous ? { [previous]: VISITED } : {}, strips: strips(), caption: done() })
+		frames.push({ flash: previous ? { [previous]: VISITED } : {}, strips: strips(), caption: done(), ask: OFF_THE_QUEUE })
 		return { frames, visited, code }
 	}
 
@@ -91,7 +99,7 @@ export function traverseTree(
 	let backAt: string | undefined
 
 	const frame = (f: Frame) => {
-		frames.push({ ...f, flash: { ...pending, ...f.flash }, strips: strips() })
+		frames.push({ ...f, flash: { ...pending, ...f.flash }, strips: strips(), ask: frames.length ? WHERE_NEXT : first })
 		pending = {}
 	}
 	/** Caption for a step that starts with `action`, after any return to `backAt`. */

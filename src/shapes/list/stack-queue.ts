@@ -7,7 +7,9 @@ import {
 	FOUND,
 	HEAD_EDGE,
 	LOOK,
+	NEXT_LINE,
 	TAIL_EDGE,
+	asking,
 	besideList,
 	freshNode,
 	edgeMark,
@@ -28,6 +30,10 @@ import {
 // or front and rear, point at null. A doubly linked one keeps its prev links up to date too.
 
 const PEEK: MarkColor = 'blue'
+
+// Predict mode: which value a pop or dequeue takes, then (as the list's other code asks) which line
+// comes next: the order of the assignments is the lesson.
+const TAKEN = 'Which value comes off?'
 
 /** Builds a step's scene as arrows are added and re-pointed; each step lights the arrow it changed. */
 function stepper(props: ListProps, scene: Scene, frames: Frame[], pointers: () => Frame['pointers'], vars: Frame['vars'] = undefined) {
@@ -82,7 +88,7 @@ export function pushOnto(props: ListProps, id: string, value: string): ListOpera
 		s.point({ [TAIL_EDGE]: id }, { [TAIL_EDGE]: roundLabel(s.scene, props, TAIL_KEY, NULL_KEY, id) })
 		s.step(`tail = node: ${value} is the only node, so the last too`, edgeMark(TAIL_EDGE))
 	}
-	return { frames, nodes: [{ id, value, dx: 0, dy: 0 }, ...nodes], finalFlash: { [id]: FOUND }, code: linkedCode(props, 'linked-push') }
+	return { frames: asking(frames, NEXT_LINE), nodes: [{ id, value, dx: 0, dy: 0 }, ...nodes], finalFlash: { [id]: FOUND }, code: linkedCode(props, 'linked-push') }
 }
 
 /** A linked stack's or queue's code, when it is a plain singly linked one (a stack with no tail). */
@@ -94,7 +100,7 @@ function linkedCode(props: ListProps, code: string): string | undefined {
 /** Pop: v = top.value, then top = top.next; the old top drops out. An empty stack underflows. */
 export function popFrom(props: ListProps): ListOperation {
 	const { nodes } = props
-	if (!nodes.length) return { frames: [{ caption: 'Pop: top is null, the stack is empty. Stack underflow', line: 'empty' }], code: linkedCode(props, 'linked-pop') }
+	if (!nodes.length) return { frames: [{ caption: 'Pop: top is null, the stack is empty. Stack underflow', ask: TAKEN, line: 'empty' }], code: linkedCode(props, 'linked-pop') }
 	return { ...takeFirst(props, 'top', 'popped', (value) => `popped ${value}, the last value pushed`), code: linkedCode(props, 'linked-pop') }
 }
 
@@ -126,12 +132,12 @@ export function enqueueOnto(props: ListProps, id: string, value: string): ListOp
 		s.point({ [TAIL_EDGE]: id }, { [TAIL_EDGE]: roundLabel(s.scene, props, TAIL_KEY, lastId, id) })
 		s.step(`rear = node: ${value} is last in line. O(1): the rear pointer saves walking to the end`, edgeMark(TAIL_EDGE), CHANGED, 'rear')
 	}
-	return { frames, nodes: [...nodes, { id, value, dx: 0, dy: 0 }], finalFlash: { [id]: FOUND }, code: linkedCode(props, 'linked-enqueue') }
+	return { frames: asking(frames, NEXT_LINE), nodes: [...nodes, { id, value, dx: 0, dy: 0 }], finalFlash: { [id]: FOUND }, code: linkedCode(props, 'linked-enqueue') }
 }
 
 /** Dequeue: v = front.value, front = front.next (and rear = null when that empties the queue). */
 export function dequeueFrom(props: ListProps): ListOperation {
-	if (!props.nodes.length) return { frames: [{ caption: 'Dequeue: front is null, the queue is empty', line: 'nothing' }], code: linkedCode(props, 'linked-dequeue') }
+	if (!props.nodes.length) return { frames: [{ caption: 'Dequeue: front is null, the queue is empty', ask: TAKEN, line: 'nothing' }], code: linkedCode(props, 'linked-dequeue') }
 	return { ...takeFirst(props, 'front', 'dequeued', (value) => `dequeued ${value}, the first in`), code: linkedCode(props, 'linked-dequeue') }
 }
 
@@ -163,7 +169,9 @@ function takeFirst(props: ListProps, head: 'top' | 'front', taken: string, done:
 	}
 	s.drop(first)
 	s.step(`Nothing points at ${value} any more: ${done(value)}. O(1)`, undefined, CHANGED, 'done')
-	return { frames, nodes: nodes.slice(1) }
+	// As a list's delete asks once its node is out.
+	const asked = asking(frames, TAKEN).map((f, i) => (i === frames.length - 1 ? { ...f, ask: `What happens to ${value} now?` } : f))
+	return { frames: asked, nodes: nodes.slice(1) }
 }
 
 /** Peek at the top of a stack or the front of a queue: nothing changes. */
@@ -172,7 +180,8 @@ export function peekAt(props: ListProps): ListOperation {
 	const head = v.names.head
 	const what = v.kind === 'queue' ? 'queue' : 'stack'
 	const code = linkedCode(props, v.kind === 'queue' ? 'linked-front' : 'linked-peek')
-	if (!chain.length) return { frames: [{ caption: `Peek: ${head} is null, the ${what} is empty: nothing to see`, line: v.kind === 'queue' ? 'nothing' : 'empty' }], code }
+	const ask = `Peek: which value is ${v.kind === 'queue' ? 'at the front' : 'on top'}?`
+	if (!chain.length) return { frames: [{ caption: `Peek: ${head} is null, the ${what} is empty: nothing to see`, ask, line: v.kind === 'queue' ? 'nothing' : 'empty' }], code }
 	const still = v.kind === 'queue' ? 'still first in line' : 'still on the stack'
-	return { frames: [{ flash: { [chain[0]]: PEEK }, caption: `Peek: ${head}.value = ${name(chain[0])}, ${still}`, line: 'peek' }], finalFlash: { [chain[0]]: PEEK }, code }
+	return { frames: [{ flash: { [chain[0]]: PEEK }, caption: `Peek: ${head}.value = ${name(chain[0])}, ${still}`, ask, line: 'peek' }], finalFlash: { [chain[0]]: PEEK }, code }
 }

@@ -59,6 +59,11 @@ function helpers(model: GraphModel, { directed, weighted }: AlgorithmOptions) {
 
 const show = (d: number) => (d === Infinity ? '∞' : String(d))
 
+// Predict mode's questions, the same whichever way the step goes (as BFS's "is B new?").
+const TAKEN_NEXT = 'Which node is taken next?'
+const LEAVING = 'Which edges leave the tree, and which is the cheapest?'
+const OFF_THE_QUEUE = 'Which node comes off the queue next?'
+
 /**
  * Dijkstra's shortest paths from `start`: every node's distance starts at ∞ (a badge); the closest
  * unfinished node is taken, its distance is final, and each of its edges may lower a neighbour's
@@ -88,6 +93,7 @@ export function dijkstra(model: GraphModel, start: string, options: AlgorithmOpt
 		strips: strips(),
 		counts: { updates },
 		caption: `${note}${negative ? 'Careful: Dijkstra assumes no negative weights. ' : ''}dist(${name(start)}) = 0, every other node ∞`,
+		ask: `Shortest paths from ${name(start)}: what is each node's distance to begin with?`,
 	})
 	let previous: string | undefined
 	for (;;) {
@@ -99,18 +105,20 @@ export function dijkstra(model: GraphModel, start: string, options: AlgorithmOpt
 			flash: { [u]: CURRENT, ...(previous ? { [previous]: DONE } : {}) },
 			strips: strips(),
 			caption: `Take the closest unfinished node, ${name(u)} (${du}): its distance is final`,
+			ask: TAKEN_NEXT,
 		})
 		for (const { node: v, edge } of adjacent.get(u) ?? []) {
 			const w = weight(edge)
 			const step = `${name(u)}${link}${name(v)}${options.weighted ? ` (${w})` : ''}`
+			const ask = { ask: `${step}: does dist(${name(v)}) go down?`, askFocus: [edgeCellKey(edge)] }
 			if (done.has(v)) {
-				rec.look(edge, { caption: `${step}: ${name(v)} is finished, its distance can't improve` })
+				rec.look(edge, { caption: `${step}: ${name(v)} is finished, its distance can't improve`, ...ask })
 				continue
 			}
 			const d = du + w
 			const before = dist.get(v)!
 			if (d >= before) {
-				rec.look(edge, { caption: `${step}: ${du} + ${w} = ${d} ≥ ${before}, so keep ${before}` })
+				rec.look(edge, { caption: `${step}: ${du} + ${w} = ${d} ≥ ${before}, so keep ${before}`, ...ask })
 				continue
 			}
 			const replaced = via.get(v)
@@ -123,6 +131,7 @@ export function dijkstra(model: GraphModel, start: string, options: AlgorithmOpt
 				strips: strips(),
 				counts: { updates },
 				caption: `${step}: ${du} + ${w} = ${d} < ${show(before)}, so dist(${name(v)}) = ${d}, via ${name(u)}`,
+				...ask,
 			})
 		}
 		previous = u
@@ -134,6 +143,7 @@ export function dijkstra(model: GraphModel, start: string, options: AlgorithmOpt
 		caption: unreachable
 			? `Nothing left to take: ${unreachable} node${unreachable === 1 ? " can't" : "s can't"} be reached (∞). The green edges are the shortest paths`
 			: `Every node is finished: the green edges are the shortest paths from ${name(start)}`,
+		ask: TAKEN_NEXT,
 	})
 	return { frames: rec.frames, chosen: [...via.values()], dist }
 }
@@ -148,7 +158,7 @@ export function prim(model: GraphModel, start: string, options: AlgorithmOptions
 	const inTree = new Set([start])
 	const chosen: string[] = []
 	let total = 0
-	rec.add({ flash: { [start]: DONE }, counts: { weight: total }, caption: `${note}Grow the tree from ${name(start)}` })
+	rec.add({ flash: { [start]: DONE }, counts: { weight: total }, caption: `${note}Grow the tree from ${name(start)}`, ask: `A minimum spanning tree from ${name(start)}: what is in it to begin with?` })
 	for (;;) {
 		const crossing = model.edges.filter((e) => inTree.has(e.from) !== inTree.has(e.to))
 		if (!crossing.length) break
@@ -157,6 +167,7 @@ export function prim(model: GraphModel, start: string, options: AlgorithmOptions
 		rec.add({
 			flash: lit,
 			caption: `${crossing.length} edge${crossing.length === 1 ? ' leaves' : 's leave'} the tree; the cheapest is ${edgeName(best.id)}`,
+			ask: LEAVING,
 		})
 		const added = inTree.has(best.from) ? best.to : best.from
 		inTree.add(added)
@@ -166,6 +177,8 @@ export function prim(model: GraphModel, start: string, options: AlgorithmOptions
 			flash: { ...Object.fromEntries(crossing.map((e) => [edgeCellKey(e.id), null])), [edgeCellKey(best.id)]: CHOSEN, [added]: DONE },
 			counts: { weight: total },
 			caption: `Add ${edgeName(best.id)}, and ${name(added)} with it`,
+			// The step before named it.
+			ask: false,
 		})
 	}
 	const left = model.nodes.length - inTree.size
@@ -173,6 +186,7 @@ export function prim(model: GraphModel, start: string, options: AlgorithmOptions
 		caption: left
 			? `No edge leaves the tree, but ${left} node${left === 1 ? " isn't" : "s aren't"} in it: this is the minimum spanning tree of ${name(start)}'s part of the graph, weight ${total}`
 			: `Every node is in the tree: a minimum spanning tree, total weight ${total}`,
+		ask: LEAVING,
 	})
 	return { frames: rec.frames, chosen }
 }
@@ -370,6 +384,7 @@ export function topologicalSort(model: GraphModel): GraphRun {
 	rec.add({
 		badges: Object.fromEntries(model.nodes.map((n) => [n.id, String(indegree.get(n.id))])),
 		caption: "Count each node's incoming edges (the badges)",
+		ask: 'Topological sort: what does it count first?',
 	})
 	rec.add({
 		flash: Object.fromEntries(queue.map((id) => [id, WAITING])),
@@ -377,6 +392,7 @@ export function topologicalSort(model: GraphModel): GraphRun {
 		caption: queue.length
 			? `${queue.map(name).join(', ')} ${queue.length === 1 ? 'has' : 'have'} none, so ${queue.length === 1 ? 'it can' : 'they can'} come first: queue ${queue.length === 1 ? 'it' : 'them'}`
 			: 'Every node has an incoming edge: there is a cycle, so no node can come first',
+		ask: 'Which nodes have no incoming edges?',
 	})
 	while (queue.length) {
 		const u = queue.shift()!
@@ -386,6 +402,7 @@ export function topologicalSort(model: GraphModel): GraphRun {
 			dim: [...removed],
 			strips: strips(),
 			caption: `Dequeue ${name(u)}: it comes next in the order (${order.length})`,
+			ask: OFF_THE_QUEUE,
 		})
 		for (const { node: v, edge } of adjacent.get(u) ?? []) {
 			const left = indegree.get(v)! - 1
@@ -401,10 +418,12 @@ export function topologicalSort(model: GraphModel): GraphRun {
 					left === 0
 						? `Remove ${name(u)}→${name(v)}: ${name(v)} has no incoming edges left, so queue it`
 						: `Remove ${name(u)}→${name(v)}: ${name(v)} still has ${left} incoming`,
+				ask: `Remove ${name(u)}→${name(v)}: does ${name(v)} join the queue?`,
+				askFocus: [edgeCellKey(edge)],
 			})
 		}
 		removed.push(u)
-		rec.add({ flash: { [u]: DONE }, dim: [...removed], strips: strips(), caption: `${name(u)} is placed, with its edges gone` })
+		rec.add({ flash: { [u]: DONE }, dim: [...removed], strips: strips(), caption: `${name(u)} is placed, with its edges gone`, ask: false })
 	}
 	if (order.length < model.nodes.length) {
 		const stuck = model.nodes.filter((n) => !order.includes(n.id)).map((n) => n.id)
@@ -413,6 +432,7 @@ export function topologicalSort(model: GraphModel): GraphRun {
 			dim: [...removed],
 			strips: strips(),
 			caption: `The queue is empty, but ${stuck.map(name).join(', ')} still ${stuck.length === 1 ? 'has' : 'have'} incoming edges: ${stuck.length === 1 ? 'it lies' : 'they lie'} on a cycle, so there is no topological order`,
+			ask: OFF_THE_QUEUE,
 		})
 	} else {
 		rec.add({
@@ -420,6 +440,7 @@ export function topologicalSort(model: GraphModel): GraphRun {
 			dim: [],
 			strips: strips(),
 			caption: `Every node is placed: ${order.map(name).join(', ')}. Every edge points forward in this order`,
+			ask: OFF_THE_QUEUE,
 		})
 	}
 	return { frames: rec.frames, chosen: [], order }
