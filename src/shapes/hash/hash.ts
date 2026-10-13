@@ -433,7 +433,7 @@ export function rehash(buckets: string[][], scheme: SchemeLike): HashOperation {
 	const moved: string[] = []
 	const strips = (): Strip[] => [{ title: 'keys to move', items: left.map(keyOf) }]
 	const frames: Frame[] = [
-		{ props: { buckets: table }, strips: strips(), caption: `A new table of ${m} buckets. Every key must move: h(key) depends on m`, line: 'grow' },
+		{ props: { buckets: table }, strips: strips(), caption: `A new table of ${m} buckets. Every key must move: h(key) depends on m`, ask: `Grow to ${m} buckets: which keys have to move?`, line: 'grow' },
 	]
 	for (const entry of entries) {
 		left.shift()

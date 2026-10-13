@@ -57,7 +57,7 @@ export function shortestPath(model: GraphModel, s: string, t: string, directed: 
 	const strips = () => [{ title: 'queue (front on the left)', items: queue.map(name) }, visitedStrip(model, visited), parentStrip(model, parent, name)]
 	const vars = { s: name(s), t: name(t) }
 	if (s === t) {
-		rec.add({ pointers: ends, flash: { [s]: TREE }, caption: `From ${name(s)} to itself: the path is just ${name(s)}, no edges`, vars })
+		rec.add({ pointers: ends, flash: { [s]: TREE }, caption: `From ${name(s)} to itself: the path is just ${name(s)}, no edges`, ask: `The fewest edges from ${name(s)} to ${name(t)}: how does it search?`, vars })
 		return { frames: rec.frames, path: [s], code }
 	}
 	rec.add({
@@ -66,6 +66,7 @@ export function shortestPath(model: GraphModel, s: string, t: string, directed: 
 		pointers: ends,
 		strips: strips(),
 		caption: `A path from ${name(s)} to ${name(t)} with the fewest edges: breadth-first search from ${name(s)}, each vertex noting its parent. Queue ${name(s)}, 0 edges away`,
+		ask: `The fewest edges from ${name(s)} to ${name(t)}: how does it search?`,
 		line: 'start',
 		vars,
 	})
@@ -194,6 +195,7 @@ export function findCycle(model: GraphModel, directed: boolean): CycleRun {
 		caption: directed
 			? 'Is there a cycle? Depth-first search from every vertex not visited yet: an edge to a vertex still on the call stack leads back round, a cycle'
 			: "Is there a cycle? Depth-first search from every vertex not visited yet: a visited neighbour that isn't the parent (the edge just come along) closes a cycle",
+		ask: 'Is there a cycle? What would show one, searching depth first?',
 	})
 	let cycle: string[] | undefined
 	const dfs = (v: string, u: string, from?: { node: string; edge: string }): boolean => {

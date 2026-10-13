@@ -102,7 +102,7 @@ test('BFS asks which node leaves the queue and, edge by edge, whether the far en
 	await rightClick(page, await nodeScreenPosition(page, 'v0'))
 	await page.getByTestId('context-menu-sub.drawds-graph-steps-button').click()
 	await page.getByTestId('context-menu.graph-bfs').click()
-	await expect(asking(page)).toHaveText('What happens next?')
+	await expect(asking(page)).toHaveText('Breadth-first search from A: what does it do first?')
 	await page.keyboard.press('ArrowRight')
 	await expect(caption(page)).toHaveText('Start at A: queue it and mark it visited (1)')
 	await page.keyboard.press('ArrowRight')

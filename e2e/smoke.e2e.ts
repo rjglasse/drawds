@@ -3,8 +3,9 @@ import { open, rightClick } from './helpers'
 
 // Every operation in every structure's menu (Step by step, its own submenu, Show), on each structure at its
 // smallest and at a typical size: prompts answered, played to the end, then undone back to the sketch. Any page
-// or console error fails it. (The quality review's smoke test, dds-c72.11: it found a graph that could be
-// emptied.) About 360 operations, a test per structure, half a minute in parallel; SMOKE_VERBOSE=1 prints the
+// or console error fails it, and so does one opening on predict mode's default question (it runs with predict
+// mode on: each opens on its first question). (The quality review's smoke test, dds-c72.11: it found a graph
+// that could be emptied, and with predict mode a pulse ring drawn with a negative corner radius.) About 360 operations, a test per structure, half a minute in parallel; SMOKE_VERBOSE=1 prints the
 // count for each size.
 
 const S = 'Shift+'
@@ -59,8 +60,11 @@ function elementAt(page: Page, type: string): Promise<[number, number] | null> {
 	}, type)
 }
 
-/** Answer a prompt with a value the structure has (or 3), then play the operation to its end and put it in. */
-async function play(page: Page) {
+/**
+ * Answer a prompt with a value the structure has (or 3), then play the operation to its end and put it in.
+ * In predict mode an operation opens on its first question: returned, to check it is one of its own.
+ */
+async function play(page: Page): Promise<string | undefined> {
 	const prompt = page.getByTestId('key-prompt')
 	if (await prompt.isVisible().catch(() => false)) {
 		const value = await page.evaluate(() => {
@@ -76,13 +80,17 @@ async function play(page: Page) {
 		await ((await input.count()) ? input : prompt).fill(value)
 		await page.keyboard.press('Enter')
 	}
+	let opening: string | undefined
 	if (await page.getByTestId('play-bar').isVisible().catch(() => false)) {
-		for (let i = 0; i < 400 && !(await page.getByTestId('play-done').isVisible().catch(() => false)); i++) {
+		const asking = page.locator('[data-testid="play-caption"][data-asking]')
+		if (await asking.count()) opening = (await asking.textContent()) ?? undefined
+		for (let i = 0; i < 800 && !(await page.getByTestId('play-done').isVisible().catch(() => false)); i++) {
 			await page.keyboard.press('ArrowRight')
 			if (i % 20 === 19) await frame(page)
 		}
 		await page.keyboard.press('Enter')
 	}
+	return opening
 }
 
 /** Test ids of the structure's submenus (not Mark or Pointer), its Step by step's categories opened in turn. */
@@ -131,8 +139,11 @@ for (const [type, key, small, typical] of STRUCTURES) {
 		let doing = ''
 		page.on('pageerror', (e) => errors.push(`${doing}: ${e.message.split('\n')[0]}`))
 		page.on('console', (m) => void (m.type() === 'error' && errors.push(`${doing}: console ${m.text().split('\n')[0].slice(0, 160)}`)))
+		// Predict mode on: each operation opens on its first question, which must be its own.
+		await page.addInitScript(() => window.localStorage.setItem('drawds:predict', 'on'))
 		await open(page)
 		await page.evaluate(() => window.localStorage.removeItem('drawds:seed'))
+		const vague: string[] = []
 		const ran: Record<string, number> = {}
 		for (const [size, d] of [['smallest', small], ['typical', typical]] as const) {
 			await page.evaluate(() => {
@@ -159,7 +170,7 @@ for (const [type, key, small, typical] of STRUCTURES) {
 						const it = page.getByTestId(item)
 						if (await it.isVisible().catch(() => false)) {
 							await it.click()
-							await play(page)
+							if ((await play(page)) === 'What happens next?') vague.push(`${size} ${item}`)
 							ran[size]++
 						}
 					}
@@ -170,8 +181,10 @@ for (const [type, key, small, typical] of STRUCTURES) {
 			}
 		}
 		test.info().annotations.push({ type: 'operations', description: `${ran.smallest} on the smallest, ${ran.typical} on a typical` })
-		if (process.env.SMOKE_VERBOSE) console.log(type, ran)
+		if (process.env.SMOKE_VERBOSE) console.log(type, ran, 'opening on "What happens next?":', [...new Set(vague)])
 		expect(errors).toEqual([])
+		// Predict mode never opens an operation on the default "What happens next?": each asks its own.
+		expect([...new Set(vague)], 'operations opening on "What happens next?"').toEqual([])
 		// Something ran at each size (a structure's whole menu can't silently vanish).
 		expect(ran.smallest, 'operations on the smallest sketch').toBeGreaterThan(0)
 		expect(ran.typical, 'operations on a typical sketch').toBeGreaterThan(0)

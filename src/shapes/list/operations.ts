@@ -792,11 +792,16 @@ export function insertSorted(props: ListProps, id: string, value: string): ListO
 	})
 	const insert = insertIntoList(props, k > 0 ? nodes[k - 1].id : undefined, id, value)
 	const code = listCode(props, 'list-insert-sorted')
+	// Unsorted: first, is it? (then "insert anyway" carries on at once); else where the walk starts.
+	const asked = () =>
+		asking(frames, unsorted > 0 ? `Insert ${value} in order: is the list in order?` : `Insert ${value} in order: where does curr start?`).map((f, i) =>
+			unsorted > 0 && i === 1 ? { ...f, ask: false as const } : f
+		)
 	const vars = { ...walking(k), node: value }
 	if (!before) {
 		// At the head: the code's head = node is the branch for prev == null.
 		const linking = insert.frames.map((f) => ({ ...f, vars, ...(f.line === 'point' ? { line: 'point-head' } : {}) }))
-		return { ...insert, frames: [...asking(frames, undefined), ...linking], code }
+		return { ...insert, frames: [...asked(), ...linking], code }
 	}
 	// The walk replaces insertIntoList's opening step ("curr is at ..."), and what it calls curr (the
 	// node before) is prev here, with curr staying on the node after: node.next = curr, as the code says.
@@ -806,7 +811,7 @@ export function insertSorted(props: ListProps, id: string, value: string): ListO
 		caption: f.caption?.replace(/\bcurr\b/g, 'prev').replace('node.next = prev.next', 'node.next = curr').replace('prev.next.prev = node', 'curr.prev = node'),
 		vars,
 	}))
-	return { ...insert, frames: [...asking(frames, undefined), ...linking], code }
+	return { ...insert, frames: [...asked(), ...linking], code }
 }
 
 /**

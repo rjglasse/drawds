@@ -238,6 +238,7 @@ export function kruskal(model: GraphModel, options: AlgorithmOptions): GraphRun 
 		counts: { weight: total },
 		sets: sets(),
 		caption: `${note}Take the edges from cheapest to dearest, skipping any that would close a cycle. A union-find keeps the trees: every node starts on its own`,
+		ask: "Kruskal's minimum spanning tree: in what order does it take the edges, and which does it skip?",
 		line: 'init',
 	})
 	for (const [i, e] of sorted.entries()) {
@@ -316,6 +317,7 @@ export function components(model: GraphModel, options: AlgorithmOptions): GraphR
 		strips: strips(),
 		counts: { components: 0 },
 		caption: `Count the components${both}: for each vertex v in order, if visited[v] is false, dfs(v), then count += 1`,
+		ask: 'Count the connected components: how?',
 		vars: { count: '0' },
 	})
 	for (const v of order) {

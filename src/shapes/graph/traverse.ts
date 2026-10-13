@@ -103,6 +103,7 @@ export function bfs(model: GraphModel, start: string, directed: boolean): Traver
 		badges: { [start]: '1' },
 		strips: strips(),
 		caption: `Start at ${name(start)}: queue it and mark it visited (1)`,
+		ask: `Breadth-first search from ${name(start)}: what does it do first?`,
 		line: 'start',
 		vars: { s: name(start) },
 	})
@@ -177,7 +178,7 @@ export function dfs(model: GraphModel, start: string, directed: boolean): Traver
 			caption: via
 				? `${name(via.from)}${link}${name(u)}: ${name(u)} is new: dfs(${name(u)}) goes deeper, marking it visited (${order.length})`
 				: `dfs(${name(start)}): mark it visited (1)`,
-			...(via && isNew(via.from, u, via.edge)),
+			...(via ? isNew(via.from, u, via.edge) : { ask: `Depth-first search from ${name(start)}: what does it do first?` }),
 			line: 'mark',
 			vars: { v: name(u) },
 		})
