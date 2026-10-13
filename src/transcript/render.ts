@@ -3,6 +3,7 @@ import type { CodeLanguage } from '../shapes/code/highlight'
 import type { ArrayMove, Fixed } from './array-moves'
 import type { ListKind, ListMove } from './list-moves'
 import type { TreeMove, TreeShape } from './tree-moves'
+import { indexesOf, type GeneralTree, type GeneralTreeMove } from './general-tree-moves'
 import type { GraphMove } from './graph-moves'
 import type { HeapMove } from './heap-moves'
 import { heapCode } from '../shapes/heap/code'
@@ -375,6 +376,62 @@ export function renderTreeLog(moves: readonly TreeMove[], language: CodeLanguage
 	const first = moves[0]
 	const s: Spelling = { ints: allNumbers(moves), name: first?.op === 'new' ? first.name : 't', language }
 	return moves.flatMap((m) => treeLines(m, s, field)).join('\n')
+}
+
+/** Every value a general tree holds. */
+const generalValues = (t: GeneralTree): string[] => [t.v, ...t.c.flatMap(generalValues)]
+
+/**
+ * A general tree's moves, a line each. The tree is its root, a Node holding its value and a list of
+ * children (Python a list, Java a List, C an array and its count: `node(v, 2, ...)`); a node is named
+ * by the child indexes from the root, as its path says.
+ */
+function generalTreeLines(move: GeneralTreeMove, s: Spelling): string[] {
+	const { name: t, language } = s
+	const [py, java] = [language === 'python', language === 'java']
+	const end = py ? '' : ';'
+	const note = py ? '#' : '//'
+	const v = (x: string) => literal(x, s)
+	const at = (path: string) => indexesOf(path).reduce((n, i) => (py ? `${n}.children[${i}]` : java ? `${n}.children.get(${i})` : `${n}->children[${i}]`), t)
+	const field = py || java ? '.' : '->'
+	const node = (n: GeneralTree): string => {
+		if (!n.c.length) return py ? `Node(${v(n.v)})` : java ? `new Node(${v(n.v)})` : `newNode(${v(n.v)})`
+		const kids = n.c.map(node).join(', ')
+		return py ? `Node(${v(n.v)}, [${kids}])` : java ? `new Node(${v(n.v)}, ${kids})` : `node(${v(n.v)}, ${n.c.length}, ${kids})`
+	}
+	const parentOf = (path: string) => path.split('.').slice(0, -1).join('.')
+	switch (move.op) {
+		case 'new':
+			return [py ? `${t} = ${node(move.tree)}` : java ? `Node ${t} = ${node(move.tree)};` : `Node *${t} = ${node(move.tree)};`]
+		case 'assign':
+			return [`${t} = ${node(move.tree)}${end}`]
+		case 'set':
+			return [`${at(move.path)}${field}value = ${v(move.v)}${end}`]
+		case 'add': {
+			const parent = at(parentOf(move.path))
+			const child = node({ v: move.v, c: [] })
+			return [py ? `${parent}.children.append(${child})` : java ? `${parent}.children.add(${child});` : `addChild(${parent}, ${child});`]
+		}
+		case 'remove': {
+			const parent = at(parentOf(move.path))
+			const i = indexesOf(move.path).at(-1)!
+			const removed = py ? `del ${parent}.children[${i}]` : java ? `${parent}.children.remove(${i});` : `removeChild(${parent}, ${i});`
+			return [`${removed}    ${note} ${move.v} and everything under it`]
+		}
+		case 'swap': {
+			const parent = at(move.path)
+			const [a, b] = [`${parent}.children[${move.i}]`, `${parent}.children[${move.j}]`]
+			return [py ? `${a}, ${b} = ${b}, ${a}` : java ? `Collections.swap(${parent}.children, ${move.i}, ${move.j});` : `swapChildren(${parent}, ${move.i}, ${move.j});`]
+		}
+	}
+}
+
+/** A general tree's log written out in `language`. */
+export function renderGeneralTreeLog(moves: readonly GeneralTreeMove[], language: CodeLanguage): string {
+	const first = moves[0]
+	const values = moves.flatMap((m) => ('tree' in m ? generalValues(m.tree) : 'v' in m ? [m.v] : []))
+	const s: Spelling = { ints: values.every((v) => v === '' || numeric(v)), name: first?.op === 'new' ? first.name : 't', language }
+	return moves.flatMap((m) => generalTreeLines(m, s)).join('\n')
 }
 
 /**

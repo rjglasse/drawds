@@ -3,7 +3,7 @@ import { diffArray, diffValues, replay, type ArrayLogState, type ArrayMove } fro
 import { diffList, replayList, type ListMove, type ListState } from './list-moves'
 import { addChild, mirrorSubtree, removeSubtree, swapChildren } from '../shapes/tree/model'
 import { diffGraph, graphState, type GraphMove, type GraphState } from './graph-moves'
-import { renderArrayLog, renderGraphLog, renderHashLog, renderHeapLog, renderListLog, renderMatrixLog, renderTreeLog, renderUnionFindLog } from './render'
+import { renderArrayLog, renderGraphLog, renderHashLog, renderHeapLog, renderListLog, renderMatrixLog, renderTreeLog, renderUnionFindLog, renderGeneralTreeLog } from './render'
 import { diffHeap, heapArgs, type HeapMove, type HeapState } from './heap-moves'
 import { heapify, heapInsert, heapRemoveAt } from '../shapes/heap/heap'
 import { heapCode } from '../shapes/heap/code'
@@ -16,6 +16,8 @@ import { diffUnionFind, type UnionFindMove, type UnionFindState } from './union-
 import { recount, singletons, union } from '../shapes/union-find/union-find'
 import { unionFindCode } from '../shapes/union-find/code'
 import { diffTree, shapeOf, treeArgs, type TreeMove } from './tree-moves'
+import { diffGeneralTree, generalShapeOf, type GeneralTreeMove } from './general-tree-moves'
+import { appendChild, moveAmongSiblings, removeGeneralSubtree } from '../shapes/general-tree/model'
 
 const v = (...xs: (number | string)[]) => xs.map(String)
 
@@ -250,6 +252,63 @@ describe('a binary tree change as the move a teacher made', () => {
 		expect(c[0]).toBe('Tree *t = newTree(node(8, node(3, newNode(1), newNode(6)), node(10, NULL, newNode(14))));')
 		expect(c.slice(1, 3)).toEqual(['t->root->left->right->key = 7;', 't->root->right->left = newNode(9);'])
 		expect(c.slice(-2)).toEqual(['insert(t, 5);', 'delete(t, t->root->right);'])
+	})
+})
+
+describe('a general tree change as the move a teacher made', () => {
+	const node = (id: string, value: string, children: string[] = []) => ({ id, value, children, dx: 0, dy: 0 })
+	// / (bin, home (alice, bob), usr (lib))
+	const tree = [
+		node('n', '/', ['n0', 'n1', 'n2']),
+		node('n0', 'bin'),
+		node('n1', 'home', ['n10', 'n11']),
+		node('n2', 'usr', ['n20']),
+		node('n10', 'alice'),
+		node('n11', 'bob'),
+		node('n20', 'lib'),
+	]
+
+	it('a value set, a last child added, a subtree removed, a node moved among its siblings; else a new tree', () => {
+		expect(diffGeneralTree(tree, tree.map((n) => (n.id === 'n11' ? { ...n, value: 'carol' } : n)))).toEqual([{ op: 'set', path: '1.1', v: 'carol' }])
+		expect(diffGeneralTree(tree, appendChild(tree, 'n1', 'dave').nodes)).toEqual([{ op: 'add', path: '1.2', v: 'dave' }])
+		expect(diffGeneralTree(tree, removeGeneralSubtree(tree, 'n1'))).toEqual([{ op: 'remove', path: '1', v: 'home' }])
+		expect(diffGeneralTree(tree, moveAmongSiblings(tree, 'n2', -1))).toEqual([{ op: 'swap', path: '', i: 1, j: 2 }])
+		expect(diffGeneralTree(tree, moveAmongSiblings(tree, 'n10', 1))).toEqual([{ op: 'swap', path: '1', i: 0, j: 1 }])
+		expect(diffGeneralTree(tree, tree)).toEqual([])
+		const other = [node('n', '/', ['n0']), node('n0', 'etc')]
+		expect(diffGeneralTree(tree, other)).toEqual([{ op: 'assign', tree: { v: '/', c: [{ v: 'etc', c: [] }] } }])
+	})
+
+	it('written out: the root a Node with its children, nodes by their child indexes', () => {
+		const log: GeneralTreeMove[] = [
+			{ op: 'new', name: 't', tree: generalShapeOf(tree) },
+			{ op: 'set', path: '1.1', v: 'carol' },
+			{ op: 'add', path: '1.2', v: 'dave' },
+			{ op: 'remove', path: '2', v: 'usr' },
+			{ op: 'swap', path: '', i: 0, j: 1 },
+		]
+		expect(renderGeneralTreeLog(log, 'python').split('\n')).toEqual([
+			't = Node("/", [Node("bin"), Node("home", [Node("alice"), Node("bob")]), Node("usr", [Node("lib")])])',
+			't.children[1].children[1].value = "carol"',
+			't.children[1].children.append(Node("dave"))',
+			'del t.children[2]    # usr and everything under it',
+			't.children[0], t.children[1] = t.children[1], t.children[0]',
+		])
+		expect(renderGeneralTreeLog(log, 'java').split('\n')).toEqual([
+			'Node t = new Node("/", new Node("bin"), new Node("home", new Node("alice"), new Node("bob")), new Node("usr", new Node("lib")));',
+			't.children.get(1).children.get(1).value = "carol";',
+			't.children.get(1).children.add(new Node("dave"));',
+			't.children.remove(2);    // usr and everything under it',
+			'Collections.swap(t.children, 0, 1);',
+		])
+		expect(renderGeneralTreeLog(log, 'c').split('\n')).toEqual([
+			'Node *t = node("/", 3, newNode("bin"), node("home", 2, newNode("alice"), newNode("bob")), node("usr", 1, newNode("lib")));',
+			't->children[1]->children[1]->value = "carol";',
+			'addChild(t->children[1], newNode("dave"));',
+			'removeChild(t, 2);    // usr and everything under it',
+			'swapChildren(t, 0, 1);',
+		])
+		expect(renderGeneralTreeLog([{ op: 'new', name: 'a', tree: { v: '7', c: [{ v: '3', c: [] }] } }], 'python')).toBe('a = Node(7, [Node(3)])')
 	})
 })
 

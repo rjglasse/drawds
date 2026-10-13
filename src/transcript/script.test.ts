@@ -14,6 +14,11 @@ import type { ListMove } from './list-moves'
 import type { MatrixMove } from './matrix-moves'
 import { boardScript, type Logged } from './script'
 import type { TreeMove, TreeShape } from './tree-moves'
+import { diffGeneralTree, generalShapeOf, type GeneralTreeMove } from './general-tree-moves'
+import { generateGeneralTree } from '../shapes/general-tree/generate'
+import { appendChild, moveAmongSiblings, removeGeneralSubtree, siblingPlace } from '../shapes/general-tree/model'
+import { mulberry32 } from '../data/random'
+import type { TreeNode } from '../shapes/tree/tree-shape-types'
 import type { UnionFindMove } from './union-find-moves'
 
 // The board's script, run by python3: every kind's code beside it, with the classes the script puts
@@ -133,6 +138,55 @@ describe.skipIf(!hasPython)('the board as one Python script', () => {
 		expect(out.t).toBe('Tree(Node(8, Node(3, Node(1), Node(7, Node(5), None)), Node(14, Node(9), None)))')
 		expect(out.p).toBe('Tree(Node(1, None, Node(3)))')
 		expect(out.h).toBe('ChainingHashTable(5, [[10, 3], [], [], [], []])')
+	})
+
+	it('general trees: a Node and its children, TreeNode beside a list\'s nodes; random edits rebuild the drawn tree', () => {
+		const fs: GeneralTreeMove[] = [
+			{ op: 'new', name: 'g', tree: { v: '/', c: [{ v: 'bin', c: [] }, { v: 'home', c: [{ v: 'alice', c: [] }] }] } },
+			{ op: 'add', path: '1.1', v: 'bob' },
+			{ op: 'set', path: '0', v: 'etc' },
+			{ op: 'swap', path: '', i: 0, j: 1 },
+			{ op: 'remove', path: '0.0', v: 'alice' },
+		]
+		const alone = run([{ shape: { type: 'general-tree', props: {} }, log: fs }])
+		expect(alone.g).toBe("Node('/', [Node('home', [Node('bob')]), Node('etc')])")
+		const beside = run([
+			{ shape: { type: 'general-tree', props: {} }, log: fs },
+			{ shape: { type: 'linked-list', props: {} }, log: [{ op: 'new', name: 'b', values: v(3, 1) }] },
+		])
+		expect(beside.g).toBe("TreeNode('/', [TreeNode('home', [TreeNode('bob')]), TreeNode('etc')])")
+		expect(beside.b).toBe('LinkedList([3, 1])')
+
+		// Random edits as a teacher makes them, each change read as moves: the script ends on the tree drawn.
+		const reprOf = (nodes: readonly TreeNode[]): string => {
+			const write = (t: { v: string; c: { v: string; c: unknown[] }[] }): string =>
+				t.c.length ? `Node(${t.v}, [${t.c.map((c) => write(c as never)).join(', ')}])` : `Node(${t.v})`
+			return write(generalShapeOf(nodes) as never)
+		}
+		const boards: Logged[] = []
+		const expected: Record<string, string> = {}
+		for (let k = 0; k < 60; k++) {
+			const rng = mulberry32(k + 1)
+			let nodes = generateGeneralTree(k + 1, 3, 0.6, 3, 'random')
+			const log: GeneralTreeMove[] = [{ op: 'new', name: `t${k}`, tree: generalShapeOf(nodes) }]
+			for (let step = 0; step < 12; step++) {
+				const at = nodes[Math.floor(rng() * nodes.length)]
+				const pick = rng()
+				const place = siblingPlace(nodes, at.id)
+				let next: TreeNode[]
+				if (pick < 0.3) next = nodes.map((n) => (n.id === at.id ? { ...n, value: String(Math.floor(rng() * 100)) } : n))
+				else if (pick < 0.6) next = appendChild(nodes, at.id, String(100 + step)).nodes
+				else if (pick < 0.8 && place) next = removeGeneralSubtree(nodes, at.id)
+				else if (place) next = moveAmongSiblings(nodes, at.id, rng() < 0.5 ? -1 : 1)
+				else continue
+				log.push(...diffGeneralTree(nodes, next))
+				nodes = next
+			}
+			expect(log.some((m) => m.op === 'assign')).toBe(false)
+			boards.push({ shape: { type: 'general-tree', props: {} }, log })
+			expected[`t${k}`] = reprOf(nodes)
+		}
+		expect(run(boards)).toEqual(expected)
 	})
 
 	it("heaps, hash tables (a class per scheme), union-find, graphs and matrices: each as drawds' own model has it", () => {

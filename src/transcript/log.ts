@@ -6,6 +6,8 @@ import { diffArray, sameArray, type ArrayLogState, type ArrayMove } from './arra
 import { diffList, type ListMove, type ListState } from './list-moves'
 import type { TreeShapeProps } from '../shapes/tree/tree-shape-types'
 import { diffTree, sameTree, shapeOf, treeArgs, type TreeMove } from './tree-moves'
+import type { GeneralTreeShapeProps } from '../shapes/general-tree/general-tree-shape-types'
+import { diffGeneralTree, generalShapeOf, sameGeneralTree, type GeneralTreeMove } from './general-tree-moves'
 import type { GraphShapeProps } from '../shapes/graph/graph-shape-types'
 import { built, diffGraph, graphState, sameGraph, type GraphMove, type GraphState } from './graph-moves'
 import type { HeapShapeProps } from '../shapes/heap/heap-shape-types'
@@ -32,7 +34,7 @@ import { diffUnionFind, sameUnionFind, unionFindState, type UnionFindMove, type 
 
 export const LOG_KEY = 'drawdsCode'
 
-export type Move = ArrayMove | ListMove | TreeMove | GraphMove | HeapMove | HashMove | MatrixMove | UnionFindMove
+export type Move = ArrayMove | ListMove | TreeMove | GeneralTreeMove | GraphMove | HeapMove | HashMove | MatrixMove | UnionFindMove
 
 /** What a kind of structure's log follows, and how a change of it reads as moves. */
 interface Tracked<S> {
@@ -122,6 +124,19 @@ const trees: Tracked<TreeNodes> = {
 	cell: (a, b) => a.find((n) => b.find((m) => m.id === n.id)?.value !== n.value)?.id,
 	sketching: 'binary-tree.sketching',
 	args: treeArgs,
+}
+
+// A general tree's nodes by id: its root a Node with a list of children.
+const generalTrees: Tracked<TreeNodes> = {
+	state: (props) => (props as GeneralTreeShapeProps).nodes,
+	touches: (a, b) => (a as GeneralTreeShapeProps).nodes !== (b as GeneralTreeShapeProps).nodes,
+	follows: () => true,
+	same: sameGeneralTree,
+	diff: diffGeneralTree,
+	start: (name, nodes) => ({ op: 'new', name, tree: generalShapeOf(nodes) }),
+	restart: (first, nodes) => ({ ...(first as Extract<GeneralTreeMove, { op: 'new' }>), tree: generalShapeOf(nodes) }),
+	cell: (a, b) => a.find((n) => b.find((m) => m.id === n.id)?.value !== n.value)?.id,
+	sketching: 'general-tree.sketching',
 }
 
 const graphs: Tracked<GraphState> = {
@@ -226,6 +241,7 @@ const TRACKED: Record<string, Tracked<unknown>> = {
 	array: arrays as Tracked<unknown>,
 	'linked-list': lists as Tracked<unknown>,
 	'binary-tree': trees as Tracked<unknown>,
+	'general-tree': generalTrees as Tracked<unknown>,
 	graph: graphs as Tracked<unknown>,
 	heap: heaps as Tracked<unknown>,
 	'hash-table': hashTables as Tracked<unknown>,

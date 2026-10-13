@@ -112,3 +112,24 @@ test('a node moves among its siblings, and a traversal from it plays with its co
 	await page.keyboard.press('Enter')
 	await expect(page.getByTestId('play-bar')).toBeHidden()
 })
+
+test('the code beside it: the tree a Node with its children; a child added and named is one line', async ({ page }) => {
+	await sketchGeneralTree(page, [400, 150], 1)
+	await rightClick(page, await nodeScreenPosition(page, 'n'))
+	await page.getByTestId('context-menu-sub.drawds-general-tree-show-button').click()
+	await page.getByTestId('context-menu.general-tree-code-beside').click()
+	await withEditor(page, (editor) => {
+		const box = editor.getCurrentPageShapes().find((s) => s.type === 'code')!
+		void editor.updateShape({ id: box.id, type: 'code', props: { language: 'python' } })
+		void editor.select(editor.getCurrentPageShapes().find((s) => s.type === 'general-tree')!.id)
+	})
+	const lines = () => page.locator('[data-shape-type="code"] [data-code-line]').allTextContents()
+	await expect.poll(lines).toEqual([expect.stringMatching(/^a = Node\(\d+\)$/)])
+	await hoverNode(page, 'n')
+	await page.getByTestId('add-child-n').click()
+	await expect.poll(() => focusedLabel(page)).toBe('Cell n0')
+	await page.keyboard.type('home')
+	await page.keyboard.press('Enter')
+	// Text now, so every value is quoted; the + and the name typed into it are one line.
+	await expect.poll(lines).toEqual([expect.stringMatching(/^a = Node\("\d+"\)$/), 'a.children.append(Node("home"))'])
+})

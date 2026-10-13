@@ -219,6 +219,18 @@ def mirror(node):
     mirror(node.left)
     mirror(node.right)`
 
+/** A general tree's node: its value and a list of children, in order (named TreeNode beside other nodes). */
+const generalNode = (name: string) =>
+	klass(name, [
+		`def __init__(self, value, children=()):
+    self.value = value
+    self.children = list(children)`,
+		`def __repr__(self):
+    if not self.children:
+        return f'${name}({self.value!r})'
+    return f'${name}({self.value!r}, {self.children!r})'`,
+	])
+
 const heap = (type: 'min' | 'max') =>
 	klass(
 		type === 'min' ? 'MinHeap' : 'MaxHeap',
@@ -399,6 +411,7 @@ const TITLES: Record<string, string> = {
 	array: 'an array',
 	'linked-list': 'a linked list',
 	'binary-tree': 'a binary tree',
+	'general-tree': 'a general tree',
 	graph: 'a graph',
 	heap: 'a heap',
 	'hash-table': 'a hash table',
@@ -450,16 +463,21 @@ export function boardScript(structures: readonly Logged[]): string {
 	}
 	const classOf = (table: HashTable) => schemes.get(schemeKey(table))!.name
 
+	const chains = [...schemes.values()].some((s) => s.scheme.strategy === 'chaining')
+	const nodes = lists.length > 0 || chains || trees.length > 0
+	const generalTrees = kinds('general-tree')
+	// A general tree's Node(value, [children]) beside the other nodes' Node: a class of its own.
+	const generalClass = nodes ? 'TreeNode' : 'Node'
+
 	const bodies = named.map(({ shape, log, name }) => {
 		let text = shuffled(renderLog(shape as TLShape, log, 'python', classOf))
 		// A chain laid out node by node, Node(key, next), beside a tree's Node(value, left, right).
 		if (shape.type === 'hash-table' && trees.length) text = text.replace(/\bNode\(/g, 'ChainNode(')
+		if (shape.type === 'general-tree' && nodes) text = text.replace(/\bNode\(/g, 'TreeNode(')
 		return `# ${name}: ${titleOf(shape)}\n${text}`
 	})
 	const code = bodies.join('\n\n')
 
-	const chains = [...schemes.values()].some((s) => s.scheme.strategy === 'chaining')
-	const nodes = lists.length > 0 || chains || trees.length > 0
 	const parts: string[] = [
 		...(/\brandom\./.test(code) ? ['import random'] : []),
 		...(nodes ? [nodeClass({ children: trees.length > 0, key: chains || trees.length > 0 })] : []),
@@ -478,6 +496,7 @@ export function boardScript(structures: readonly Logged[]): string {
 		...(fixed('stack') ? [arrayStack] : []),
 		...(fixed('queue') ? [arrayQueue] : []),
 		...(trees.length ? [tree(allCalls), TREE_FUNCTIONS] : []),
+		...(generalTrees.length ? [generalNode(generalClass)] : []),
 		...(heaps('min') ? [heap('min')] : []),
 		...(heaps('max') ? [heap('max')] : []),
 		...(kinds('graph').length ? [GRAPH] : []),

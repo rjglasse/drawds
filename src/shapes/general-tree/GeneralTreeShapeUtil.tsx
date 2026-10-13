@@ -1,4 +1,5 @@
 import type { TLShapePartial, VecLike } from 'tldraw'
+import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
 import { pruneMarks, type Marks } from '../../cells/marks'
 import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { fillValues, insertValue } from '../../data/fill'
@@ -228,13 +229,20 @@ export class GeneralTreeShapeUtil extends NodeLinkShapeUtil<GeneralTreeShape> im
 	}
 
 	override shapeOperations(shape: GeneralTreeShape): NodeOperation[] {
-		// Lecture 8a's terms, as on binary trees.
 		return [
+			// Lecture 8a's terms, as on binary trees.
 			{
 				section: 'show',
 				id: 'general-tree-terms',
 				label: shape.props.terms ? 'Hide the tree terms' : 'Tree terms: root, internal, leaf, depth, height',
 				run: () => this.toggleTerms(shape.id),
+			},
+			// Every move made on it, as code.
+			{
+				section: 'show',
+				id: 'general-tree-code-beside',
+				label: transcriptsOf(this.editor, shape.id).length ? 'Hide the code beside it' : 'Code beside it: every move as code',
+				run: () => toggleTranscript(this.editor, shape),
 			},
 		]
 	}

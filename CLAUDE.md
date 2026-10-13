@@ -583,8 +583,12 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   tidy layout for any number of children, siblings packed from the left and from the right and averaged (a small
   subtree between big ones sits midway), a lone child right under its parent. A value longer than 3 characters
   widens its node into a stadium (still kind `circle`, w > h: `roundEnds` in geometry.ts; drawn, hit, clipped,
-  outlined and edited round at the ends), its text at `fontScale` (a 3-character value's size). Not yet tracked as
-  code (no transcript).
+  outlined and edited round at the ends), its text at `fontScale` (a 3-character value's size). Code beside it
+  (`src/transcript/general-tree-moves.ts`): the tree is its root, `Node(v, [children])` (Java varargs, C
+  `node(v, count, ...)`), a node named by its child indexes (`t.children[1].children[0]`, paths '1.0'); set, add (a
+  last child: append / add / addChild), remove (`del t.children[1]`), swap (a node moved among its siblings), else
+  the tree assigned anew (sketched again); in the board script a class of its own, TreeNode beside other nodes; 60
+  random edit sequences run in python3 rebuild the tree drawn (`script.test.ts`).
 - `src/shapes/graph/` - graphs: nodes at free positions in cell units (so the size style scales the drawing), edges
   `{from, to, weight}` (weights always stored; shown when the `drawds:graph-weights` style says so; direction and
   A/0 labels are styles too, see `src/ui/GraphPickers.tsx`). `generate.ts` is the sketch: a node drops every

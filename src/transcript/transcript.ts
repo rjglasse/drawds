@@ -9,13 +9,14 @@ import { isLogged, isSketching, logOrStart, type Move } from './log'
 import { codeLanguage, codeMode, setCodeMode } from './mode'
 import type { ArrayMove } from './array-moves'
 import type { ListMove } from './list-moves'
-import { renderArrayLog, renderGraphLog, renderHashLog, renderHeapLog, renderListLog, renderMatrixLog, renderTreeLog, renderUnionFindLog, type HashClassOf } from './render'
+import { renderArrayLog, renderGraphLog, renderHashLog, renderGeneralTreeLog, renderHeapLog, renderListLog, renderMatrixLog, renderTreeLog, renderUnionFindLog, type HashClassOf } from './render'
 import type { GraphMove } from './graph-moves'
 import type { HeapMove } from './heap-moves'
 import type { HashMove } from './hash-moves'
 import type { MatrixMove } from './matrix-moves'
 import type { UnionFindMove } from './union-find-moves'
 import type { TreeMove } from './tree-moves'
+import type { GeneralTreeMove } from './general-tree-moves'
 
 // The code beside a structure: a code box following it (`structureId`) with `transcript` on, whose
 // text is the structure's log written out in the box's language, worked out as it is drawn (so an
@@ -31,6 +32,7 @@ export function renderLog(structure: TLShape, log: readonly Move[], language: Co
 	if (structure.type === 'linked-list') return renderListLog(log as ListMove[], language)
 	// A BST's nodes hold keys, as its code calls them.
 	if (structure.type === 'binary-tree') return renderTreeLog(log as TreeMove[], language, (structure.props as { kind?: string }).kind === 'bst' ? 'key' : 'value')
+	if (structure.type === 'general-tree') return renderGeneralTreeLog(log as GeneralTreeMove[], language)
 	if (structure.type === 'heap') return renderHeapLog(log as HeapMove[], language)
 	if (structure.type === 'hash-table') return renderHashLog(log as HashMove[], language, hashClass)
 	if (structure.type === 'matrix') return renderMatrixLog(log as MatrixMove[], language)
