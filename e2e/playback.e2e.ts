@@ -181,3 +181,28 @@ test('the play bar holds still: its buttons stay put as captions, strips and row
 	await arrayStep(page, 'array-grow')
 	await holdsStill(7)
 })
+
+test('A+ / A− size the caption (and the counts) under the buttons; later play bars keep it, after a reload too', async ({ page }) => {
+	await sketchBst(page)
+	await insertKey(page, '200')
+	const size = () => caption(page).evaluate((el) => getComputedStyle(el).fontSize)
+	const buttons = await page.getByTestId('play-toggle').boundingBox()
+	await expect.poll(size).toBe('13px')
+	await expect(page.getByTestId('play-text-smaller')).toBeDisabled()
+	await page.getByTestId('play-text-bigger').click()
+	await page.getByTestId('play-text-bigger').click()
+	await expect.poll(size).toBe('20px')
+	// The caption is under the buttons, which stay where they were.
+	expect((await caption(page).boundingBox())!.y).toBeGreaterThan(buttons!.y + buttons!.height)
+	expect(await page.getByTestId('play-toggle').boundingBox()).toEqual(buttons)
+	await page.keyboard.press('Escape')
+
+	await page.reload()
+	await page.waitForFunction(() => !!window.editor)
+	await sketchBst(page)
+	await insertKey(page, '200')
+	await expect.poll(size).toBe('20px')
+	await page.getByTestId('play-text-smaller').click()
+	await expect.poll(size).toBe('16px')
+	await page.evaluate(() => localStorage.removeItem('drawds:caption-size'))
+})

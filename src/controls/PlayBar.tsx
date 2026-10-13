@@ -16,6 +16,7 @@ import {
 	togglePlayback,
 	type PlaybackView,
 } from '../nodelink/playback'
+import { CAPTION_SIZES, captionSize, stepCaptionSize } from './caption-size'
 
 const ICONS = {
 	back: 'M11 3L5 8L11 13Z M4 3V13',
@@ -37,9 +38,10 @@ const ICONS = {
 
 /**
  * Controls for an operation, under the structure from its left edge: step back, play / pause, step
- * forward, the step count, speed, the autoplay toggle and cancel come first, in fixed places, then
- * the running counts and the step's narration, the only part that grows. So nothing under the
- * pointer moves while it plays. Operations open paused on their first step (unless autoplay is
+ * forward, the step count, speed, the autoplay toggle and cancel in a row, in fixed places, then A− /
+ * A+ for the caption's size; under them the running counts and the step's narration, the only part
+ * that grows (downwards), at that size (`caption-size.ts`, kept per browser so a class can read it).
+ * So nothing under the pointer moves while it plays. Operations open paused on their first step (unless autoplay is
  * on). Once the result is in the bar stays: step back through it or replay it, then Done (Shift
  * keeps the highlights as marks). Keys do the same (see `playback.ts`). In predict mode (the ? toggle)
  * each step is first a question in the narration's place, and the next press shows the answer. An
@@ -56,7 +58,7 @@ export function PlayBar({
 	view: PlaybackView
 	/** Top-left corner of the bar, in the viewport (it is drawn in front of the canvas). */
 	at: VecLike
-	/** As wide as it may be there (screen px), beside something tall: the caption wraps under the buttons if it must. */
+	/** As wide as it may be there (screen px), beside something tall: the caption wraps to it. */
 	maxWidth?: number
 	colors: TLThemeColors
 }) {
@@ -69,6 +71,7 @@ export function PlayBar({
 	const atStart = view.step === 0 && (asking || !(predict && view.paused && !view.done))
 	const violet = getColorValue(colors, 'violet', 'solid')
 	const speed = useValue('playback speed', playbackSpeed, [])
+	const size = useValue('caption size', captionSize, [])
 	const { code, shapeId } = view
 	const showsCode = useValue('shows code', () => !!code && codeBoxesOf(editor, shapeId).length > 0, [editor, code, shapeId])
 	const button = (
@@ -131,8 +134,9 @@ export function PlayBar({
 				left: at.x,
 				top: at.y,
 				display: 'flex',
-				...(maxWidth === undefined ? {} : { maxWidth, flexWrap: 'wrap' as const, boxSizing: 'border-box' as const }),
-				// Top-aligned: a caption that wraps grows the bar downwards, leaving the buttons put.
+				// The buttons, then the caption under them: one that wraps grows the bar downwards, leaving the buttons put.
+				flexDirection: 'column',
+				...(maxWidth === undefined ? {} : { maxWidth, boxSizing: 'border-box' as const }),
 				alignItems: 'flex-start',
 				padding: '3px 6px',
 				borderRadius: 9,
@@ -228,12 +232,66 @@ export function PlayBar({
 						)
 					: button('play-cancel', 'Cancel (Esc)', 'cancel', () => cancelPlayback(editor))}
 				<span aria-hidden="true" style={{ width: 1, alignSelf: 'stretch', margin: '3px 4px', background: colors.selectionStroke, opacity: 0.35 }} />
+				{([-1, 1] as const).map((by) => {
+					const at = by < 0 ? size <= CAPTION_SIZES[0] : size >= CAPTION_SIZES[CAPTION_SIZES.length - 1]
+					return (
+						<button
+							key={by}
+							type="button"
+							data-testid={by < 0 ? 'play-text-smaller' : 'play-text-bigger'}
+							aria-label={`${by < 0 ? 'Smaller' : 'Bigger'} caption (now ${size}px)`}
+							title={by < 0 ? 'Smaller caption' : 'Bigger caption, for the class to read (later play bars keep it)'}
+							disabled={at}
+							onMouseDown={(e) => e.preventDefault()}
+							onPointerDown={(e) => editor.markEventAsHandled(e)}
+							onPointerUp={(e) => editor.markEventAsHandled(e)}
+							onClick={(e) => {
+								e.stopPropagation()
+								stepCaptionSize(by)
+							}}
+							style={{
+								minWidth: 26,
+								height: 26,
+								padding: '0 3px',
+								border: 'none',
+								borderRadius: 6,
+								background: 'transparent',
+								color: colors.text,
+								opacity: at ? 0.3 : 1,
+								font: 'inherit',
+								fontWeight: 600,
+								cursor: at ? 'default' : 'pointer',
+								flex: 'none',
+							}}
+						>
+							<span style={{ fontSize: by < 0 ? 11 : 16 }}>A</span>
+							{by < 0 ? '−' : '+'}
+						</button>
+					)
+				})}
+			</div>
+			{/*
+			 * The counts and the narration, at the caption's size: one paragraph, so a long narration wraps
+			 * under the counts, about 60 characters a line at any size (else as wide as the bar may be).
+			 */}
+			<div
+				style={{
+					fontSize: size,
+					lineHeight: 1.3,
+					padding: '0.3em 0.6em 0.3em 6px',
+					width: 'max-content',
+					maxWidth: maxWidth === undefined ? '32em' : `min(32em, ${maxWidth - 16}px)`,
+					boxSizing: 'border-box',
+					whiteSpace: 'normal',
+				}}
+			>
 				{view.counts && Object.keys(view.counts).length > 0 && (
 					<span
 						data-testid="play-counts"
 						style={{
-							padding: '1px 7px',
-							marginLeft: 4,
+							display: 'inline-block',
+							padding: '0 0.4em',
+							marginRight: '0.4em',
 							borderRadius: 6,
 							background: getColorValue(colors, 'grey', 'semi'),
 							fontVariantNumeric: 'tabular-nums',
@@ -244,28 +302,17 @@ export function PlayBar({
 							.join(' · ')}
 					</span>
 				)}
+				<span data-testid="play-caption" data-asking={asking || undefined} style={{ fontWeight: asking ? 600 : undefined }}>
+					{asking && (
+						// Drawn, not typed, so the caption's text is the question alone.
+						<svg viewBox="0 0 16 16" width="1.2em" height="1.2em" aria-hidden="true" style={{ verticalAlign: '-0.25em', marginRight: '0.4em' }}>
+							<circle cx={8} cy={8} r={8} fill={violet} />
+							<path d={ICONS.predict} fill="none" stroke={colors.background} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+						</svg>
+					)}
+					{asking ? view.question : (view.frame?.caption ?? '')}
+				</span>
 			</div>
-			<span
-				data-testid="play-caption"
-				data-asking={asking || undefined}
-				style={{
-					padding: '4px 8px 4px 6px',
-					width: 'max-content',
-					maxWidth: maxWidth === undefined ? 400 : Math.min(400, maxWidth - 16),
-					whiteSpace: 'normal',
-					lineHeight: 1.3,
-					fontWeight: asking ? 600 : undefined,
-				}}
-			>
-				{asking && (
-					// Drawn, not typed, so the caption's text is the question alone.
-					<svg viewBox="0 0 16 16" width={16} height={16} aria-hidden="true" style={{ verticalAlign: '-3px', marginRight: 6 }}>
-						<circle cx={8} cy={8} r={8} fill={violet} />
-						<path d={ICONS.predict} fill="none" stroke={colors.background} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
-					</svg>
-				)}
-				{asking ? view.question : (view.frame?.caption ?? '')}
-			</span>
 		</div>
 	)
 }

@@ -287,7 +287,8 @@ file (e.g. `src/nodelink/geometry.ts`, `src/shapes/list/layout.ts`) and run
   replays, `Enter` / `Escape` / `play-done` close it, as does selecting another shape. Read `[data-testid="play-caption"]` and `[data-testid="play-counter"]` ("3/7").
   Operations open **paused on step 1** (`key Enter` to finish at once, `key Space` to play):
   the autoplay toggle (`play-autoplay`, remembered in localStorage) plays them straight away; `play-speed`
-  cycles 1x, 2x, 4x, ½x (localStorage `drawds:speed`). An operation with code (an array's searches, scans and sorts)
+  cycles 1x, 2x, 4x, ½x (localStorage `drawds:speed`); `play-text-bigger` / `play-text-smaller` size the caption
+  (localStorage `drawds:caption-size`, 13-36 px; remove it before screenshots that assume the default). An operation with code (an array's searches, scans and sorts)
   has `play-code` (</>): a code box to the structure's right shows the algorithm, the step's line lit
   (`[data-step-line]` gives its index) with a pc arrow (`[data-pointer="pc"]`); pressed again, it goes. Later
   operations on that structure show their code in it. An array's Step by step is in categories: `context-menu-sub.drawds-array-steps-basics-button` (searches, insert /

@@ -503,7 +503,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `isBusy` says when the shape's own controls should hide. Once the result is in, a step with no props or scene of
   its own shows the structure as it was before (`committed.before`), the last step the result (`isLastFrame`). Operations open paused on step 1 so the teacher sets
   the pace; the bar's autoplay toggle (localStorage) plays them straight away instead, at the bar's speed
-  (`SPEEDS` ½x-4x, localStorage; animations within a step use `animationMs` to fit while playing). Predict mode (the
+  (`SPEEDS` ½x-4x, localStorage; animations within a step use `animationMs` to fit while playing). The bar is two rows:
+  its buttons (ending with A− / A+), then the running counts and the caption as one paragraph at the caption size
+  (`src/controls/caption-size.ts`: 13-36 px, localStorage `drawds:caption-size`, so a class can read it and later
+  bars keep it), wrapping at about 60 characters (32em) or the room the bar has; step exports keep their own. Predict mode (the
   bar's ? toggle, localStorage `drawds:predict`): stepping by hand, each step is first a question in the caption's place
   (`Frame.ask`, else `DEFAULT_QUESTION`; `askFocus` elements pulse violet inside their outline: SceneSvg, ArraySvg and
   MatrixSvg `pulse`) over the step before, and the next press reveals it; `ask: false` (nothing to guess: the swap a
