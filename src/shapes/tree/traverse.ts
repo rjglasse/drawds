@@ -113,11 +113,12 @@ export function traverseTree(
 			? node.children.filter((c): c is string => !!c && byId.has(c))
 			: SIDES.map((_, slot) => node.children[slot]).map((c) => (c && byId.has(c) ? c : undefined))
 		// The line: the call that got here (the parent's left or right one, or its loop over its
-		// children), or the first call.
+		// children), or the first call. The parent's line runs in the parent's call, so node is the
+		// parent there (its test reads the parent's child: node.right != null).
 		const called: { line: string; vars: Record<string, string> } = from
 			? general
-				? { line: 'child', vars: { node: v, child: v } }
-				: { line: SIDES[from.slot], vars: { node: v } }
+				? { line: 'child', vars: { node: value(from.parent), child: v } }
+				: { line: SIDES[from.slot], vars: { node: value(from.parent) } }
 			: { line: 'call', vars: { node: v } }
 		if (order === 'pre') {
 			// A general tree's loop is on that child too.

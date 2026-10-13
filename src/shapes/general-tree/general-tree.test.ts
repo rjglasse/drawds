@@ -210,7 +210,8 @@ describe('traversals', () => {
 		expect(run.code).toBe('general-tree-post')
 		const arrive = run.frames.find((f) => f.caption?.startsWith('Go down to b'))!
 		expect(arrive.line).toBe('child')
-		expect(arrive.vars).toEqual({ node: 'b', child: 'b' })
+		// The loop runs in a's call: node is a, child b.
+		expect(arrive.vars).toEqual({ node: 'a', child: 'b' })
 		expect(run.frames.some((f) => f.caption?.includes('its children are done: visit'))).toBe(true)
 		expect(traverseTree(sample, 'a', 'level', { general: true }).frames[1].caption).toBe('Dequeue a: visit it (1), queue b, c, d and e')
 	})

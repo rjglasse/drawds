@@ -93,6 +93,8 @@ const runs: [string, Op, Values][] = [
 	...['d', 'c', 'b', 'a'].map((id): [string, Op, Values] => [`bst delete ${id}`, { ...bstDeleteSteps(bst, id), code: 'bst-delete' }, treeValues(bst)]),
 	['bst min', { ...bstExtreme(bst, 'a', 'min'), code: 'bst-min' }, treeValues(bst)],
 	['pre-order', traverseTree(tree, 'a', 'pre') as Op, treeValues(tree)],
+	['in-order', traverseTree(tree, 'a', 'in') as Op, treeValues(tree)],
+	['post-order', traverseTree(tree, 'a', 'post') as Op, treeValues(tree)],
 	['height, nulls', measureTree(tree, 'a', 'height', { nulls: true }) as Op, treeValues(tree, true)],
 	['leaves', measureTree(tree, 'a', 'leaves') as Op, treeValues(tree)],
 	['bfs', bfs(graph as never, 'a', false) as Op, graphValues],
@@ -140,6 +142,14 @@ describe('tests beside lists, trees, graphs, heaps and union-find', () => {
 		expect(shown('bst delete c', 'c')).toEqual(['NULL == NULL || … → true'])
 		expect(shown('bst delete b')).toContain('25 != 30 → true')
 		expect(shown('leaves', 'java')).toContain('null == null && null == null → true')
+	})
+
+	it("a traversal's call to a child reads the parent's child (it runs in the parent's call)", () => {
+		// A (B (D, -), C): each step down is a call the parent's test let through.
+		for (const order of ['in-order', 'post-order']) {
+			expect(shown(order)).toEqual(['B != null → true', 'D != null → true', 'C != null → true'])
+			expect(shown(order, 'python')).toEqual(['B is not None → true', 'D is not None → true', 'C is not None → true'])
+		}
 	})
 
 	it("a graph's searches: visited[w] by vertex, the path walked back, a heap's sift stopping, union-find's walk up", () => {
