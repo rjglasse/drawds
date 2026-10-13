@@ -32,12 +32,22 @@ you can retype. Each one is a single shape: move it, restyle it, undo it in one 
 <td align="center" valign="bottom"><img src="docs/images/matrix.png" width="230" alt="A 5 by 5 matrix with row and column indices"><br><b>Matrix</b> <kbd>Shift</kbd>+<kbd>M</kbd><br>2D arrays, drag out a rectangle</td>
 <td align="center" valign="bottom"><img src="docs/images/union-find.png" width="280" alt="Union-find: two trees over the parent and size arrays"><br><b>Union-find</b> <kbd>Shift</kbd>+<kbd>U</kbd><br>the forest over its parent array</td>
 </tr>
+<tr>
+<td align="center" valign="bottom"><img src="docs/images/general-tree.png" width="260" alt="A general tree: A with three children, B with two and D with three"><br><b>General tree</b> <kbd>Shift</kbd>+<kbd>K</kbd><br>any number of children, like a file system</td>
+<td align="center" valign="bottom"><img src="docs/images/trie.png" width="260" alt="A trie of bat, bay, bed, bee, done and dot, each edge a letter"><br><b>Trie</b> <kbd>Shift</kbd>+<kbd>W</kbd><br>a word for every cell dragged</td>
+</tr>
+<tr>
+<td align="center" valign="bottom"><img src="docs/images/code.png" width="320" alt="A Java code box, its third line marked and a pc pointer beside it"><br><b>Code box</b> <kbd>Shift</kbd>+<kbd>C</kbd><br>C, Java or Python, highlighted as you type</td>
+<td align="center" valign="bottom"><img src="docs/images/tracer.png" width="300" alt="The recursion tracer running fib(4)"><br><b>Recursion tracer</b> <kbd>Shift</kbd>+<kbd>R</kbd><br>a function on the call stack</td>
+</tr>
 </table>
 
 A graph can show its **adjacency matrix**, **adjacency lists**, **edge list** or **union-find** beside it (right-click >
-Show), each headed by what it costs (V × V cells, V + 2E entries, E pairs), and they follow it as it changes; Show >
-degrees badges every node. The style panel's **What can I do?** lists every gesture, button and setting for the
-selected structure.
+Show, again to hide it), each headed by what it costs (V × V cells, V + 2E entries, E pairs), and they follow it as it
+changes; Show > Degrees badges every node. An array or a linked list can show itself **in memory** (cells side by side,
+or nodes scattered with their addresses), and a circular queue **as a ring**. A structure's own menu has **New values**
+(new words in a trie, new weights on a weighted graph) and a **Clean copy** (the same one again, without marks or
+pointers). The style panel's **What can I do?** lists every gesture, button and setting for the selected structure.
 
 ## Step by step
 
@@ -55,13 +65,22 @@ step is on lit and the variables' values beside their lines.
 
 | Structure | Step by step |
 |---|---|
-| Array | binary and linear search; insertion, selection, bubble, quick and merge sort (selection and insertion also a row per pass, the costs summed); Lomuto, Hoare and three-way partitions; quicksort with a random pivot, the median of three, three ways or a cut-off to insertion sort; a sort's comparisons as n grows (n = 10, 100, 1000, four kinds of input); insert and delete by shifting; growing a full array (doubling against +1); recursive sums |
-| Stack, queue | push, pop, peek; enqueue, dequeue, a circular buffer wrapping round; overflow and underflow |
-| Linked list | find, insert, delete, append, insert in order, reverse, find the middle (slow and fast), print backwards, Floyd's cycle detection; a size field kept by every insert and delete, counting the nodes against reading it, the invariants checked, and the two bugs of forgetting the tail |
-| Tree, BST, heap | pre-, in-, post- and level-order; BST search, insert, delete (all three cases); heap insert, extract, build-heap; Show > tree terms (root, internal, leaf, depth, height) |
-| Hash table | insert, find, delete (tombstones when probing), grow and rehash |
+| Array | binary and linear search, sentinel search; the largest value, all unique? (every pair, a set, or sorting first); insertion, selection, bubble, quick, merge and counting sort (selection and insertion also a row per pass, the costs summed); Lomuto, Hoare and three-way partitions; quicksort with a random pivot, the median of three, three ways or a cut-off to insertion sort; a sort's comparisons as n grows (n = 10, 100, 1000, four kinds of input); merging two sorted arrays; the unfair shuffle and Fisher-Yates, and their outcomes (every run as a tree, or many runs tallied); insert and delete by shifting; growing a full array (doubling against +1, and its amortised cost); a sum with its loop invariant; recursive sums |
+| Stack, queue | push, pop, peek; enqueue, dequeue, a circular buffer wrapping round; overflow and underflow; balanced brackets and a postfix expression's value, on a stack |
+| Linked list | find, insert, delete, append, insert in order, reverse, find the middle (slow and fast), print backwards, Floyd's cycle detection, merging two sorted lists, merge sort; a size field kept by every insert and delete, counting the nodes against reading it, the invariants checked, and the two bugs of forgetting the tail |
+| Tree, BST, heap | pre-, in-, post- and level-order; height, leaves and size, each call returning its answer; BST search, min, max, insert, delete (all three cases), and building one from sorted or shuffled keys; heap insert, extract, remove, build-heap; Show > Tree terms (root, internal, leaf, depth, height) |
+| General tree, trie | a general tree's traversals and measures, each call made from a loop over the children, and the tree as a binary tree (left child, right sibling); a trie's insert, contains, words starting with a prefix, and delete |
+| Hash table | insert, find, delete (tombstones when probing), grow and rehash; hash codes (character codes added, Java's hashCode, direct addressing) and compressions (mod m, MAD) |
 | Graph | BFS, DFS, a path with the fewest edges, is there a cycle?, Dijkstra, Prim, Kruskal (with its union-find), topological sort, connected components; adding or removing a vertex or an edge, and what it costs the adjacency matrix, the lists and the edge list |
-| Union-find, matrix | find with path compression, union by size or rank; row- and column-major order, transpose, staircase search |
+| Union-find, matrix | find with path compression, union by size or rank (or by dragging one element onto another), same set?; row- and column-major order, transpose, staircase search |
+
+### Code
+
+Every operation with code shows it beside the structure (the bar's </> button). The **code beside a structure** (Show >
+Code beside it) is different: every move made on it, by hand or played, written out as code as you go, in C, Java
+or Python. Main menu > **Track with code** puts it beside every structure on the board, and **Download the board's
+code** gives one Python script that builds them all. A **code box** of your own (<kbd>Shift</kbd>+<kbd>C</kbd>, or
+right-click a text box > Make a code box) is highlighted as you type; mark its lines and walk a pc pointer down them.
 
 ### Recursion
 
@@ -71,8 +90,8 @@ can be set side by side (summing by halves goes log n deep, summing "last + the 
 
 ![Sum by halves: the array with lo and hi, the recursion tree half grown beside it](docs/images/recursion-tree.png)
 
-The **recursion tracer** (<kbd>Shift</kbd>+<kbd>R</kbd>) runs a function on the call stack: gcd, factorial, fib,
-sum, or sayHello with no base case. Type a call into main's frame, run it, and watch frames go on the stack with
+The **recursion tracer** (<kbd>Shift</kbd>+<kbd>R</kbd>) runs a function on the call stack: gcd (or gcd as a loop,
+one frame), factorial, fib, sum, sayHello with no base case, or sayHello(i) counting up until the stack overflows. Type a call into main's frame, run it, and watch frames go on the stack with
 what they still have to do, the base case return, and the values come back down while the code lights its case.
 Functions that never reach a base case overflow the stack; fib's tree marks the calls it makes again.
 
@@ -113,7 +132,17 @@ Trees: point at a node to get a **+** on its lower-left / lower-right corner for
 that removes the node and its whole subtree. The layout tidies itself after each change and the root stays put.
 BSTs and heaps have a **+** of their own to insert a key step by step, and an x on a node deletes it step by step.
 
-Graphs: drag a node's connect grip onto another node for an edge, or into empty space for a new node and edge.
+General trees: a **+** on a node adds a last child, an **x** removes its subtree, and its menu moves a node among its
+siblings. Tries: the **+** above the root inserts a word, an **x** on a word's node deletes it, step by step.
+
+Hash tables: the **+** by the load factor inserts a key, an **x** on a key deletes it, step by step.
+
+Graphs: drag a node's connect grip onto another node for an edge, or into empty space for a new node and edge; drag
+either end of an edge onto another node to re-wire it; an **x** removes a node or an edge. With the graph tool, press
+on a node of a graph and drag to sketch more of it.
+
+Matrices: drag the grips on the right and at the bottom for more columns and rows; right-click a cell to insert or
+delete its row or column. Union-find: drag an element's grip onto another element to union them.
 
 ### Marking elements
 

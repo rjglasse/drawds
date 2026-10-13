@@ -545,8 +545,10 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> implements Red
 			'With the graph tool (Shift+G), press on a node of a graph and drag: the graph goes on from there',
 			'Right-click the graph: Graph > Lay out round a circle, or Tidy (edges even, nodes apart, from where they are)',
 			'Hover a node or an edge for x (remove); drag the dot under a node to move it',
-			"Right-click a node: Step by step has BFS, DFS, a path to another node (fewest edges), Dijkstra, Prim, Kruskal (with its union-find beside the graph), connected components and Is there a cycle?; Show puts its adjacency matrix, lists or union-find beside it",
-			'Show degrees and neighbours: each node its degree, and pointing at a node lights its neighbours (directed: out green, in orange)',
+			"Right-click a node: Step by step has BFS, DFS, a path to another node (fewest edges), Dijkstra, Prim, connected components, Is there a cycle?, and what each representation pays (is it adjacent to another, add or remove a vertex); the graph: Kruskal (undirected) or topological sort (directed); an edge: what removing it costs",
+			'Show: its adjacency matrix, lists, edge list or union-find beside it (again to hide it), each headed by what it costs; the code beside it',
+			'Show > Degrees and neighbours: each node its degree, and pointing at a node lights its neighbours (directed: out green, in orange)',
+			'Weighted: Graph > New weights, the same edges',
 			'Style panel: Edges (directed or not), Weights, Labels, and Density, Pieces, Order for a new sketch',
 		]
 	}

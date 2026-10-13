@@ -9,16 +9,16 @@ import {
 	useEditor,
 	useValue,
 } from 'tldraw'
-import { CellShapeUtil } from '../cells/CellShapeUtil'
+import { CellShapeUtil, type SharedMove } from '../cells/CellShapeUtil'
 
-/** Moves every structure shares, after its own. */
-const SHARED = [
-	'Point at an element and press 1–4 to mark it, 0 to clear (main menu: Colour-blind cues adds a shape to each colour)',
-	'Right-click an element: Step by step (animated), then its own name (instant changes), Show, Mark, Pointer',
-	'Right-click it, then its own name > Clean copy: the same one again underneath, without marks or pointers',
-	'Seed (above): pin it and every new sketch gets the same values (same length; trees and graphs also need the same drag)',
-	'While an operation plays: Space, ← → or a clicker, Enter finishes, Esc cancels; the ? on its bar asks the class first',
-]
+/** Moves every structure shares, after its own (those its util says apply: `sharedMoves`). */
+const SHARED: Record<SharedMove, string> = {
+	mark: 'Point at an element and press 1–4 to mark it, 0 to clear (main menu: Colour-blind cues adds a shape to each colour)',
+	menu: 'Right-click an element: Step by step (animated), then its own name (instant changes), Show, Mark, Pointer',
+	copy: 'Right-click it, then its own name > Clean copy: the same one again underneath, without marks or pointers',
+	seed: 'Seed (above): pin it and every new sketch gets the same values (same length; trees and graphs also need the same drag)',
+	play: 'While an operation plays: Space, ← → or a clicker, Enter finishes, Esc cancels; the ? on its bar asks the class first',
+}
 
 /**
  * "What can I do here?" at the foot of the style panel while one structure is selected: its
@@ -33,7 +33,7 @@ export function StructureHint() {
 			const shape = editor.getOnlySelectedShape()
 			const util = shape && editor.getShapeUtil(shape)
 			if (!shape || !(util instanceof CellShapeUtil) || !util.moves) return null
-			return { name: util.menuName?.(shape) ?? shape.type, moves: util.moves(shape) }
+			return { name: util.menuName?.(shape) ?? shape.type, moves: util.moves(shape), shared: util.sharedMoves(shape).map((m) => SHARED[m]) }
 		},
 		[editor]
 	)
@@ -51,7 +51,7 @@ export function StructureHint() {
 					<div data-testid="structure-hint-content" style={{ width: 300, padding: '10px 12px', fontSize: 12, lineHeight: 1.4 }}>
 						<div style={{ fontWeight: 600, marginBottom: 6 }}>{hint.name}</div>
 						<ul style={{ margin: 0, paddingLeft: 16 }}>
-							{[...hint.moves, ...SHARED].map((move, i) => (
+							{[...hint.moves, ...hint.shared].map((move, i) => (
 								<li key={i} style={{ marginBottom: 4, color: i < hint.moves.length ? undefined : 'var(--tl-color-text-3, inherit)' }}>
 									{move}
 								</li>

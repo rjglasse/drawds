@@ -42,6 +42,10 @@ export interface CellFont {
 /** Which way an arrow key steps a picked-up pointer. */
 export type PointerDirection = 'left' | 'right' | 'up' | 'down'
 
+/** Moves every structure shares (`StructureHint`'s lines after its own): marking, its menus, a clean copy, the seed, playing. */
+export const SHARED_MOVES = ['mark', 'menu', 'copy', 'seed', 'play'] as const
+export type SharedMove = (typeof SHARED_MOVES)[number]
+
 /**
  * Where an operation sits in a structure's context menu, the same for every structure: 'steps'
  * (Step by step: animated operations, the default), 'actions' (the submenu named after the
@@ -140,6 +144,10 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 	 * (the style panel's "What can I do here?"; moves every structure shares are added there).
 	 */
 	moves?(shape: S): string[]
+	/** Which of the moves every structure shares apply to it (the hint's lines after its own): all, unless it says. */
+	sharedMoves(_shape: S): readonly SharedMove[] {
+		return SHARED_MOVES
+	}
 	/** Operations on the whole structure, offered wherever it is right-clicked (e.g. an array's sorts). */
 	shapeOperations?(shape: S): NodeOperation[]
 	/** What a step (or, without one, the shape itself) draws; shapes without it can't show operations. */

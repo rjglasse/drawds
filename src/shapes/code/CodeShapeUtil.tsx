@@ -376,6 +376,11 @@ export class CodeShapeUtil extends CellShapeUtil<CodeShape> {
 		return 'Code'
 	}
 
+	/** Its own moves say how its lines are marked and pointed at; it has no seed, and nothing plays on it. */
+	override sharedMoves() {
+		return ['copy'] as const
+	}
+
 	override readonly menuId = 'code'
 
 	/**

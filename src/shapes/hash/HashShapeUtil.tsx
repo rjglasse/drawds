@@ -222,6 +222,8 @@ export class HashShapeUtil extends NodeLinkShapeUtil<HashShape> implements Refil
 	override moves() {
 		return [
 			'The + by the load factor inserts a key; x on a key deletes it, step by step',
+			'Double-click a key to type over it (a red ring if it now belongs in another bucket); clear it to take it out',
+			'Hash table > New keys',
 			'Grow and rehash, and find a key, from the right-click menu',
 			'Style panel: Collisions (separate chaining or linear probing), the hash code (character codes added, three letters with A = 1, Java\'s hashCode, or direct addressing) and the compression (mod m or MAD)',
 			'A red ring marks a key a find would miss',

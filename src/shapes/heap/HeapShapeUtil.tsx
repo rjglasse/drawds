@@ -246,6 +246,8 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 			'The + after the array inserts a value (it sifts up); x on a node removes it (sift down), step by step',
 			'The tree and the array are one heap: index i has children 2i + 1 and 2i + 2',
 			'A dashed red ring marks a value that breaks the heap property',
+			'Style panel: Min or max heap (switching builds the other)',
+			'Heap > New values (a heap again), or Shuffle values, then Step by step > Build the heap (Floyd)',
 		]
 	}
 

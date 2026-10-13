@@ -139,10 +139,15 @@ export class TracerShapeUtil extends CellShapeUtil<TracerShape> {
 
 	override moves() {
 		return [
-			"Double-click main's call to type another: gcd(1071, 462), fact(6), fib(6), sum(5), sayHello()",
-			'Right-click > Step by step > Run: frames go on the stack and come off it, the recursion tree grows beside it',
-			'Style panel: Function (gcd, factorial, fib, sum, sayHello, a sum that never gets smaller)',
+			"Double-click main's call to type another (its function goes with it): gcd(1071, 462), fact(6), fib(6), sum(5), sayHello(), sayHello(1)",
+			'Right-click > Step by step > Run: frames go on the stack and come off it, the recursion tree grows beside it when calls branch (fib)',
+			'Style panel: Function (gcd, gcd as a loop, factorial, fib, sum, sayHello with no base case, sayHello(i) counting up, a sum that never gets smaller)',
 		]
+	}
+
+	/** Nothing in it is marked (so no Mark menu either; its own moves say what its menu runs), and its seed is unused. */
+	override sharedMoves() {
+		return ['copy', 'play'] as const
 	}
 
 	override shapeOperations(shape: TracerShape): NodeOperation[] {

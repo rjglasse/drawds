@@ -95,6 +95,16 @@ test('the style panel says what can be done with the selected structure', async 
 	await page.getByTestId('structure-hint').click()
 	await expect(hint).toContainText('Graph')
 	await expect(hint).toContainText("Drag from the dot on a node's right edge")
+	// A recursion tracer: nothing in it is marked, and it has no seed to pin.
+	await page.keyboard.press('Escape')
+	await page.keyboard.press('Escape')
+	await page.keyboard.press('Shift+R')
+	await page.mouse.click(300, 520)
+	await expect(page.getByTestId('tracer')).toBeVisible()
+	await page.getByTestId('structure-hint').click()
+	await expect(hint).toContainText('Clean copy')
+	await expect(hint).not.toContainText('press 1–4 to mark it')
+	await expect(hint).not.toContainText('Seed (above)')
 	// Nothing selected: no hint.
 	await page.keyboard.press('Escape')
 	await page.evaluate(() => void window.editor!.selectNone())
