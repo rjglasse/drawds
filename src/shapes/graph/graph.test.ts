@@ -14,7 +14,7 @@ import {
 	type GraphSketch,
 } from './generate'
 import { graphShapeMigrations, type GraphEdge } from './graph-shape-types'
-import { graphScene } from './layout'
+import { graphCorner, graphScene } from './layout'
 import {
 	addEdge,
 	addNode,
@@ -295,6 +295,11 @@ describe('graph model', () => {
 		expect(scene.edges[0]).toMatchObject({ key: 'e0', from: 'v0', to: 'v1', directed: true, label: '4' })
 		const plain = graphScene({ ...model, direction: 'undirected', weights: 'unweighted', size: 'm' })
 		expect(plain.edges[0]).toMatchObject({ directed: false, label: undefined })
+	})
+
+	it("corner: the nodes' lower right; with none, a lone node's at the origin (never -Infinity)", () => {
+		expect(graphCorner({ nodes: model.nodes, size: 'm' })).toEqual({ x: 3.5 * 48, y: 3.5 * 48 })
+		expect(graphCorner({ nodes: [], size: 'm' })).toEqual({ x: 24, y: 24 })
 	})
 })
 

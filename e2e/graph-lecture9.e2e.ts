@@ -148,3 +148,13 @@ test("removing a vertex step by step: the matrix and lists open beside it, each 
 	await expect(page.locator('[data-testid="graph-view-title"]')).toHaveCount(0)
 	expect((await graph(page)).nodes).toHaveLength(7)
 })
+
+test("a graph's last vertex isn't offered for removal step by step, as its x isn't", async ({ page }) => {
+	await sketchGraph(page, [300, 200], 1)
+	expect((await graph(page)).nodes).toHaveLength(1)
+	const [only] = (await graph(page)).nodes
+	await rightClick(page, await nodeScreenPosition(page, only.id))
+	await page.getByTestId('context-menu-sub.drawds-graph-steps-button').click()
+	await expect(page.getByTestId('context-menu.graph-add-vertex-costs')).toBeVisible()
+	await expect(page.getByTestId('context-menu.graph-remove-vertex-costs')).toHaveCount(0)
+})

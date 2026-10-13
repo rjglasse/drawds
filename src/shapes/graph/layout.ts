@@ -52,11 +52,12 @@ export function toUnits(p: Point, size: TLDefaultSizeStyle): Point {
 	return { x: p.x / cell, y: p.y / cell }
 }
 
-/** The lower-right corner of the nodes' bounding box, in px. */
+/** The lower-right corner of the nodes' bounding box, in px (with no nodes, a lone node's at the origin). */
 export function graphCorner({ nodes, size }: Pick<GraphShapeProps, 'nodes' | 'size'>): Point {
 	const { cell } = getGraphMetrics(size)
+	const most = (vs: number[]) => (vs.length ? Math.max(...vs) : 0)
 	return {
-		x: (Math.max(...nodes.map((n) => n.x)) + 0.5) * cell,
-		y: (Math.max(...nodes.map((n) => n.y)) + 0.5) * cell,
+		x: (most(nodes.map((n) => n.x)) + 0.5) * cell,
+		y: (most(nodes.map((n) => n.y)) + 0.5) * cell,
 	}
 }

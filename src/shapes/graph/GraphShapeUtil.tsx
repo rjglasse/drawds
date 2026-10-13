@@ -354,12 +354,17 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> {
 					if (target) this.playCosts(shape.id, 'is there an edge?', (s) => hasEdgeCosts(s.props, key, target))
 				},
 			},
-			{
-				group: 'representations',
-				id: 'graph-remove-vertex-costs',
-				label: `Remove ${node.value}: each view's cost`,
-				run: () => this.playCosts(shape.id, `remove ${node.value}`, (s) => removeVertexCosts(s.props, key)),
-			},
+			// Offered where the x is: a graph keeps at least one node.
+			...(this.canRemoveNode(shape)
+				? [
+						{
+							group: 'representations',
+							id: 'graph-remove-vertex-costs',
+							label: `Remove ${node.value}: each view's cost`,
+							run: () => this.playCosts(shape.id, `remove ${node.value}`, (s) => removeVertexCosts(s.props, key)),
+						},
+					]
+				: []),
 			{
 				...algorithm,
 				id: 'graph-dijkstra',
