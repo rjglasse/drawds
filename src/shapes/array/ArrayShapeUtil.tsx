@@ -558,7 +558,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	/** Merge sorted `otherId` with array `id` into a new array, made under it when the result goes in (one undo step). */
 	private mergeWith(id: ArrayShape['id'], otherId: ArrayShape['id']) {
-		const [shape, other] = [this.editor.getShape(id) as ArrayShape | undefined, this.editor.getShape(otherId) as ArrayShape | undefined]
+		const [shape, other] = [this.current(id), this.current(otherId)]
 		if (!shape || !other) return
 		const { values, marks } = shape.props
 		const n = values.length + other.props.values.length
@@ -662,7 +662,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 		operation: (array: ArrayState) => ArrayOperation,
 		{ whole = false, opened, cutoff = 3 }: { whole?: boolean; opened?: () => void; cutoff?: number } = {}
 	) {
-		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		// `whole`: the operation gets every cell and the size (a fixed array's insert, grow...).
 		const { values, marks } = whole ? shape.props : inUse(shape.props)
@@ -709,7 +709,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	 * in a view beside it (opened first; Esc takes it back).
 	 */
 	private playOutcomes(id: ArrayShape['id'], kind: ShuffleKind, mode: OutcomesMode) {
-		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const seed = seedForSketch()
 		const opened = openOutcomes(this.editor, shape, { kind, mode, values: inUse(shape.props).values, seed })
@@ -722,7 +722,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	 * a table beside the array (opened first, unless one counts that sort already; Esc takes it back).
 	 */
 	private playGrowth(id: ArrayShape['id'], sort: CountedSort, cutoff: number) {
-		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const { seed, opened } = openGrowth(this.editor, shape, { sort, seed: seedForSketch(), cutoff })
 		this.play(id, `${SORT_NAMES[sort].toLowerCase()} as n grows`, (a) => growthOperation(a, sort, seed, cutoff), { opened })
@@ -730,7 +730,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	/** Insert a value that fits the fill mode (as growing does), at index k. */
 	private insertOp(id: ArrayShape['id'], array: ArrayState, k: number) {
-		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		const shape = this.current(id)
 		return insertAt(array, k, this.newValue(shape?.props ?? this.getDefaultProps(), array.values, k))
 	}
 
@@ -822,7 +822,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	/** The fill mode's next value, not one already in use: for a push or an enqueue. */
 	private nextValue(id: ArrayShape['id']) {
-		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		const shape = this.current(id)
 		if (!shape) return ''
 		const { fill, seed, values, range } = shape.props
 		const inUse = usedIndices(shape.props).map((i) => values[i])
@@ -836,7 +836,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	/** The next `count` values of the fill mode's stream. */
 	private appendValues(id: ArrayShape['id'], { values, used = values.length }: ArrayState, count: number) {
-		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		const shape = this.current(id)
 		const { fill, seed, range } = shape?.props ?? this.getDefaultProps()
 		return extendValues(values.slice(0, used), fill, seed, used + count, { range }).slice(used)
 	}
@@ -956,7 +956,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	 * keeps its capacity: its last used slot becomes a spare one.
 	 */
 	private pressDelete(id: ArrayShape['id'], k: number) {
-		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const { values, marks, sizing } = shape.props
 		const used = usedCount(shape.props)
@@ -976,7 +976,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	 * fixed array needs a spare slot, which the last value moves into.
 	 */
 	private pressInsert(id: ArrayShape['id'], k: number) {
-		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const { values, marks, sizing } = shape.props
 		const used = usedCount(shape.props)
@@ -990,7 +990,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 				: this.withValues(shape, withCell({ values, marks }, k, value))
 		)
 		this.slide(shape, Object.fromEntries(values.slice(k, used).map((_, j) => [k + j + 1, k + j])))
-		const updated = this.editor.getShape(id) as ArrayShape | undefined
+		const updated = this.current(id)
 		if (updated) this.editCell(updated, String(k))
 	}
 
@@ -1021,7 +1021,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	/** Sort, shuffle or reverse at once: each value arcs to its new cell, marks with it. One undo step. */
 	private rearrange(id: ArrayShape['id'], label: string, make: (values: string[]) => number[]) {
-		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		// The values in use only: a fixed array's spare slots stay where they are.
 		const { values, marks } = inUse(shape.props)
@@ -1044,7 +1044,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 
 	/** New random values from a fresh seed, in the shape's fill mode. */
 	private reroll(id: ArrayShape['id']) {
-		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const seed = newSeed()
 		this.update(id, 'new values', (s) => ({
@@ -1055,7 +1055,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 	}
 
 	private update(id: ArrayShape['id'], label: string, change: (shape: ArrayShape) => Partial<ArrayShape['props']>) {
-		const shape = this.editor.getShape(id) as ArrayShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		this.editor.markHistoryStoppingPoint(label)
 		this.editor.updateShape({ id, type: ARRAY_SHAPE_TYPE, props: change(shape) })
@@ -1216,7 +1216,7 @@ export class ArrayShapeUtil extends CellShapeUtil<ArrayShape> implements Refilla
 					// One past the end of an array merged in (j once it is used up).
 					...framePointers.flatMap((p) => {
 						const other = parseOtherKey(p.at)
-						const there = other && (this.editor.getShape(other.id) as ArrayShape | undefined)
+						const there = other && (this.current(other.id))
 						const past = other && there?.type === ARRAY_SHAPE_TYPE && Number(other.cell) === there.props.values.length
 						const anchor = past ? this.stepAnchor(shown, aux, p.at, metrics) : undefined
 						return anchor ? [anchor.box] : []

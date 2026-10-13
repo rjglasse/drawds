@@ -1,4 +1,4 @@
-import type { TLShapePartial, VecLike } from 'tldraw'
+import type { TLShapePartial } from 'tldraw'
 import { pruneMarks, swapMarks } from '../../cells/marks'
 import { prunePointers } from '../../pointers/pointers'
 import { fillValues } from '../../data/fill'
@@ -107,19 +107,7 @@ export class HashShapeUtil extends NodeLinkShapeUtil<HashShape> implements Refil
 		})
 	}
 
-	// Keys sit where the table puts them: nothing to drag.
-
-	moveNode(shape: HashShape, _key: string, _to: VecLike) {
-		return this.update(shape, {})
-	}
-
-	resetLayout(shape: HashShape) {
-		return this.update(shape, {})
-	}
-
-	hasManualLayout() {
-		return false
-	}
+	// Keys sit where the table puts them: nothing to drag (the base's moveNode moves nothing).
 
 	override sceneWarnings(shape: HashShape) {
 		const { invariant, buckets } = shape.props
@@ -250,7 +238,7 @@ export class HashShapeUtil extends NodeLinkShapeUtil<HashShape> implements Refil
 	}
 
 	private run(id: HashShape['id'], label: string, op: (shape: HashShape) => HashOperation) {
-		const shape = this.editor.getShape(id) as HashShape | undefined
+		const shape = this.current(id)
 		if (shape) this.play(shape, label, op(shape), false)
 	}
 

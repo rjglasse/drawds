@@ -190,6 +190,11 @@ export abstract class CellShapeUtil<S extends TLShape> extends ShapeUtil<S> {
 		return key !== undefined && this.pointerAnchor?.(shape, key) ? key : undefined
 	}
 
+	/** The shape with this id as it is now, if it is still there (a menu or an operation captured one that may have changed since). */
+	protected current(id: S['id']): S | undefined {
+		return this.editor.getShape(id) as S | undefined
+	}
+
 	getPointers(shape: S): Pointer[] {
 		return (shape.props as { pointers?: Pointer[] }).pointers ?? []
 	}

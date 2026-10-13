@@ -64,11 +64,21 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	/** Positioned nodes and edges for the shape's current props, in shape space. Must be pure. */
 	abstract buildScene(shape: S): Scene
 	abstract setNodeValue(shape: S, key: string, value: string): TLShapePartial<S>
-	/** Move a node so its centre is at `to` (layout coordinates), keeping the rest of the layout. */
-	abstract moveNode(shape: S, key: string, to: VecLike): TLShapePartial<S>
-	/** Put every node back where the automatic layout wants it. */
-	abstract resetLayout(shape: S): TLShapePartial<S>
-	abstract hasManualLayout(shape: S): boolean
+	/**
+	 * Move a node so its centre is at `to` (layout coordinates), keeping the rest of the layout. By
+	 * default nothing moves: a structure whose nodes sit where it puts them (a heap, a hash table).
+	 */
+	moveNode(shape: S, _key: string, _to: VecLike): TLShapePartial<S> {
+		return { id: shape.id, type: shape.type } as TLShapePartial<S>
+	}
+	/** Put every node back where the automatic layout wants it (by default there is nothing to put back). */
+	resetLayout(shape: S): TLShapePartial<S> {
+		return { id: shape.id, type: shape.type } as TLShapePartial<S>
+	}
+	/** Whether a node has been moved from where the layout puts it (Re-layout is offered then). */
+	hasManualLayout(_shape: S): boolean {
+		return false
+	}
 
 	/**
 	 * Grips that grow the structure when dragged (ids from controls/grow), in layout coordinates.

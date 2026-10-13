@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { getTreeMetrics, nodeSize } from '../tree/layout'
 import { measureTree } from '../tree/measure'
+import { stepAmongChildren } from '../tree/model'
 import { traverseTree } from '../tree/traverse'
 import type { TreeNode } from '../tree/tree-shape-types'
 import { generateGeneralTree, levelIndex, maxDepth, randomGeneralTreePaths, withArity } from './generate'
@@ -279,5 +280,19 @@ describe('left child, right sibling', () => {
 		expect(atB.scene!.edges.map((e) => e.key)).toContain(siblingEdgeKey('f', 'g'))
 		const last = frames.at(-1)!.scene!.edges.map((e) => e.key).sort()
 		expect(last).toEqual(['a->b', 'b->f', 'e->h', siblingEdgeKey('b', 'c'), siblingEdgeKey('c', 'd'), siblingEdgeKey('d', 'e'), siblingEdgeKey('f', 'g')].sort())
+	})
+})
+
+describe('a pointer stepped with the arrow keys', () => {
+	it('goes up to the parent, down to the first child, left and right among the siblings', () => {
+		expect(stepAmongChildren(sample, 'c', 'up')).toBe('a')
+		expect(stepAmongChildren(sample, 'b', 'down')).toBe('f')
+		expect(stepAmongChildren(sample, 'c', 'left')).toBe('b')
+		expect(stepAmongChildren(sample, 'c', 'right')).toBe('d')
+		// Not past the ends, nor above the root or below a leaf.
+		expect(stepAmongChildren(sample, 'b', 'left')).toBeUndefined()
+		expect(stepAmongChildren(sample, 'e', 'right')).toBeUndefined()
+		expect(stepAmongChildren(sample, 'a', 'up')).toBeUndefined()
+		expect(stepAmongChildren(sample, 'c', 'down')).toBeUndefined()
 	})
 })

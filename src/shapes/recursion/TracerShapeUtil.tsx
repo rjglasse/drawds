@@ -158,7 +158,7 @@ export class TracerShapeUtil extends CellShapeUtil<TracerShape> {
 
 	/** Run the call step by step, with its recursion tree beside the tracer. Nothing changes. */
 	private run(id: TracerShape['id']) {
-		const shape = this.editor.getShape(id) as TracerShape | undefined
+		const shape = this.current(id)
 		const trace = shape && modelOf(shape).trace
 		if (!shape || !trace) return
 		const label = `run ${shape.props.call.trim()}`

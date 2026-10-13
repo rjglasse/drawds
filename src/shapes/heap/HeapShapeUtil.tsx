@@ -135,18 +135,6 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 	}
 
 	/** Heap nodes sit where the heap order puts them; they aren't dragged. */
-	moveNode(shape: HeapShape): TLShapePartial<HeapShape> {
-		return { id: shape.id, type: HEAP_SHAPE_TYPE }
-	}
-
-	resetLayout(shape: HeapShape): TLShapePartial<HeapShape> {
-		return { id: shape.id, type: HEAP_SHAPE_TYPE }
-	}
-
-	hasManualLayout() {
-		return false
-	}
-
 	refill(shape: HeapShape) {
 		const { fill, seed, values, heapType, range } = shape.props
 		return this.update(shape, buildByInsertion(fillValues(fill, seed, values.length, { range }), heapType))
@@ -253,7 +241,7 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 
 	/** Floyd's build-heap on the values as they are, step by step in both views. */
 	private buildHeap(id: HeapShape['id']) {
-		const shape = this.editor.getShape(id) as HeapShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const { frames, values, swaps } = buildHeapSteps(shape.props.values, shape.props.heapType)
 		const after = swaps.reduce((m, [a, b]) => swapMarks(m, String(a), String(b)), shape.props.marks)
@@ -262,7 +250,7 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 
 	/** Shuffle the values (marks with them): the heap property is broken until it is rebuilt. */
 	private shuffle(id: HeapShape['id']) {
-		const shape = this.editor.getShape(id) as HeapShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const { values, marks } = shape.props
 		const props = rearrange(values, marks, shuffledOrder(values.length, mulberry32(newSeed())))
@@ -272,7 +260,7 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 	}
 
 	private traverse(id: HeapShape['id'], start: string, order: TreeOrder) {
-		const shape = this.editor.getShape(id) as HeapShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const note = order === 'level' && start === '0' ? "That is the heap's array, index by index" : undefined
 		// Its code walks the array's indexes (heap-<order>), as the heap's other code does.
@@ -285,7 +273,7 @@ export class HeapShapeUtil extends NodeLinkShapeUtil<HeapShape> implements Refil
 			code,
 			// Marks are kept per index.
 			withMarks: (_update, highlights) => {
-				const current = (this.editor.getShape(id) as HeapShape | undefined) ?? shape
+				const current = (this.current(id)) ?? shape
 				const kept = Object.fromEntries(Object.entries(highlights).filter(([k]) => /^\d+$/.test(k)))
 				return this.withMarks(current, { ...current.props.marks, ...kept })
 			},

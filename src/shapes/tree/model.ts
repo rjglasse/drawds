@@ -76,6 +76,18 @@ export function parentOf(nodes: readonly TreeNode[], id: string): TreeNode | und
 	return nodes.find((n) => n.children.includes(id))
 }
 
+/**
+ * Where a pointer on a node of a tree with any number of children goes by an arrow key: up to its
+ * parent, down to its first child, left or right to the sibling before or after it (a general tree, a trie).
+ */
+export function stepAmongChildren(nodes: readonly TreeNode[], id: string, direction: 'left' | 'right' | 'up' | 'down'): string | undefined {
+	if (direction === 'up') return parentOf(nodes, id)?.id
+	if (direction === 'down') return nodes.find((n) => n.id === id)?.children.find(Boolean) ?? undefined
+	const siblings = parentOf(nodes, id)?.children.filter(Boolean) ?? []
+	const i = siblings.indexOf(id)
+	return i < 0 ? undefined : (siblings[i + (direction === 'left' ? -1 : 1)] ?? undefined)
+}
+
 /** Swap a node's left and right children, and so their subtrees (a lone child changes sides). */
 export function swapChildren(nodes: readonly TreeNode[], id: string): TreeNode[] {
 	return nodes.map((n) => (n.id === id ? { ...n, children: [n.children[RIGHT] ?? null, n.children[LEFT] ?? null] } : n))

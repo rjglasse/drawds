@@ -222,7 +222,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 	}
 
 	private play(id: MatrixShape['id'], label: string, operation: (values: Grid) => MatrixOperation) {
-		const shape = this.editor.getShape(id) as MatrixShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const { frames, values, finalFlash, code } = operation(shape.props.values)
 		playOperation(this.editor, {
@@ -245,7 +245,7 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 	}
 
 	private change(id: MatrixShape['id'], label: string, f: (shape: MatrixShape) => Partial<MatrixShape['props']>) {
-		const shape = this.editor.getShape(id) as MatrixShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		this.editor.markHistoryStoppingPoint(label)
 		this.editor.updateShape(this.update(shape, f(shape)))

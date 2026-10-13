@@ -290,14 +290,14 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 
 	/** The terms beside the tree, or not: one undo step. */
 	private toggleTerms(id: TreeShape['id']) {
-		const shape = this.editor.getShape(id) as TreeShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		this.editor.markHistoryStoppingPoint('toggle tree terms')
 		this.editor.updateShape<TreeShape>({ id, type: TREE_SHAPE_TYPE, props: { terms: !shape.props.terms } })
 	}
 
 	private build(id: TreeShape['id'], order: 'sorted' | 'shuffled') {
-		const shape = this.editor.getShape(id) as TreeShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const keys = shape.props.nodes.map((n) => n.value).filter((v) => v.trim())
 		const sorted = [...keys].sort(compareKeys)
@@ -308,7 +308,7 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 
 	/** The minimum or maximum of the subtree at `start`, step by step, its code beside it. */
 	private extreme(id: TreeShape['id'], start: string, side: 'min' | 'max') {
-		const shape = this.editor.getShape(id) as TreeShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const { frames, found } = bstExtreme(shape.props.nodes, start, side)
 		playOperation(this.editor, { shapeId: id, label: side === 'min' ? 'minimum' : 'maximum', frames, finalFlash: { [found]: 'green' }, code: `bst-${side}` })
@@ -316,7 +316,7 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 
 	/** Height, leaves or size of the subtree at `start`, worked out recursively, step by step. */
 	private measure(id: TreeShape['id'], start: string, measure: TreeMeasure) {
-		const shape = this.editor.getShape(id) as TreeShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const { frames, code } = measureTree(shape.props.nodes, start, measure, { nulls: shape.props.nulls === 'show' })
 		playOperation(this.editor, { shapeId: id, label: measure.startsWith('height') ? 'height' : measure, frames, code })
@@ -343,7 +343,7 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 
 	/** Change the tree's shape in one undo step (ids, values, marks and pointers stay with their nodes). */
 	private restructure(id: TreeShape['id'], label: string, change: (nodes: TreeShape['props']['nodes']) => TreeShape['props']['nodes']) {
-		const shape = this.editor.getShape(id) as TreeShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		this.editor.markHistoryStoppingPoint(label)
 		this.editor.updateShape<TreeShape>({ id, type: TREE_SHAPE_TYPE, props: { nodes: change(shape.props.nodes) } })
@@ -351,14 +351,14 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 
 	/** BST search from the root, step by step; nothing changes (Shift at the end keeps the path as marks). */
 	private search(id: TreeShape['id'], key: string) {
-		const shape = this.editor.getShape(id) as TreeShape | undefined
+		const shape = this.current(id)
 		if (!shape || !shape.props.nodes.length) return
 		const { frames, found } = bstSearch(shape.props.nodes, key, { nulls: shape.props.nulls === 'show' })
 		this.play(shape, 'search', frames, false, { flash: found ? { [found]: 'green' } : {} }, 'bst-search')
 	}
 
 	private traverse(id: TreeShape['id'], start: string, order: TreeOrder) {
-		const shape = this.editor.getShape(id) as TreeShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const { nodes, nulls, kind } = shape.props
 		const { frames, visited, code } = traverseTree(nodes, start, order, { nulls: nulls === 'show' })
@@ -374,7 +374,7 @@ export class TreeShapeUtil extends NodeLinkShapeUtil<TreeShape> implements Refil
 			frames,
 			code,
 			withMarks: (_update, highlights) => {
-				const current = (this.editor.getShape(id) as TreeShape | undefined) ?? shape
+				const current = (this.current(id)) ?? shape
 				const marks = pruneMarks({ ...current.props.marks, ...highlights }, treeMarkKeys(current.props.nodes))
 				return this.withMarks(current, marks)
 			},

@@ -8,7 +8,7 @@ import { playOperation, type Frame } from '../../nodelink/playback'
 import { prunePointers } from '../../pointers/pointers'
 import { nodeContains } from '../../nodelink/geometry'
 import { generalTreeMarkKeys } from '../general-tree/layout'
-import { parentOf } from '../tree/model'
+import { stepAmongChildren } from '../tree/model'
 import type { TreeNode } from '../tree/tree-shape-types'
 import { trieBasePosition, trieScene } from './layout'
 import { deleteSteps, insertSteps, MAX_SKETCH_WORDS, prefixOf, prefixPath, prefixSteps, ROOT, searchSteps, sketchWords, trieId, trieOf, trieWord, wordsOf } from './trie'
@@ -97,12 +97,7 @@ export class TrieShapeUtil extends NodeLinkShapeUtil<TrieShape> implements Redra
 	// the first child, Left / Right to the sibling before or after.
 
 	override pointerStep(shape: TrieShape, key: string, direction: PointerDirection): string | undefined {
-		const { nodes } = shape.props
-		if (direction === 'up') return parentOf(nodes, key)?.id
-		if (direction === 'down') return nodes.find((n) => n.id === key)?.children.find(Boolean) ?? undefined
-		const siblings = parentOf(nodes, key)?.children.filter(Boolean) ?? []
-		const i = siblings.indexOf(key)
-		return i < 0 ? undefined : (siblings[i + (direction === 'left' ? -1 : 1)] ?? undefined)
+		return stepAmongChildren(shape.props.nodes, key, direction)
 	}
 
 	pointerNames() {
@@ -185,7 +180,7 @@ export class TrieShapeUtil extends NodeLinkShapeUtil<TrieShape> implements Redra
 	}
 
 	private insert(id: TrieShape['id'], input: string, keep: boolean) {
-		const shape = this.editor.getShape(id) as TrieShape | undefined
+		const shape = this.current(id)
 		const word = shape && this.wordOr(id, input, 'insert')
 		if (!shape || !word) return
 		const { frames, nodes } = insertSteps(shape.props.nodes, word)
@@ -193,7 +188,7 @@ export class TrieShapeUtil extends NodeLinkShapeUtil<TrieShape> implements Redra
 	}
 
 	private delete(id: TrieShape['id'], input: string, keep: boolean) {
-		const shape = this.editor.getShape(id) as TrieShape | undefined
+		const shape = this.current(id)
 		const word = shape && this.wordOr(id, input, 'delete')
 		if (!shape || !word) return
 		const { frames, nodes } = deleteSteps(shape.props.nodes, word)
@@ -201,7 +196,7 @@ export class TrieShapeUtil extends NodeLinkShapeUtil<TrieShape> implements Redra
 	}
 
 	private search(id: TrieShape['id'], input: string) {
-		const shape = this.editor.getShape(id) as TrieShape | undefined
+		const shape = this.current(id)
 		const word = shape && this.wordOr(id, input, 'search')
 		if (!shape || !word) return
 		const { frames, found } = searchSteps(shape.props.nodes, word)
@@ -209,7 +204,7 @@ export class TrieShapeUtil extends NodeLinkShapeUtil<TrieShape> implements Redra
 	}
 
 	private prefix(id: TrieShape['id'], input: string) {
-		const shape = this.editor.getShape(id) as TrieShape | undefined
+		const shape = this.current(id)
 		const prefix = input.trim() === '' ? '' : shape && this.wordOr(id, input, 'words starting')
 		if (!shape || prefix === undefined) return
 		const { frames } = prefixSteps(shape.props.nodes, prefix)

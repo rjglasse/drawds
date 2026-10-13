@@ -203,7 +203,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 		// Step by step: finding, then changing the list, then walks over the whole of it.
 		const [search, change, walk] = [{ group: 'search' }, { group: 'change' }, { group: 'walk' }]
 		const run = (label: string, op: () => ListOperation) => () => this.play(shape.id, label, op)
-		const props = () => (this.editor.getShape(shape.id) as ListShape | undefined)?.props ?? shape.props
+		const props = () => (this.current(shape.id))?.props ?? shape.props
 		const v = listVariant(shape.props, nodes)
 		// Walks that run off the end (finding the middle, reversing) never end round a circle or a cycle.
 		const ends = !v.circular && !v.cycleTo
@@ -303,7 +303,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 	private sizeOperations(shape: ListShape): NodeOperation[] {
 		const { kind, nodes, showSize } = shape.props
 		const id = shape.id
-		const props = () => (this.editor.getShape(id) as ListShape | undefined)?.props ?? shape.props
+		const props = () => (this.current(id))?.props ?? shape.props
 		const run = (label: string, op: () => ListOperation) => () => this.play(id, label, op)
 		const v = listVariant(shape.props, nodes)
 		const size = { group: 'size' }
@@ -357,7 +357,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 
 	/** The size field beside the head, or not: one undo step. */
 	private toggleSize(id: ListShape['id']) {
-		const shape = this.editor.getShape(id) as ListShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		this.editor.markHistoryStoppingPoint('toggle size field')
 		this.editor.updateShape<ListShape>({ id, type: LIST_SHAPE_TYPE, props: { showSize: !shape.props.showSize } })
@@ -366,7 +366,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 	private kindOperations(shape: ListShape): NodeOperation[] {
 		const { kind, nodes } = shape.props
 		const id = shape.id
-		const props = () => (this.editor.getShape(id) as ListShape | undefined)?.props ?? shape.props
+		const props = () => (this.current(id))?.props ?? shape.props
 		const run = (label: string, op: () => ListOperation) => () => this.play(id, label, op)
 		// An empty list (lecture 5 starts from one) has no node to right-click: its inserts are here.
 		if (kind === 'list') {
@@ -491,7 +491,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 
 	/** Merge `otherId` into list `id`: its steps draw both, the other list hidden meanwhile and gone with the result. */
 	private mergeWith(id: ListShape['id'], otherId: ListShape['id']) {
-		const [shape, other] = [id, otherId].map((i) => this.editor.getShape(i) as ListShape | undefined)
+		const [shape, other] = [id, otherId].map((i) => this.current(i))
 		if (!shape || !other) return
 		// Where the other list is drawn, in this one's layout coordinates.
 		const origin = (s: ListShape) => this.editor.getShapePageTransform(s).applyToPoint(this.layoutOffset(s))
@@ -526,7 +526,7 @@ export class ListShapeUtil extends NodeLinkShapeUtil<ListShape> implements Refil
 	}
 
 	private play(id: ListShape['id'], label: string, operation: () => ListOperation, extra?: Pick<Parameters<typeof playOperation>[1], 'covers' | 'onCommit'>) {
-		const shape = this.editor.getShape(id) as ListShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const { frames, nodes, direction, finalFlash, code } = operation()
 		const final = nodes && this.withNodes(shape, shape, nodes, direction)

@@ -102,18 +102,6 @@ export class UnionFindShapeUtil extends NodeLinkShapeUtil<UnionFindShape> {
 	}
 
 	/** Nodes sit where the forest puts them. */
-	moveNode(shape: UnionFindShape): TLShapePartial<UnionFindShape> {
-		return { id: shape.id, type: UNION_FIND_SHAPE_TYPE }
-	}
-
-	resetLayout(shape: UnionFindShape): TLShapePartial<UnionFindShape> {
-		return { id: shape.id, type: UNION_FIND_SHAPE_TYPE }
-	}
-
-	hasManualLayout() {
-		return false
-	}
-
 	// Pointers (i, j, root...) sit above elements and below parent cells; Up goes to the parent,
 	// Left / Right to the neighbouring index.
 
@@ -293,21 +281,21 @@ export class UnionFindShapeUtil extends NodeLinkShapeUtil<UnionFindShape> {
 	}
 
 	private find(id: UnionFindShape['id'], i: number) {
-		const shape = this.editor.getShape(id) as UnionFindShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const { frames, forest, code } = findSteps(shape.props, this.forestOf(shape), i)
 		this.play(shape, `find(${shape.props.labels[i]})`, frames, forest, code, { i: String(i) })
 	}
 
 	private union(id: UnionFindShape['id'], a: number, other: string) {
-		const shape = this.editor.getShape(id) as UnionFindShape | undefined
+		const shape = this.current(id)
 		const b = shape && this.elementNamed(shape, other)
 		if (b !== undefined) this.unite(id, a, b)
 	}
 
 	/** union(a, b), step by step. */
 	private unite(id: UnionFindShape['id'], a: number, b: number) {
-		const shape = this.editor.getShape(id) as UnionFindShape | undefined
+		const shape = this.current(id)
 		if (!shape || a >= shape.props.parent.length || b >= shape.props.parent.length) return
 		const { frames, forest, code } = unionSteps(shape.props, a, b)
 		this.play(shape, `union(${shape.props.labels[a]}, ${shape.props.labels[b]})`, frames, forest, code, { a: String(a), b: String(b) })
@@ -315,7 +303,7 @@ export class UnionFindShapeUtil extends NodeLinkShapeUtil<UnionFindShape> {
 
 	/** Same set? connected(a, b), step by step: both finds (compressing, if on), the roots compared. */
 	private connected(id: UnionFindShape['id'], a: number, other: string) {
-		const shape = this.editor.getShape(id) as UnionFindShape | undefined
+		const shape = this.current(id)
 		const b = shape && this.elementNamed(shape, other)
 		if (!shape || b === undefined) return
 		const { frames, forest, code } = connectedSteps(shape.props, a, b)
@@ -341,7 +329,7 @@ export class UnionFindShapeUtil extends NodeLinkShapeUtil<UnionFindShape> {
 	}
 
 	private randomise(id: UnionFindShape['id']) {
-		const shape = this.editor.getShape(id) as UnionFindShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const n = shape.props.parent.length
 		const seed = newSeed()
@@ -351,7 +339,7 @@ export class UnionFindShapeUtil extends NodeLinkShapeUtil<UnionFindShape> {
 	}
 
 	private reset(id: UnionFindShape['id']) {
-		const shape = this.editor.getShape(id) as UnionFindShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		this.editor.markHistoryStoppingPoint('reset union-find')
 		this.editor.updateShape(this.update(shape, singletons(shape.props.parent.length)))

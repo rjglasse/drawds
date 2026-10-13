@@ -9,7 +9,7 @@ import { playbackFor, playOperation } from '../../nodelink/playback'
 import type { SceneNode } from '../../nodelink/scene'
 import { prunePointers } from '../../pointers/pointers'
 import { legendMarks } from '../tree/layout'
-import { levelOrder, parentOf } from '../tree/model'
+import { levelOrder, stepAmongChildren } from '../tree/model'
 import { pathAndSubtree, termMarks, treeTerms } from '../tree/terms'
 import { measureTree, type TreeMeasure } from '../tree/measure'
 import { ORDER_NAMES, traverseTree, type TreeOrder } from '../tree/traverse'
@@ -161,12 +161,7 @@ export class GeneralTreeShapeUtil extends NodeLinkShapeUtil<GeneralTreeShape> im
 	// the first child, Left / Right to the sibling before or after.
 
 	override pointerStep(shape: GeneralTreeShape, key: string, direction: PointerDirection): string | undefined {
-		const { nodes } = shape.props
-		if (direction === 'up') return parentOf(nodes, key)?.id
-		if (direction === 'down') return nodes.find((n) => n.id === key)?.children.find(Boolean) ?? undefined
-		const siblings = parentOf(nodes, key)?.children.filter(Boolean) ?? []
-		const i = siblings.indexOf(key)
-		return i < 0 ? undefined : (siblings[i + (direction === 'left' ? -1 : 1)] ?? undefined)
+		return stepAmongChildren(shape.props.nodes, key, direction)
 	}
 
 	pointerNames() {
@@ -225,7 +220,7 @@ export class GeneralTreeShapeUtil extends NodeLinkShapeUtil<GeneralTreeShape> im
 
 	/** Height, leaves or size of the subtree at `start`, worked out recursively, step by step. */
 	private measure(id: GeneralTreeShape['id'], start: string, measure: TreeMeasure) {
-		const shape = this.editor.getShape(id) as GeneralTreeShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const { frames, code } = measureTree(shape.props.nodes, start, measure, { general: true })
 		playOperation(this.editor, { shapeId: id, label: measure.startsWith('height') ? 'height' : measure, frames, code })
@@ -283,7 +278,7 @@ export class GeneralTreeShapeUtil extends NodeLinkShapeUtil<GeneralTreeShape> im
 	 * becomes beside it, a binary tree of its own (in the result's undo step).
 	 */
 	private asBinaryTree(id: GeneralTreeShape['id']) {
-		const shape = this.editor.getShape(id) as GeneralTreeShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const { nodes, fill, range, seed, size, font, color } = shape.props
 		playOperation(this.editor, {
@@ -309,7 +304,7 @@ export class GeneralTreeShapeUtil extends NodeLinkShapeUtil<GeneralTreeShape> im
 
 	/** The terms beside the tree, or not: one undo step. */
 	private toggleTerms(id: GeneralTreeShape['id']) {
-		const shape = this.editor.getShape(id) as GeneralTreeShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		this.editor.markHistoryStoppingPoint('toggle tree terms')
 		this.editor.updateShape<GeneralTreeShape>({ id, type: GENERAL_TREE_SHAPE_TYPE, props: { terms: !shape.props.terms } })
@@ -317,14 +312,14 @@ export class GeneralTreeShapeUtil extends NodeLinkShapeUtil<GeneralTreeShape> im
 
 	/** Change the tree's shape in one undo step (ids, values, marks and pointers stay with their nodes). */
 	private restructure(id: GeneralTreeShape['id'], label: string, change: (nodes: TreeNode[]) => TreeNode[]) {
-		const shape = this.editor.getShape(id) as GeneralTreeShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		this.editor.markHistoryStoppingPoint(label)
 		this.editor.updateShape<GeneralTreeShape>({ id, type: GENERAL_TREE_SHAPE_TYPE, props: { nodes: change(shape.props.nodes) } })
 	}
 
 	private traverse(id: GeneralTreeShape['id'], start: string, order: TreeOrder) {
-		const shape = this.editor.getShape(id) as GeneralTreeShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const { frames, code } = traverseTree(shape.props.nodes, start, order, { general: true })
 		playOperation(this.editor, {
@@ -333,7 +328,7 @@ export class GeneralTreeShapeUtil extends NodeLinkShapeUtil<GeneralTreeShape> im
 			frames,
 			code,
 			withMarks: (_update, highlights) => {
-				const current = (this.editor.getShape(id) as GeneralTreeShape | undefined) ?? shape
+				const current = (this.current(id)) ?? shape
 				const marks = pruneMarks({ ...current.props.marks, ...highlights }, generalTreeMarkKeys(current.props.nodes))
 				return this.withMarks(current, marks)
 			},

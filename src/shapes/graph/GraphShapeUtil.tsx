@@ -127,14 +127,8 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> implements Red
 		return this.update(shape, { nodes: shape.props.nodes.map((n) => (n.id === key ? { ...n, x, y } : n)) })
 	}
 
-	/** Nodes sit where the teacher put them: there is no automatic layout to go back to. */
-	resetLayout(shape: GraphShape): TLShapePartial<GraphShape> {
-		return { id: shape.id, type: GRAPH_SHAPE_TYPE }
-	}
-
-	hasManualLayout() {
-		return false
-	}
+	// Nodes sit where the teacher put them: there is no automatic layout to go back to (Re-layout isn't
+	// offered; Graph > Lay out round a circle and Tidy are layouts of their own).
 
 	// Deleting: x on a node (its edges go with it) or on an edge. A graph keeps at least one node.
 
@@ -295,7 +289,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> implements Red
 	/** Start editing once the handle drag has finished (it returns the select tool to idle). */
 	private editAfterDrag(shape: GraphShape, key: string) {
 		this.editor.timers.setTimeout(() => {
-			const current = this.editor.getShape(shape.id) as GraphShape | undefined
+			const current = this.current(shape.id)
 			if (current) this.editCell(current, key)
 		}, 0)
 	}
@@ -457,7 +451,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> implements Red
 
 	/** An instant change to the graph's edges, one undo step (nothing if `edit` can't make it). */
 	private change(id: GraphShape['id'], label: string, edit: (shape: GraphShape) => GraphModel | undefined) {
-		const shape = this.editor.getShape(id) as GraphShape | undefined
+		const shape = this.current(id)
 		const model = shape && edit(shape)
 		if (!shape || !model) return
 		this.editor.markHistoryStoppingPoint(label)
@@ -466,7 +460,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> implements Red
 
 	/** Degrees as badges on the nodes (and neighbours lit on hover), or not: one undo step. */
 	private toggleDegrees(id: GraphShape['id']) {
-		const shape = this.editor.getShape(id) as GraphShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		this.editor.markHistoryStoppingPoint('toggle degrees')
 		this.editor.updateShape<GraphShape>({ id, type: GRAPH_SHAPE_TYPE, props: { degrees: !shape.props.degrees } })
@@ -482,7 +476,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> implements Red
 	}
 
 	private toggleView(id: GraphShape['id'], view: GraphViewShape['props']['view']) {
-		const shape = this.editor.getShape(id) as GraphShape | undefined
+		const shape = this.current(id)
 		if (shape) toggleGraphView(this.editor, shape, view)
 	}
 
@@ -569,7 +563,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> implements Red
 
 	/** The id of the vertex named `typed` (as it is, else in any case), if there is one. */
 	private nodeNamed(id: GraphShape['id'], typed: string) {
-		const shape = this.editor.getShape(id) as GraphShape | undefined
+		const shape = this.current(id)
 		const named = (match: (value: string) => boolean) => shape?.props.nodes.find((n) => match(n.value))
 		return (named((v) => v === typed.trim()) ?? named((v) => v.toLowerCase() === typed.trim().toLowerCase()))?.id
 	}
@@ -587,7 +581,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> implements Red
 	 * in at the end, as one undo step.
 	 */
 	private playCosts(id: GraphShape['id'], label: string, run: (shape: GraphShape) => CostRun) {
-		const shape = this.editor.getShape(id) as GraphShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const shown = new Set(viewsOf(this.editor, shape).map((v) => v.props.view))
 		let mark: string | undefined
@@ -612,7 +606,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> implements Red
 	 * the result is in, takes it away again, so cancelling changes nothing).
 	 */
 	private kruskal(id: GraphShape['id']) {
-		const shape = this.editor.getShape(id) as GraphShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const shown = viewsOf(this.editor, shape).some((v) => v.props.view === 'union-find')
 		const mark = shown ? undefined : showGraphView(this.editor, shape, 'union-find')
@@ -622,7 +616,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> implements Red
 
 	/** Play an algorithm's steps on the graph as it is now; nothing changes (Shift at the end keeps the highlights as marks). */
 	private runAlgorithm(id: GraphShape['id'], label: string, steps: (shape: GraphShape) => Frame[], onCancel?: () => void, code?: string) {
-		const shape = this.editor.getShape(id) as GraphShape | undefined
+		const shape = this.current(id)
 		if (!shape) return
 		const frames = steps(shape)
 		playOperation(this.editor, {
@@ -632,7 +626,7 @@ export class GraphShapeUtil extends NodeLinkShapeUtil<GraphShape> implements Red
 			onCancel,
 			code,
 			withMarks: (_update, highlights) => {
-				const current = (this.editor.getShape(id) as GraphShape | undefined) ?? shape
+				const current = (this.current(id)) ?? shape
 				return this.withModel(current, current.props, { ...current.props.marks, ...highlights })
 			},
 		})
