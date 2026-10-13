@@ -15,6 +15,7 @@ import type { MatrixMove } from './matrix-moves'
 import { boardScript, type Logged } from './script'
 import type { TreeMove, TreeShape } from './tree-moves'
 import { diffGeneralTree, generalShapeOf, type GeneralTreeMove } from './general-tree-moves'
+import type { TrieMove } from './trie-moves'
 import { generateGeneralTree } from '../shapes/general-tree/generate'
 import { appendChild, moveAmongSiblings, removeGeneralSubtree, siblingPlace } from '../shapes/general-tree/model'
 import { mulberry32 } from '../data/random'
@@ -185,6 +186,38 @@ describe.skipIf(!hasPython)('the board as one Python script', () => {
 			expect(log.some((m) => m.op === 'assign')).toBe(false)
 			boards.push({ shape: { type: 'general-tree', props: {} }, log })
 			expected[`t${k}`] = reprOf(nodes)
+		}
+		expect(run(boards)).toEqual(expected)
+	})
+
+	it("tries: drawds' own insert and delete; random words in and out leave the words drawn", () => {
+		const t: TrieMove[] = [
+			{ op: 'new', name: 't', words: ['tea', 'ten', 'to'] },
+			{ op: 'call', algorithm: 'trie-insert', label: 'insert word', effect: [], args: { word: 'tent' } },
+			{ op: 'call', algorithm: 'trie-delete', label: 'delete word', effect: [], args: { word: 'te' } },
+			{ op: 'call', algorithm: 'trie-delete', label: 'delete word', effect: [], args: { word: 'ten' } },
+			{ op: 'call', algorithm: 'trie-insert', label: 'insert word', effect: [], args: { word: 'in' } },
+		]
+		const boards: Logged[] = [
+			{ shape: { type: 'trie', props: {} }, log: t },
+			// Beside a list, whose Node holds a value: the trie's nodes are TrieNodes.
+			{ shape: { type: 'linked-list', props: {} }, log: [{ op: 'new', name: 'b', values: v(3, 1) }] },
+		]
+		const expected: Record<string, string> = { t: "Trie(['in', 'tea', 'tent', 'to'])", b: 'LinkedList([3, 1])' }
+		const pool = ['a', 'an', 'and', 'ant', 'at', 'tea', 'ted', 'ten', 'to', 'toe', 'in', 'inn']
+		for (let k = 0; k < 40; k++) {
+			const rng = mulberry32(k + 7)
+			const words = new Set(pool.filter(() => rng() < 0.4))
+			const log: TrieMove[] = [{ op: 'new', name: `r${k}`, words: [...words].sort() }]
+			for (let step = 0; step < 10; step++) {
+				const word = pool[Math.floor(rng() * pool.length)]
+				const op = rng() < 0.5 ? 'insert' : 'delete'
+				log.push({ op: 'call', algorithm: `trie-${op}`, label: op, effect: [], args: { word } })
+				if (op === 'insert') words.add(word)
+				else words.delete(word)
+			}
+			boards.push({ shape: { type: 'trie', props: {} }, log })
+			expected[`r${k}`] = `Trie([${[...words].sort().map((w) => `'${w}'`).join(', ')}])`
 		}
 		expect(run(boards)).toEqual(expected)
 	})

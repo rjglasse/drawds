@@ -1,5 +1,6 @@
 import type { TLShapePartial, VecLike } from 'tldraw'
 import { pruneMarks, type Marks } from '../../cells/marks'
+import { toggleTranscript, transcriptsOf } from '../../transcript/transcript'
 import type { PointerDirection } from '../../cells/CellShapeUtil'
 import { NodeLinkShapeUtil, type NodeOperation } from '../../nodelink/NodeLinkShapeUtil'
 import { playOperation, type Frame } from '../../nodelink/playback'
@@ -130,6 +131,13 @@ export class TrieShapeUtil extends NodeLinkShapeUtil<TrieShape> {
 			{ ...at, id: 'trie-search', label: 'Is a word in it? (contains)', group: 'search', prompt: 'Word to look for', run: (w?: string) => w !== undefined && this.search(shape.id, w) },
 			{ ...at, id: 'trie-prefix', label: 'Words starting with a prefix', group: 'search', prompt: 'Prefix', run: (w?: string) => w !== undefined && this.prefix(shape.id, w) },
 			{ id: 'trie-all-words', label: 'All its words, in order', group: 'search', run: () => this.prefix(shape.id, '') },
+			// Every word put in or taken out, as code.
+			{
+				section: 'show',
+				id: 'trie-code-beside',
+				label: transcriptsOf(this.editor, shape.id).length ? 'Hide the code beside it' : 'Code beside it: every move as code',
+				run: () => toggleTranscript(this.editor, shape),
+			},
 		]
 	}
 
@@ -165,7 +173,7 @@ export class TrieShapeUtil extends NodeLinkShapeUtil<TrieShape> {
 		const word = shape && this.wordOr(id, input, 'insert')
 		if (!shape || !word) return
 		const { frames, nodes } = insertSteps(shape.props.nodes, word)
-		this.play(shape, 'insert word', frames, keep, nodes, 'trie-insert', { [trieId(word)]: 'green' })
+		this.play(shape, 'insert word', frames, keep, nodes, 'trie-insert', { [trieId(word)]: 'green' }, word)
 	}
 
 	private delete(id: TrieShape['id'], input: string, keep: boolean) {
@@ -173,7 +181,7 @@ export class TrieShapeUtil extends NodeLinkShapeUtil<TrieShape> {
 		const word = shape && this.wordOr(id, input, 'delete')
 		if (!shape || !word) return
 		const { frames, nodes } = deleteSteps(shape.props.nodes, word)
-		this.play(shape, 'delete word', frames, keep, nodes, 'trie-delete', {})
+		this.play(shape, 'delete word', frames, keep, nodes, 'trie-delete', {}, word)
 	}
 
 	private search(id: TrieShape['id'], input: string) {
@@ -192,7 +200,7 @@ export class TrieShapeUtil extends NodeLinkShapeUtil<TrieShape> {
 		this.play(shape, prefix ? 'words starting' : 'all words', frames, false, undefined, 'trie-prefix', {})
 	}
 
-	private play(shape: TrieShape, label: string, frames: Frame[], keep: boolean, nodes: TreeNode[] | undefined, code: string, flash: Marks) {
+	private play(shape: TrieShape, label: string, frames: Frame[], keep: boolean, nodes: TreeNode[] | undefined, code: string, flash: Marks, word?: string) {
 		const final = nodes && this.withNodes(shape, nodes)
 		playOperation(this.editor, {
 			shapeId: shape.id,
@@ -200,6 +208,8 @@ export class TrieShapeUtil extends NodeLinkShapeUtil<TrieShape> {
 			frames,
 			final,
 			code,
+			// The code beside it logs the call with its word (a word already in, or not there, changes nothing).
+			...(word !== undefined ? { args: { word } } : {}),
 			finalFlash: flash,
 			keep,
 			// Shift held: the highlights become marks, in the same undo step as the result.

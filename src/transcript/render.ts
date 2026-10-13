@@ -4,6 +4,7 @@ import type { ArrayMove, Fixed } from './array-moves'
 import type { ListKind, ListMove } from './list-moves'
 import type { TreeMove, TreeShape } from './tree-moves'
 import { indexesOf, type GeneralTree, type GeneralTreeMove } from './general-tree-moves'
+import type { TrieMove } from './trie-moves'
 import type { GraphMove } from './graph-moves'
 import type { HeapMove } from './heap-moves'
 import { heapCode } from '../shapes/heap/code'
@@ -67,7 +68,7 @@ function made(values: readonly string[], s: Spelling): string {
 function call(
 	algorithm: string,
 	s: Spelling,
-	kind: 'array' | 'list' | 'tree' | 'heap' | 'hash' | 'uf' = 'array',
+	kind: 'array' | 'list' | 'tree' | 'heap' | 'hash' | 'uf' | 'trie' = 'array',
 	/** Other parameters, as what the operation did tells them (a tree's key, its node, a heap's value or index). */
 	more: (param: string) => string | undefined = () => undefined
 ): string | undefined {
@@ -84,7 +85,7 @@ function call(
 		.map((p) => p.trim())
 		.filter(Boolean)
 	const names = all.map((p) => /(\w+)\s*(\[\])?$/.exec(p)?.[1] ?? p)
-	const structure = kind === 'array' ? ['a', 'arr', 'nums', 'array'] : kind === 'list' ? ['list'] : kind === 'heap' ? ['h'] : kind === 'hash' ? ['t'] : kind === 'uf' ? ['u'] : ['t', 'tree']
+	const structure = kind === 'array' ? ['a', 'arr', 'nums', 'array'] : kind === 'list' ? ['list'] : kind === 'heap' ? ['h'] : kind === 'hash' ? ['t'] : kind === 'uf' ? ['u'] : kind === 'trie' ? ['t', 'trie'] : ['t', 'tree']
 	const method = names[0] === 'self' || (language === 'java' && !names.some((p) => structure.includes(p)))
 	const args = names
 		.filter((p) => p !== 'self')
@@ -432,6 +433,42 @@ export function renderGeneralTreeLog(moves: readonly GeneralTreeMove[], language
 	const values = moves.flatMap((m) => ('tree' in m ? generalValues(m.tree) : 'v' in m ? [m.v] : []))
 	const s: Spelling = { ints: values.every((v) => v === '' || numeric(v)), name: first?.op === 'new' ? first.name : 't', language }
 	return moves.flatMap((m) => generalTreeLines(m, s)).join('\n')
+}
+
+/**
+ * A trie's moves, a line each: made of its words (Python a list, Java its varargs, C an array and its
+ * count), words put in and taken out by its own insert and delete.
+ */
+function trieLines(move: TrieMove, s: Spelling): string[] {
+	const { name: t, language } = s
+	const [py, java] = [language === 'python', language === 'java']
+	const w = (word: string) => JSON.stringify(word)
+	const method = (fn: string, word: string) => (py ? `${t}.${fn}(${w(word)})` : java ? `${t}.${fn}(${w(word)});` : `${fn}(${t}, ${w(word)});`)
+	switch (move.op) {
+		case 'new': {
+			const words = move.words.map(w).join(', ')
+			if (py) return [`${t} = Trie([${words}])`]
+			if (java) return [`Trie ${t} = new Trie(${words});`]
+			return [move.words.length ? `Trie *${t} = trieOf(${move.words.length}, (const char *[]){${words}});` : `Trie *${t} = newTrie();`]
+		}
+		case 'insert':
+			return [method('insert', move.word)]
+		case 'delete':
+			return [method('delete', move.word)]
+		case 'call': {
+			const { args } = move
+			const written = call(move.algorithm, s, 'trie', (param) => (param === 'word' && args?.word !== undefined ? w(args.word) : undefined))
+			if (written) return [written]
+			return [`${py ? '#' : '//'} ${move.label}, step by step:`, ...move.effect.flatMap((m) => trieLines(m, s))]
+		}
+	}
+}
+
+/** A trie's log written out in `language`. */
+export function renderTrieLog(moves: readonly TrieMove[], language: CodeLanguage): string {
+	const first = moves[0]
+	const s: Spelling = { ints: false, name: first?.op === 'new' ? first.name : 't', language }
+	return moves.flatMap((m) => trieLines(m, s)).join('\n')
 }
 
 /**

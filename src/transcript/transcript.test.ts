@@ -3,7 +3,7 @@ import { diffArray, diffValues, replay, type ArrayLogState, type ArrayMove } fro
 import { diffList, replayList, type ListMove, type ListState } from './list-moves'
 import { addChild, mirrorSubtree, removeSubtree, swapChildren } from '../shapes/tree/model'
 import { diffGraph, graphState, type GraphMove, type GraphState } from './graph-moves'
-import { renderArrayLog, renderGraphLog, renderHashLog, renderHeapLog, renderListLog, renderMatrixLog, renderTreeLog, renderUnionFindLog, renderGeneralTreeLog } from './render'
+import { renderArrayLog, renderGraphLog, renderHashLog, renderHeapLog, renderListLog, renderMatrixLog, renderTreeLog, renderUnionFindLog, renderGeneralTreeLog, renderTrieLog } from './render'
 import { diffHeap, heapArgs, type HeapMove, type HeapState } from './heap-moves'
 import { heapify, heapInsert, heapRemoveAt } from '../shapes/heap/heap'
 import { heapCode } from '../shapes/heap/code'
@@ -17,6 +17,7 @@ import { recount, singletons, union } from '../shapes/union-find/union-find'
 import { unionFindCode } from '../shapes/union-find/code'
 import { diffTree, shapeOf, treeArgs, type TreeMove } from './tree-moves'
 import { diffGeneralTree, generalShapeOf, type GeneralTreeMove } from './general-tree-moves'
+import { diffTrie, trieArgs, type TrieMove } from './trie-moves'
 import { appendChild, moveAmongSiblings, removeGeneralSubtree } from '../shapes/general-tree/model'
 
 const v = (...xs: (number | string)[]) => xs.map(String)
@@ -309,6 +310,34 @@ describe('a general tree change as the move a teacher made', () => {
 			'swapChildren(t, 0, 1);',
 		])
 		expect(renderGeneralTreeLog([{ op: 'new', name: 'a', tree: { v: '7', c: [{ v: '3', c: [] }] } }], 'python')).toBe('a = Node(7, [Node(3)])')
+	})
+})
+
+describe('a trie change as the move a teacher made', () => {
+	it('its words: those put in, those taken out; the word an operation was called with', () => {
+		expect(diffTrie(['tea', 'ten'], ['tea', 'ten', 'tent'])).toEqual([{ op: 'insert', word: 'tent' }])
+		expect(diffTrie(['tea', 'ten'], ['ten'])).toEqual([{ op: 'delete', word: 'tea' }])
+		expect(diffTrie(['tea'], ['tea'])).toEqual([])
+		expect(trieArgs(['tea'], ['tea', 'to'])).toEqual({ word: 'to' })
+		expect(trieArgs(['tea'], ['tea'])).toEqual({})
+	})
+
+	it('written out: a Trie of its words, insert and delete as its own code calls them', () => {
+		const log: TrieMove[] = [
+			{ op: 'new', name: 't', words: ['tea', 'ten'] },
+			{ op: 'call', algorithm: 'trie-insert', label: 'insert word', effect: [{ op: 'insert', word: 'tent' }], args: { word: 'tent' } },
+			{ op: 'call', algorithm: 'trie-delete', label: 'delete word', effect: [{ op: 'delete', word: 'tea' }], args: { word: 'tea' } },
+			{ op: 'insert', word: 'to' },
+		]
+		expect(renderTrieLog(log, 'python').split('\n')).toEqual(['t = Trie(["tea", "ten"])', 't.insert("tent")', 't.delete("tea")', 't.insert("to")'])
+		expect(renderTrieLog(log, 'java').split('\n')).toEqual(['Trie t = new Trie("tea", "ten");', 't.insert("tent");', 't.delete("tea");', 't.insert("to");'])
+		expect(renderTrieLog(log, 'c').split('\n')).toEqual([
+			'Trie *t = trieOf(2, (const char *[]){"tea", "ten"});',
+			'insert(t, "tent");',
+			'delete(t, "tea");',
+			'insert(t, "to");',
+		])
+		expect(renderTrieLog([{ op: 'new', name: 'a', words: [] }], 'c')).toBe('Trie *a = newTrie();')
 	})
 })
 

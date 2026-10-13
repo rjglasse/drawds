@@ -231,6 +231,37 @@ const generalNode = (name: string) =>
     return f'${name}({self.value!r}, {self.children!r})'`,
 	])
 
+/**
+ * A trie, of drawds' own code: its methods in the class (those taking self), its helpers (collect,
+ * delete_from) as functions after it, its node class TrieNode (the other structures' Node holds a value).
+ */
+function trie(): string {
+	const defs = [...defsOf(['trie-insert', 'trie-contains', 'trie-prefix', 'trie-delete'].map(py)).values()].map((d) =>
+		d.replace(/\bNode\(\)/g, 'TrieNode()')
+	)
+	const isMethod = (d: string) => /^def \w+\(self\b/.test(d)
+	return [
+		klass('TrieNode', [
+			`def __init__(self):
+    self.children = {}
+    self.is_word = False`,
+		]),
+		klass(
+			'Trie',
+			[
+				`def __init__(self, words=()):
+    self.root = TrieNode()
+    for word in words:
+        self.insert(word)`,
+				`def __repr__(self):
+    return f'Trie({self.starts_with("")!r})'`,
+			],
+			defs.filter(isMethod)
+		),
+		...defs.filter((d) => !isMethod(d)),
+	].join('\n\n')
+}
+
 const heap = (type: 'min' | 'max') =>
 	klass(
 		type === 'min' ? 'MinHeap' : 'MaxHeap',
@@ -412,6 +443,7 @@ const TITLES: Record<string, string> = {
 	'linked-list': 'a linked list',
 	'binary-tree': 'a binary tree',
 	'general-tree': 'a general tree',
+	trie: 'a trie',
 	graph: 'a graph',
 	heap: 'a heap',
 	'hash-table': 'a hash table',
@@ -497,6 +529,7 @@ export function boardScript(structures: readonly Logged[]): string {
 		...(fixed('queue') ? [arrayQueue] : []),
 		...(trees.length ? [tree(allCalls), TREE_FUNCTIONS] : []),
 		...(generalTrees.length ? [generalNode(generalClass)] : []),
+		...(kinds('trie').length ? [trie()] : []),
 		...(heaps('min') ? [heap('min')] : []),
 		...(heaps('max') ? [heap('max')] : []),
 		...(kinds('graph').length ? [GRAPH] : []),

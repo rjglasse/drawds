@@ -84,3 +84,25 @@ test('a node\'s menu: the words starting with its prefix, in order, as a strip',
 	expect(await words(page)).toEqual(['tea', 'ted', 'ten', 'to'])
 	expect(await withEditor(page, (editor) => editor.getCurrentPageShapes().length)).toBe(1)
 })
+
+test('the code beside it: a Trie of its words, then each insert and delete as a call', async ({ page }) => {
+	await sketchTrie(page, [500, 150], 1)
+	await setWords(page, ['tea', 'ten'])
+	await rightClick(page, await nodeScreenPosition(page, '^'))
+	await page.getByTestId('context-menu-sub.drawds-trie-show-button').click()
+	await page.getByTestId('context-menu.trie-code-beside').click()
+	await withEditor(page, (editor) => {
+		const box = editor.getCurrentPageShapes().find((s) => s.type === 'code')!
+		void editor.updateShape({ id: box.id, type: 'code', props: { language: 'python' } })
+		void editor.select(editor.getCurrentPageShapes().find((s) => s.type === 'trie')!.id)
+	})
+	const lines = () => page.locator('[data-shape-type="code"] [data-code-line]').allTextContents()
+	// Made by the sketch, then the words put straight in: read as inserts (and the sketch's word deleted).
+	await expect.poll(async () => (await lines())[0]).toMatch(/^a = Trie\(\["[a-z]+"\]\)$/)
+	await expect.poll(lines).toContain('a.insert("tea")')
+	await page.getByTestId('insert-key').click()
+	await page.keyboard.type('to')
+	await page.keyboard.press('Enter')
+	await page.keyboard.press('Enter')
+	await expect.poll(async () => (await lines()).at(-1)).toBe('a.insert("to")')
+})

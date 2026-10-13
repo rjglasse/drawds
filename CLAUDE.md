@@ -610,7 +610,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   of 26, Python a dict): insert (down, nodes added, end marked; the + above the root), contains (found, only a prefix,
   a letter missing), startsWith (down, then collect: a pre-order walk, the open path lit, words green, a `words`
   strip; from a node's menu, or all words), delete (recursive: down, unmark, prune on the way back while a node is no
-  word's end and childless; x on a word's node). Not yet tracked as code (dds-55z.17.11).
+  word's end and childless; x on a word's node). Code beside it (`src/transcript/trie-moves.ts`): the log follows its
+  words, `t = Trie(["tea", "ten"])` (Java varargs, C `trieOf(n, ...)`), each insert / delete a call with its word
+  (`playOperation`'s `args`), words otherwise put in or taken out as insert / delete; in the board script a `Trie` of
+  drawds' own code (methods in the class, `collect` / `delete_from` after it, nodes `TrieNode`), checked in python3.
 - `src/shapes/graph/` - graphs: nodes at free positions in cell units (so the size style scales the drawing), edges
   `{from, to, weight}` (weights always stored; shown when the `drawds:graph-weights` style says so; direction and
   A/0 labels are styles too, see `src/ui/GraphPickers.tsx`). `generate.ts` is the sketch: a node drops every

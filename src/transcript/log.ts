@@ -8,6 +8,9 @@ import type { TreeShapeProps } from '../shapes/tree/tree-shape-types'
 import { diffTree, sameTree, shapeOf, treeArgs, type TreeMove } from './tree-moves'
 import type { GeneralTreeShapeProps } from '../shapes/general-tree/general-tree-shape-types'
 import { diffGeneralTree, generalShapeOf, sameGeneralTree, type GeneralTreeMove } from './general-tree-moves'
+import type { TrieShapeProps } from '../shapes/trie/trie-shape-types'
+import { wordsOf } from '../shapes/trie/trie'
+import { diffTrie, sameWords, trieArgs, type TrieMove } from './trie-moves'
 import type { GraphShapeProps } from '../shapes/graph/graph-shape-types'
 import { built, diffGraph, graphState, sameGraph, type GraphMove, type GraphState } from './graph-moves'
 import type { HeapShapeProps } from '../shapes/heap/heap-shape-types'
@@ -34,7 +37,7 @@ import { diffUnionFind, sameUnionFind, unionFindState, type UnionFindMove, type 
 
 export const LOG_KEY = 'drawdsCode'
 
-export type Move = ArrayMove | ListMove | TreeMove | GeneralTreeMove | GraphMove | HeapMove | HashMove | MatrixMove | UnionFindMove
+export type Move = ArrayMove | ListMove | TreeMove | GeneralTreeMove | TrieMove | GraphMove | HeapMove | HashMove | MatrixMove | UnionFindMove
 
 /** What a kind of structure's log follows, and how a change of it reads as moves. */
 interface Tracked<S> {
@@ -137,6 +140,21 @@ const generalTrees: Tracked<TreeNodes> = {
 	restart: (first, nodes) => ({ ...(first as Extract<GeneralTreeMove, { op: 'new' }>), tree: generalShapeOf(nodes) }),
 	cell: (a, b) => a.find((n) => b.find((m) => m.id === n.id)?.value !== n.value)?.id,
 	sketching: 'general-tree.sketching',
+}
+
+// A trie's words, in order: insert and delete calls on it.
+const tries: Tracked<string[]> = {
+	state: (props) => wordsOf((props as TrieShapeProps).nodes),
+	touches: (a, b) => (a as TrieShapeProps).nodes !== (b as TrieShapeProps).nodes,
+	follows: () => true,
+	same: sameWords,
+	diff: diffTrie,
+	start: (name, words) => ({ op: 'new', name, words }),
+	restart: (first, words) => ({ ...(first as Extract<TrieMove, { op: 'new' }>), words }),
+	// Nothing in a trie is typed into.
+	cell: () => undefined,
+	sketching: 'trie.sketching',
+	args: trieArgs,
 }
 
 const graphs: Tracked<GraphState> = {
@@ -242,6 +260,7 @@ const TRACKED: Record<string, Tracked<unknown>> = {
 	'linked-list': lists as Tracked<unknown>,
 	'binary-tree': trees as Tracked<unknown>,
 	'general-tree': generalTrees as Tracked<unknown>,
+	trie: tries as Tracked<unknown>,
 	graph: graphs as Tracked<unknown>,
 	heap: heaps as Tracked<unknown>,
 	'hash-table': hashTables as Tracked<unknown>,
@@ -393,7 +412,7 @@ function typedIntoNew(before: Move[], moves: Move[]): Move[] | undefined {
 	// A hash table's keys go in by the + prompt, a matrix's new cells come filled: never typed into a new one.
 	if (set.op !== 'set' || 'key' in set || 'r' in set) return undefined
 	const at = 'i' in set ? set.i : set.path
-	const into = (last.op === 'insert' && last.i === at) || (last.op === 'insertAtHead' && at === 0) || (last.op === 'add' && last.path === at)
+	const into = (last.op === 'insert' && 'i' in last && last.i === at) || (last.op === 'insertAtHead' && at === 0) || (last.op === 'add' && last.path === at)
 	return into ? [...before.slice(0, -1), { ...last, v: set.v } as Move] : undefined
 }
 
