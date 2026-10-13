@@ -347,8 +347,9 @@ function NodeRing({ node, pad, ...rest }: { node: SceneNode; pad: number } & SVG
 			y={node.y - node.h / 2 - pad}
 			width={node.w + 2 * pad}
 			height={node.h + 2 * pad}
-			// A long value's round node is a stadium: round ends.
-			rx={node.kind === 'circle' ? node.h / 2 + pad : pad}
+			// A long value's round node is a stadium: round ends. A ring inside a box (a pulse) has square
+			// corners: a negative radius isn't one.
+			rx={node.kind === 'circle' ? node.h / 2 + pad : Math.max(0, pad)}
 			fill="none"
 			{...rest}
 		/>
