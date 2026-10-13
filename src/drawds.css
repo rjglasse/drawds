@@ -78,9 +78,19 @@
 	}
 }
 
+/* A new edge of a shape whose nodes glide (union-find) fades in while its nodes move into place. */
+@keyframes drawds-appear {
+	from {
+		opacity: 0;
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.drawds-pulse {
 		animation: none;
+	}
+	.drawds-glide {
+		transition: none !important;
 	}
 }
 

@@ -534,7 +534,10 @@ Each data structure is a custom tldraw shape plus a gesture-driven tool:
   `drawds:uf-compress` on / off (`src/ui/UnionFindPickers.tsx`). Drawn as a forest (`forestPositions`: n-ary tidy trees
   side by side, arrows up to the parent) centred over the parent array (index row, `parent`, then `size` / `rank`; the
   array starts at x = 0 and holds still). Keys: element `<i>`, parent pointer edge `e<i>` (marks `edge:e<i>`), cells
-  `p<i>` / `w<i>`; an element's mark lights its parent cell. `union-find.ts` pure model, `operations.ts` frames: find
+  `p<i>` / `w<i>`; an element's mark lights its parent cell. As trees merge or a path is compressed its nodes glide to
+  their new places (`glides` on NodeLinkShapeUtil, canvas only: SceneSvg's `glide` draws each node in a group moved by a
+  CSS transition and eases edge paths with CSS `d`, the scene in layout coordinates at the layout offset, which jumps;
+  a new edge fades in; off under prefers-reduced-motion). `union-find.ts` pure model, `operations.ts` frames: find
   (walk up with `curr`, then compression re-points arrows in a `scene` frame where the nodes are, then tidies) and
   union (both finds, then link by size / rank / naively, or refuse: one set already, Kruskal's cycle). Element menu: Find,
   Union with... (prompt: a name or index), Same set as... (`connectedSteps`, code `uf-connected`: both finds, the roots

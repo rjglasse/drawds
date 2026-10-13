@@ -1,4 +1,4 @@
-import type { CSSProperties, SVGProps } from 'react'
+import { Fragment, type CSSProperties, type ReactNode, type SVGProps } from 'react'
 import { getColorValue, type TLDefaultColorStyle, type TLThemeColors } from 'tldraw'
 import { CueBadge } from '../cells/CueBadge'
 import { cueBadgeAt, cueDash } from '../cells/cues'
@@ -52,6 +52,7 @@ export function SceneSvg({
 	warnings,
 	pulse,
 	cues,
+	glide,
 }: {
 	scene: Scene
 	colors: TLThemeColors
@@ -73,6 +74,12 @@ export function SceneSvg({
 	pulse?: readonly string[]
 	/** Colour-blind cues: marked and highlighted nodes get a shape badge, edges a line pattern (`cues.ts`). */
 	cues?: boolean
+	/**
+	 * Canvas only: nodes glide to where the layout moves them (and their edges with them) over `ms`; a new
+	 * edge fades in meanwhile. The scene is in layout coordinates, drawn at `origin` (the layout offset,
+	 * which jumps), so a node only glides when the layout really moves it (union-find's forest).
+	 */
+	glide?: { ms: number; origin: { x: number; y: number } }
 }) {
 	const { strokeWidth, fontSize, labelFontSize } = scene.metrics
 	const paint: Paint = {
@@ -91,6 +98,24 @@ export function SceneSvg({
 	const violet = getColorValue(colors, 'violet', 'solid')
 	// Faded elements fade in and out as the steps change.
 	const fade = (out: boolean) => ({ opacity: out ? 0.3 : 1, style: { transition: 'opacity 300ms ease-in-out' } })
+
+	// Gliding: a node is drawn at its own origin inside a group moved to it (a CSS transition on that
+	// move), a path eases from its old shape to its new one (CSS `d`), a new edge fades in.
+	const ease = glide && `${glide.ms}ms ease-in-out`
+	const at = (node: SceneNode, draw: (local: SceneNode) => ReactNode, key?: string) =>
+		ease ? (
+			<g key={key} className="drawds-glide" style={{ transform: `translate(${node.x}px, ${node.y}px)`, transition: `transform ${ease}` }}>
+				{draw({ ...node, x: 0, y: 0 })}
+			</g>
+		) : (
+			<Fragment key={key}>{draw(node)}</Fragment>
+		)
+	const path = (d: string) => (ease ? { d, className: 'drawds-glide', style: { d: `path("${d}")`, transition: `d ${ease}` } as CSSProperties } : { d })
+	const head = (points: string) => {
+		const [tip, a, b] = points.split(' ')
+		return path(`M ${tip.replace(',', ' ')} L ${a.replace(',', ' ')} L ${b.replace(',', ' ')} Z`)
+	}
+	const appear = glide ? { animation: `drawds-appear ${glide.ms}ms ease-in` } : {}
 
 	// Each value of a swapped pair starts at its partner's node and arcs over: one to each side. A
 	// copied value arcs in from where it was copied from.
@@ -117,7 +142,7 @@ export function SceneSvg({
 		return undefined
 	}
 
-	return (
+	const drawn = (
 		<g fontFamily={fontFamily} textAnchor="middle" dominantBaseline="central">
 			{scene.edges.map((edge) => {
 				const route = routes.get(edge.key)
@@ -135,6 +160,7 @@ export function SceneSvg({
 				const dash = cues && mark ? cueDash(mark, width) : undefined
 				return (
 					<g key={edge.key} {...fade(dimmed.has(labelKey) || dimmed.has(edge.from) || dimmed.has(edge.to))}>
+						<g style={appear}>
 						{pulsing.has(labelKey) && (
 							<path
 								className="drawds-pulse"
@@ -147,33 +173,43 @@ export function SceneSvg({
 								strokeLinecap="round"
 							/>
 						)}
-						{dash && <path d={route.d} fill="none" stroke={paint.stroke} strokeWidth={strokeWidth} />}
-						<path d={route.d} fill="none" stroke={stroke} strokeWidth={width} strokeLinecap="round" strokeDasharray={dash} />
-						{edge.directed && <polygon points={arrowHead(route.tip, route.angle, width * 3 + 6)} fill={stroke} />}
+						{dash && <path {...path(route.d)} fill="none" stroke={paint.stroke} strokeWidth={strokeWidth} />}
+						<path {...path(route.d)} fill="none" stroke={stroke} strokeWidth={width} strokeLinecap="round" strokeDasharray={dash} />
+						{edge.directed &&
+							(ease ? (
+								<path {...head(arrowHead(route.tip, route.angle, width * 3 + 6))} fill={stroke} />
+							) : (
+								<polygon points={arrowHead(route.tip, route.angle, width * 3 + 6)} fill={stroke} />
+							))}
 						{flash && flashStroke && (
 							// Keyed per step, like node highlights, so the fade restarts when the operation commits.
 							<g key={`flash-${flash.id}`} className={flash.fading ? 'drawds-flash drawds-flash-fade' : 'drawds-flash'}>
 								<path
-									d={route.d}
+									{...path(route.d)}
 									fill="none"
 									stroke={flashStroke}
 									strokeWidth={strokeWidth * 2.2}
 									strokeLinecap="round"
 									strokeDasharray={cues && flashColor ? cueDash(flashColor, strokeWidth * 2.2) : undefined}
 								/>
-								{edge.directed && (
-									<polygon points={arrowHead(route.tip, route.angle, strokeWidth * 2.2 * 3 + 6)} fill={flashStroke} />
-								)}
+								{edge.directed &&
+									(ease ? (
+										<path {...head(arrowHead(route.tip, route.angle, strokeWidth * 2.2 * 3 + 6))} fill={flashStroke} />
+									) : (
+										<polygon points={arrowHead(route.tip, route.angle, strokeWidth * 2.2 * 3 + 6)} fill={flashStroke} />
+									))}
 							</g>
 						)}
-						{box && (
-							<>
-								<rect x={box.x} y={box.y} width={box.w} height={box.h} rx={box.h / 2} fill={paint.background} />
-								<text x={route.labelAt.x} y={route.labelAt.y} fontSize={labelFontSize} fill={paint.text}>
-									{label}
-								</text>
-							</>
-						)}
+						{box &&
+							at({ ...route.labelAt, key: labelKey, kind: 'label', w: box.w, h: box.h, value: '', editable: false, draggable: false }, (l) => (
+								<>
+									<rect x={l.x - box.w / 2} y={l.y - box.h / 2} width={box.w} height={box.h} rx={box.h / 2} fill={paint.background} />
+									<text x={l.x} y={l.y} fontSize={labelFontSize} fill={paint.text}>
+										{label}
+									</text>
+								</>
+							))}
+						</g>
 					</g>
 				)
 			})}
@@ -185,40 +221,50 @@ export function SceneSvg({
 				const right = !!flash?.badges?.[node.key] && badgeDirection(node, scene).x < 0
 				const badge =
 					cues && (mark || flashColor) && hasOutline(node) ? cueBadgeAt(node, node.kind === 'circle', strokeWidth * 1.2, right) : undefined
+				// Gliding, the badge is placed on the node drawn at its own origin.
+				const local = badge && ease ? { ...badge, x: badge.x - node.x, y: badge.y - node.y } : badge
 				return (
 					<g key={node.key} {...fade(dimmed.has(node.key))}>
-						<NodeShapeSvg
-							node={node}
-							paint={mark ? markedPaint(paint, colors, mark) : paint}
-							flash={flashColor && flash ? { paint: markedPaint(paint, colors, flashColor), fading: flash.fading, id: flash.id } : undefined}
-						/>
-						{badge && mark && <CueBadge color={mark} at={badge} colors={colors} strokeWidth={strokeWidth} />}
-						{badge && flashColor && flash && (
-							<CueBadge
-								key={`cue-${flash.id}`}
-								color={flashColor}
-								at={badge}
-								colors={colors}
-								strokeWidth={strokeWidth}
-								className={flash.fading ? 'drawds-flash drawds-flash-fade' : 'drawds-flash'}
-							/>
-						)}
+						{at(node, (n) => (
+							<>
+								<NodeShapeSvg
+									node={n}
+									paint={mark ? markedPaint(paint, colors, mark) : paint}
+									flash={flashColor && flash ? { paint: markedPaint(paint, colors, flashColor), fading: flash.fading, id: flash.id } : undefined}
+								/>
+								{local && mark && <CueBadge color={mark} at={local} colors={colors} strokeWidth={strokeWidth} />}
+								{local && flashColor && flash && (
+									<CueBadge
+										key={`cue-${flash.id}`}
+										color={flashColor}
+										at={local}
+										colors={colors}
+										strokeWidth={strokeWidth}
+										className={flash.fading ? 'drawds-flash drawds-flash-fade' : 'drawds-flash'}
+									/>
+								)}
+							</>
+						))}
 					</g>
 				)
 			})}
 			{warnings?.map((key) => {
 				const node = byKey.get(key)
 				return (
-					node && (
+					node &&
+					at(
+						node,
+						(n) => (
 						<NodeRing
-							key={`warn-${key}`}
-							node={node}
+							node={n}
 							pad={strokeWidth * 2}
 							data-warning={key}
 							stroke={getColorValue(colors, 'red', 'solid')}
 							strokeWidth={strokeWidth * 1.2}
 							strokeDasharray={`${strokeWidth * 3} ${strokeWidth * 2}`}
 						/>
+						),
+						`warn-${key}`
 					)
 				)
 			})}
@@ -228,15 +274,20 @@ export function SceneSvg({
 					node && (
 						// Inside the node: cells side by side (a heap's array, a table's slots) share edges,
 						// and a ring outside an edge node would stick out of the shape's box.
+						at(
+							node,
+							(n) => (
 						<NodeRing
-							key={`pulse-${key}`}
-							node={node}
+							node={n}
 							pad={-strokeWidth * 1.5}
 							className="drawds-pulse"
 							data-pulse={key}
 							stroke={violet}
 							strokeWidth={strokeWidth * 2}
 						/>
+							),
+							`pulse-${key}`
+						)
 					)
 				)
 			})}
@@ -256,31 +307,34 @@ export function SceneSvg({
 				const swap = swapStyle(node.key)
 				return (
 					<g key={node.key} {...fade(dimmed.has(node.key))}>
-						<NodeValueSvg
-							key={swap && swaps ? `${node.key}:swap-${swaps.id}` : node.key}
-							node={node}
-							paint={paint}
-							hideValue={node.key === hiddenKey}
-							swapStyle={swap}
-						/>
+						{at(node, (n) => (
+							<NodeValueSvg
+								key={swap && swaps ? `${node.key}:swap-${swaps.id}` : node.key}
+								node={n}
+								paint={paint}
+								hideValue={node.key === hiddenKey}
+								swapStyle={swap}
+							/>
+						))}
 					</g>
 				)
 			})}
 			{flash?.badges &&
 				scene.nodes.map((node) =>
-					flash.badges?.[node.key] ? (
-						<NodeBadge
-							key={`badge-${node.key}-${flash.id}`}
-							node={node}
-							direction={badgeDirection(node, scene)}
-							text={flash.badges[node.key]}
-							paint={paint}
-							fading={flash.fading}
-						/>
-					) : null
+					flash.badges?.[node.key]
+						? at(
+								node,
+								(n) => (
+									<NodeBadge node={n} direction={badgeDirection(node, scene)} text={flash.badges![node.key]} paint={paint} fading={flash.fading} />
+								),
+								`badge-${node.key}-${flash.id}`
+							)
+						: null
 				)}
 		</g>
 	)
+	// The layout offset jumps; what is inside glides.
+	return glide ? <g transform={`translate(${glide.origin.x} ${glide.origin.y})`}>{drawn}</g> : drawn
 }
 
 /** A ring round a node (round or boxed, as the node is), `pad` off its outline: outside, or (negative) inside. */

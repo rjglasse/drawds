@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { UnionFindShapeProps } from '../src/shapes/union-find/union-find-shape-types'
-import { handlePosition, hoverNode, nodeScreenPosition, open, rightClick, shapesOfType, sketchUnionFind, withEditor } from './helpers'
+import { handlePosition, hoverNode, nodeScreenPosition, open, rightClick, shapesOfType, sketchGraph, sketchUnionFind, withEditor } from './helpers'
 
 const uf = async (page: Page) => (await shapesOfType<UnionFindShapeProps>(page, 'union-find'))[0].props
 const caption = (page: Page) => page.getByTestId('play-caption')
@@ -175,4 +175,21 @@ test("drag an element's grip onto another to union them, step by step; Same set 
 	await ufOp(page, 6, 'uf-connected', '1')
 	await stepToEnd(page)
 	await expect(caption(page)).toHaveText('ra == rb: both roots are 0, so 6 and 1 are in the same set (true)')
+})
+
+test('as trees merge, nodes glide to their new places (graphs, whose nodes follow the pointer, don\'t)', async ({ page }) => {
+	await sketchUnionFind(page, [300, 300], 4)
+	const glides = page.locator('[data-shape-type="union-find"] g.drawds-glide')
+	await expect.poll(() => glides.count()).toBeGreaterThan(0)
+	expect(await glides.first().evaluate((el) => getComputedStyle(el).transitionProperty)).toContain('transform')
+	const node1 = () => page.evaluate(() => document.querySelectorAll('[data-shape-type="union-find"] g.drawds-glide')[1]?.getAttribute('style'))
+	const before = await node1()
+	await page.evaluate(() => {
+		const e = window.editor!
+		const s = e.getOnlySelectedShape()!
+		void e.updateShape({ id: s.id, type: 'union-find', props: { parent: [0, 0, 2, 3], sizes: [2, 1, 1, 1] } })
+	})
+	await expect.poll(node1).not.toBe(before)
+	await sketchGraph(page, [300, 650], 3)
+	expect(await page.locator('[data-shape-type="graph"] .drawds-glide').count()).toBe(0)
 })

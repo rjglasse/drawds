@@ -112,6 +112,12 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 	 */
 	readonly markableEdges: boolean = false
 
+	/**
+	 * Whether nodes glide to where the layout moves them, on the canvas (union-find's forest, laid out
+	 * again as trees merge), rather than jumping: the class sees which tree went where.
+	 */
+	protected readonly glides: boolean = false
+
 	readonly cells: EditableCells<S> = sceneCells<S>(this)
 	private layouts = new WeakMap<object, { scene: Scene; offset: VecLike; room: unknown }>()
 
@@ -591,9 +597,12 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 		playing: PlaybackView | undefined,
 		{ scene = this.displayScene(shape), hover, animate = false }: { scene?: Scene; hover?: Marks; animate?: boolean } = {}
 	) {
+		// Gliding, the scene is drawn in layout coordinates at the layout offset, which jumps.
+		const origin = animate && this.glides ? this.layoutOffset(shape) : undefined
 		return (
 			<SceneSvg
-				scene={scene}
+				scene={origin ? translateScene(scene, Vec.Neg(origin)) : scene}
+				glide={origin && { ms: animationMs(GLIDE_MS, playing), origin }}
 				colors={colors}
 				color={this.style(shape).color}
 				fontFamily={this.getFontFamily(shape)}
@@ -757,6 +766,9 @@ export abstract class NodeLinkShapeUtil<S extends TLShape> extends CellShapeUtil
 }
 
 /** What a scene's drawing covers: its nodes, edges and edge labels. */
+/** How long a node takes to glide to its new place (shapes with `glides`), at 1x. */
+const GLIDE_MS = 450
+
 function sceneRoom(scene: Scene): Room | undefined {
 	const boxes: Room[] = scene.nodes.map((n) => ({ minX: n.x - n.w / 2, minY: n.y - n.h / 2, maxX: n.x + n.w / 2, maxY: n.y + n.h / 2 }))
 	for (const [key, route] of routeScene(scene)) {

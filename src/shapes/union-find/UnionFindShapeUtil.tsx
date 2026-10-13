@@ -33,6 +33,9 @@ export class UnionFindShapeUtil extends NodeLinkShapeUtil<UnionFindShape> {
 	// A parent pointer can be marked: a path, or the links a union made.
 	override readonly markableEdges = true
 
+	/** As trees merge or a path is compressed, nodes glide to their new places: the class sees which tree went where. */
+	protected override readonly glides = true
+
 	getDefaultProps(): UnionFindShape['props'] {
 		return {
 			labels: ['0'],
