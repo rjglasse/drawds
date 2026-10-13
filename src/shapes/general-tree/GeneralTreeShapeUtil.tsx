@@ -289,6 +289,7 @@ export class GeneralTreeShapeUtil extends NodeLinkShapeUtil<GeneralTreeShape> im
 			shapeId: id,
 			label: 'left child, right sibling',
 			frames: lcrsSteps(nodes, this.buildScene(shape)),
+			code: 'general-tree-lcrs',
 			// Nothing in it changes, but the result goes in: the binary tree.
 			final: { id, type: GENERAL_TREE_SHAPE_TYPE },
 			onCommit: () => {

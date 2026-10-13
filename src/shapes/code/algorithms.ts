@@ -6,6 +6,7 @@ import { TRIE_CODE } from '../trie/code'
 import { GRAPH_CODE } from '../graph/code'
 import { HASH_CODE } from '../hash/code'
 import { HEAP_CODE } from '../heap/code'
+import { MATRIX_CODE } from '../matrix/code'
 import { UNION_FIND_CODE } from '../union-find/code'
 import type { CodeLanguage } from './highlight'
 import { codeLines } from './layout'
@@ -63,7 +64,7 @@ export function parseCode(source: string, language: CodeLanguage): AlgorithmCode
 }
 
 /** Every algorithm with code, by id (what an operation names as its `code`). */
-export const ALGORITHMS: Record<string, CodeSource> = { ...ARRAY_CODE, ...LIST_CODE, ...TREE_CODE, ...GENERAL_TREE_CODE, ...TRIE_CODE, ...GRAPH_CODE, ...HEAP_CODE, ...HASH_CODE, ...UNION_FIND_CODE }
+export const ALGORITHMS: Record<string, CodeSource> = { ...ARRAY_CODE, ...LIST_CODE, ...TREE_CODE, ...GENERAL_TREE_CODE, ...TRIE_CODE, ...GRAPH_CODE, ...HEAP_CODE, ...MATRIX_CODE, ...HASH_CODE, ...UNION_FIND_CODE }
 
 const parsed = new Map<string, AlgorithmCode>()
 

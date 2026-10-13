@@ -45,6 +45,9 @@ import { heapCode } from '../heap/code'
 import { connectedSteps, findSteps, unionSteps } from '../union-find/operations'
 import { buildHeapSteps } from '../heap/heap'
 import { heapTreeNodes } from '../heap/layout'
+import { generalTreeScene } from '../general-tree/layout'
+import { lcrsSteps } from '../general-tree/lcrs'
+import { staircaseSearch, transposeSteps, traverse as traverseMatrix } from '../matrix/operations'
 import { insertSteps, removeSteps } from '../heap/steps'
 import { measureTree } from '../tree/measure'
 import { bstDeleteSteps, bstExtreme, bstInsertSteps, bstSearch } from '../tree/search'
@@ -243,6 +246,8 @@ describe('algorithm code', () => {
 			...(['pre', 'in', 'post', 'level'] as const).flatMap((order) => [traverseTree(tree, 'a', order), traverseTree(tree, 'a', order, { nulls: true })]),
 			// A general tree's, each call from a loop over the children.
 			...(['pre', 'post', 'level'] as const).map((order) => traverseTree(tree, 'a', order, { general: true })),
+			// Left child, right sibling, node by node.
+			{ frames: lcrsSteps(tree, generalTreeScene({ nodes: tree, size: 'm' })), code: 'general-tree-lcrs' },
 			...(['height', 'height-levels', 'leaves', 'size'] as const).map((m) => measureTree(tree, 'a', m, { general: true })),
 			// A trie's insert, contains, startsWith and delete, every way each can go.
 			...(() => {
@@ -310,6 +315,11 @@ describe('algorithm code', () => {
 					topologicalSort(dag),
 					topologicalSort({ ...dag, edges: [...dag.edges, { id: 'e8', from: 'c', to: 'a', weight: '1' }] }),
 				]
+			})(),
+			// Matrices: both traversals, transpose, staircase search found, gone off the left, off the bottom.
+			...(() => {
+				const m = [['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9']]
+				return [traverseMatrix(m, 'row'), traverseMatrix(m, 'col'), transposeSteps(m), staircaseSearch(m, '5'), staircaseSearch(m, '0'), staircaseSearch(m, '10')]
 			})(),
 		]
 		// What the steps give values for (their pointers and variables), by code: some runs never reach a

@@ -92,6 +92,8 @@ export function lcrsSteps(nodes: readonly TreeNode[], scene: Scene): Frame[] {
 			caption: `${value(p.id)}: ${value(first)}, its first child, is its left${rights ? `; ${rights} (the next sibling)` : ` (its only child)`}`,
 			ask: `${value(p.id)}'s children: which one is its left, and what are the others' rights?`,
 			askFocus: [p.id],
+			line: 'link',
+			vars: { node: value(p.id) },
 		})
 		previous = p.id
 	}

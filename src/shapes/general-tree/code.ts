@@ -129,6 +129,51 @@ export const GENERAL_TREE_CODE: Record<string, CodeSource> = {
 			        n += leaves(child)          $n
 			    return n                        @return`,
 	},
+	// Left child, right sibling, as the steps go: node by node in level order, its left its first child,
+	// each child's right its next sibling (the tree's own nodes, with a left and a right to fill in).
+	'general-tree-lcrs': {
+		c: String.raw`
+			void toBinary(Node *root) {
+			    Node *queue[MAX];
+			    int front = 0, rear = 0;
+			    queue[rear++] = root;
+			    while (front < rear) {
+			        Node *node = queue[front++];                    $node
+			        if (node->count == 0) continue;
+			        node->left = node->children[0];                 @link
+			        for (int i = 0; i + 1 < node->count; i++)
+			            node->children[i]->right = node->children[i + 1];
+			        for (int i = 0; i < node->count; i++)
+			            queue[rear++] = node->children[i];
+			    }
+			}`,
+		java: String.raw`
+			void toBinary(Node root) {
+			    Queue<Node> queue = new ArrayDeque<>();
+			    queue.add(root);
+			    while (!queue.isEmpty()) {
+			        Node node = queue.remove();                     $node
+			        List<Node> kids = node.children;
+			        if (kids.isEmpty()) continue;
+			        node.left = kids.get(0);                        @link
+			        for (int i = 0; i + 1 < kids.size(); i++)
+			            kids.get(i).right = kids.get(i + 1);
+			        queue.addAll(kids);
+			    }
+			}`,
+		python: String.raw`
+			def to_binary(root):
+			    queue = deque([root])
+			    while queue:
+			        node = queue.popleft()              $node
+			        kids = node.children
+			        if not kids:
+			            continue
+			        node.left = kids[0]                 @link
+			        for a, b in zip(kids, kids[1:]):
+			            a.right = b
+			        queue.extend(kids)`,
+	},
 }
 
 /** Height over any number of children, `h` starting at `start`: -1 makes a leaf 0 (edges), 0 makes it 1 (levels). */

@@ -19,9 +19,13 @@ const ij = (r: number, c: number): Pointer[] => [
 	{ id: '#i', name: 'i', at: rowKey(r) },
 	{ id: '#j', name: 'j', at: colKey(c) },
 ]
+/** i and j as the code beside it shows them: the indexes (the pointers sit on the index labels). */
+const indexes = (r: number, c: number) => ({ i: String(r), j: String(c) })
 
 export interface MatrixOperation {
 	frames: Frame[]
+	/** Its code beside the matrix (`src/shapes/matrix/code.ts`): each step names its line. */
+	code?: string
 	/** The matrix afterwards, if the operation changes it. */
 	values?: Grid
 	finalFlash?: Record<string, MarkColor>
@@ -59,6 +63,8 @@ export function traverse(values: Grid, order: 'row' | 'col'): MatrixOperation {
 			counts: { visited: k + 1 },
 			caption: `${k === 0 ? `${loops}: ` : ''}a[${r}][${c}] = ${values[r][c]}, at ${r}·${cols} + ${c} = ${offset} in memory${gap}`,
 			ask: k === 0 ? `${order === 'row' ? 'Row by row' : 'Column by column'}: which cell comes first?` : 'Which cell comes next, and where is it in memory?',
+			line: 'visit',
+			vars: indexes(r, c),
 		})
 		previous = offset
 	}
@@ -71,8 +77,9 @@ export function traverse(values: Grid, order: 'row' | 'col'): MatrixOperation {
 				? `All ${cells.length} cells, in memory order: row-major traversal reads memory straight through`
 				: `All ${cells.length} cells, but jumping ${cols} cells through memory each step: slower on real hardware (caches)`,
 		ask: 'Every cell is visited: how did this order move through memory?',
+		vars: indexes(...last),
 	})
-	return { frames }
+	return { frames, code: order === 'row' ? 'matrix-row-major' : 'matrix-col-major' }
 }
 
 /**
@@ -87,6 +94,7 @@ export function transposeSteps(values: Grid): MatrixOperation {
 			flash: Object.fromEntries(Array.from({ length: n }, (_, i) => [cellKey(i, i), VISITED])),
 			caption: `for i, for j > i: swap a[i][j] with a[j][i]. The diagonal (i = j) stays put`,
 			ask: 'Transpose in place: which cells move, and which stay put?',
+			line: 'upper',
 		},
 	]
 	let lit: string[] = []
@@ -102,6 +110,8 @@ export function transposeSteps(values: Grid): MatrixOperation {
 				flash: { ...Object.fromEntries(lit.map((k) => [k, null])), [a]: LOOK, [b]: LOOK },
 				caption: `swap a[${i}][${j}] and a[${j}][${i}]: ${grid[j][i]} and ${grid[i][j]} trade places across the diagonal`,
 				ask: 'Which two cells swap next?',
+				line: 'swap',
+				vars: indexes(i, j),
 			})
 			lit = [a, b]
 		}
@@ -112,7 +122,7 @@ export function transposeSteps(values: Grid): MatrixOperation {
 		caption: `Transposed: row i is now column i (${(n * (n - 1)) / 2} swaps)`,
 		ask: false,
 	})
-	return { frames, values: grid }
+	return { frames, values: grid, code: 'matrix-transpose' }
 }
 
 /** Whether every row and every column is in order (smallest top-left), as staircase search needs. */
@@ -152,9 +162,10 @@ export function staircaseSearch(values: Grid, target: string): MatrixOperation {
 			ask: `${steps === 1 ? 'Start top-right: ' : ''}a[${r}][${c}] = ${v} vs ${target}: found it, go left, or go down?`,
 			askFocus: [here],
 		}
+		const vars = { ...indexes(r, c), key: target }
 		if (cmp === 0) {
-			frames.push({ pointers: ij(r, c), flash, dim: [...out], counts: { steps }, caption: `${how}a[${r}][${c}] = ${target}: found in ${steps} step${steps === 1 ? '' : 's'}`, ...ask })
-			return { frames, finalFlash: { [here]: FOUND } }
+			frames.push({ pointers: ij(r, c), flash, dim: [...out], counts: { steps }, caption: `${how}a[${r}][${c}] = ${target}: found in ${steps} step${steps === 1 ? '' : 's'}`, ...ask, line: 'found', vars })
+			return { frames, finalFlash: { [here]: FOUND }, code: 'matrix-staircase' }
 		}
 		if (cmp > 0) {
 			for (let i = r; i < rows; i++) out.push(cellKey(i, c))
@@ -166,6 +177,8 @@ export function staircaseSearch(values: Grid, target: string): MatrixOperation {
 				counts: { steps },
 				caption: `${how}${v} > ${target}: the rest of column ${c} is bigger still, so ${target} isn't there. Go left`,
 				...ask,
+				line: 'left',
+				vars,
 			})
 			c--
 		} else {
@@ -178,6 +191,8 @@ export function staircaseSearch(values: Grid, target: string): MatrixOperation {
 				counts: { steps },
 				caption: `${how}${v} < ${target}: the rest of row ${r} is smaller still, so ${target} isn't there. Go down`,
 				...ask,
+				line: 'down',
+				vars,
 			})
 			r++
 		}
@@ -189,8 +204,11 @@ export function staircaseSearch(values: Grid, target: string): MatrixOperation {
 		counts: { steps },
 		caption: `Off the edge: ${target} is not in the matrix, found out in ${steps} steps (never more than ${rows} + ${cols} - 1)`,
 		ask: 'Off the edge of the matrix: what does that tell us?',
+		// Where i and j ended, off the edge (i = rows, or j = -1).
+		line: 'missing',
+		vars: { ...indexes(r, c), key: target },
 	})
-	return { frames }
+	return { frames, code: 'matrix-staircase' }
 }
 
 export { transpose }

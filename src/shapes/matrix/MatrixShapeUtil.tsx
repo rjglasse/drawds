@@ -219,11 +219,12 @@ export class MatrixShapeUtil extends CellShapeUtil<MatrixShape> implements Refil
 	private play(id: MatrixShape['id'], label: string, operation: (values: Grid) => MatrixOperation) {
 		const shape = this.editor.getShape(id) as MatrixShape | undefined
 		if (!shape) return
-		const { frames, values, finalFlash } = operation(shape.props.values)
+		const { frames, values, finalFlash, code } = operation(shape.props.values)
 		playOperation(this.editor, {
 			shapeId: id,
 			label,
 			frames,
+			code,
 			final: values && this.update(shape, { values }),
 			finalFlash,
 			// Shift: the highlights become marks, on cells still there.
